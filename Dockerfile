@@ -1,0 +1,16 @@
+FROM debian:bookworm-slim AS build
+RUN apt-get update && apt-get install -y --no-install-recommends cmake ninja-build g++ && rm -rf /var/lib/apt/lists/*
+WORKDIR /src
+COPY CMakeLists.txt ./
+COPY include include
+COPY src src
+COPY apps apps
+RUN cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DGRAPHX_BUILD_TESTS=OFF \
+ && cmake --build build
+
+FROM debian:bookworm-slim
+COPY --from=build /src/build/graphx-generator /usr/local/bin/
+COPY --from=build /src/build/graphx-transform /usr/local/bin/
+COPY --from=build /src/build/graphx-sink /usr/local/bin/
+USER 65532:65532
+ENTRYPOINT ["/usr/local/bin/graphx-generator"]

@@ -1,0 +1,5 @@
+# Projection of graphx.yaml: logical compute graph.
+nodes: [generator, transform, sink]
+edges:
+  - { id: samples, from: generator.samples, to: transform.samples }
+  - { id: transformed, from: transform.transformed, to: sink.transformed }

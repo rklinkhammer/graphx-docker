@@ -1,0 +1,46 @@
+version: 1
+graph:
+  id: sample-pipeline
+  nodes:
+    - id: generator
+      kind: source
+      image: graphx-demo:latest
+      command: graphx-generator
+      ports:
+        - { name: samples, direction: output, schema: Sample }
+    - id: transform
+      kind: transform
+      image: graphx-demo:latest
+      command: graphx-transform
+      ports:
+        - { name: samples, direction: input, schema: Sample }
+        - { name: transformed, direction: output, schema: TransformedSample }
+    - id: sink
+      kind: sink
+      image: graphx-demo:latest
+      command: graphx-sink
+      ports:
+        - { name: transformed, direction: input, schema: TransformedSample }
+  edges:
+    - id: samples
+      from: generator.samples
+      to: transform.samples
+      transport: tcp
+    - id: transformed
+      from: transform.transformed
+      to: sink.transformed
+      transport: tcp
+transport:
+  tcp:
+    samples: { host: transform, bind: 0.0.0.0, port: 7001, framing: u32be }
+    transformed: { host: sink, bind: 0.0.0.0, port: 7002, framing: u32be }
+deployment:
+  network: graphx
+  telemetry:
+    service: telemetry
+    port: 8080
+observability:
+  metrics: { enabled: true, exporters: [console, udp-json] }
+  tracing: { enabled: true, exporters: [console, udp-json] }
+  telemetry: { host: telemetry, port: 9000, websocket: /ws }
+  capture: { enabled: false, provider: pcapng-extcap-future }

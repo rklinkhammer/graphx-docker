@@ -1,0 +1,86 @@
+#pragma once
+
+#include "graphx/observability.hpp"
+#include "graphx/tcp_transport.hpp"
+
+#include <chrono>
+#include <cstdlib>
+#include <iostream>
+#include <stdexcept>
+#include <string>
+#include <thread>
+
+namespace demo {
+
+inline std::string env(const char* name, std::string fallback) {
+  if (const char* value = std::getenv(name)) return value;
+  return fallback;
+}
+
+inline std::uint16_t port(const char* name, std::uint16_t fallback) {
+  return static_cast<std::uint16_t>(std::stoi(env(name, std::to_string(fallback))));
+}
+
+class ConsoleTraceSink final : public graphx::TraceSink {
+ public:
+  void on_send(std::string_view edge, const graphx::Envelope& envelope,
+               std::size_t bytes) override {
+    std::cout << "metric edge=" << edge << " event=send seq=" << envelope.sequence
+              << " bytes=" << bytes << std::endl;
+  }
+  void on_receive(std::string_view edge, const graphx::Envelope& envelope,
+                  std::size_t bytes, std::chrono::nanoseconds latency) override {
+    std::cout << "metric edge=" << edge << " event=receive seq=" << envelope.sequence
+              << " bytes=" << bytes << " latency_us=" << latency.count() / 1000.0 << std::endl;
+  }
+  void on_error(std::string_view edge, std::string_view message) override {
+    std::cerr << "metric edge=" << edge << " event=error message=\"" << message << "\"\n";
+  }
+};
+
+class RuntimeTraceSink final : public graphx::TraceSink {
+ public:
+  explicit RuntimeTraceSink(std::string node_id)
+      : telemetry_(std::move(node_id), env("GRAPHX_TELEMETRY_HOST", "127.0.0.1"),
+                   port("GRAPHX_TELEMETRY_PORT", 9000)) {
+    composite_.add(console_);
+    composite_.add(metrics_);
+    composite_.add(telemetry_);
+  }
+
+  void on_send(std::string_view edge, const graphx::Envelope& envelope,
+               std::size_t bytes) override {
+    composite_.on_send(edge, envelope, bytes);
+  }
+  void on_receive(std::string_view edge, const graphx::Envelope& envelope,
+                  std::size_t bytes, std::chrono::nanoseconds latency) override {
+    composite_.on_receive(edge, envelope, bytes, latency);
+  }
+  void on_error(std::string_view edge, std::string_view message) override {
+    composite_.on_error(edge, message);
+  }
+
+ private:
+  ConsoleTraceSink console_;
+  graphx::MetricsTraceSink metrics_;
+  graphx::UdpJsonTraceSink telemetry_;
+  graphx::CompositeTraceSink composite_;
+};
+
+inline graphx::TcpTransport connect_with_retry(graphx::Endpoint endpoint,
+                                                std::string edge,
+                                                graphx::TraceSink* trace) {
+  for (int attempt = 1; attempt <= 60; ++attempt) {
+    try {
+      return graphx::TcpTransport::connect(endpoint, edge, trace);
+    } catch (const std::exception& error) {
+      if (attempt == 60) throw;
+      std::cerr << "waiting for " << endpoint.host << ':' << endpoint.port
+                << " (" << error.what() << ")\n";
+      std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
+  }
+  throw std::runtime_error("unreachable");
+}
+
+}  // namespace demo

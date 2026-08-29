@@ -1,0 +1,6 @@
+.git
+build
+web/node_modules
+web/dist
+outputs
+work
