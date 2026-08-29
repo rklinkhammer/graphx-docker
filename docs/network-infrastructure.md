@@ -31,6 +31,12 @@ Commands are executed without a shell. Review the exact plan on any platform:
 The provisioner targets clean development labs. It does not yet persist state,
 reconcile drift, or roll back a partially failed create operation.
 
+Focused examples are available for a single macvlan domain, three independently
+routed IPvlan L2 domains, and three independent IPvlan L3 domains. See
+`examples/macvlan`, `examples/ipvlan-l2`, and `examples/ipvlan-l3`. The IPvlan L3
+model permits an omitted gateway because L3 mode installs a device route instead
+of using an L2 next hop.
+
 ## Faults and inspection
 
 `graphx infra fault apply` places `tc netem` on a selected router interface:

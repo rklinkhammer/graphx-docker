@@ -84,7 +84,19 @@
         "host": { "type": "string", "minLength": 1, "maxLength": 253 },
         "bind": { "type": "string", "minLength": 1, "maxLength": 253 },
         "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
-        "framing": { "const": "u32be" }
+        "framing": { "const": "u32be" },
+        "connect_timeout_ms": { "type": "integer", "minimum": 1, "maximum": 600000 },
+        "send_timeout_ms": { "type": "integer", "minimum": 1, "maximum": 600000 },
+        "reconnect": { "type": "boolean" },
+        "retry": { "$ref": "#/$defs/tcpRetry" }
+      }
+    },
+    "tcpRetry": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "max_attempts": { "type": "integer", "minimum": 1, "maximum": 1000 },
+        "initial_backoff_ms": { "type": "integer", "minimum": 0, "maximum": 600000 },
+        "max_backoff_ms": { "type": "integer", "minimum": 0, "maximum": 600000 }
       }
     },
     "unix": {
@@ -118,7 +130,17 @@
     },
     "networkDefinition": {
       "type": "object", "additionalProperties": false,
-      "required": ["id", "driver", "subnet", "gateway"],
+      "required": ["id", "driver", "subnet"],
+      "allOf": [
+        {
+          "if": {
+            "required": ["driver", "mode"],
+            "properties": { "driver": { "const": "ipvlan" }, "mode": { "enum": ["l3", "l3s"] } }
+          },
+          "then": {},
+          "else": { "required": ["gateway"] }
+        }
+      ],
       "properties": {
         "id": { "$ref": "#/$defs/id" },
         "driver": { "enum": ["bridge", "macvlan", "ipvlan"] },

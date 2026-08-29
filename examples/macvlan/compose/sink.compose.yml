@@ -1,0 +1,11 @@
+services:
+  sink:
+    image: graphx-demo:latest
+    entrypoint: ["/usr/local/bin/graphx-sink"]
+    volumes: ["../graphx.yaml:/etc/graphx/graphx.yaml:ro"]
+    networks:
+      data:
+        ipv4_address: 10.30.0.30
+        mac_address: "02:30:00:00:00:30"
+networks:
+  data: { name: gx-macvlan-demo, external: true }

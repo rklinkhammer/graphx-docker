@@ -66,7 +66,13 @@ int topology_command(const std::string& command, int argc, char** argv) {
               << " transport=" << to_string(edge.transport.kind);
     if (edge.transport.kind == graphx::TransportKind::tcp)
       std::cout << " connect=" << edge.transport.host << ':' << edge.transport.port
-                << " listen=" << edge.transport.bind << ':' << edge.transport.port;
+                << " listen=" << edge.transport.bind << ':' << edge.transport.port
+                << " connect-timeout-ms=" << edge.transport.connect_timeout_ms
+                << " send-timeout-ms=" << edge.transport.send_timeout_ms
+                << " retry=" << edge.transport.retry_attempts << '/'
+                << edge.transport.retry_initial_backoff_ms << '-'
+                << edge.transport.retry_max_backoff_ms << "ms reconnect="
+                << (edge.transport.reconnect ? "true" : "false");
     else if (edge.transport.kind == graphx::TransportKind::unix_socket)
       std::cout << " path=" << edge.transport.path;
     else
@@ -75,8 +81,10 @@ int topology_command(const std::string& command, int argc, char** argv) {
   }
   for (const auto& network : config.network_infrastructure.networks)
     std::cout << "network " << network.id << " driver=" << to_string(network.driver)
-              << " subnet=" << network.subnet << " gateway=" << network.gateway
-              << (network.parent.empty() ? "" : " parent=" + network.parent) << '\n';
+              << " subnet=" << network.subnet
+              << (network.gateway.empty() ? "" : " gateway=" + network.gateway)
+              << (network.parent.empty() ? "" : " parent=" + network.parent)
+              << (network.mode.empty() ? "" : " mode=" + network.mode) << '\n';
   for (const auto& network_switch : config.network_infrastructure.switches)
     std::cout << "switch " << network_switch.id << " kind=" << to_string(network_switch.kind)
               << " datapath=" << network_switch.datapath << " ports=" << network_switch.ports.size()

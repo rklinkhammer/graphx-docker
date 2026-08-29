@@ -71,19 +71,4 @@ class RuntimeTraceSink final : public graphx::TraceSink {
 
 inline std::filesystem::path config_path() { return env("GRAPHX_CONFIG", "graphx.yaml"); }
 
-inline graphx::TransportPtr connect_with_retry(graphx::TransportFactory& factory,
-                                               const graphx::EdgeConfig& edge,
-                                               graphx::TraceSink* trace) {
-  for (int attempt = 1; attempt <= 60; ++attempt) {
-    try {
-      return factory.create(edge, graphx::ConnectionMode::connect, trace);
-    } catch (const std::exception& error) {
-      if (attempt == 60) throw;
-      std::cerr << "waiting for edge " << edge.edge.id << " (" << error.what() << ")\n";
-      std::this_thread::sleep_for(std::chrono::seconds(1));
-    }
-  }
-  throw std::runtime_error("unreachable");
-}
-
 }  // namespace demo

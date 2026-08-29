@@ -26,8 +26,24 @@ graph:
       transport: tcp
 transport:
   tcp:
-    samples: { host: transform, bind: 0.0.0.0, port: 7001, framing: u32be }
-    transformed: { host: sink, bind: 0.0.0.0, port: 7002, framing: u32be }
+    samples:
+      host: transform
+      bind: 0.0.0.0
+      port: 7001
+      framing: u32be
+      connect_timeout_ms: 2000
+      send_timeout_ms: 5000
+      reconnect: true
+      retry: { max_attempts: 60, initial_backoff_ms: 100, max_backoff_ms: 2000 }
+    transformed:
+      host: sink
+      bind: 0.0.0.0
+      port: 7002
+      framing: u32be
+      connect_timeout_ms: 2000
+      send_timeout_ms: 5000
+      reconnect: true
+      retry: { max_attempts: 60, initial_backoff_ms: 100, max_backoff_ms: 2000 }
 network:
   networks:
     - id: graphx

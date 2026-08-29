@@ -16,11 +16,19 @@ TransportPtr TransportFactory::create(const EdgeConfig& edge, ConnectionMode mod
         throw std::invalid_argument("TCP transport requires host, bind, and nonzero port");
       const Endpoint endpoint{mode == ConnectionMode::connect ? transport.host : transport.bind,
                               transport.port};
+      TcpOptions options;
+      options.connect_timeout = std::chrono::milliseconds(transport.connect_timeout_ms);
+      options.send_timeout = std::chrono::milliseconds(transport.send_timeout_ms);
+      options.retry.max_attempts = transport.retry_attempts;
+      options.retry.initial_backoff =
+          std::chrono::milliseconds(transport.retry_initial_backoff_ms);
+      options.retry.max_backoff = std::chrono::milliseconds(transport.retry_max_backoff_ms);
+      options.reconnect = transport.reconnect;
       if (mode == ConnectionMode::connect)
         return std::make_unique<TcpTransport>(
-            TcpTransport::connect(endpoint, edge.edge.id, trace_sink));
+            TcpTransport::connect(endpoint, edge.edge.id, trace_sink, options));
       return std::make_unique<TcpTransport>(
-          TcpTransport::listen(endpoint, edge.edge.id, trace_sink));
+          TcpTransport::listen(endpoint, edge.edge.id, trace_sink, options));
     }
     case TransportKind::unix_socket:
       if (transport.path.empty())

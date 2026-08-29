@@ -18,8 +18,24 @@ graph:
     - { id: transformed, from: transform.transformed, to: sink.transformed, transport: tcp }
 transport:
   tcp:
-    samples: { host: 10.20.0.20, bind: 0.0.0.0, port: 7001, framing: u32be }
-    transformed: { host: 10.20.0.30, bind: 0.0.0.0, port: 7002, framing: u32be }
+    samples:
+      host: 10.20.0.20
+      bind: 0.0.0.0
+      port: 7001
+      framing: u32be
+      connect_timeout_ms: 2000
+      send_timeout_ms: 5000
+      reconnect: true
+      retry: { max_attempts: 60, initial_backoff_ms: 100, max_backoff_ms: 2000 }
+    transformed:
+      host: 10.20.0.30
+      bind: 0.0.0.0
+      port: 7002
+      framing: u32be
+      connect_timeout_ms: 2000
+      send_timeout_ms: 5000
+      reconnect: true
+      retry: { max_attempts: 60, initial_backoff_ms: 100, max_backoff_ms: 2000 }
 network:
   networks:
     - { id: gx-mac-domain, driver: macvlan, subnet: 10.10.0.0/24, gateway: 10.10.0.1, parent: mv-parent, external: true }

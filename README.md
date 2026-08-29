@@ -59,6 +59,15 @@ See [`examples/mixed-network/README.md`](examples/mixed-network/README.md) and
 does not support Docker's macvlan driver, so the macOS profile is deliberately
 identified as a simulation rather than an exact substitute.
 
+Three focused native-Linux examples isolate each driver/mode:
+
+- [`examples/macvlan`](examples/macvlan/README.md): one macvlan L2 domain with
+  explicit IP and MAC assignments;
+- [`examples/ipvlan-l2`](examples/ipvlan-l2/README.md): one independent IPvlan L2
+  network per node, connected through OVS and a namespace router;
+- [`examples/ipvlan-l3`](examples/ipvlan-l3/README.md): one independent IPvlan L3
+  network/subnet per node, routed by the shared IPvlan parent data path.
+
 ### Run the web console during development
 
 ```sh
@@ -83,7 +92,11 @@ Each program is a separate executable and container entry point:
 - `graphx-transform` listens for samples, doubles the text-encoded integer, and emits `TransformedSample`.
 - `graphx-sink` listens and prints sequence, value, and trace ID.
 
-The applications load and validate `graphx.yaml` before opening a transport. In Compose, listeners bind to `0.0.0.0`; clients use service names instead of fixed container addresses. The generator and transform retry outbound connections during startup.
+The applications load and validate `graphx.yaml` before opening a transport. In
+Compose, listeners bind to `0.0.0.0`; clients use service names instead of fixed
+container addresses. TCP retry, exponential backoff, connect/send deadlines, and
+reconnect behavior are configured per edge. Listeners retain their listening
+socket and accept a replacement client after disconnect.
 
 ## Architecture
 
@@ -100,7 +113,21 @@ The core contracts stay deliberately small:
 - **TraceSink** receives send, receive, latency, byte-count, and error callbacks without coupling the runtime to one metrics stack. Metrics, fan-out, console, and best-effort UDP JSON implementations are included.
 - **CaptureSink / ExtcapProvider** mark the boundary for future serialized-frame capture, PCAPNG writing, and Wireshark extcap control.
 
-TCP uses a four-byte unsigned big-endian length followed by one serialized envelope. Frames are capped at 16 MiB before allocation. The envelope begins with `GXE` plus a version byte, so future decoders can reject incompatible payloads cleanly.
+TCP uses a four-byte unsigned big-endian length followed by one serialized
+envelope. Frames are capped at 16 MiB before allocation. One receive deadline
+covers both header and payload, and a timeout or closure during a partial frame
+closes that connection to prevent stream desynchronization. Writes have a bounded
+deadline, providing explicit blocking backpressure. Linux uses `MSG_NOSIGNAL` and
+macOS uses `SO_NOSIGPIPE`, so a peer closure becomes an exception instead of
+terminating the process. The envelope begins with `GXE` plus a version byte, so
+future decoders can reject incompatible payloads cleanly.
+
+When `reconnect` is enabled, an outbound send that detects a broken connection
+reconnects and retries the complete frame once. This is intentionally
+**at-least-once** behavior: if the connection failed after the peer accepted the
+frame but before the sender could observe success, a duplicate is possible.
+Consumers that require exactly-once effects must deduplicate by envelope sequence
+or trace ID.
 
 ### Three related topologies
 
@@ -146,6 +173,22 @@ export GRAPHX_OVERRIDES='transport.tcp.samples.host=127.0.0.1;transport.tcp.tran
 Run each node in its own terminal. Override paths must already exist, which
 prevents misspelled deployment settings from silently creating unused keys.
 
+TCP edge settings accept:
+
+```yaml
+connect_timeout_ms: 2000
+send_timeout_ms: 5000
+reconnect: true
+retry:
+  max_attempts: 60
+  initial_backoff_ms: 100
+  max_backoff_ms: 2000
+```
+
+Retry backoff doubles up to `max_backoff_ms`. A timed receive that expires before
+any frame byte arrives returns no envelope; expiry after a partial header or
+payload is an error and closes the connection.
+
 Version 1 limits configuration files to 1 MiB, graphs to 1,024 nodes and 4,096
 edges, and nodes to 256 ports. Identifiers match
 `[A-Za-z][A-Za-z0-9_-]{0,63}`. An edge must connect an output to an input with
@@ -176,7 +219,7 @@ Pause, fault injection, and reset are development-control scaffolds. They update
 │   └── telemetry/          static web + JSON control service
 ├── config/                 graph/transport/deployment projections
 ├── docker/                 telemetry and userspace-OVS images
-├── examples/mixed-network/ native Linux and Docker Desktop network labs
+├── examples/               mixed, macvlan, IPvlan L2, and IPvlan L3 labs
 ├── include/graphx/         public C++ contracts
 ├── src/                    envelope, framing, and transports
 ├── tests/                  dependency-free unit/integration test runner
@@ -220,6 +263,9 @@ To add observability, implement `TraceSink`. An OpenTelemetry adapter can turn a
 - deterministic envelope serialization/deserialization;
 - in-process delivery;
 - TCP request/reply across a loopback socket, including framing and envelope decoding;
+- fragmented headers/payloads, consecutive frames, closure boundaries, maximum
+  frame rejection, full-frame deadlines, reconnect, listener replacement, and
+  cancellation without `SIGPIPE`;
 - Unix-domain socket request/reply with the same envelope and framing contract.
 - authoritative configuration loading and lookup;
 - override precedence and typo rejection;
@@ -234,7 +280,8 @@ The tests use no third-party framework so a fresh scaffold remains easy to build
 
 ## Roadmap
 
-1. **Runtime lifecycle and TCP hardening** — reconnect policy, cancellation, TLS option, backpressure, and graceful shutdown.
+1. **Runtime lifecycle follow-up** — optional TLS, process-level graceful shutdown,
+   and richer connection/reconnect telemetry. Core TCP hardening is implemented.
 2. **Shared memory** — bounded ring buffer, ownership protocol, and explicit backpressure behavior.
 3. **OpenTelemetry** — OTLP spans, Prometheus-style edge metrics, and trace-context propagation.
 4. **Wireshark integration** — PCAPNG custom blocks, extcap interface, and message-to-packet correlation in the edge inspector.

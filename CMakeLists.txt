@@ -65,4 +65,8 @@ if(GRAPHX_BUILD_TESTS)
   add_test(NAME graphx-config-tests COMMAND graphx-config-tests)
   add_test(NAME graphx-config-cli
     COMMAND graphx-cli validate ${CMAKE_SOURCE_DIR}/graphx.yaml)
+  foreach(example mixed-network macvlan ipvlan-l2 ipvlan-l3)
+    add_test(NAME graphx-config-${example}
+      COMMAND graphx-cli validate ${CMAKE_SOURCE_DIR}/examples/${example}/graphx.yaml)
+  endforeach()
 endif()

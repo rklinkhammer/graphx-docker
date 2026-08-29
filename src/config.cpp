@@ -321,7 +321,9 @@ class ConfigParser {
       if (!require_map(settings, path)) continue;
       consumed.insert(name + "." + edge.edge.id);
       if (edge.transport.kind == TransportKind::tcp) {
-        strict_keys(settings, path, {"host", "bind", "port", "framing"});
+        strict_keys(settings, path,
+                    {"host", "bind", "port", "framing", "connect_timeout_ms", "send_timeout_ms", "reconnect",
+                     "retry"});
         edge.transport.host = text(settings["host"], path + ".host", 253);
         edge.transport.bind = text(settings["bind"], path + ".bind", 253);
         const auto port = unsigned_value(settings["port"], path + ".port");
@@ -331,6 +333,43 @@ class ConfigParser {
           edge.transport.port = static_cast<std::uint16_t>(port);
         if (settings["framing"])
           edge.transport.framing = text(settings["framing"], path + ".framing", 16);
+        if (settings["connect_timeout_ms"]) {
+          edge.transport.connect_timeout_ms =
+              unsigned_value(settings["connect_timeout_ms"], path + ".connect_timeout_ms");
+          if (edge.transport.connect_timeout_ms == 0 || edge.transport.connect_timeout_ms > 600000)
+            error(path + ".connect_timeout_ms", "must be between 1 and 600000");
+        }
+        if (settings["send_timeout_ms"]) {
+          edge.transport.send_timeout_ms =
+              unsigned_value(settings["send_timeout_ms"], path + ".send_timeout_ms");
+          if (edge.transport.send_timeout_ms == 0 || edge.transport.send_timeout_ms > 600000)
+            error(path + ".send_timeout_ms", "must be between 1 and 600000");
+        }
+        edge.transport.reconnect = bool_value(settings["reconnect"], path + ".reconnect", true);
+        if (const auto retry = settings["retry"]) {
+          if (require_map(retry, path + ".retry")) {
+            strict_keys(retry, path + ".retry",
+                        {"max_attempts", "initial_backoff_ms", "max_backoff_ms"});
+            if (retry["max_attempts"])
+              edge.transport.retry_attempts =
+                  unsigned_value(retry["max_attempts"], path + ".retry.max_attempts");
+            if (retry["initial_backoff_ms"])
+              edge.transport.retry_initial_backoff_ms = unsigned_value(
+                  retry["initial_backoff_ms"], path + ".retry.initial_backoff_ms");
+            if (retry["max_backoff_ms"])
+              edge.transport.retry_max_backoff_ms =
+                  unsigned_value(retry["max_backoff_ms"], path + ".retry.max_backoff_ms");
+            if (edge.transport.retry_attempts == 0 || edge.transport.retry_attempts > 1000)
+              error(path + ".retry.max_attempts", "must be between 1 and 1000");
+            if (edge.transport.retry_initial_backoff_ms > 600000)
+              error(path + ".retry.initial_backoff_ms", "must not exceed 600000");
+            if (edge.transport.retry_max_backoff_ms > 600000)
+              error(path + ".retry.max_backoff_ms", "must not exceed 600000");
+            if (edge.transport.retry_max_backoff_ms < edge.transport.retry_initial_backoff_ms)
+              error(path + ".retry.max_backoff_ms",
+                    "must be greater than or equal to initial_backoff_ms");
+          }
+        }
       } else if (edge.transport.kind == TransportKind::unix_socket) {
         strict_keys(settings, path, {"path", "framing"});
         edge.transport.path = text(settings["path"], path + ".path", 103);
@@ -425,9 +464,14 @@ class ConfigParser {
       else
         error(path + ".driver", "must be 'bridge', 'macvlan', or 'ipvlan'");
       network.subnet = text(value["subnet"], path + ".subnet", 43);
-      network.gateway = text(value["gateway"], path + ".gateway", 39);
       if (value["parent"]) network.parent = text(value["parent"], path + ".parent", 15);
       if (value["mode"]) network.mode = text(value["mode"], path + ".mode", 8);
+      const bool layer_three = network.driver == NetworkDriver::ipvlan &&
+                               (network.mode == "l3" || network.mode == "l3s");
+      if (value["gateway"])
+        network.gateway = text(value["gateway"], path + ".gateway", 39);
+      else if (!layer_three)
+        error(path + ".gateway", "is required except for ipvlan l3/l3s");
       network.external = bool_value(value["external"], path + ".external", true);
       if ((network.driver == NetworkDriver::macvlan || network.driver == NetworkDriver::ipvlan) &&
           network.parent.empty())
@@ -761,11 +805,13 @@ class ConfigParser {
         if (address && *address != subnet->network)
           error(path + ".subnet", "must use the network address for its prefix");
       }
-      const auto gateway = ipv4_address(network.gateway);
-      if (!gateway)
-        error(path + ".gateway", "must be an IPv4 address");
-      else if (subnet && (*gateway & subnet->mask) != subnet->network)
-        error(path + ".gateway", "must be inside the network subnet");
+      if (!network.gateway.empty()) {
+        const auto gateway = ipv4_address(network.gateway);
+        if (!gateway)
+          error(path + ".gateway", "must be an IPv4 address");
+        else if (subnet && (*gateway & subnet->mask) != subnet->network)
+          error(path + ".gateway", "must be inside the network subnet");
+      }
     }
 
     std::unordered_set<std::string> switch_ids;

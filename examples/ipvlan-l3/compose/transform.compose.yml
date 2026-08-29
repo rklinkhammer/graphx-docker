@@ -1,0 +1,9 @@
+services:
+  transform:
+    image: graphx-demo:latest
+    entrypoint: ["/usr/local/bin/graphx-transform"]
+    volumes: ["../graphx.yaml:/etc/graphx/graphx.yaml:ro"]
+    networks:
+      data: { ipv4_address: 10.42.2.20 }
+networks:
+  data: { name: gx-ipvl3-transform, external: true }

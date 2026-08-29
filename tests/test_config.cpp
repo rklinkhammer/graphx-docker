@@ -58,7 +58,15 @@ graph:
     - { id: sample-edge, from: source.out, to: target.in, transport: tcp }
 transport:
   tcp:
-    sample-edge: { host: target, bind: 0.0.0.0, port: 7001, framing: u32be }
+    sample-edge:
+      host: target
+      bind: 0.0.0.0
+      port: 7001
+      framing: u32be
+      connect_timeout_ms: 1200
+      send_timeout_ms: 900
+      reconnect: true
+      retry: { max_attempts: 7, initial_backoff_ms: 10, max_backoff_ms: 80 }
 )yaml";
 
 bool diagnostic_contains(const graphx::ConfigError& error, std::string_view text) {
@@ -84,6 +92,30 @@ void authoritative_config_loads() {
          "simple network path");
 }
 
+void tcp_policy_loads() {
+  TemporaryConfig file(valid_config);
+  const auto transport = graphx::load_config(file.path()).edge("sample-edge").transport;
+  expect(transport.connect_timeout_ms == 1200 && transport.send_timeout_ms == 900,
+         "TCP timeouts");
+  expect(transport.retry_attempts == 7 && transport.retry_initial_backoff_ms == 10 &&
+             transport.retry_max_backoff_ms == 80,
+         "TCP retry policy");
+  expect(transport.reconnect, "TCP reconnect policy");
+}
+
+void invalid_tcp_policy_is_rejected() {
+  auto source = std::string(valid_config);
+  const auto marker = source.find("max_backoff_ms: 80");
+  source.replace(marker, std::string("max_backoff_ms: 80").size(), "max_backoff_ms: 5");
+  TemporaryConfig file(source);
+  try {
+    [[maybe_unused]] const auto ignored = graphx::load_config(file.path());
+    throw std::runtime_error("invalid TCP backoff was accepted");
+  } catch (const graphx::ConfigError& error) {
+    expect(diagnostic_contains(error, "greater than or equal"), "TCP backoff diagnostic");
+  }
+}
+
 void mixed_network_model_and_plan_load() {
   const auto config = graphx::load_config(std::filesystem::path(GRAPHX_SOURCE_DIR) /
                                           "examples/mixed-network/graphx.yaml");
@@ -107,6 +139,31 @@ void mixed_network_model_and_plan_load() {
       graphx::netem_command(config, "domain-router", "ipv", false, "20ms", "3ms", "1%", {});
   expect(graphx::format_command(fault).find("netem delay 20ms 3ms loss 1%") != std::string::npos,
          "netem plan");
+}
+
+void standalone_network_examples_load() {
+  const auto root = std::filesystem::path(GRAPHX_SOURCE_DIR) / "examples";
+  const auto macvlan = graphx::load_config(root / "macvlan/graphx.yaml");
+  expect(macvlan.network_infrastructure.networks.size() == 1, "standalone macvlan domain");
+  expect(!macvlan.network_infrastructure.interfaces.front().mac.empty(),
+         "standalone macvlan explicit MAC");
+
+  const auto layer_two = graphx::load_config(root / "ipvlan-l2/graphx.yaml");
+  expect(layer_two.network_infrastructure.networks.size() == 3,
+         "one IPvlan L2 domain per node");
+  expect(layer_two.network_infrastructure.routers.size() == 1 &&
+             layer_two.network_infrastructure.switches.size() == 3,
+         "IPvlan L2 routed domains");
+
+  const auto layer_three = graphx::load_config(root / "ipvlan-l3/graphx.yaml");
+  expect(layer_three.network_infrastructure.networks.size() == 3,
+         "one IPvlan L3 domain per node");
+  std::string plan;
+  for (const auto& command :
+       graphx::infrastructure_plan(layer_three, graphx::InfraAction::create))
+    plan += graphx::format_command(command) + '\n';
+  expect(plan.find("ipvlan_mode=l3") != std::string::npos, "IPvlan L3 plan");
+  expect(plan.find("--gateway") == std::string::npos, "IPvlan L3 omits gateway");
 }
 
 void invalid_network_reference_is_rejected() {
@@ -338,7 +395,10 @@ int main() {
   ::unsetenv("GRAPHX_OVERRIDES");
   const std::pair<const char*, std::function<void()>> tests[] = {
       {"authoritative config", authoritative_config_loads},
+      {"TCP policy", tcp_policy_loads},
+      {"invalid TCP policy", invalid_tcp_policy_is_rejected},
       {"mixed network model", mixed_network_model_and_plan_load},
+      {"standalone network examples", standalone_network_examples_load},
       {"invalid network reference", invalid_network_reference_is_rejected},
       {"override precedence", explicit_override_wins},
       {"invalid override", invalid_override_is_rejected},

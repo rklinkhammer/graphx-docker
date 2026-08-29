@@ -1,0 +1,53 @@
+version: 1
+graph:
+  id: ipvlan-l3-pipeline
+  nodes:
+    - id: generator
+      kind: source
+      ports: [{ name: samples, direction: output, schema: Sample }]
+    - id: transform
+      kind: transform
+      ports:
+        - { name: samples, direction: input, schema: Sample }
+        - { name: transformed, direction: output, schema: TransformedSample }
+    - id: sink
+      kind: sink
+      ports: [{ name: transformed, direction: input, schema: TransformedSample }]
+  edges:
+    - { id: samples, from: generator.samples, to: transform.samples, transport: tcp }
+    - { id: transformed, from: transform.transformed, to: sink.transformed, transport: tcp }
+transport:
+  tcp:
+    samples:
+      host: 10.42.2.20
+      bind: 0.0.0.0
+      port: 7001
+      connect_timeout_ms: 1000
+      send_timeout_ms: 5000
+      reconnect: true
+      retry: { max_attempts: 60, initial_backoff_ms: 100, max_backoff_ms: 2000 }
+    transformed:
+      host: 10.42.3.30
+      bind: 0.0.0.0
+      port: 7002
+      connect_timeout_ms: 1000
+      send_timeout_ms: 5000
+      reconnect: true
+      retry: { max_attempts: 60, initial_backoff_ms: 100, max_backoff_ms: 2000 }
+network:
+  networks:
+    - { id: gx-ipvl3-generator, driver: ipvlan, mode: l3, subnet: 10.42.1.0/24, parent: gx-l3-parent, external: true }
+    - { id: gx-ipvl3-transform, driver: ipvlan, mode: l3, subnet: 10.42.2.0/24, parent: gx-l3-parent, external: true }
+    - { id: gx-ipvl3-sink, driver: ipvlan, mode: l3, subnet: 10.42.3.0/24, parent: gx-l3-parent, external: true }
+  interfaces:
+    generator: [{ id: data, network: gx-ipvl3-generator, address: 10.42.1.10/24 }]
+    transform: [{ id: data, network: gx-ipvl3-transform, address: 10.42.2.20/24 }]
+    sink: [{ id: data, network: gx-ipvl3-sink, address: 10.42.3.30/24 }]
+  edge_paths:
+    samples: [generator, gx-ipvl3-generator, gx-ipvl3-transform, transform]
+    transformed: [transform, gx-ipvl3-transform, gx-ipvl3-sink, sink]
+deployment:
+  services:
+    generator: { image: graphx-demo:latest, command: graphx-generator }
+    transform: { image: graphx-demo:latest, command: graphx-transform }
+    sink: { image: graphx-demo:latest, command: graphx-sink }

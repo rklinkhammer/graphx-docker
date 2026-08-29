@@ -15,7 +15,7 @@ int main() {
     const auto config = graphx::load_config(demo::config_path());
     [[maybe_unused]] const auto& node = config.node("generator");
     graphx::TransportFactory transports;
-    auto output = demo::connect_with_retry(transports, config.edge("samples"), &trace);
+    auto output = transports.create(config.edge("samples"), graphx::ConnectionMode::connect, &trace);
     const auto interval =
         std::chrono::milliseconds(std::stoi(demo::env("GRAPHX_INTERVAL_MS", "500")));
     for (std::uint64_t sequence = 1; running; ++sequence) {

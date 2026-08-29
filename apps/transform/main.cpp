@@ -7,7 +7,8 @@ int main() {
     [[maybe_unused]] const auto& node = config.node("transform");
     graphx::TransportFactory transports;
     auto input = transports.create(config.edge("samples"), graphx::ConnectionMode::listen, &trace);
-    auto output = demo::connect_with_retry(transports, config.edge("transformed"), &trace);
+    auto output =
+        transports.create(config.edge("transformed"), graphx::ConnectionMode::connect, &trace);
     while (auto envelope = input->receive()) {
       const auto value = std::stoll(envelope->payload);
       envelope->type = "TransformedSample";

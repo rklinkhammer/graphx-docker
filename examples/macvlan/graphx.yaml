@@ -1,0 +1,56 @@
+version: 1
+graph:
+  id: macvlan-pipeline
+  nodes:
+    - id: generator
+      kind: source
+      ports: [{ name: samples, direction: output, schema: Sample }]
+    - id: transform
+      kind: transform
+      ports:
+        - { name: samples, direction: input, schema: Sample }
+        - { name: transformed, direction: output, schema: TransformedSample }
+    - id: sink
+      kind: sink
+      ports: [{ name: transformed, direction: input, schema: TransformedSample }]
+  edges:
+    - { id: samples, from: generator.samples, to: transform.samples, transport: tcp }
+    - { id: transformed, from: transform.transformed, to: sink.transformed, transport: tcp }
+transport:
+  tcp:
+    samples:
+      host: 10.30.0.20
+      bind: 0.0.0.0
+      port: 7001
+      framing: u32be
+      connect_timeout_ms: 1000
+      send_timeout_ms: 5000
+      reconnect: true
+      retry: { max_attempts: 60, initial_backoff_ms: 100, max_backoff_ms: 2000 }
+    transformed:
+      host: 10.30.0.30
+      bind: 0.0.0.0
+      port: 7002
+      framing: u32be
+      connect_timeout_ms: 1000
+      send_timeout_ms: 5000
+      reconnect: true
+      retry: { max_attempts: 60, initial_backoff_ms: 100, max_backoff_ms: 2000 }
+network:
+  networks:
+    - { id: gx-macvlan-demo, driver: macvlan, subnet: 10.30.0.0/24, gateway: 10.30.0.1, parent: gx-mac-parent, external: true }
+  interfaces:
+    generator:
+      - { id: data, network: gx-macvlan-demo, address: 10.30.0.10/24, mac: "02:30:00:00:00:10" }
+    transform:
+      - { id: data, network: gx-macvlan-demo, address: 10.30.0.20/24, mac: "02:30:00:00:00:20" }
+    sink:
+      - { id: data, network: gx-macvlan-demo, address: 10.30.0.30/24, mac: "02:30:00:00:00:30" }
+  edge_paths:
+    samples: [generator, gx-macvlan-demo, transform]
+    transformed: [transform, gx-macvlan-demo, sink]
+deployment:
+  services:
+    generator: { image: graphx-demo:latest, command: graphx-generator }
+    transform: { image: graphx-demo:latest, command: graphx-transform }
+    sink: { image: graphx-demo:latest, command: graphx-sink }

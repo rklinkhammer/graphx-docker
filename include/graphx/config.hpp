@@ -29,6 +29,12 @@ struct TransportConfig {
   std::string path;
   std::string channel;
   std::string framing{"u32be"};
+  std::uint32_t connect_timeout_ms{5000};
+  std::uint32_t send_timeout_ms{5000};
+  std::uint32_t retry_attempts{60};
+  std::uint32_t retry_initial_backoff_ms{100};
+  std::uint32_t retry_max_backoff_ms{2000};
+  bool reconnect{true};
 };
 
 struct NodeConfig {

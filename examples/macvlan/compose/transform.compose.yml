@@ -1,0 +1,11 @@
+services:
+  transform:
+    image: graphx-demo:latest
+    entrypoint: ["/usr/local/bin/graphx-transform"]
+    volumes: ["../graphx.yaml:/etc/graphx/graphx.yaml:ro"]
+    networks:
+      data:
+        ipv4_address: 10.30.0.20
+        mac_address: "02:30:00:00:00:20"
+networks:
+  data: { name: gx-macvlan-demo, external: true }

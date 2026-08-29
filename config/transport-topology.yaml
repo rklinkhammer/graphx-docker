@@ -1,7 +1,23 @@
 # Projection of graphx.yaml: runtime links.
 links:
-  - { edge: samples, type: tcp, host: transform, port: 7001, framing: u32be }
-  - { edge: transformed, type: tcp, host: sink, port: 7002, framing: u32be }
+  - edge: samples
+    type: tcp
+    host: transform
+    port: 7001
+    framing: u32be
+    connect_timeout_ms: 2000
+    send_timeout_ms: 5000
+    reconnect: true
+    retry: { max_attempts: 60, initial_backoff_ms: 100, max_backoff_ms: 2000 }
+  - edge: transformed
+    type: tcp
+    host: sink
+    port: 7002
+    framing: u32be
+    connect_timeout_ms: 2000
+    send_timeout_ms: 5000
+    reconnect: true
+    retry: { max_attempts: 60, initial_backoff_ms: 100, max_backoff_ms: 2000 }
 local_profiles:
   in_process: { type: in_process, channel: sample-pipeline }
   unix_socket: { type: unix, path: /tmp/graphx-samples.sock, framing: u32be }

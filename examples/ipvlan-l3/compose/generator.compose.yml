@@ -1,0 +1,10 @@
+services:
+  generator:
+    build: ../../..
+    image: graphx-demo:latest
+    entrypoint: ["/usr/local/bin/graphx-generator"]
+    volumes: ["../graphx.yaml:/etc/graphx/graphx.yaml:ro"]
+    networks:
+      data: { ipv4_address: 10.42.1.10 }
+networks:
+  data: { name: gx-ipvl3-generator, external: true }
