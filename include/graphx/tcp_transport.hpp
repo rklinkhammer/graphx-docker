@@ -57,6 +57,7 @@ class TcpTransport final : public Transport {
   NullTraceSink null_trace_sink_;
   TcpOptions options_;
   bool outbound_{};
+  bool ever_connected_{};
   std::mutex send_mutex_;
   std::mutex retry_mutex_;
   std::condition_variable retry_ready_;

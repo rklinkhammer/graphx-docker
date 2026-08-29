@@ -20,6 +20,12 @@ cmake --build --preset dev
 ctest --preset dev
 ```
 
+To exercise the complete portable feature surface (including C++20, finite TCP
+and shared-memory pipelines, the browser build, telemetry API, Prometheus output,
+and infrastructure dry-runs), run `scripts/test-features.sh portable`. Docker and
+privileged native-Linux tiers are documented in
+[`docs/test-procedure.md`](docs/test-procedure.md).
+
 The library uses C++23 by default but only relies on broadly available C++20-era facilities. Set `CMAKE_CXX_STANDARD=20` if your toolchain needs it.
 
 ### Run the container demo
@@ -127,7 +133,10 @@ The core contracts stay deliberately small:
   uses a synchronized queue; `TcpTransport` handles DNS; Unix-domain sockets use
   the same stream framing; and `SharedMemoryTransport` provides a bounded,
   process-shared ring for local IPC.
-- **TraceSink** receives send, receive, latency, byte-count, and error callbacks without coupling the runtime to one metrics stack. Metrics, fan-out, console, and best-effort UDP JSON implementations are included.
+- **TraceSink** receives send/receive, connection/reconnect, backpressure,
+  processing-duration, latency, byte-count, and error callbacks without coupling
+  the runtime to one metrics stack. Metrics/histograms, fan-out, console,
+  best-effort UDP JSON, and an optional bounded OTLP/HTTP JSON exporter are included.
 - **CaptureSink / ExtcapProvider** mark the boundary for future serialized-frame capture, PCAPNG writing, and Wireshark extcap control.
 
 TCP uses a four-byte unsigned big-endian length followed by one serialized
@@ -221,9 +230,14 @@ The browser application is divided along the product concepts:
 - `NodeCard` renders a process/container boundary and health metadata.
 - `TelemetryEdge` overlays throughput and latency on a selectable edge.
 - `EdgeInspector` presents connection/framing facts, edge metrics, recent messages, and trace/capture correlation placeholders.
-- `server.mjs` serves the built console, receives runtime events over UDP, aggregates metrics, broadcasts WebSocket snapshots, and exposes health/topology/control endpoints.
+- `server.mjs` serves the built console, receives runtime events over UDP,
+  aggregates metrics, broadcasts WebSocket snapshots, and exposes
+  health/topology/control endpoints plus Prometheus text output at `/metrics`.
 
-Pause, fault injection, and reset are development-control scaffolds. They update telemetry-service state; wiring those commands into runtime control channels is a later milestone.
+Reset clears telemetry aggregation. Pause and fault buttons are explicit
+development-control placeholders and return HTTP 501; the console surfaces that
+result rather than pretending a runtime action occurred. Native netem fault hooks
+are available through `graphx infra fault` and the example helpers.
 
 ## Repository layout
 
@@ -258,6 +272,9 @@ The demo accepts these variables:
 | `GRAPHX_MAX_MESSAGES` | generator | `0` | Stop after this many messages; zero runs continuously |
 | `GRAPHX_TELEMETRY_HOST` | all nodes | `127.0.0.1` | Best-effort UDP telemetry collector |
 | `GRAPHX_TELEMETRY_PORT` | all nodes, telemetry | `9000` | UDP event-ingest port |
+| `GRAPHX_OTLP_HOST` | all nodes | empty (disabled) | OTLP/HTTP JSON collector host |
+| `GRAPHX_OTLP_PORT` | all nodes | `4318` | OTLP/HTTP collector port |
+| `GRAPHX_OTLP_PATH` | all nodes | `/v1/traces` | OTLP trace endpoint |
 | `GRAPHX_WEB_ROOT` | telemetry | `web/dist` | Built frontend directory |
 | `PORT` | telemetry | `8080` | HTTP service port |
 
@@ -303,7 +320,10 @@ The tests use no third-party framework so a fresh scaffold remains easy to build
 
 1. **Runtime lifecycle follow-up** — optional TLS, process-level graceful shutdown,
    and richer connection/reconnect telemetry. Core TCP hardening is implemented.
-2. **OpenTelemetry** — OTLP spans, Prometheus-style edge metrics, and trace-context propagation.
+2. **OpenTelemetry** — initial OTLP/HTTP spans, Prometheus-style edge metrics,
+   connection/backpressure events, processing spans, and trace-ID propagation are
+   implemented. Follow-ups include W3C trace-context fields, batching/retry, and
+   collector conformance coverage.
 3. **Wireshark integration** — PCAPNG custom blocks, extcap interface, and message-to-packet correlation in the edge inspector.
 4. **Control plane** — authenticated runtime commands, topology validation/generation, and real container-health events.
 

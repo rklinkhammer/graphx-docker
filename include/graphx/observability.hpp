@@ -3,6 +3,7 @@
 #include "graphx/envelope.hpp"
 
 #include <chrono>
+#include <array>
 #include <cstdint>
 #include <memory>
 #include <mutex>
@@ -14,6 +15,9 @@
 
 namespace graphx {
 
+enum class ConnectionState { disconnected, connecting, listening, connected, closed, error };
+std::string_view to_string(ConnectionState state) noexcept;
+
 class TraceSink {
  public:
   virtual ~TraceSink() = default;
@@ -23,6 +27,11 @@ class TraceSink {
                           std::size_t wire_bytes,
                           std::chrono::nanoseconds latency) = 0;
   virtual void on_error(std::string_view edge_id, std::string_view message) = 0;
+  virtual void on_connection(std::string_view, ConnectionState) {}
+  virtual void on_reconnect(std::string_view) {}
+  virtual void on_backpressure(std::string_view, std::chrono::nanoseconds, bool) {}
+  virtual void on_processing(std::string_view, const Envelope&,
+                             std::chrono::nanoseconds, bool) {}
 };
 
 class NullTraceSink final : public TraceSink {
@@ -38,7 +47,13 @@ struct EdgeMetrics {
   std::uint64_t received{};
   std::uint64_t wire_bytes{};
   std::uint64_t errors{};
+  std::uint64_t reconnects{};
+  std::uint64_t backpressure_events{};
+  std::uint64_t rejected{};
+  std::chrono::nanoseconds total_backpressure{};
   std::chrono::nanoseconds total_latency{};
+  std::array<std::uint64_t, 8> latency_buckets{};
+  ConnectionState connection{ConnectionState::disconnected};
 };
 
 class MetricsTraceSink final : public TraceSink {
@@ -47,6 +62,10 @@ class MetricsTraceSink final : public TraceSink {
   void on_receive(std::string_view edge_id, const Envelope&, std::size_t wire_bytes,
                   std::chrono::nanoseconds latency) override;
   void on_error(std::string_view edge_id, std::string_view) override;
+  void on_connection(std::string_view edge_id, ConnectionState state) override;
+  void on_reconnect(std::string_view edge_id) override;
+  void on_backpressure(std::string_view edge_id, std::chrono::nanoseconds duration,
+                       bool rejected) override;
   EdgeMetrics edge(std::string_view edge_id) const;
 
  private:
@@ -62,6 +81,12 @@ class CompositeTraceSink final : public TraceSink {
   void on_receive(std::string_view edge_id, const Envelope& envelope,
                   std::size_t wire_bytes, std::chrono::nanoseconds latency) override;
   void on_error(std::string_view edge_id, std::string_view message) override;
+  void on_connection(std::string_view edge_id, ConnectionState state) override;
+  void on_reconnect(std::string_view edge_id) override;
+  void on_backpressure(std::string_view edge_id, std::chrono::nanoseconds duration,
+                       bool rejected) override;
+  void on_processing(std::string_view node_id, const Envelope& envelope,
+                     std::chrono::nanoseconds duration, bool success) override;
 
  private:
   std::vector<TraceSink*> sinks_;
@@ -81,11 +106,43 @@ class UdpJsonTraceSink final : public TraceSink {
   void on_receive(std::string_view edge_id, const Envelope& envelope,
                   std::size_t wire_bytes, std::chrono::nanoseconds latency) override;
   void on_error(std::string_view edge_id, std::string_view message) override;
+  void on_connection(std::string_view edge_id, ConnectionState state) override;
+  void on_reconnect(std::string_view edge_id) override;
+  void on_backpressure(std::string_view edge_id, std::chrono::nanoseconds duration,
+                       bool rejected) override;
+  void on_processing(std::string_view node_id, const Envelope& envelope,
+                     std::chrono::nanoseconds duration, bool success) override;
 
  private:
   void emit(std::string_view event, std::string_view edge_id, const Envelope* envelope,
             std::size_t wire_bytes, std::chrono::nanoseconds latency,
             std::string_view message = {});
+  struct Impl;
+  std::unique_ptr<Impl> impl_;
+};
+
+// Optional, bounded, asynchronous OTLP/HTTP JSON span exporter. It is disabled
+// unless an application constructs it (the demo runtime uses GRAPHX_OTLP_HOST).
+class OtlpHttpTraceSink final : public TraceSink {
+ public:
+  OtlpHttpTraceSink(std::string node_id, std::string host, std::uint16_t port = 4318,
+                    std::string path = "/v1/traces", std::size_t queue_capacity = 1024);
+  ~OtlpHttpTraceSink() override;
+  OtlpHttpTraceSink(const OtlpHttpTraceSink&) = delete;
+  OtlpHttpTraceSink& operator=(const OtlpHttpTraceSink&) = delete;
+
+  void on_send(std::string_view edge_id, const Envelope& envelope,
+               std::size_t wire_bytes) override;
+  void on_receive(std::string_view edge_id, const Envelope& envelope,
+                  std::size_t wire_bytes, std::chrono::nanoseconds latency) override;
+  void on_error(std::string_view edge_id, std::string_view message) override;
+  void on_processing(std::string_view node_id, const Envelope& envelope,
+                     std::chrono::nanoseconds duration, bool success) override;
+
+ private:
+  void enqueue_span(std::string_view name, std::string_view subject,
+                    const Envelope* envelope, std::chrono::nanoseconds duration,
+                    std::string_view status, std::size_t wire_bytes = 0);
   struct Impl;
   std::unique_ptr<Impl> impl_;
 };

@@ -38,16 +38,42 @@ class ConsoleTraceSink final : public graphx::TraceSink {
   void on_error(std::string_view edge, std::string_view message) override {
     std::cerr << "metric edge=" << edge << " event=error message=\"" << message << "\"\n";
   }
+  void on_connection(std::string_view edge, graphx::ConnectionState state) override {
+    std::cout << "metric edge=" << edge << " event=connection state="
+              << graphx::to_string(state) << std::endl;
+  }
+  void on_reconnect(std::string_view edge) override {
+    std::cout << "metric edge=" << edge << " event=reconnect" << std::endl;
+  }
+  void on_backpressure(std::string_view edge, std::chrono::nanoseconds duration,
+                       bool rejected) override {
+    std::cout << "metric edge=" << edge << " event=backpressure mode="
+              << (rejected ? "rejected" : "blocked")
+              << " duration_us=" << duration.count() / 1000.0 << std::endl;
+  }
+  void on_processing(std::string_view node, const graphx::Envelope& envelope,
+                     std::chrono::nanoseconds duration, bool success) override {
+    std::cout << "metric node=" << node << " event=processing seq=" << envelope.sequence
+              << " success=" << success << " duration_us=" << duration.count() / 1000.0
+              << std::endl;
+  }
 };
 
 class RuntimeTraceSink final : public graphx::TraceSink {
  public:
   explicit RuntimeTraceSink(std::string node_id)
-      : telemetry_(std::move(node_id), env("GRAPHX_TELEMETRY_HOST", "127.0.0.1"),
+      : telemetry_(node_id, env("GRAPHX_TELEMETRY_HOST", "127.0.0.1"),
                    port("GRAPHX_TELEMETRY_PORT", 9000)) {
     composite_.add(console_);
     composite_.add(metrics_);
     composite_.add(telemetry_);
+    const auto otlp_host = env("GRAPHX_OTLP_HOST", "");
+    if (!otlp_host.empty()) {
+      otlp_ = std::make_unique<graphx::OtlpHttpTraceSink>(
+          std::move(node_id), otlp_host, port("GRAPHX_OTLP_PORT", 4318),
+          env("GRAPHX_OTLP_PATH", "/v1/traces"));
+      composite_.add(*otlp_);
+    }
   }
 
   void on_send(std::string_view edge, const graphx::Envelope& envelope,
@@ -61,11 +87,24 @@ class RuntimeTraceSink final : public graphx::TraceSink {
   void on_error(std::string_view edge, std::string_view message) override {
     composite_.on_error(edge, message);
   }
+  void on_connection(std::string_view edge, graphx::ConnectionState state) override {
+    composite_.on_connection(edge, state);
+  }
+  void on_reconnect(std::string_view edge) override { composite_.on_reconnect(edge); }
+  void on_backpressure(std::string_view edge, std::chrono::nanoseconds duration,
+                       bool rejected) override {
+    composite_.on_backpressure(edge, duration, rejected);
+  }
+  void on_processing(std::string_view node, const graphx::Envelope& envelope,
+                     std::chrono::nanoseconds duration, bool success) override {
+    composite_.on_processing(node, envelope, duration, success);
+  }
 
  private:
   ConsoleTraceSink console_;
   graphx::MetricsTraceSink metrics_;
   graphx::UdpJsonTraceSink telemetry_;
+  std::unique_ptr<graphx::OtlpHttpTraceSink> otlp_;
   graphx::CompositeTraceSink composite_;
 };
 

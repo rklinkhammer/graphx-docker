@@ -174,7 +174,11 @@ ReadResult read_all(int socket, std::span<std::byte> bytes, Clock::time_point de
   return {ReadStatus::complete, transferred};
 }
 
-void write_all(int socket, std::span<const std::byte> bytes, Clock::time_point deadline) {
+std::chrono::nanoseconds write_all(int socket, std::span<const std::byte> bytes,
+                                   Clock::time_point deadline) {
+  pollfd probe{socket, POLLOUT, 0};
+  const auto pressure_start = Clock::now();
+  const bool pressured = ::poll(&probe, 1, 0) == 0;
   while (!bytes.empty()) {
     if (!wait_ready(socket, POLLOUT, deadline, true))
       throw system_error("send timed out", ETIMEDOUT);
@@ -183,6 +187,7 @@ void write_all(int socket, std::span<const std::byte> bytes, Clock::time_point d
     if (sent <= 0) throw system_error("send", sent == 0 ? EPIPE : errno);
     bytes = bytes.subspan(static_cast<std::size_t>(sent));
   }
+  return pressured ? Clock::now() - pressure_start : std::chrono::nanoseconds{};
 }
 
 }  // namespace
@@ -210,12 +215,16 @@ void TcpTransport::connect_outbound() {
   for (std::size_t attempt = 1; attempt <= attempts; ++attempt) {
     if (closed_.load()) throw std::runtime_error(context("connection cancelled"));
     try {
+      trace_sink_->on_connection(edge_id_, ConnectionState::connecting);
       const int connected = connect_once(endpoint_, options_.connect_timeout);
       if (closed_.load()) {
         ::close(connected);
         throw std::runtime_error(context("connection cancelled"));
       }
       socket_.store(connected);
+      if (ever_connected_) trace_sink_->on_reconnect(edge_id_);
+      ever_connected_ = true;
+      trace_sink_->on_connection(edge_id_, ConnectionState::connected);
       return;
     } catch (const std::exception& error) {
       last_error = error.what();
@@ -243,15 +252,17 @@ TcpTransport TcpTransport::connect(Endpoint endpoint, std::string edge_id,
 TcpTransport TcpTransport::listen(Endpoint endpoint, std::string edge_id,
                                   TraceSink* trace_sink, TcpOptions options) {
   const int listener = create_listener(endpoint);
-  return TcpTransport(-1, listener, std::move(endpoint), std::move(edge_id), trace_sink, options,
-                      false);
+  TcpTransport transport(-1, listener, std::move(endpoint), std::move(edge_id), trace_sink,
+                         options, false);
+  transport.trace_sink_->on_connection(transport.edge_id_, ConnectionState::listening);
+  return transport;
 }
 
 TcpTransport::TcpTransport(TcpTransport&& other) noexcept
     : socket_(other.socket_.exchange(-1)), listener_(other.listener_.exchange(-1)),
       closed_(other.closed_.load()), endpoint_(std::move(other.endpoint_)),
       edge_id_(std::move(other.edge_id_)), trace_sink_(other.trace_sink_), options_(other.options_),
-      outbound_(other.outbound_) {
+      outbound_(other.outbound_), ever_connected_(other.ever_connected_) {
   other.closed_.store(true);
   if (other.trace_sink_ == &other.null_trace_sink_) trace_sink_ = &null_trace_sink_;
 }
@@ -267,6 +278,7 @@ TcpTransport& TcpTransport::operator=(TcpTransport&& other) noexcept {
   trace_sink_ = other.trace_sink_ == &other.null_trace_sink_ ? &null_trace_sink_ : other.trace_sink_;
   options_ = other.options_;
   outbound_ = other.outbound_;
+  ever_connected_ = other.ever_connected_;
   other.closed_.store(true);
   return *this;
 }
@@ -278,6 +290,8 @@ void TcpTransport::close_connection() noexcept {
   if (socket >= 0) {
     ::shutdown(socket, SHUT_RDWR);
     ::close(socket);
+    try { trace_sink_->on_connection(edge_id_, ConnectionState::disconnected); }
+    catch (...) { /* Closing a socket must remain noexcept. */ }
   }
 }
 
@@ -307,6 +321,9 @@ bool TcpTransport::accept_inbound(Clock::time_point deadline, bool has_deadline)
     return false;
   }
   socket_.store(accepted);
+  if (ever_connected_) trace_sink_->on_reconnect(edge_id_);
+  ever_connected_ = true;
+  trace_sink_->on_connection(edge_id_, ConnectionState::connected);
   return true;
 }
 
@@ -322,7 +339,9 @@ void TcpTransport::send(const Envelope& envelope) {
         if (!outbound_) throw std::runtime_error("no accepted peer");
         connect_outbound();
       }
-      write_all(socket_.load(), framed, Clock::now() + options_.send_timeout);
+      const auto pressure = write_all(socket_.load(), framed,
+                                      Clock::now() + options_.send_timeout);
+      if (pressure.count() > 0) trace_sink_->on_backpressure(edge_id_, pressure, false);
       trace_sink_->on_send(edge_id_, envelope, framed.size());
       return;
     } catch (const std::exception& error) {
@@ -419,6 +438,8 @@ void TcpTransport::close() {
     ::shutdown(listener, SHUT_RDWR);
     ::close(listener);
   }
+  try { trace_sink_->on_connection(edge_id_, ConnectionState::closed); }
+  catch (...) { /* Destruction must not fail because an observer failed. */ }
 }
 
 }  // namespace graphx

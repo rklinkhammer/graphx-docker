@@ -23,6 +23,7 @@ int main() {
          ++sequence) {
       auto envelope = graphx::Envelope::make(sequence, "Sample", std::to_string(sequence));
       envelope.attributes["source"] = "generator";
+      trace.on_processing("generator", envelope, std::chrono::nanoseconds{}, true);
       output->send(envelope);
       std::this_thread::sleep_for(interval);
     }

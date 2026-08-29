@@ -331,6 +331,7 @@ std::unique_ptr<SharedMemoryTransport::Impl> SharedMemoryTransport::create_impl(
     impl->header->producer_pid = ::getpid();
     impl->role_claimed = true;
   }
+  impl->trace_sink->on_connection(impl->edge_id, ConnectionState::connected);
   return impl;
 }
 
@@ -370,10 +371,15 @@ void SharedMemoryTransport::send(const Envelope& envelope) {
     impl_->fail("consumer process is no longer alive");
   }
 
-  const auto deadline = std::chrono::steady_clock::now() + impl_->options.send_timeout;
+  const auto pressure_start = std::chrono::steady_clock::now();
+  const auto deadline = pressure_start + impl_->options.send_timeout;
+  bool pressured = false;
   while (impl_->header->head - impl_->header->tail >= impl_->header->capacity) {
-    if (impl_->options.backpressure == SharedMemoryBackpressure::reject)
+    pressured = true;
+    if (impl_->options.backpressure == SharedMemoryBackpressure::reject) {
+      impl_->trace_sink->on_backpressure(impl_->edge_id, {}, true);
       impl_->fail("ring is full (backpressure=reject)");
+    }
     const auto remaining = deadline - std::chrono::steady_clock::now();
     if (remaining <= std::chrono::steady_clock::duration::zero())
       impl_->fail("send timed out waiting for ring capacity");
@@ -399,6 +405,9 @@ void SharedMemoryTransport::send(const Envelope& envelope) {
   ++impl_->header->head;
   ::pthread_cond_signal(&impl_->header->not_empty);
   unlock.release();
+  if (pressured)
+    impl_->trace_sink->on_backpressure(impl_->edge_id,
+                                      std::chrono::steady_clock::now() - pressure_start, false);
   impl_->trace_sink->on_send(impl_->edge_id, envelope, framed.size());
 }
 
@@ -469,7 +478,10 @@ std::optional<Envelope> SharedMemoryTransport::receive(std::chrono::milliseconds
 }
 
 void SharedMemoryTransport::close() {
-  if (impl_) impl_->close();
+  if (impl_ && !impl_->locally_closed) {
+    impl_->trace_sink->on_connection(impl_->edge_id, ConnectionState::closed);
+    impl_->close();
+  }
 }
 
 std::string_view to_string(SharedMemoryBackpressure policy) noexcept {

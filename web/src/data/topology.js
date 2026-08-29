@@ -5,8 +5,8 @@ export const initialNodes = [
 ]
 
 export const initialEdges = [
-  { id: 'samples', source: 'generator', target: 'transform', type: 'telemetry', data: { label: 'samples', rate: '4.8 MB/s', messages: '18.2k/s', latency: '12.4 µs', drops: 0, port: 7001, schema: 'Sample' } },
-  { id: 'transformed', source: 'transform', target: 'sink', type: 'telemetry', data: { label: 'transformed', rate: '2.3 MB/s', messages: '9.1k/s', latency: '18.7 µs', drops: 0, port: 7002, schema: 'TransformedSample' } },
+  { id: 'samples', source: 'generator', target: 'transform', type: 'telemetry', data: { label: 'samples', rate: '—', messages: '—', latency: '—', drops: '—', connection: 'unavailable', reconnects: '—', backpressure: '—', port: 7001, schema: 'Sample' } },
+  { id: 'transformed', source: 'transform', target: 'sink', type: 'telemetry', data: { label: 'transformed', rate: '—', messages: '—', latency: '—', drops: '—', connection: 'unavailable', reconnects: '—', backpressure: '—', port: 7002, schema: 'TransformedSample' } },
 ]
 
 export const networkNodes = [
@@ -31,7 +31,7 @@ export function networkEdges(selectedId) {
     path.slice(0, -1).forEach((source, index) => edges.push({
       id: `${logicalEdge}-hop-${index}`, source, target: path[index + 1], type: 'telemetry',
       data: { logicalEdge, highlighted: logicalEdge === selectedId,
-        rate: logicalEdge === 'samples' ? '18.2k/s' : '9.1k/s', latency: index === 3 ? 'router' : 'L2' },
+        rate: '—', latency: index === 3 ? 'router' : 'L2' },
     }))
   }
   return edges

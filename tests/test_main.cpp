@@ -65,10 +65,20 @@ void metrics_sink() {
   metrics.on_send("metrics-edge", envelope, 64);
   metrics.on_receive("metrics-edge", envelope, 64, std::chrono::microseconds(25));
   metrics.on_error("metrics-edge", "example");
+  metrics.on_connection("metrics-edge", graphx::ConnectionState::connected);
+  metrics.on_reconnect("metrics-edge");
+  metrics.on_backpressure("metrics-edge", std::chrono::microseconds(40), false);
+  metrics.on_backpressure("metrics-edge", {}, true);
   const auto edge = metrics.edge("metrics-edge");
   expect(edge.sent == 1 && edge.received == 1, "metrics message counters");
   expect(edge.wire_bytes == 128 && edge.errors == 1, "metrics byte/error counters");
   expect(edge.total_latency == std::chrono::microseconds(25), "metrics latency");
+  expect(edge.latency_buckets[1] == 1, "metrics latency histogram");
+  expect(edge.connection == graphx::ConnectionState::connected && edge.reconnects == 1,
+         "metrics connection state");
+  expect(edge.backpressure_events == 2 && edge.rejected == 1 &&
+             edge.total_backpressure == std::chrono::microseconds(40),
+         "metrics backpressure");
 }
 
 struct RawListener {
@@ -124,6 +134,35 @@ void raw_read_frame(int socket) {
 
 std::vector<std::byte> framed_envelope(std::uint64_t sequence, std::string payload) {
   return graphx::frame(graphx::serialize(graphx::Envelope::make(sequence, "Raw", payload)));
+}
+
+void otlp_http_json_export() {
+  RawListener listener;
+  auto received = std::async(std::launch::async, [&] {
+    const int client = ::accept(listener.socket, nullptr, nullptr);
+    if (client < 0) throw std::runtime_error("OTLP accept");
+    std::string request;
+    std::array<char, 4096> buffer{};
+    for (;;) {
+      const auto count = ::recv(client, buffer.data(), buffer.size(), 0);
+      if (count <= 0) break;
+      request.append(buffer.data(), static_cast<std::size_t>(count));
+    }
+    ::close(client);
+    return request;
+  });
+  {
+    graphx::OtlpHttpTraceSink exporter("test-node", "127.0.0.1", listener.port);
+    const auto envelope = graphx::Envelope::make(91, "Observed", "value");
+    exporter.on_processing("test-node", envelope, std::chrono::microseconds(12), true);
+  }
+  const auto request = received.get();
+  expect(request.find("POST /v1/traces HTTP/1.1") != std::string::npos,
+         "OTLP HTTP endpoint");
+  expect(request.find("\"resourceSpans\"") != std::string::npos &&
+             request.find("graphx.process test-node") != std::string::npos &&
+             request.find("\"graphx.sequence\"") != std::string::npos,
+         "OTLP JSON span payload");
 }
 
 std::string shared_segment(std::string_view suffix) {
@@ -563,6 +602,7 @@ int main() {
   const std::pair<const char*, std::function<void()>> tests[] = {
       {"framing", framing}, {"envelope", envelope_round_trip},
       {"in-process", in_process}, {"metrics", metrics_sink},
+      {"OTLP HTTP JSON", otlp_http_json_export},
       {"shared-memory wraparound", shared_memory_wraparound_and_cleanup},
       {"shared-memory pressure", shared_memory_backpressure_and_limits},
       {"shared-memory timeout", shared_memory_receive_timeout_and_settings},

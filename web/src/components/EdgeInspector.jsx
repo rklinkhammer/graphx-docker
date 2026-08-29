@@ -6,7 +6,7 @@ export function EdgeInspector({ edge, networkPath }) {
   return <aside className="inspector">
     <div className="eyebrow">EDGE INSPECTOR</div>
     <h2>{edge.source} <span>→</span> {edge.target}</h2>
-    <div className="connection"><span className="pulse"/>TCP established</div>
+    <div className="connection"><span className="pulse"/>TCP {d.connection || 'unavailable'}</div>
     <dl className="facts">
       <div><dt>Destination</dt><dd>{edge.target}:{d.port}</dd></div>
       <div><dt>Schema</dt><dd>{d.schema}</dd></div>
@@ -17,6 +17,8 @@ export function EdgeInspector({ edge, networkPath }) {
       <div><Activity/><span>Messages</span><strong>{d.messages}</strong></div>
       <div><Clock3/><span>Mean latency</span><strong>{d.latency}</strong></div>
       <div><Database/><span>Dropped</span><strong>{d.drops}</strong></div>
+      <div><Radio/><span>Reconnects</span><strong>{d.reconnects ?? '—'}</strong></div>
+      <div><Waves/><span>Backpressure</span><strong>{d.backpressure ?? '—'}</strong></div>
     </div>
     <h3>Recent messages</h3>
     <div className="messages">
