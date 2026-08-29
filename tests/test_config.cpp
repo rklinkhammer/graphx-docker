@@ -1,0 +1,311 @@
+#include "graphx/config.hpp"
+#include "graphx/transport_factory.hpp"
+
+#include <chrono>
+#include <cstdlib>
+#include <exception>
+#include <filesystem>
+#include <fstream>
+#include <functional>
+#include <iostream>
+#include <stdexcept>
+#include <string>
+#include <thread>
+#include <unistd.h>
+
+using namespace std::chrono_literals;
+
+namespace {
+
+void expect(bool condition, const char* message) {
+  if (!condition) throw std::runtime_error(message);
+}
+
+class TemporaryConfig {
+ public:
+  explicit TemporaryConfig(std::string_view contents)
+      : path_(std::filesystem::temp_directory_path() /
+              ("graphx-config-" + std::to_string(::getpid()) + "-" + std::to_string(counter_++) +
+               ".yaml")) {
+    std::ofstream output(path_);
+    output << contents;
+    if (!output) throw std::runtime_error("could not write temporary configuration");
+  }
+  ~TemporaryConfig() {
+    std::error_code ignored;
+    std::filesystem::remove(path_, ignored);
+  }
+  const std::filesystem::path& path() const { return path_; }
+
+ private:
+  std::filesystem::path path_;
+  inline static unsigned counter_{};
+};
+
+constexpr std::string_view valid_config = R"yaml(
+version: 1
+graph:
+  id: test-graph
+  nodes:
+    - id: source
+      kind: source
+      ports: [{ name: out, direction: output, schema: Sample }]
+    - id: target
+      kind: sink
+      ports: [{ name: in, direction: input, schema: Sample }]
+  edges:
+    - { id: sample-edge, from: source.out, to: target.in, transport: tcp }
+transport:
+  tcp:
+    sample-edge: { host: target, bind: 0.0.0.0, port: 7001, framing: u32be }
+)yaml";
+
+bool diagnostic_contains(const graphx::ConfigError& error, std::string_view text) {
+  for (const auto& diagnostic : error.diagnostics())
+    if (diagnostic.path.find(text) != std::string::npos ||
+        diagnostic.message.find(text) != std::string::npos)
+      return true;
+  return false;
+}
+
+void authoritative_config_loads() {
+  const auto config = graphx::load_config(std::filesystem::path(GRAPHX_SOURCE_DIR) / "graphx.yaml");
+  expect(config.version == 1 && config.id == "sample-pipeline", "root model");
+  expect(config.nodes.size() == 3 && config.edges.size() == 2, "topology counts");
+  expect(config.edge("samples").transport.host == "transform", "TCP settings");
+  expect(config.node("transform").ports.size() == 2, "node lookup");
+  expect(config.deployment.services.size() == 3, "deployment placements");
+  expect(config.deployment.services.front().node_id == "generator", "deployment separation");
+}
+
+void explicit_override_wins() {
+  TemporaryConfig file(valid_config);
+  ::setenv("GRAPHX_OVERRIDES", "transport.tcp.sample-edge.host=environment", 1);
+  const auto config = graphx::load_config(
+      file.path(),
+      {{"transport.tcp.sample-edge.host", "explicit"}, {"transport.tcp.sample-edge.port", "8123"}});
+  ::unsetenv("GRAPHX_OVERRIDES");
+  expect(config.edge("sample-edge").transport.host == "explicit", "override precedence");
+  expect(config.edge("sample-edge").transport.port == 8123, "numeric override");
+}
+
+void invalid_override_is_rejected() {
+  TemporaryConfig file(valid_config);
+  try {
+    [[maybe_unused]] const auto ignored =
+        graphx::load_config(file.path(), {{"transport.tcp.typo.host", "value"}});
+    throw std::runtime_error("unknown override was accepted");
+  } catch (const graphx::ConfigError& error) {
+    expect(diagnostic_contains(error, "does not exist"), "override diagnostic");
+  }
+}
+
+void semantic_errors_are_aggregated() {
+  TemporaryConfig file(R"yaml(
+version: 1
+unexpected: true
+graph:
+  id: bad graph
+  nodes:
+    - id: source
+      kind: source
+      ports: [{ name: in, direction: input, schema: A }]
+    - id: target
+      kind: sink
+      ports: [{ name: out, direction: output, schema: B }]
+  edges:
+    - { id: bad-edge, from: source.in, to: target.out, transport: tcp }
+transport:
+  tcp:
+    bad-edge: { host: target, bind: 0.0.0.0, port: 70000, framing: other }
+)yaml");
+  try {
+    [[maybe_unused]] const auto ignored = graphx::load_config(file.path());
+    throw std::runtime_error("invalid configuration was accepted");
+  } catch (const graphx::ConfigError& error) {
+    expect(error.diagnostics().size() >= 6, "aggregated diagnostic count");
+    expect(diagnostic_contains(error, "unexpected"), "unknown-key diagnostic");
+    expect(diagnostic_contains(error, "between 1 and 65535"), "port diagnostic");
+    expect(diagnostic_contains(error, "source port"), "direction diagnostic");
+    expect(diagnostic_contains(error, "schema mismatch"), "schema diagnostic");
+  }
+}
+
+void cycle_is_rejected() {
+  TemporaryConfig file(R"yaml(
+version: 1
+graph:
+  id: cyclic
+  nodes:
+    - id: a
+      kind: map
+      ports: [{ name: in, direction: input, schema: S }, { name: out, direction: output, schema: S }]
+    - id: b
+      kind: map
+      ports: [{ name: in, direction: input, schema: S }, { name: out, direction: output, schema: S }]
+  edges:
+    - { id: ab, from: a.out, to: b.in, transport: in_process }
+    - { id: ba, from: b.out, to: a.in, transport: in_process }
+transport:
+  in_process:
+    ab: { channel: ab }
+    ba: { channel: ba }
+)yaml");
+  try {
+    [[maybe_unused]] const auto ignored = graphx::load_config(file.path());
+    throw std::runtime_error("cycle was accepted");
+  } catch (const graphx::ConfigError& error) {
+    expect(diagnostic_contains(error, "cycles are not supported"), "cycle diagnostic");
+  }
+}
+
+void invalid_deployment_is_rejected() {
+  TemporaryConfig file(R"yaml(
+version: 1
+graph:
+  id: deployed
+  nodes:
+    - id: source
+      kind: source
+      ports: [{ name: out, direction: output, schema: S }]
+    - id: target
+      kind: sink
+      ports: [{ name: in, direction: input, schema: S }]
+  edges:
+    - { id: local, from: source.out, to: target.in, transport: in_process }
+transport:
+  in_process:
+    local: { channel: local }
+deployment:
+  services:
+    source: { image: graphx/source:latest, command: graphx-source }
+    ghost: { image: graphx/ghost:latest, command: graphx-ghost }
+)yaml");
+  try {
+    [[maybe_unused]] const auto ignored = graphx::load_config(file.path());
+    throw std::runtime_error("invalid deployment was accepted");
+  } catch (const graphx::ConfigError& error) {
+    expect(diagnostic_contains(error, "unknown graph node"), "unknown placement diagnostic");
+    expect(diagnostic_contains(error, "missing placement for node 'target'"),
+           "missing placement diagnostic");
+  }
+}
+
+void malformed_and_oversized_files_are_rejected() {
+  TemporaryConfig malformed("version: [\n");
+  try {
+    [[maybe_unused]] const auto ignored = graphx::load_config(malformed.path());
+    throw std::runtime_error("malformed YAML was accepted");
+  } catch (const graphx::ConfigError& error) {
+    expect(diagnostic_contains(error, "invalid YAML"), "YAML diagnostic");
+  }
+  TemporaryConfig oversized(std::string(graphx::kMaxConfigBytes + 1, 'x'));
+  try {
+    [[maybe_unused]] const auto ignored = graphx::load_config(oversized.path());
+    throw std::runtime_error("oversized configuration was accepted");
+  } catch (const graphx::ConfigError& error) {
+    expect(diagnostic_contains(error, "1 MiB"), "size diagnostic");
+  }
+}
+
+void in_process_factory_shares_named_channel() {
+  graphx::TransportFactory factory;
+  graphx::EdgeConfig edge;
+  edge.edge.id = "local";
+  edge.transport.kind = graphx::TransportKind::in_process;
+  edge.transport.channel = "local-channel";
+  auto sender = factory.create(edge, graphx::ConnectionMode::connect);
+  auto receiver = factory.create(edge, graphx::ConnectionMode::listen);
+  sender->send(graphx::Envelope::make(4, "Test", "factory"));
+  const auto message = receiver->receive(20ms);
+  expect(message && message->payload == "factory", "factory in-process delivery");
+}
+
+void factory_rejects_unvalidated_settings() {
+  graphx::TransportFactory factory;
+  graphx::EdgeConfig edge;
+  edge.edge.id = "invalid";
+  edge.transport.kind = graphx::TransportKind::tcp;
+  try {
+    [[maybe_unused]] auto ignored = factory.create(edge, graphx::ConnectionMode::connect);
+    throw std::runtime_error("invalid factory settings were accepted");
+  } catch (const std::invalid_argument&) {
+  }
+}
+
+void socket_factory_round_trip(graphx::TransportKind kind) {
+  graphx::TransportFactory factory;
+  graphx::EdgeConfig edge;
+  edge.edge.id = kind == graphx::TransportKind::tcp ? "factory-tcp" : "factory-unix";
+  edge.transport.kind = kind;
+  if (kind == graphx::TransportKind::tcp) {
+    edge.transport.host = "127.0.0.1";
+    edge.transport.bind = "127.0.0.1";
+    edge.transport.port = static_cast<std::uint16_t>(43000 + (::getpid() % 1000));
+  } else {
+    edge.transport.path = "/tmp/graphx-factory-" + std::to_string(::getpid()) + ".sock";
+  }
+  std::exception_ptr listener_error;
+  std::thread listener([&] {
+    try {
+      auto receiver = factory.create(edge, graphx::ConnectionMode::listen);
+      auto message = receiver->receive(2s);
+      expect(message && message->payload == "request", "factory socket receive");
+      message->payload = "response";
+      receiver->send(*message);
+    } catch (...) {
+      listener_error = std::current_exception();
+    }
+  });
+  try {
+    graphx::TransportPtr sender;
+    for (int attempt = 0; attempt < 40 && !sender; ++attempt) {
+      try {
+        sender = factory.create(edge, graphx::ConnectionMode::connect);
+      } catch (const std::exception&) {
+        std::this_thread::sleep_for(25ms);
+      }
+    }
+    expect(static_cast<bool>(sender), "factory listener readiness");
+    sender->send(graphx::Envelope::make(5, "Test", "request"));
+    const auto reply = sender->receive(2s);
+    expect(reply && reply->payload == "response", "factory socket reply");
+  } catch (...) {
+    if (listener.joinable()) listener.join();
+    throw;
+  }
+  listener.join();
+  if (listener_error) std::rethrow_exception(listener_error);
+}
+
+void tcp_factory_round_trip() { socket_factory_round_trip(graphx::TransportKind::tcp); }
+void unix_factory_round_trip() { socket_factory_round_trip(graphx::TransportKind::unix_socket); }
+
+}  // namespace
+
+int main() {
+  ::unsetenv("GRAPHX_OVERRIDES");
+  const std::pair<const char*, std::function<void()>> tests[] = {
+      {"authoritative config", authoritative_config_loads},
+      {"override precedence", explicit_override_wins},
+      {"invalid override", invalid_override_is_rejected},
+      {"aggregated errors", semantic_errors_are_aggregated},
+      {"cycle", cycle_is_rejected},
+      {"invalid deployment", invalid_deployment_is_rejected},
+      {"malformed and oversized", malformed_and_oversized_files_are_rejected},
+      {"in-process factory", in_process_factory_shares_named_channel},
+      {"factory validation", factory_rejects_unvalidated_settings},
+      {"TCP factory", tcp_factory_round_trip},
+      {"Unix socket factory", unix_factory_round_trip}};
+  int failures{};
+  for (const auto& [name, test] : tests) {
+    try {
+      test();
+      std::cout << "[pass] " << name << '\n';
+    } catch (const std::exception& error) {
+      ++failures;
+      std::cerr << "[fail] " << name << ": " << error.what() << '\n';
+    }
+  }
+  return failures == 0 ? 0 : 1;
+}

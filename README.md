@@ -8,7 +8,9 @@ GraphX is a small, educational framework for describing a processing graph once,
 
 ### Build and test locally
 
-Requirements: CMake 3.25+, Ninja, and a C++20/23 compiler.
+Requirements: CMake 3.25+, Ninja, a C++20/23 compiler, and network access on the
+first configure when yaml-cpp 0.9.0 is not already installed. The fallback
+download is version-pinned and SHA-256 verified; see `THIRD_PARTY.md`.
 
 ```sh
 cmake --preset dev --fresh
@@ -54,7 +56,7 @@ Each program is a separate executable and container entry point:
 - `graphx-transform` listens for samples, doubles the text-encoded integer, and emits `TransformedSample`.
 - `graphx-sink` listens and prints sequence, value, and trace ID.
 
-Environment variables supply TCP endpoints. In Compose, listeners bind to `0.0.0.0`; clients use service names instead of fixed container addresses. The generator and transform retry outbound connections during startup.
+The applications load and validate `graphx.yaml` before opening a transport. In Compose, listeners bind to `0.0.0.0`; clients use service names instead of fixed container addresses. The generator and transform retry outbound connections during startup.
 
 ## Architecture
 
@@ -62,7 +64,7 @@ The core contracts stay deliberately small:
 
 - **Node** owns an identity and typed input/output `Port` descriptions. `FunctionNode` demonstrates an adapter for ordinary transformation functions.
 - **Port** names a direction and payload schema. It is metadata, not a socket.
-- **Edge** connects two named ports and selects a transport.
+- **Edge** connects two named ports and selects a transport. `GraphConfig` is the validated, versioned source model and `TransportFactory` turns an edge's transport settings into TCP, Unix-domain socket, or in-process endpoints.
 - **Envelope** carries sequence, wall-clock timestamp, type, trace ID, string attributes, and opaque payload. Its versioned binary encoding is deterministic.
 - **Transport** has `send`, timed `receive`, and `close`. `InProcessTransport` uses a synchronized queue; `TcpTransport` handles DNS; and `UnixDomainSocketTransport` provides the same framing and tracing on a local filesystem socket.
 - **TraceSink** receives send, receive, latency, byte-count, and error callbacks without coupling the runtime to one metrics stack. Metrics, fan-out, console, and best-effort UDP JSON implementations are included.
@@ -72,9 +74,48 @@ TCP uses a four-byte unsigned big-endian length followed by one serialized envel
 
 ### Three related topologies
 
-[`graphx.yaml`](graphx.yaml) is the intended source model and holds the logical graph, transport choices, deployment hints, and observability settings. The files in [`config/`](config/) are human-readable projections that make each concern easy to discuss. [`compose.yaml`](compose.yaml) is checked in as a static deployment projection for now.
+[`graphx.yaml`](graphx.yaml) is the authoritative source model and holds the logical graph, transport choices, deployment hints, and observability settings. Version 1 is described by [`config/schema/graphx.schema.json`](config/schema/graphx.schema.json) and enforced by the C++ loader. The files in [`config/`](config/) are human-readable projections that make each concern easy to discuss. [`compose.yaml`](compose.yaml) is checked in as a static deployment projection for now.
 
-A future `graphx generate` tool should validate ports and schemas, then derive the projection files and Compose/Kubernetes output. Until that exists, update `graphx.yaml` first and keep the static files aligned.
+Logical nodes contain only GraphX identity, kind, and ports. Container image and
+command hints belong under `deployment.services`, so runtime semantics remain
+independent of Docker and other schedulers.
+
+The `graphx validate` command checks syntax, limits, identifiers, duplicate definitions, endpoint directions, schemas, transport settings, and cycles. `graphx inspect` prints the normalized model. A future `graphx generate` command may derive Compose/Kubernetes projections; until then, update `graphx.yaml` first and keep static projections aligned.
+
+### Configuration commands
+
+```sh
+./build/dev/graphx validate graphx.yaml
+./build/dev/graphx inspect graphx.yaml
+./build/dev/graphx inspect graphx.yaml \
+  --set transport.tcp.samples.host=127.0.0.1
+```
+
+The configuration path defaults to `graphx.yaml` and can be set with
+`GRAPHX_CONFIG`. Scalar overrides use existing dotted paths. Precedence is:
+
+1. `graphx.yaml`;
+2. semicolon-separated `GRAPHX_OVERRIDES` entries;
+3. repeated CLI `--set path=value` entries.
+
+For example, a native three-process run can replace Compose DNS names with:
+
+```sh
+export GRAPHX_OVERRIDES='transport.tcp.samples.host=127.0.0.1;transport.tcp.transformed.host=127.0.0.1'
+./build/dev/graphx-sink
+./build/dev/graphx-transform
+./build/dev/graphx-generator
+```
+
+Run each node in its own terminal. Override paths must already exist, which
+prevents misspelled deployment settings from silently creating unused keys.
+
+Version 1 limits configuration files to 1 MiB, graphs to 1,024 nodes and 4,096
+edges, and nodes to 256 ports. Identifiers match
+`[A-Za-z][A-Za-z0-9_-]{0,63}`. An edge must connect an output to an input with
+the same schema. Cycles are rejected because the current blocking startup model
+cannot safely schedule feedback graphs; this can change only through a
+documented version or capability addition.
 
 ### Telemetry console
 
@@ -114,10 +155,8 @@ The demo accepts these variables:
 
 | Variable | Used by | Default | Meaning |
 |---|---|---:|---|
-| `GRAPHX_INPUT_HOST` | transform, sink | `0.0.0.0` | Listener bind address |
-| `GRAPHX_INPUT_PORT` | transform, sink | `7001` / `7002` | Listener port |
-| `GRAPHX_OUTPUT_HOST` | generator, transform | `127.0.0.1` | Destination DNS name/address |
-| `GRAPHX_OUTPUT_PORT` | generator, transform | `7001` / `7002` | Destination port |
+| `GRAPHX_CONFIG` | runtime nodes, CLI | `graphx.yaml` | Authoritative configuration path |
+| `GRAPHX_OVERRIDES` | runtime nodes, CLI | empty | Semicolon-separated dotted scalar overrides |
 | `GRAPHX_INTERVAL_MS` | generator | `500` | Emit interval |
 | `GRAPHX_TELEMETRY_HOST` | all nodes | `127.0.0.1` | Best-effort UDP telemetry collector |
 | `GRAPHX_TELEMETRY_PORT` | all nodes, telemetry | `9000` | UDP event-ingest port |
@@ -126,7 +165,7 @@ The demo accepts these variables:
 
 ## Extension guide
 
-To add a transport, implement the three-method `Transport` interface and map a new `transport:` value in the future topology loader. The TCP and Unix-domain socket implementations expose parallel connect/listen constructors. A likely next transport is:
+To add a transport, implement the three-method `Transport` interface, extend the versioned schema and loader, and add the mapping to `TransportFactory`. The TCP and Unix-domain socket implementations expose parallel connect/listen constructors. A likely next transport is:
 
 ```cpp
 SharedMemoryTransport(segment_name, ring_capacity, edge_id, trace_sink);
@@ -145,12 +184,18 @@ To add observability, implement `TraceSink`. An OpenTelemetry adapter can turn a
 - in-process delivery;
 - TCP request/reply across a loopback socket, including framing and envelope decoding;
 - Unix-domain socket request/reply with the same envelope and framing contract.
+- authoritative configuration loading and lookup;
+- override precedence and typo rejection;
+- aggregated semantic validation diagnostics;
+- malformed and oversized configuration rejection;
+- cycle rejection and all three transport-factory paths;
+- the `graphx validate` CLI against the repository model.
 
 The tests use no third-party framework so a fresh scaffold remains easy to build and study.
 
 ## Roadmap
 
-1. **TCP hardening** — reconnect policy, cancellation, TLS option, backpressure, and generated configuration loading.
+1. **Runtime lifecycle and TCP hardening** — reconnect policy, cancellation, TLS option, backpressure, and graceful shutdown.
 2. **Shared memory** — bounded ring buffer, ownership protocol, and explicit backpressure behavior.
 3. **OpenTelemetry** — OTLP spans, Prometheus-style edge metrics, and trace-context propagation.
 4. **Wireshark integration** — PCAPNG custom blocks, extcap interface, and message-to-packet correlation in the edge inspector.

@@ -1,7 +1,7 @@
 # Projection of graphx.yaml: container placement.
 network: graphx
 services:
-  generator: { image: graphx-demo:latest }
-  transform: { image: graphx-demo:latest }
-  sink: { image: graphx-demo:latest }
+  generator: { image: graphx-demo:latest, command: graphx-generator }
+  transform: { image: graphx-demo:latest, command: graphx-transform }
+  sink: { image: graphx-demo:latest, command: graphx-sink }
   telemetry: { image: graphx-telemetry:latest, http_port: 8080, udp_port: 9000 }

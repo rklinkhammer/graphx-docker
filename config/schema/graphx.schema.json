@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://graphx.dev/schema/graphx-v1.schema.json",
+  "title": "GraphX configuration version 1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "graph", "transport"],
+  "properties": {
+    "version": { "const": 1 },
+    "graph": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "nodes", "edges"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "nodes": {
+          "type": "array", "minItems": 1, "maxItems": 1024,
+          "items": { "$ref": "#/$defs/node" }
+        },
+        "edges": {
+          "type": "array", "maxItems": 4096,
+          "items": { "$ref": "#/$defs/edge" }
+        }
+      }
+    },
+    "transport": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "tcp": { "type": "object", "additionalProperties": { "$ref": "#/$defs/tcp" } },
+        "unix": { "type": "object", "additionalProperties": { "$ref": "#/$defs/unix" } },
+        "in_process": { "type": "object", "additionalProperties": { "$ref": "#/$defs/inProcess" } }
+      }
+    },
+    "deployment": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "network": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "services": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/service" }
+        },
+        "telemetry": { "$ref": "#/$defs/telemetry" }
+      }
+    },
+    "observability": { "type": "object" }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$" },
+    "port": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "direction", "schema"],
+      "properties": {
+        "name": { "$ref": "#/$defs/id" },
+        "direction": { "enum": ["input", "output"] },
+        "schema": { "type": "string", "minLength": 1, "maxLength": 128 }
+      }
+    },
+    "node": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "kind", "ports"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "kind": { "$ref": "#/$defs/id" },
+        "ports": { "type": "array", "maxItems": 256, "items": { "$ref": "#/$defs/port" } }
+      }
+    },
+    "edge": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "from", "to", "transport"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "from": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}\\.[A-Za-z][A-Za-z0-9_-]{0,63}$" },
+        "to": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}\\.[A-Za-z][A-Za-z0-9_-]{0,63}$" },
+        "transport": { "enum": ["tcp", "unix", "in_process"] }
+      }
+    },
+    "tcp": {
+      "type": "object", "additionalProperties": false,
+      "required": ["host", "bind", "port"],
+      "properties": {
+        "host": { "type": "string", "minLength": 1, "maxLength": 253 },
+        "bind": { "type": "string", "minLength": 1, "maxLength": 253 },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "framing": { "const": "u32be" }
+      }
+    },
+    "unix": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1, "maxLength": 103 },
+        "framing": { "const": "u32be" }
+      }
+    },
+    "inProcess": {
+      "type": "object", "additionalProperties": false,
+      "required": ["channel"],
+      "properties": { "channel": { "$ref": "#/$defs/id" } }
+    },
+    "service": {
+      "type": "object", "additionalProperties": false,
+      "required": ["image", "command"],
+      "properties": {
+        "image": { "type": "string", "minLength": 1, "maxLength": 1024 },
+        "command": { "type": "string", "minLength": 1, "maxLength": 1024 }
+      }
+    },
+    "telemetry": {
+      "type": "object", "additionalProperties": false,
+      "required": ["service", "port"],
+      "properties": {
+        "service": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 }
+      }
+    }
+  }
+}

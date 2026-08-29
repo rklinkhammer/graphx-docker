@@ -5,7 +5,6 @@ services:
     image: graphx-demo:latest
     entrypoint: ["/usr/local/bin/graphx-sink"]
     environment:
-      GRAPHX_INPUT_PORT: "7002"
       GRAPHX_TELEMETRY_HOST: telemetry
       GRAPHX_TELEMETRY_PORT: "9000"
     depends_on: [telemetry]
@@ -15,9 +14,6 @@ services:
     image: graphx-demo:latest
     entrypoint: ["/usr/local/bin/graphx-transform"]
     environment:
-      GRAPHX_INPUT_PORT: "7001"
-      GRAPHX_OUTPUT_HOST: sink
-      GRAPHX_OUTPUT_PORT: "7002"
       GRAPHX_TELEMETRY_HOST: telemetry
       GRAPHX_TELEMETRY_PORT: "9000"
     depends_on: [sink, telemetry]
@@ -27,8 +23,6 @@ services:
     image: graphx-demo:latest
     entrypoint: ["/usr/local/bin/graphx-generator"]
     environment:
-      GRAPHX_OUTPUT_HOST: transform
-      GRAPHX_OUTPUT_PORT: "7001"
       GRAPHX_INTERVAL_MS: "500"
       GRAPHX_TELEMETRY_HOST: telemetry
       GRAPHX_TELEMETRY_PORT: "9000"

@@ -1,0 +1,51 @@
+#include "graphx/transport_factory.hpp"
+
+#include "graphx/tcp_transport.hpp"
+#include "graphx/unix_domain_socket_transport.hpp"
+
+#include <stdexcept>
+
+namespace graphx {
+
+TransportPtr TransportFactory::create(const EdgeConfig& edge, ConnectionMode mode,
+                                      TraceSink* trace_sink) {
+  const auto& transport = edge.transport;
+  switch (transport.kind) {
+    case TransportKind::tcp: {
+      if (transport.port == 0 || transport.host.empty() || transport.bind.empty())
+        throw std::invalid_argument("TCP transport requires host, bind, and nonzero port");
+      const Endpoint endpoint{mode == ConnectionMode::connect ? transport.host : transport.bind,
+                              transport.port};
+      if (mode == ConnectionMode::connect)
+        return std::make_unique<TcpTransport>(
+            TcpTransport::connect(endpoint, edge.edge.id, trace_sink));
+      return std::make_unique<TcpTransport>(
+          TcpTransport::listen(endpoint, edge.edge.id, trace_sink));
+    }
+    case TransportKind::unix_socket:
+      if (transport.path.empty())
+        throw std::invalid_argument("Unix-domain transport requires a path");
+      if (mode == ConnectionMode::connect)
+        return std::make_unique<UnixDomainSocketTransport>(
+            UnixDomainSocketTransport::connect(transport.path, edge.edge.id, trace_sink));
+      return std::make_unique<UnixDomainSocketTransport>(
+          UnixDomainSocketTransport::listen(transport.path, edge.edge.id, trace_sink));
+    case TransportKind::in_process: {
+      if (transport.channel.empty())
+        throw std::invalid_argument("in-process transport requires a channel name");
+      std::shared_ptr<InProcessChannel> channel;
+      {
+        std::scoped_lock lock(mutex_);
+        channel = channels_[transport.channel].lock();
+        if (!channel) {
+          channel = std::make_shared<InProcessChannel>();
+          channels_[transport.channel] = channel;
+        }
+      }
+      return std::make_unique<InProcessTransport>(std::move(channel));
+    }
+  }
+  throw std::invalid_argument("unsupported transport kind");
+}
+
+}  // namespace graphx

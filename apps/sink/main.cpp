@@ -3,10 +3,12 @@
 int main() {
   demo::RuntimeTraceSink trace("sink");
   try {
-    auto input = graphx::TcpTransport::listen(
-        {demo::env("GRAPHX_INPUT_HOST", "0.0.0.0"), demo::port("GRAPHX_INPUT_PORT", 7002)},
-        "transformed", &trace);
-    while (auto envelope = input.receive()) {
+    const auto config = graphx::load_config(demo::config_path());
+    [[maybe_unused]] const auto& node = config.node("sink");
+    graphx::TransportFactory transports;
+    auto input =
+        transports.create(config.edge("transformed"), graphx::ConnectionMode::listen, &trace);
+    while (auto envelope = input->receive()) {
       std::cout << "sink seq=" << envelope->sequence << " value=" << envelope->payload
                 << " trace=" << envelope->trace_id << std::endl;
     }

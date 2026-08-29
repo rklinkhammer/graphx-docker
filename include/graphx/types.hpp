@@ -11,7 +11,7 @@ enum class Direction { input, output };
 
 struct Port {
   std::string name;
-  Direction direction;
+  Direction direction{Direction::input};
   std::string schema;
 };
 

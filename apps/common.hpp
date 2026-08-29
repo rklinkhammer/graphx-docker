@@ -1,10 +1,12 @@
 #pragma once
 
+#include "graphx/config.hpp"
 #include "graphx/observability.hpp"
-#include "graphx/tcp_transport.hpp"
+#include "graphx/transport_factory.hpp"
 
 #include <chrono>
 #include <cstdlib>
+#include <filesystem>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -28,8 +30,8 @@ class ConsoleTraceSink final : public graphx::TraceSink {
     std::cout << "metric edge=" << edge << " event=send seq=" << envelope.sequence
               << " bytes=" << bytes << std::endl;
   }
-  void on_receive(std::string_view edge, const graphx::Envelope& envelope,
-                  std::size_t bytes, std::chrono::nanoseconds latency) override {
+  void on_receive(std::string_view edge, const graphx::Envelope& envelope, std::size_t bytes,
+                  std::chrono::nanoseconds latency) override {
     std::cout << "metric edge=" << edge << " event=receive seq=" << envelope.sequence
               << " bytes=" << bytes << " latency_us=" << latency.count() / 1000.0 << std::endl;
   }
@@ -52,8 +54,8 @@ class RuntimeTraceSink final : public graphx::TraceSink {
                std::size_t bytes) override {
     composite_.on_send(edge, envelope, bytes);
   }
-  void on_receive(std::string_view edge, const graphx::Envelope& envelope,
-                  std::size_t bytes, std::chrono::nanoseconds latency) override {
+  void on_receive(std::string_view edge, const graphx::Envelope& envelope, std::size_t bytes,
+                  std::chrono::nanoseconds latency) override {
     composite_.on_receive(edge, envelope, bytes, latency);
   }
   void on_error(std::string_view edge, std::string_view message) override {
@@ -67,16 +69,17 @@ class RuntimeTraceSink final : public graphx::TraceSink {
   graphx::CompositeTraceSink composite_;
 };
 
-inline graphx::TcpTransport connect_with_retry(graphx::Endpoint endpoint,
-                                                std::string edge,
-                                                graphx::TraceSink* trace) {
+inline std::filesystem::path config_path() { return env("GRAPHX_CONFIG", "graphx.yaml"); }
+
+inline graphx::TransportPtr connect_with_retry(graphx::TransportFactory& factory,
+                                               const graphx::EdgeConfig& edge,
+                                               graphx::TraceSink* trace) {
   for (int attempt = 1; attempt <= 60; ++attempt) {
     try {
-      return graphx::TcpTransport::connect(endpoint, edge, trace);
+      return factory.create(edge, graphx::ConnectionMode::connect, trace);
     } catch (const std::exception& error) {
       if (attempt == 60) throw;
-      std::cerr << "waiting for " << endpoint.host << ':' << endpoint.port
-                << " (" << error.what() << ")\n";
+      std::cerr << "waiting for edge " << edge.edge.id << " (" << error.what() << ")\n";
       std::this_thread::sleep_for(std::chrono::seconds(1));
     }
   }

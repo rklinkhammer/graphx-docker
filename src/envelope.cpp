@@ -24,7 +24,8 @@ class Reader {
  public:
   explicit Reader(std::span<const std::byte> bytes) : bytes_(bytes) {}
 
-  template <typename T> T get() {
+  template <typename T>
+  T get() {
     require(sizeof(T));
     std::uint64_t value{};
     for (std::size_t i = 0; i < sizeof(T); ++i)
@@ -65,7 +66,10 @@ Envelope Envelope::make(std::uint64_t sequence, std::string type, Bytes payload)
 std::vector<std::byte> serialize(const Envelope& envelope) {
   std::vector<std::byte> out;
   out.reserve(64 + envelope.payload.size());
-  out.insert(out.end(), {std::byte{'G'}, std::byte{'X'}, std::byte{'E'}, std::byte{1}});
+  out.push_back(std::byte{'G'});
+  out.push_back(std::byte{'X'});
+  out.push_back(std::byte{'E'});
+  out.push_back(std::byte{1});
   put(out, envelope.sequence);
   put(out, static_cast<std::uint64_t>(envelope.timestamp_ns));
   put_string(out, envelope.type);
