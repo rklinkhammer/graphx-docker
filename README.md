@@ -2,7 +2,9 @@
 
 GraphX is a small, educational framework for describing a processing graph once, running its nodes in separate processes or containers, and inspecting what crosses each edge. This scaffold starts with a C++23 runtime, framed TCP and in-process transports, a three-stage demo, and a React Flow development console.
 
-> Status: framework scaffold. The demo path, live telemetry, and three baseline transports work; capture interfaces are intentionally integration points rather than pretending a full Wireshark backend already exists.
+> Status: framework scaffold. The demo path, live telemetry, and four baseline
+> transports work; capture interfaces are intentionally integration points rather
+> than pretending a full Wireshark backend already exists.
 
 ## Quick start
 
@@ -68,6 +70,18 @@ Three focused native-Linux examples isolate each driver/mode:
 - [`examples/ipvlan-l3`](examples/ipvlan-l3/README.md): one independent IPvlan L3
   network/subnet per node, routed by the shared IPvlan parent data path.
 
+### Run the local shared-memory demo
+
+The same three-node application can run as separate local processes over two
+bounded POSIX shared-memory rings:
+
+```sh
+examples/shared-memory/run.sh
+```
+
+See [`examples/shared-memory/README.md`](examples/shared-memory/README.md) and
+[`docs/shared-memory-transport.md`](docs/shared-memory-transport.md).
+
 ### Run the web console during development
 
 ```sh
@@ -109,7 +123,10 @@ The core contracts stay deliberately small:
   mirrors, VLAN metadata, routers, routes/policies, and the ordered infrastructure
   path for each logical edge. `graphx infra` projects that model onto Linux and Docker.
 - **Envelope** carries sequence, wall-clock timestamp, type, trace ID, string attributes, and opaque payload. Its versioned binary encoding is deterministic.
-- **Transport** has `send`, timed `receive`, and `close`. `InProcessTransport` uses a synchronized queue; `TcpTransport` handles DNS; and `UnixDomainSocketTransport` provides the same framing and tracing on a local filesystem socket.
+- **Transport** has `send`, timed `receive`, and `close`. `InProcessTransport`
+  uses a synchronized queue; `TcpTransport` handles DNS; Unix-domain sockets use
+  the same stream framing; and `SharedMemoryTransport` provides a bounded,
+  process-shared ring for local IPC.
 - **TraceSink** receives send, receive, latency, byte-count, and error callbacks without coupling the runtime to one metrics stack. Metrics, fan-out, console, and best-effort UDP JSON implementations are included.
 - **CaptureSink / ExtcapProvider** mark the boundary for future serialized-frame capture, PCAPNG writing, and Wireshark extcap control.
 
@@ -238,6 +255,7 @@ The demo accepts these variables:
 | `GRAPHX_CONFIG` | runtime nodes, CLI | `graphx.yaml` | Authoritative configuration path |
 | `GRAPHX_OVERRIDES` | runtime nodes, CLI | empty | Semicolon-separated dotted scalar overrides |
 | `GRAPHX_INTERVAL_MS` | generator | `500` | Emit interval |
+| `GRAPHX_MAX_MESSAGES` | generator | `0` | Stop after this many messages; zero runs continuously |
 | `GRAPHX_TELEMETRY_HOST` | all nodes | `127.0.0.1` | Best-effort UDP telemetry collector |
 | `GRAPHX_TELEMETRY_PORT` | all nodes, telemetry | `9000` | UDP event-ingest port |
 | `GRAPHX_WEB_ROOT` | telemetry | `web/dist` | Built frontend directory |
@@ -245,13 +263,13 @@ The demo accepts these variables:
 
 ## Extension guide
 
-To add a transport, implement the three-method `Transport` interface, extend the versioned schema and loader, and add the mapping to `TransportFactory`. The TCP and Unix-domain socket implementations expose parallel connect/listen constructors. A likely next transport is:
-
-```cpp
-SharedMemoryTransport(segment_name, ring_capacity, edge_id, trace_sink);
-```
-
-Keep serialization above the transport layer so the same envelope and tracing behavior can be compared across TCP, UDS, and shared memory. A zero-copy SHM implementation may later add a specialized buffer view without expanding the baseline interface prematurely.
+To add a transport, implement the three-method `Transport` interface, extend the
+versioned schema and loader, and add the mapping to `TransportFactory`. TCP,
+Unix-domain socket, and shared-memory implementations expose parallel
+connect/listen constructors. Serialization stays above the transport layer so
+the same envelope and tracing behavior can be compared across them. A future
+specialized API may add zero-copy shared-memory views without expanding the
+baseline contract prematurely.
 
 To add observability, implement `TraceSink`. An OpenTelemetry adapter can turn an envelope trace ID into spans and edge measurements into counters/histograms. Implement `CaptureSink` to write the exact framed bytes; an `ExtcapProvider` can then expose that stream as a Wireshark interface and correlate packet blocks with envelope trace IDs.
 
@@ -262,6 +280,9 @@ To add observability, implement `TraceSink`. An OpenTelemetry adapter can turn a
 - framing prefix and payload preservation;
 - deterministic envelope serialization/deserialization;
 - in-process delivery;
+- shared-memory wraparound, bounded blocking and rejection policies, size and
+  layout validation, cleanup, live-owner protection, stale-owner recovery, and
+  cross-process delivery/crash detection;
 - TCP request/reply across a loopback socket, including framing and envelope decoding;
 - fragmented headers/payloads, consecutive frames, closure boundaries, maximum
   frame rejection, full-frame deadlines, reconnect, listener replacement, and
@@ -282,10 +303,9 @@ The tests use no third-party framework so a fresh scaffold remains easy to build
 
 1. **Runtime lifecycle follow-up** — optional TLS, process-level graceful shutdown,
    and richer connection/reconnect telemetry. Core TCP hardening is implemented.
-2. **Shared memory** — bounded ring buffer, ownership protocol, and explicit backpressure behavior.
-3. **OpenTelemetry** — OTLP spans, Prometheus-style edge metrics, and trace-context propagation.
-4. **Wireshark integration** — PCAPNG custom blocks, extcap interface, and message-to-packet correlation in the edge inspector.
-5. **Control plane** — authenticated runtime commands, topology validation/generation, and real container-health events.
+2. **OpenTelemetry** — OTLP spans, Prometheus-style edge metrics, and trace-context propagation.
+3. **Wireshark integration** — PCAPNG custom blocks, extcap interface, and message-to-packet correlation in the edge inspector.
+4. **Control plane** — authenticated runtime commands, topology validation/generation, and real container-health events.
 
 ## Design boundaries
 

@@ -21,3 +21,11 @@ links:
 local_profiles:
   in_process: { type: in_process, channel: sample-pipeline }
   unix_socket: { type: unix, path: /tmp/graphx-samples.sock, framing: u32be }
+  shared_memory:
+    type: shared_memory
+    segment: gx-shm-samples
+    capacity: 8
+    max_message_bytes: 4096
+    backpressure: block
+    connect_timeout_ms: 5000
+    send_timeout_ms: 2000

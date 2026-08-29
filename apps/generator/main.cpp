@@ -18,7 +18,9 @@ int main() {
     auto output = transports.create(config.edge("samples"), graphx::ConnectionMode::connect, &trace);
     const auto interval =
         std::chrono::milliseconds(std::stoi(demo::env("GRAPHX_INTERVAL_MS", "500")));
-    for (std::uint64_t sequence = 1; running; ++sequence) {
+    const auto maximum = std::stoull(demo::env("GRAPHX_MAX_MESSAGES", "0"));
+    for (std::uint64_t sequence = 1; running && (maximum == 0 || sequence <= maximum);
+         ++sequence) {
       auto envelope = graphx::Envelope::make(sequence, "Sample", std::to_string(sequence));
       envelope.attributes["source"] = "generator";
       output->send(envelope);

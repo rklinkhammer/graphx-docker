@@ -1,0 +1,39 @@
+version: 1
+graph:
+  id: shared-memory-pipeline
+  nodes:
+    - id: generator
+      kind: source
+      ports: [{ name: samples, direction: output, schema: Sample }]
+    - id: transform
+      kind: transform
+      ports:
+        - { name: samples, direction: input, schema: Sample }
+        - { name: transformed, direction: output, schema: TransformedSample }
+    - id: sink
+      kind: sink
+      ports: [{ name: transformed, direction: input, schema: TransformedSample }]
+  edges:
+    - { id: samples, from: generator.samples, to: transform.samples, transport: shared_memory }
+    - { id: transformed, from: transform.transformed, to: sink.transformed, transport: shared_memory }
+transport:
+  shared_memory:
+    samples:
+      segment: gx-shm-samples
+      capacity: 8
+      max_message_bytes: 4096
+      backpressure: block
+      connect_timeout_ms: 5000
+      send_timeout_ms: 2000
+    transformed:
+      segment: gx-shm-transformed
+      capacity: 8
+      max_message_bytes: 4096
+      backpressure: block
+      connect_timeout_ms: 5000
+      send_timeout_ms: 2000
+deployment:
+  services:
+    generator: { image: local-process, command: graphx-generator }
+    transform: { image: local-process, command: graphx-transform }
+    sink: { image: local-process, command: graphx-sink }

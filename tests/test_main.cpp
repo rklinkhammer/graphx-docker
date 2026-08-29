@@ -2,18 +2,22 @@
 #include "graphx/framing.hpp"
 #include "graphx/in_process_transport.hpp"
 #include "graphx/observability.hpp"
+#include "graphx/shared_memory_transport.hpp"
 #include "graphx/tcp_transport.hpp"
 #include "graphx/unix_domain_socket_transport.hpp"
 
 #include <array>
 #include <chrono>
 #include <exception>
+#include <fcntl.h>
 #include <future>
 #include <functional>
 #include <iostream>
 #include <netinet/in.h>
 #include <stdexcept>
 #include <sys/socket.h>
+#include <sys/mman.h>
+#include <sys/wait.h>
 #include <thread>
 #include <unistd.h>
 #include <vector>
@@ -120,6 +124,169 @@ void raw_read_frame(int socket) {
 
 std::vector<std::byte> framed_envelope(std::uint64_t sequence, std::string payload) {
   return graphx::frame(graphx::serialize(graphx::Envelope::make(sequence, "Raw", payload)));
+}
+
+std::string shared_segment(std::string_view suffix) {
+  static unsigned counter{};
+  return "/gx-test-" + std::to_string(::getpid()) + "-" + std::to_string(counter++) + "-" +
+         std::string(suffix);
+}
+
+void shared_memory_wraparound_and_cleanup() {
+  const auto segment = shared_segment("wrap");
+  graphx::SharedMemoryOptions options;
+  options.capacity = 3;
+  options.max_message_bytes = 4096;
+  graphx::MetricsTraceSink metrics;
+  auto consumer = graphx::SharedMemoryTransport::listen(segment, "shm-wrap", &metrics, options);
+  auto producer = graphx::SharedMemoryTransport::connect(segment, "shm-wrap", &metrics, options);
+  try {
+    [[maybe_unused]] auto duplicate =
+        graphx::SharedMemoryTransport::connect(segment, "shm-duplicate-producer", nullptr, options);
+    throw std::runtime_error("second shared-memory producer was accepted");
+  } catch (const std::exception& error) {
+    expect(std::string_view(error.what()).find("live producer") != std::string_view::npos,
+           "shared-memory producer ownership");
+  }
+  for (std::uint64_t sequence = 1; sequence <= 20; ++sequence) {
+    producer.send(graphx::Envelope::make(sequence, "Shared", std::to_string(sequence)));
+    const auto received = consumer.receive(100ms);
+    expect(received && received->sequence == sequence, "shared-memory ring wraparound");
+  }
+  producer.close();
+  expect(!consumer.receive(100ms), "shared-memory close after drain");
+  const auto measured = metrics.edge("shm-wrap");
+  expect(measured.sent == 20 && measured.received == 20 && measured.wire_bytes > 0,
+         "shared-memory tracing hooks");
+  consumer.close();
+  const int stale = ::shm_open(segment.c_str(), O_RDWR, 0600);
+  expect(stale < 0 && errno == ENOENT, "shared-memory owner unlinks segment");
+  if (stale >= 0) ::close(stale);
+}
+
+void shared_memory_backpressure_and_limits() {
+  graphx::SharedMemoryOptions options;
+  options.capacity = 1;
+  options.max_message_bytes = 256;
+  options.backpressure = graphx::SharedMemoryBackpressure::reject;
+  const auto reject_segment = shared_segment("reject");
+  auto consumer =
+      graphx::SharedMemoryTransport::listen(reject_segment, "shm-reject", nullptr, options);
+  auto producer =
+      graphx::SharedMemoryTransport::connect(reject_segment, "shm-reject", nullptr, options);
+  producer.send(graphx::Envelope::make(1, "Shared", "first"));
+  try {
+    producer.send(graphx::Envelope::make(2, "Shared", "second"));
+    throw std::runtime_error("full reject ring accepted a message");
+  } catch (const std::exception& error) {
+    expect(std::string_view(error.what()).find("backpressure=reject") != std::string_view::npos,
+           "shared-memory reject policy");
+  }
+  const auto queued = consumer.receive(100ms);
+  expect(queued && queued->sequence == 1, "shared-memory rejected no queued data");
+  try {
+    producer.send(graphx::Envelope::make(3, "Shared", std::string(512, 'x')));
+    throw std::runtime_error("oversized shared-memory frame accepted");
+  } catch (const std::exception& error) {
+    expect(std::string_view(error.what()).find("maximum message size") != std::string_view::npos,
+           "shared-memory maximum message size");
+  }
+  producer.close();
+  consumer.close();
+
+  options.backpressure = graphx::SharedMemoryBackpressure::block;
+  options.send_timeout = 25ms;
+  options.max_message_bytes = 4096;
+  const auto block_segment = shared_segment("block");
+  auto blocked_consumer =
+      graphx::SharedMemoryTransport::listen(block_segment, "shm-block", nullptr, options);
+  auto blocked_producer =
+      graphx::SharedMemoryTransport::connect(block_segment, "shm-block", nullptr, options);
+  blocked_producer.send(graphx::Envelope::make(4, "Shared", "first"));
+  try {
+    blocked_producer.send(graphx::Envelope::make(5, "Shared", "blocked"));
+    throw std::runtime_error("blocked shared-memory send ignored deadline");
+  } catch (const std::exception& error) {
+    expect(std::string_view(error.what()).find("timed out") != std::string_view::npos,
+           "shared-memory blocking deadline");
+  }
+  blocked_producer.close();
+  blocked_consumer.close();
+}
+
+void shared_memory_receive_timeout_and_settings() {
+  const auto segment = shared_segment("timeout");
+  graphx::SharedMemoryOptions options;
+  options.capacity = 2;
+  options.max_message_bytes = 1024;
+  auto consumer = graphx::SharedMemoryTransport::listen(segment, "shm-timeout", nullptr, options);
+  expect(!consumer.receive(20ms), "empty shared-memory receive timeout");
+  try {
+    [[maybe_unused]] auto duplicate =
+        graphx::SharedMemoryTransport::listen(segment, "shm-duplicate", nullptr, options);
+    throw std::runtime_error("live shared-memory consumer was replaced");
+  } catch (const std::exception& error) {
+    expect(std::string_view(error.what()).find("live consumer") != std::string_view::npos,
+           "shared-memory live owner protection");
+  }
+  auto mismatch = options;
+  mismatch.capacity = 3;
+  try {
+    [[maybe_unused]] auto ignored =
+        graphx::SharedMemoryTransport::connect(segment, "shm-mismatch", nullptr, mismatch);
+    throw std::runtime_error("mismatched shared-memory layout accepted");
+  } catch (const std::exception& error) {
+    expect(std::string_view(error.what()).find("do not match") != std::string_view::npos,
+           "shared-memory layout validation");
+  }
+  consumer.close();
+}
+
+void shared_memory_cross_process_and_crash_detection() {
+  const auto segment = shared_segment("process");
+  graphx::SharedMemoryOptions options;
+  options.capacity = 4;
+  options.max_message_bytes = 4096;
+  auto consumer = graphx::SharedMemoryTransport::listen(segment, "shm-process", nullptr, options);
+  const pid_t child = ::fork();
+  if (child < 0) throw std::runtime_error("fork shared-memory producer");
+  if (child == 0) {
+    try {
+      auto producer =
+          graphx::SharedMemoryTransport::connect(segment, "shm-process", nullptr, options);
+      producer.send(graphx::Envelope::make(77, "Shared", "from child"));
+      ::_exit(0);  // Deliberately skip cleanup to exercise peer-death detection.
+    } catch (...) {
+      ::_exit(2);
+    }
+  }
+  const auto received = consumer.receive(2s);
+  expect(received && received->sequence == 77 && received->payload == "from child",
+         "cross-process shared-memory delivery");
+  int status{};
+  expect(::waitpid(child, &status, 0) == child && WIFEXITED(status) && WEXITSTATUS(status) == 0,
+         "shared-memory child status");
+  expect(!consumer.receive(2s), "shared-memory producer crash detection");
+  consumer.close();
+
+  const auto stale_segment = shared_segment("stale");
+  const pid_t stale_child = ::fork();
+  if (stale_child < 0) throw std::runtime_error("fork stale shared-memory listener");
+  if (stale_child == 0) {
+    try {
+      [[maybe_unused]] auto stale = graphx::SharedMemoryTransport::listen(
+          stale_segment, "shm-stale", nullptr, options);
+      ::_exit(0);
+    } catch (...) {
+      ::_exit(2);
+    }
+  }
+  expect(::waitpid(stale_child, &status, 0) == stale_child && WIFEXITED(status) &&
+             WEXITSTATUS(status) == 0,
+         "stale shared-memory listener status");
+  auto replacement =
+      graphx::SharedMemoryTransport::listen(stale_segment, "shm-replacement", nullptr, options);
+  replacement.close();
 }
 
 void tcp_fragmented_and_consecutive_frames() {
@@ -396,6 +563,10 @@ int main() {
   const std::pair<const char*, std::function<void()>> tests[] = {
       {"framing", framing}, {"envelope", envelope_round_trip},
       {"in-process", in_process}, {"metrics", metrics_sink},
+      {"shared-memory wraparound", shared_memory_wraparound_and_cleanup},
+      {"shared-memory pressure", shared_memory_backpressure_and_limits},
+      {"shared-memory timeout", shared_memory_receive_timeout_and_settings},
+      {"shared-memory process", shared_memory_cross_process_and_crash_detection},
       {"TCP fragmented and consecutive", tcp_fragmented_and_consecutive_frames},
       {"TCP truncated and oversized", tcp_truncated_and_oversized_frames},
       {"TCP partial-frame timeout", tcp_receive_timeout_covers_partial_frame},

@@ -29,7 +29,8 @@
       "properties": {
         "tcp": { "type": "object", "additionalProperties": { "$ref": "#/$defs/tcp" } },
         "unix": { "type": "object", "additionalProperties": { "$ref": "#/$defs/unix" } },
-        "in_process": { "type": "object", "additionalProperties": { "$ref": "#/$defs/inProcess" } }
+        "in_process": { "type": "object", "additionalProperties": { "$ref": "#/$defs/inProcess" } },
+        "shared_memory": { "type": "object", "additionalProperties": { "$ref": "#/$defs/sharedMemory" } }
       }
     },
     "network": { "$ref": "#/$defs/networkInfrastructure" },
@@ -74,7 +75,7 @@
         "id": { "$ref": "#/$defs/id" },
         "from": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}\\.[A-Za-z][A-Za-z0-9_-]{0,63}$" },
         "to": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}\\.[A-Za-z][A-Za-z0-9_-]{0,63}$" },
-        "transport": { "enum": ["tcp", "unix", "in_process"] }
+        "transport": { "enum": ["tcp", "unix", "in_process", "shared_memory"] }
       }
     },
     "tcp": {
@@ -111,6 +112,18 @@
       "type": "object", "additionalProperties": false,
       "required": ["channel"],
       "properties": { "channel": { "$ref": "#/$defs/id" } }
+    },
+    "sharedMemory": {
+      "type": "object", "additionalProperties": false,
+      "required": ["segment"],
+      "properties": {
+        "segment": { "type": "string", "pattern": "^/?[A-Za-z][A-Za-z0-9_-]{0,63}$" },
+        "capacity": { "type": "integer", "minimum": 1, "maximum": 65536 },
+        "max_message_bytes": { "type": "integer", "minimum": 64, "maximum": 16777220 },
+        "backpressure": { "enum": ["block", "reject"] },
+        "connect_timeout_ms": { "type": "integer", "minimum": 1, "maximum": 600000 },
+        "send_timeout_ms": { "type": "integer", "minimum": 1, "maximum": 600000 }
+      }
     },
     "networkInfrastructure": {
       "type": "object", "additionalProperties": false,

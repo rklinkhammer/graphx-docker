@@ -1,4 +1,5 @@
 #include "graphx/config.hpp"
+#include "graphx/framing.hpp"
 
 #include <yaml-cpp/yaml.h>
 
@@ -302,6 +303,8 @@ class ConfigParser {
         edge.transport.kind = TransportKind::unix_socket;
       else if (transport == "in_process")
         edge.transport.kind = TransportKind::in_process;
+      else if (transport == "shared_memory")
+        edge.transport.kind = TransportKind::shared_memory;
       else
         error(path + ".transport", "unsupported transport '" + transport + "'");
       config.edges.push_back(std::move(edge));
@@ -310,8 +313,8 @@ class ConfigParser {
 
   void parse_transports(const YAML::Node& transports, GraphConfig& config) {
     if (!require_map(transports, "transport")) return;
-    strict_keys(transports, "transport", {"tcp", "unix", "in_process"});
-    const std::string_view sections[] = {"tcp", "unix", "in_process"};
+    strict_keys(transports, "transport", {"tcp", "unix", "in_process", "shared_memory"});
+    const std::string_view sections[] = {"tcp", "unix", "in_process", "shared_memory"};
     std::unordered_set<std::string> consumed;
     for (auto& edge : config.edges) {
       const auto name = std::string(to_string(edge.transport.kind));
@@ -375,10 +378,48 @@ class ConfigParser {
         edge.transport.path = text(settings["path"], path + ".path", 103);
         if (settings["framing"])
           edge.transport.framing = text(settings["framing"], path + ".framing", 16);
-      } else {
+      } else if (edge.transport.kind == TransportKind::in_process) {
         strict_keys(settings, path, {"channel"});
         edge.transport.channel = text(settings["channel"], path + ".channel", 64);
         identifier(edge.transport.channel, path + ".channel");
+      } else {
+        strict_keys(settings, path,
+                    {"segment", "capacity", "max_message_bytes", "backpressure",
+                     "connect_timeout_ms", "send_timeout_ms"});
+        edge.transport.segment = text(settings["segment"], path + ".segment", 200);
+        auto segment_id = edge.transport.segment;
+        if (!segment_id.empty() && segment_id.front() == '/') segment_id.erase(0, 1);
+        identifier(segment_id, path + ".segment");
+        if (settings["capacity"])
+          edge.transport.capacity = unsigned_value(settings["capacity"], path + ".capacity");
+        if (edge.transport.capacity == 0 || edge.transport.capacity > 65536)
+          error(path + ".capacity", "must be between 1 and 65536");
+        if (settings["max_message_bytes"])
+          edge.transport.max_message_bytes =
+              unsigned_value(settings["max_message_bytes"], path + ".max_message_bytes");
+        if (edge.transport.max_message_bytes < 64 ||
+            edge.transport.max_message_bytes > kMaxFrameBytes + 4)
+          error(path + ".max_message_bytes", "must be between 64 and 16777220");
+        if (static_cast<std::uint64_t>(edge.transport.capacity) *
+                    (edge.transport.max_message_bytes + 32ULL) +
+                4096ULL >
+            256ULL * 1024 * 1024)
+          error(path, "shared-memory payload capacity must not exceed 256 MiB");
+        if (settings["backpressure"])
+          edge.transport.backpressure =
+              text(settings["backpressure"], path + ".backpressure", 16);
+        if (edge.transport.backpressure != "block" && edge.transport.backpressure != "reject")
+          error(path + ".backpressure", "must be 'block' or 'reject'");
+        if (settings["send_timeout_ms"])
+          edge.transport.send_timeout_ms =
+              unsigned_value(settings["send_timeout_ms"], path + ".send_timeout_ms");
+        if (edge.transport.send_timeout_ms == 0 || edge.transport.send_timeout_ms > 600000)
+          error(path + ".send_timeout_ms", "must be between 1 and 600000");
+        if (settings["connect_timeout_ms"])
+          edge.transport.connect_timeout_ms =
+              unsigned_value(settings["connect_timeout_ms"], path + ".connect_timeout_ms");
+        if (edge.transport.connect_timeout_ms == 0 || edge.transport.connect_timeout_ms > 600000)
+          error(path + ".connect_timeout_ms", "must be between 1 and 600000");
       }
       if (edge.transport.kind != TransportKind::in_process && edge.transport.framing != "u32be")
         error(path + ".framing", "version 1 supports only 'u32be'");
@@ -978,6 +1019,8 @@ std::string_view to_string(TransportKind kind) noexcept {
       return "tcp";
     case TransportKind::unix_socket:
       return "unix";
+    case TransportKind::shared_memory:
+      return "shared_memory";
   }
   return "unknown";
 }

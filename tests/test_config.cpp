@@ -116,6 +116,67 @@ void invalid_tcp_policy_is_rejected() {
   }
 }
 
+void shared_memory_config_loads() {
+  TemporaryConfig file(R"yaml(
+version: 1
+graph:
+  id: shared-graph
+  nodes:
+    - id: source
+      kind: source
+      ports: [{ name: out, direction: output, schema: Sample }]
+    - id: target
+      kind: sink
+      ports: [{ name: in, direction: input, schema: Sample }]
+  edges:
+    - { id: shared-edge, from: source.out, to: target.in, transport: shared_memory }
+transport:
+  shared_memory:
+    shared-edge:
+      segment: gx-config-shared
+      capacity: 8
+      max_message_bytes: 8192
+      backpressure: reject
+      send_timeout_ms: 250
+)yaml");
+  const auto transport = graphx::load_config(file.path()).edge("shared-edge").transport;
+  expect(transport.kind == graphx::TransportKind::shared_memory, "shared-memory kind");
+  expect(transport.segment == "gx-config-shared" && transport.capacity == 8,
+         "shared-memory layout settings");
+  expect(transport.max_message_bytes == 8192 && transport.backpressure == "reject" &&
+             transport.send_timeout_ms == 250,
+         "shared-memory pressure settings");
+}
+
+void invalid_shared_memory_config_is_rejected() {
+  TemporaryConfig file(R"yaml(
+version: 1
+graph:
+  id: shared-graph
+  nodes:
+    - id: source
+      kind: source
+      ports: [{ name: out, direction: output, schema: Sample }]
+    - id: target
+      kind: sink
+      ports: [{ name: in, direction: input, schema: Sample }]
+  edges:
+    - { id: shared-edge, from: source.out, to: target.in, transport: shared_memory }
+transport:
+  shared_memory:
+    shared-edge: { segment: bad/name, capacity: 0, max_message_bytes: 32, backpressure: discard }
+)yaml");
+  try {
+    [[maybe_unused]] const auto ignored = graphx::load_config(file.path());
+    throw std::runtime_error("invalid shared-memory configuration was accepted");
+  } catch (const graphx::ConfigError& error) {
+    expect(diagnostic_contains(error, "segment"), "shared-memory segment diagnostic");
+    expect(diagnostic_contains(error, "between 1 and 65536"), "shared-memory capacity diagnostic");
+    expect(diagnostic_contains(error, "between 64"), "shared-memory size diagnostic");
+    expect(diagnostic_contains(error, "block' or 'reject"), "shared-memory policy diagnostic");
+  }
+}
+
 void mixed_network_model_and_plan_load() {
   const auto config = graphx::load_config(std::filesystem::path(GRAPHX_SOURCE_DIR) /
                                           "examples/mixed-network/graphx.yaml");
@@ -389,6 +450,23 @@ void socket_factory_round_trip(graphx::TransportKind kind) {
 void tcp_factory_round_trip() { socket_factory_round_trip(graphx::TransportKind::tcp); }
 void unix_factory_round_trip() { socket_factory_round_trip(graphx::TransportKind::unix_socket); }
 
+void shared_memory_factory_round_trip() {
+  graphx::TransportFactory factory;
+  graphx::EdgeConfig edge;
+  edge.edge.id = "factory-shared";
+  edge.transport.kind = graphx::TransportKind::shared_memory;
+  edge.transport.segment =
+      "/gx-factory-shared-" + std::to_string(::getpid());
+  edge.transport.capacity = 2;
+  edge.transport.max_message_bytes = 4096;
+  auto receiver = factory.create(edge, graphx::ConnectionMode::listen);
+  auto sender = factory.create(edge, graphx::ConnectionMode::connect);
+  sender->send(graphx::Envelope::make(6, "Test", "shared factory"));
+  const auto message = receiver->receive(100ms);
+  expect(message && message->sequence == 6 && message->payload == "shared factory",
+         "shared-memory factory delivery");
+}
+
 }  // namespace
 
 int main() {
@@ -397,6 +475,8 @@ int main() {
       {"authoritative config", authoritative_config_loads},
       {"TCP policy", tcp_policy_loads},
       {"invalid TCP policy", invalid_tcp_policy_is_rejected},
+      {"shared-memory config", shared_memory_config_loads},
+      {"invalid shared-memory config", invalid_shared_memory_config_is_rejected},
       {"mixed network model", mixed_network_model_and_plan_load},
       {"standalone network examples", standalone_network_examples_load},
       {"invalid network reference", invalid_network_reference_is_rejected},
@@ -409,7 +489,8 @@ int main() {
       {"in-process factory", in_process_factory_shares_named_channel},
       {"factory validation", factory_rejects_unvalidated_settings},
       {"TCP factory", tcp_factory_round_trip},
-      {"Unix socket factory", unix_factory_round_trip}};
+      {"Unix socket factory", unix_factory_round_trip},
+      {"shared-memory factory", shared_memory_factory_round_trip}};
   int failures{};
   for (const auto& [name, test] : tests) {
     try {

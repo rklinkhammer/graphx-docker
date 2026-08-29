@@ -75,6 +75,13 @@ int topology_command(const std::string& command, int argc, char** argv) {
                 << (edge.transport.reconnect ? "true" : "false");
     else if (edge.transport.kind == graphx::TransportKind::unix_socket)
       std::cout << " path=" << edge.transport.path;
+    else if (edge.transport.kind == graphx::TransportKind::shared_memory)
+      std::cout << " segment=" << edge.transport.segment
+                << " capacity=" << edge.transport.capacity
+                << " max-message=" << edge.transport.max_message_bytes
+                << " backpressure=" << edge.transport.backpressure
+                << " connect-timeout-ms=" << edge.transport.connect_timeout_ms
+                << " send-timeout-ms=" << edge.transport.send_timeout_ms;
     else
       std::cout << " channel=" << edge.transport.channel;
     std::cout << '\n';

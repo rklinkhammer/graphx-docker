@@ -19,7 +19,7 @@ inline constexpr std::size_t kMaxNodes = 1024;
 inline constexpr std::size_t kMaxEdges = 4096;
 inline constexpr std::size_t kMaxPortsPerNode = 256;
 
-enum class TransportKind { in_process, tcp, unix_socket };
+enum class TransportKind { in_process, tcp, unix_socket, shared_memory };
 
 struct TransportConfig {
   TransportKind kind{};
@@ -35,6 +35,10 @@ struct TransportConfig {
   std::uint32_t retry_initial_backoff_ms{100};
   std::uint32_t retry_max_backoff_ms{2000};
   bool reconnect{true};
+  std::string segment;
+  std::uint32_t capacity{64};
+  std::uint32_t max_message_bytes{1024 * 1024};
+  std::string backpressure{"block"};
 };
 
 struct NodeConfig {

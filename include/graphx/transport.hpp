@@ -27,8 +27,4 @@ class Transport {
 
 using TransportPtr = std::unique_ptr<Transport>;
 
-// Future transports intentionally implement the same small contract:
-//   UnixDomainSocketTransport(path, ...)
-//   SharedMemoryTransport(segment, ring_capacity, ...)
-
 }  // namespace graphx
