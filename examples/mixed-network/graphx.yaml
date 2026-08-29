@@ -1,0 +1,69 @@
+version: 1
+graph:
+  id: mixed-network
+  nodes:
+    - id: generator
+      kind: source
+      ports: [{ name: samples, direction: output, schema: Sample }]
+    - id: transform
+      kind: transform
+      ports:
+        - { name: samples, direction: input, schema: Sample }
+        - { name: transformed, direction: output, schema: TransformedSample }
+    - id: sink
+      kind: sink
+      ports: [{ name: transformed, direction: input, schema: TransformedSample }]
+  edges:
+    - { id: samples, from: generator.samples, to: transform.samples, transport: tcp }
+    - { id: transformed, from: transform.transformed, to: sink.transformed, transport: tcp }
+transport:
+  tcp:
+    samples: { host: 10.20.0.20, bind: 0.0.0.0, port: 7001, framing: u32be }
+    transformed: { host: 10.20.0.30, bind: 0.0.0.0, port: 7002, framing: u32be }
+network:
+  networks:
+    - { id: gx-mac-domain, driver: macvlan, subnet: 10.10.0.0/24, gateway: 10.10.0.1, parent: mv-parent, external: true }
+    - { id: gx-ipv-domain, driver: ipvlan, mode: l2, subnet: 10.20.0.0/24, gateway: 10.20.0.1, parent: iv-parent, external: true }
+  switches:
+    - id: br-gx-mac
+      kind: openvswitch
+      datapath: system
+      ports:
+        - { id: docker-parent, interface: mv-ovs, peer: mv-parent }
+        - { id: capture, interface: cap-mac-ovs, peer: cap-mac }
+      mirror: { id: mirror-mac, output_port: capture, select_all: true }
+    - id: br-gx-ipv
+      kind: openvswitch
+      datapath: system
+      ports:
+        - { id: docker-parent, interface: iv-ovs, peer: iv-parent }
+        - { id: capture, interface: cap-ipv-ovs, peer: cap-ipv }
+      mirror: { id: mirror-ipv, output_port: capture, select_all: true }
+  routers:
+    - id: domain-router
+      kind: linux_namespace
+      namespace: gx-router
+      forwarding: true
+      interfaces:
+        - { id: mac, network: gx-mac-domain, address: 10.10.0.1/24, device: r-mac, peer: ovs-r-mac, switch: br-gx-mac }
+        - { id: ipv, network: gx-ipv-domain, address: 10.20.0.1/24, device: r-ipv, peer: ovs-r-ipv, switch: br-gx-ipv }
+      policies:
+        - { id: mac-to-ipv, source: 10.10.0.0/24, destination: 10.20.0.0/24, action: accept }
+        - { id: ipv-to-mac, source: 10.20.0.0/24, destination: 10.10.0.0/24, action: accept }
+  interfaces:
+    generator:
+      - { id: data, network: gx-mac-domain, address: 10.10.0.10/24, mac: "02:10:00:00:00:10" }
+    transform:
+      - { id: data, network: gx-ipv-domain, address: 10.20.0.20/24 }
+    sink:
+      - { id: data, network: gx-ipv-domain, address: 10.20.0.30/24 }
+  edge_paths:
+    samples: [generator, gx-mac-domain, br-gx-mac, domain-router, br-gx-ipv, gx-ipv-domain, transform]
+    transformed: [transform, gx-ipv-domain, sink]
+deployment:
+  services:
+    generator: { image: graphx-demo:latest, command: graphx-generator }
+    transform: { image: graphx-demo:latest, command: graphx-transform }
+    sink: { image: graphx-demo:latest, command: graphx-sink }
+observability:
+  capture: { enabled: true, provider: ovs-span }

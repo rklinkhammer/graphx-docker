@@ -3,6 +3,8 @@
 #include <yaml-cpp/yaml.h>
 
 #include <algorithm>
+#include <arpa/inet.h>
+#include <charconv>
 #include <cstdlib>
 #include <fstream>
 #include <functional>
@@ -18,6 +20,36 @@ namespace {
 
 constexpr std::size_t kMaxTextLength = 1024;
 const std::regex kIdentifier{"^[A-Za-z][A-Za-z0-9_-]{0,63}$"};
+const std::regex kMacAddress{"^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$"};
+
+struct Ipv4Cidr {
+  std::uint32_t network{};
+  std::uint32_t mask{};
+  unsigned prefix{};
+};
+
+std::optional<std::uint32_t> ipv4_address(std::string_view value) {
+  in_addr address{};
+  const std::string source(value);
+  if (::inet_pton(AF_INET, source.c_str(), &address) != 1) return std::nullopt;
+  return ntohl(address.s_addr);
+}
+
+std::optional<Ipv4Cidr> ipv4_cidr(std::string_view value) {
+  const auto slash = value.find('/');
+  if (slash == std::string_view::npos) return std::nullopt;
+  const auto address = ipv4_address(value.substr(0, slash));
+  if (!address) return std::nullopt;
+  unsigned prefix{};
+  const auto prefix_text = value.substr(slash + 1);
+  const auto result =
+      std::from_chars(prefix_text.data(), prefix_text.data() + prefix_text.size(), prefix);
+  if (result.ec != std::errc{} || result.ptr != prefix_text.data() + prefix_text.size() ||
+      prefix > 32)
+    return std::nullopt;
+  const auto mask = prefix == 0 ? 0U : 0xffffffffU << (32U - prefix);
+  return Ipv4Cidr{*address & mask, mask, prefix};
+}
 
 std::string diagnostics_message(const std::vector<ConfigDiagnostic>& diagnostics) {
   std::ostringstream message;
@@ -71,7 +103,8 @@ class ConfigParser {
   GraphConfig parse() {
     GraphConfig config;
     if (!require_map(root_, "$")) throw ConfigError(std::move(errors_));
-    strict_keys(root_, "$", {"version", "graph", "transport", "deployment", "observability"});
+    strict_keys(root_, "$",
+                {"version", "graph", "transport", "network", "deployment", "observability"});
     config.version = unsigned_value(root_["version"], "version");
     if (config.version != kConfigVersion)
       error("version", "unsupported version " + std::to_string(config.version) +
@@ -86,6 +119,7 @@ class ConfigParser {
       parse_edges(graph["edges"], config);
     }
     parse_transports(root_["transport"], config);
+    parse_network_infrastructure(root_["network"], config);
     parse_deployment(root_["deployment"], config);
     validate_graph(config);
     if (!errors_.empty()) throw ConfigError(std::move(errors_));
@@ -163,6 +197,16 @@ class ConfigParser {
     } catch (const YAML::Exception&) {
       error(path, "must be an unsigned integer");
       return 0;
+    }
+  }
+
+  bool bool_value(const YAML::Node& node, const std::string& path, bool fallback) {
+    if (!node) return fallback;
+    try {
+      return node.as<bool>();
+    } catch (const YAML::Exception&) {
+      error(path, "must be a boolean");
+      return fallback;
     }
   }
 
@@ -319,6 +363,276 @@ class ConfigParser {
     }
   }
 
+  VlanMetadata parse_vlan(const YAML::Node& value, const std::string& path) {
+    VlanMetadata vlan;
+    if (!value) return vlan;
+    if (!require_map(value, path)) return vlan;
+    strict_keys(value, path, {"access_tag", "trunks"});
+    if (value["access_tag"]) {
+      const auto tag = unsigned_value(value["access_tag"], path + ".access_tag");
+      if (tag == 0 || tag > 4094)
+        error(path + ".access_tag", "must be between 1 and 4094");
+      else
+        vlan.access_tag = static_cast<std::uint16_t>(tag);
+    }
+    const auto trunks = value["trunks"];
+    if (trunks && require_sequence(trunks, path + ".trunks")) {
+      for (std::size_t index = 0; index < trunks.size(); ++index) {
+        const auto tag =
+            unsigned_value(trunks[index], path + ".trunks[" + std::to_string(index) + "]");
+        if (tag == 0 || tag > 4094)
+          error(path + ".trunks[" + std::to_string(index) + "]", "must be between 1 and 4094");
+        else
+          vlan.trunks.push_back(static_cast<std::uint16_t>(tag));
+      }
+    }
+    return vlan;
+  }
+
+  void parse_network_infrastructure(const YAML::Node& infrastructure, GraphConfig& config) {
+    if (!infrastructure) return;
+    if (!require_map(infrastructure, "network")) return;
+    strict_keys(infrastructure, "network",
+                {"networks", "switches", "routers", "interfaces", "edge_paths"});
+    parse_networks(infrastructure["networks"], config);
+    parse_switches(infrastructure["switches"], config);
+    parse_routers(infrastructure["routers"], config);
+    parse_network_interfaces(infrastructure["interfaces"], config);
+    parse_edge_paths(infrastructure["edge_paths"], config);
+  }
+
+  void parse_networks(const YAML::Node& values, GraphConfig& config) {
+    if (!values) return;
+    if (!require_sequence(values, "network.networks")) return;
+    std::unordered_set<std::string> ids;
+    for (std::size_t index = 0; index < values.size(); ++index) {
+      const auto path = "network.networks[" + std::to_string(index) + "]";
+      const auto value = values[index];
+      if (!require_map(value, path)) continue;
+      strict_keys(value, path, {"id", "driver", "subnet", "gateway", "parent", "mode", "external"});
+      NetworkDefinition network;
+      network.id = text(value["id"], path + ".id", 64);
+      identifier(network.id, path + ".id");
+      if (!network.id.empty() && !ids.insert(network.id).second)
+        error(path + ".id", "duplicate network id '" + network.id + "'");
+      const auto driver = text(value["driver"], path + ".driver", 16);
+      if (driver == "bridge")
+        network.driver = NetworkDriver::bridge;
+      else if (driver == "macvlan")
+        network.driver = NetworkDriver::macvlan;
+      else if (driver == "ipvlan")
+        network.driver = NetworkDriver::ipvlan;
+      else
+        error(path + ".driver", "must be 'bridge', 'macvlan', or 'ipvlan'");
+      network.subnet = text(value["subnet"], path + ".subnet", 43);
+      network.gateway = text(value["gateway"], path + ".gateway", 39);
+      if (value["parent"]) network.parent = text(value["parent"], path + ".parent", 15);
+      if (value["mode"]) network.mode = text(value["mode"], path + ".mode", 8);
+      network.external = bool_value(value["external"], path + ".external", true);
+      if ((network.driver == NetworkDriver::macvlan || network.driver == NetworkDriver::ipvlan) &&
+          network.parent.empty())
+        error(path + ".parent", "is required for macvlan and ipvlan");
+      if (network.driver == NetworkDriver::ipvlan && network.mode != "l2" && network.mode != "l3" &&
+          network.mode != "l3s")
+        error(path + ".mode", "must be 'l2', 'l3', or 'l3s' for ipvlan");
+      config.network_infrastructure.networks.push_back(std::move(network));
+    }
+  }
+
+  void parse_switches(const YAML::Node& values, GraphConfig& config) {
+    if (!values) return;
+    if (!require_sequence(values, "network.switches")) return;
+    std::unordered_set<std::string> ids;
+    for (std::size_t index = 0; index < values.size(); ++index) {
+      const auto path = "network.switches[" + std::to_string(index) + "]";
+      const auto value = values[index];
+      if (!require_map(value, path)) continue;
+      strict_keys(value, path, {"id", "kind", "datapath", "ports", "mirror"});
+      SwitchDefinition network_switch;
+      network_switch.id = text(value["id"], path + ".id", 15);
+      identifier(network_switch.id, path + ".id");
+      if (!network_switch.id.empty() && !ids.insert(network_switch.id).second)
+        error(path + ".id", "duplicate switch id '" + network_switch.id + "'");
+      const auto kind = text(value["kind"], path + ".kind", 32);
+      if (kind != "openvswitch") error(path + ".kind", "version 1 supports only 'openvswitch'");
+      if (value["datapath"])
+        network_switch.datapath = text(value["datapath"], path + ".datapath", 16);
+      if (network_switch.datapath != "system" && network_switch.datapath != "netdev")
+        error(path + ".datapath", "must be 'system' or 'netdev'");
+      const auto ports = value["ports"];
+      if (ports && require_sequence(ports, path + ".ports")) {
+        std::unordered_set<std::string> port_ids;
+        for (std::size_t port_index = 0; port_index < ports.size(); ++port_index) {
+          const auto port_path = path + ".ports[" + std::to_string(port_index) + "]";
+          const auto port_value = ports[port_index];
+          if (!require_map(port_value, port_path)) continue;
+          strict_keys(port_value, port_path, {"id", "interface", "peer", "vlan"});
+          SwitchPortDefinition port;
+          port.id = text(port_value["id"], port_path + ".id", 64);
+          identifier(port.id, port_path + ".id");
+          if (!port.id.empty() && !port_ids.insert(port.id).second)
+            error(port_path + ".id", "duplicate switch port id '" + port.id + "'");
+          port.interface = text(port_value["interface"], port_path + ".interface", 15);
+          if (port_value["peer"]) port.peer = text(port_value["peer"], port_path + ".peer", 15);
+          port.vlan = parse_vlan(port_value["vlan"], port_path + ".vlan");
+          network_switch.ports.push_back(std::move(port));
+        }
+      }
+      const auto mirror = value["mirror"];
+      if (mirror && require_map(mirror, path + ".mirror")) {
+        strict_keys(mirror, path + ".mirror", {"id", "output_port", "select_all"});
+        MirrorDefinition definition;
+        definition.id = text(mirror["id"], path + ".mirror.id", 64);
+        identifier(definition.id, path + ".mirror.id");
+        definition.output_port = text(mirror["output_port"], path + ".mirror.output_port", 64);
+        definition.select_all = bool_value(mirror["select_all"], path + ".mirror.select_all", true);
+        network_switch.mirror = std::move(definition);
+      }
+      config.network_infrastructure.switches.push_back(std::move(network_switch));
+    }
+  }
+
+  void parse_routers(const YAML::Node& values, GraphConfig& config) {
+    if (!values) return;
+    if (!require_sequence(values, "network.routers")) return;
+    std::unordered_set<std::string> ids;
+    for (std::size_t index = 0; index < values.size(); ++index) {
+      const auto path = "network.routers[" + std::to_string(index) + "]";
+      const auto value = values[index];
+      if (!require_map(value, path)) continue;
+      strict_keys(value, path,
+                  {"id", "kind", "namespace", "forwarding", "interfaces", "routes", "policies"});
+      RouterDefinition router;
+      router.id = text(value["id"], path + ".id", 64);
+      identifier(router.id, path + ".id");
+      if (!router.id.empty() && !ids.insert(router.id).second)
+        error(path + ".id", "duplicate router id '" + router.id + "'");
+      const auto kind = text(value["kind"], path + ".kind", 32);
+      if (kind == "linux_namespace")
+        router.kind = RouterKind::linux_namespace;
+      else if (kind == "container")
+        router.kind = RouterKind::container;
+      else
+        error(path + ".kind", "must be 'linux_namespace' or 'container'");
+      if (value["namespace"])
+        router.namespace_name = text(value["namespace"], path + ".namespace", 64);
+      if (router.kind == RouterKind::linux_namespace && router.namespace_name.empty())
+        error(path + ".namespace", "is required for a Linux namespace router");
+      router.forwarding = bool_value(value["forwarding"], path + ".forwarding", true);
+      const auto interfaces = value["interfaces"];
+      if (!require_sequence(interfaces, path + ".interfaces")) continue;
+      for (std::size_t interface_index = 0; interface_index < interfaces.size();
+           ++interface_index) {
+        const auto interface_path = path + ".interfaces[" + std::to_string(interface_index) + "]";
+        const auto interface_value = interfaces[interface_index];
+        if (!require_map(interface_value, interface_path)) continue;
+        strict_keys(interface_value, interface_path,
+                    {"id", "network", "address", "device", "peer", "switch"});
+        RouterInterfaceDefinition interface;
+        interface.id = text(interface_value["id"], interface_path + ".id", 64);
+        identifier(interface.id, interface_path + ".id");
+        interface.network = text(interface_value["network"], interface_path + ".network", 64);
+        interface.address = text(interface_value["address"], interface_path + ".address", 43);
+        interface.device = text(interface_value["device"], interface_path + ".device", 15);
+        interface.peer = text(interface_value["peer"], interface_path + ".peer", 15);
+        interface.network_switch = text(interface_value["switch"], interface_path + ".switch", 15);
+        router.interfaces.push_back(std::move(interface));
+      }
+      if (router.interfaces.size() < 2)
+        error(path + ".interfaces", "must contain at least two interfaces");
+      const auto routes = value["routes"];
+      if (routes && require_sequence(routes, path + ".routes")) {
+        for (std::size_t route_index = 0; route_index < routes.size(); ++route_index) {
+          const auto route_path = path + ".routes[" + std::to_string(route_index) + "]";
+          const auto route_value = routes[route_index];
+          if (!require_map(route_value, route_path)) continue;
+          strict_keys(route_value, route_path, {"destination", "via", "device"});
+          RouteDefinition route;
+          route.destination = text(route_value["destination"], route_path + ".destination", 43);
+          if (route_value["via"]) route.via = text(route_value["via"], route_path + ".via", 39);
+          if (route_value["device"])
+            route.device = text(route_value["device"], route_path + ".device", 15);
+          router.routes.push_back(std::move(route));
+        }
+      }
+      const auto policies = value["policies"];
+      if (policies && require_sequence(policies, path + ".policies")) {
+        for (std::size_t policy_index = 0; policy_index < policies.size(); ++policy_index) {
+          const auto policy_path = path + ".policies[" + std::to_string(policy_index) + "]";
+          const auto policy_value = policies[policy_index];
+          if (!require_map(policy_value, policy_path)) continue;
+          strict_keys(policy_value, policy_path, {"id", "source", "destination", "action"});
+          PolicyDefinition policy;
+          policy.id = text(policy_value["id"], policy_path + ".id", 64);
+          identifier(policy.id, policy_path + ".id");
+          if (policy_value["source"])
+            policy.source = text(policy_value["source"], policy_path + ".source", 43);
+          if (policy_value["destination"])
+            policy.destination =
+                text(policy_value["destination"], policy_path + ".destination", 43);
+          if (policy_value["action"])
+            policy.action = text(policy_value["action"], policy_path + ".action", 16);
+          if (policy.action != "accept" && policy.action != "drop")
+            error(policy_path + ".action", "must be 'accept' or 'drop'");
+          router.policies.push_back(std::move(policy));
+        }
+      }
+      config.network_infrastructure.routers.push_back(std::move(router));
+    }
+  }
+
+  void parse_network_interfaces(const YAML::Node& owners, GraphConfig& config) {
+    if (!owners) return;
+    if (!require_map(owners, "network.interfaces")) return;
+    for (const auto& owner_entry : owners) {
+      if (!owner_entry.first.IsScalar()) {
+        error("network.interfaces", "contains a non-scalar owner");
+        continue;
+      }
+      const auto owner = owner_entry.first.Scalar();
+      const auto path = "network.interfaces." + owner;
+      identifier(owner, path);
+      if (!require_sequence(owner_entry.second, path)) continue;
+      for (std::size_t index = 0; index < owner_entry.second.size(); ++index) {
+        const auto item_path = path + "[" + std::to_string(index) + "]";
+        const auto value = owner_entry.second[index];
+        if (!require_map(value, item_path)) continue;
+        strict_keys(value, item_path, {"id", "network", "address", "mac"});
+        NetworkInterfaceDefinition interface;
+        interface.owner = owner;
+        interface.id = text(value["id"], item_path + ".id", 64);
+        identifier(interface.id, item_path + ".id");
+        interface.network = text(value["network"], item_path + ".network", 64);
+        if (value["address"])
+          interface.address = text(value["address"], item_path + ".address", 43);
+        if (value["mac"]) interface.mac = text(value["mac"], item_path + ".mac", 17);
+        if (!interface.mac.empty() && !std::regex_match(interface.mac, kMacAddress))
+          error(item_path + ".mac", "must be a six-octet MAC address");
+        config.network_infrastructure.interfaces.push_back(std::move(interface));
+      }
+    }
+  }
+
+  void parse_edge_paths(const YAML::Node& paths, GraphConfig& config) {
+    if (!paths) return;
+    if (!require_map(paths, "network.edge_paths")) return;
+    for (const auto& entry : paths) {
+      if (!entry.first.IsScalar()) {
+        error("network.edge_paths", "contains a non-scalar edge id");
+        continue;
+      }
+      EdgeNetworkPath path;
+      path.edge_id = entry.first.Scalar();
+      const auto item_path = "network.edge_paths." + path.edge_id;
+      if (!require_sequence(entry.second, item_path)) continue;
+      if (entry.second.size() < 2) error(item_path, "must contain at least two hops");
+      for (std::size_t index = 0; index < entry.second.size(); ++index)
+        path.hops.push_back(
+            text(entry.second[index], item_path + "[" + std::to_string(index) + "]", 64));
+      config.network_infrastructure.edge_paths.push_back(std::move(path));
+    }
+  }
+
   void parse_deployment(const YAML::Node& deployment, GraphConfig& config) {
     if (!deployment) return;
     if (!require_map(deployment, "deployment")) return;
@@ -425,6 +739,117 @@ class ConfigParser {
       for (const auto& node : config.nodes)
         if (!placed.contains(node.id))
           error("deployment.services", "missing placement for node '" + node.id + "'");
+    }
+    validate_network_infrastructure(config);
+  }
+
+  void validate_network_infrastructure(const GraphConfig& config) {
+    const auto& infrastructure = config.network_infrastructure;
+    std::unordered_set<std::string> network_ids;
+    std::unordered_map<std::string, Ipv4Cidr> subnets;
+    for (std::size_t index = 0; index < infrastructure.networks.size(); ++index) {
+      const auto& network = infrastructure.networks[index];
+      const auto path = "network.networks[" + std::to_string(index) + "]";
+      network_ids.insert(network.id);
+      const auto subnet = ipv4_cidr(network.subnet);
+      if (!subnet)
+        error(path + ".subnet", "must be an IPv4 CIDR");
+      else {
+        subnets.emplace(network.id, *subnet);
+        const auto literal = network.subnet.substr(0, network.subnet.find('/'));
+        const auto address = ipv4_address(literal);
+        if (address && *address != subnet->network)
+          error(path + ".subnet", "must use the network address for its prefix");
+      }
+      const auto gateway = ipv4_address(network.gateway);
+      if (!gateway)
+        error(path + ".gateway", "must be an IPv4 address");
+      else if (subnet && (*gateway & subnet->mask) != subnet->network)
+        error(path + ".gateway", "must be inside the network subnet");
+    }
+
+    std::unordered_set<std::string> switch_ids;
+    for (std::size_t index = 0; index < infrastructure.switches.size(); ++index) {
+      const auto& network_switch = infrastructure.switches[index];
+      const auto path = "network.switches[" + std::to_string(index) + "]";
+      switch_ids.insert(network_switch.id);
+      if (network_switch.mirror &&
+          std::ranges::none_of(network_switch.ports, [&](const auto& port) {
+            return port.id == network_switch.mirror->output_port;
+          }))
+        error(path + ".mirror.output_port", "must reference a port on the same switch");
+    }
+
+    std::unordered_set<std::string> router_ids;
+    for (std::size_t router_index = 0; router_index < infrastructure.routers.size();
+         ++router_index) {
+      const auto& router = infrastructure.routers[router_index];
+      const auto path = "network.routers[" + std::to_string(router_index) + "]";
+      router_ids.insert(router.id);
+      for (std::size_t index = 0; index < router.interfaces.size(); ++index) {
+        const auto& interface = router.interfaces[index];
+        const auto interface_path = path + ".interfaces[" + std::to_string(index) + "]";
+        if (!network_ids.contains(interface.network))
+          error(interface_path + ".network",
+                "references unknown network '" + interface.network + "'");
+        if (!switch_ids.contains(interface.network_switch))
+          error(interface_path + ".switch",
+                "references unknown switch '" + interface.network_switch + "'");
+        const auto address = ipv4_cidr(interface.address);
+        if (!address)
+          error(interface_path + ".address", "must be an IPv4 CIDR");
+        else if (const auto subnet = subnets.find(interface.network);
+                 subnet != subnets.end() && address->network != subnet->second.network)
+          error(interface_path + ".address", "must be inside its network subnet");
+      }
+      for (std::size_t index = 0; index < router.routes.size(); ++index)
+        if (!ipv4_cidr(router.routes[index].destination))
+          error(path + ".routes[" + std::to_string(index) + "].destination",
+                "must be an IPv4 CIDR");
+        else if (!router.routes[index].via.empty() && !ipv4_address(router.routes[index].via))
+          error(path + ".routes[" + std::to_string(index) + "].via", "must be an IPv4 address");
+      for (std::size_t index = 0; index < router.policies.size(); ++index) {
+        const auto& policy = router.policies[index];
+        const auto policy_path = path + ".policies[" + std::to_string(index) + "]";
+        if (!policy.source.empty() && !ipv4_cidr(policy.source))
+          error(policy_path + ".source", "must be an IPv4 CIDR");
+        if (!policy.destination.empty() && !ipv4_cidr(policy.destination))
+          error(policy_path + ".destination", "must be an IPv4 CIDR");
+      }
+    }
+
+    std::unordered_set<std::string> node_ids;
+    for (const auto& node : config.nodes) node_ids.insert(node.id);
+    for (std::size_t index = 0; index < infrastructure.interfaces.size(); ++index) {
+      const auto& interface = infrastructure.interfaces[index];
+      const auto path = "network.interfaces." + interface.owner + "[" + std::to_string(index) + "]";
+      if (!node_ids.contains(interface.owner)) error(path, "owner is not a graph node");
+      if (!network_ids.contains(interface.network))
+        error(path + ".network", "references unknown network '" + interface.network + "'");
+      if (!interface.address.empty()) {
+        const auto address = ipv4_cidr(interface.address);
+        if (!address)
+          error(path + ".address", "must be an IPv4 CIDR");
+        else if (const auto subnet = subnets.find(interface.network);
+                 subnet != subnets.end() && address->network != subnet->second.network)
+          error(path + ".address", "must be inside its network subnet");
+      }
+    }
+
+    std::unordered_set<std::string> edge_ids;
+    for (const auto& edge : config.edges) edge_ids.insert(edge.edge.id);
+    std::unordered_set<std::string> known_hops = node_ids;
+    known_hops.insert(network_ids.begin(), network_ids.end());
+    known_hops.insert(switch_ids.begin(), switch_ids.end());
+    known_hops.insert(router_ids.begin(), router_ids.end());
+    for (std::size_t index = 0; index < infrastructure.edge_paths.size(); ++index) {
+      const auto& path = infrastructure.edge_paths[index];
+      const auto location = "network.edge_paths." + path.edge_id;
+      if (!edge_ids.contains(path.edge_id)) error(location, "references an unknown graph edge");
+      for (std::size_t hop = 0; hop < path.hops.size(); ++hop)
+        if (!known_hops.contains(path.hops[hop]))
+          error(location + "[" + std::to_string(hop) + "]",
+                "references unknown hop '" + path.hops[hop] + "'");
     }
   }
 

@@ -1,0 +1,23 @@
+services:
+  transform:
+    build: ../../..
+    image: graphx-demo:latest
+    user: root
+    entrypoint: ["sh", "-c"]
+    command: ["ip route replace 10.10.0.0/24 via 10.20.0.1 && exec /usr/local/bin/graphx-transform"]
+    volumes: ["../graphx.yaml:/etc/graphx/graphx.yaml:ro"]
+    cap_add: [NET_ADMIN]
+    networks:
+      ipv-sim: { ipv4_address: 10.20.0.20 }
+  sink:
+    build: ../../..
+    image: graphx-demo:latest
+    user: root
+    entrypoint: ["sh", "-c"]
+    command: ["ip route replace 10.10.0.0/24 via 10.20.0.1 && exec /usr/local/bin/graphx-sink"]
+    volumes: ["../graphx.yaml:/etc/graphx/graphx.yaml:ro"]
+    cap_add: [NET_ADMIN]
+    networks:
+      ipv-sim: { ipv4_address: 10.20.0.30 }
+networks:
+  ipv-sim: { name: gx-ipv-sim, external: true }

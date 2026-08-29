@@ -1,6 +1,7 @@
 #pragma once
 
 #include "graphx/types.hpp"
+#include "graphx/network.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -59,6 +60,7 @@ struct GraphConfig {
   std::string id;
   std::vector<NodeConfig> nodes;
   std::vector<EdgeConfig> edges;
+  NetworkInfrastructureConfig network_infrastructure;
   DeploymentConfig deployment;
 
   [[nodiscard]] const NodeConfig& node(std::string_view id) const;

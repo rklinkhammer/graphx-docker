@@ -1,0 +1,13 @@
+services:
+  generator:
+    build: ../../..
+    image: graphx-demo:latest
+    user: root
+    entrypoint: ["sh", "-c"]
+    command: ["ip route replace 10.20.0.0/24 via 10.10.0.1 && exec /usr/local/bin/graphx-generator"]
+    volumes: ["../graphx.yaml:/etc/graphx/graphx.yaml:ro"]
+    cap_add: [NET_ADMIN]
+    networks:
+      mac-sim: { ipv4_address: 10.10.0.10 }
+networks:
+  mac-sim: { name: gx-mac-sim, external: true }

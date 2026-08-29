@@ -32,6 +32,33 @@ Open [http://localhost:8080](http://localhost:8080). The `generator` connects to
 
 Stop the demo with `Ctrl-C`, then run `docker compose down`.
 
+### Run the mixed network laboratory
+
+GraphX now has a first-class network infrastructure layer with Docker bridge,
+macvlan, and ipvlan definitions; node interfaces; Open vSwitch ports, VLAN
+metadata, and SPAN mirrors; namespace routers, routes, nftables policies, and
+`tc netem` fault hooks. Infrastructure lifetime is independent of Compose.
+
+The exact macvlan/ipvlan example requires native Linux. A separate Docker Desktop
+profile runs OVS in a privileged userspace-datapath container between two Docker
+bridge domains:
+
+```sh
+./build/dev/graphx validate examples/mixed-network/graphx.yaml
+./build/dev/graphx infra create examples/mixed-network/graphx.yaml --dry-run
+
+# Native Linux
+examples/mixed-network/scripts/linux-up.sh
+
+# Docker Desktop for macOS (portable simulation)
+examples/mixed-network/scripts/macos-up.sh
+```
+
+See [`examples/mixed-network/README.md`](examples/mixed-network/README.md) and
+[`docs/network-infrastructure.md`](docs/network-infrastructure.md). Docker Desktop
+does not support Docker's macvlan driver, so the macOS profile is deliberately
+identified as a simulation rather than an exact substitute.
+
 ### Run the web console during development
 
 ```sh
@@ -65,6 +92,9 @@ The core contracts stay deliberately small:
 - **Node** owns an identity and typed input/output `Port` descriptions. `FunctionNode` demonstrates an adapter for ordinary transformation functions.
 - **Port** names a direction and payload schema. It is metadata, not a socket.
 - **Edge** connects two named ports and selects a transport. `GraphConfig` is the validated, versioned source model and `TransportFactory` turns an edge's transport settings into TCP, Unix-domain socket, or in-process endpoints.
+- **Network infrastructure** models address domains, node interfaces, OVS switches,
+  mirrors, VLAN metadata, routers, routes/policies, and the ordered infrastructure
+  path for each logical edge. `graphx infra` projects that model onto Linux and Docker.
 - **Envelope** carries sequence, wall-clock timestamp, type, trace ID, string attributes, and opaque payload. Its versioned binary encoding is deterministic.
 - **Transport** has `send`, timed `receive`, and `close`. `InProcessTransport` uses a synchronized queue; `TcpTransport` handles DNS; and `UnixDomainSocketTransport` provides the same framing and tracing on a local filesystem socket.
 - **TraceSink** receives send, receive, latency, byte-count, and error callbacks without coupling the runtime to one metrics stack. Metrics, fan-out, console, and best-effort UDP JSON implementations are included.
@@ -74,13 +104,18 @@ TCP uses a four-byte unsigned big-endian length followed by one serialized envel
 
 ### Three related topologies
 
-[`graphx.yaml`](graphx.yaml) is the authoritative source model and holds the logical graph, transport choices, deployment hints, and observability settings. Version 1 is described by [`config/schema/graphx.schema.json`](config/schema/graphx.schema.json) and enforced by the C++ loader. The files in [`config/`](config/) are human-readable projections that make each concern easy to discuss. [`compose.yaml`](compose.yaml) is checked in as a static deployment projection for now.
+[`graphx.yaml`](graphx.yaml) is the authoritative source model and holds the logical graph, transport choices, network infrastructure, deployment hints, and observability settings. Version 1 is described by [`config/schema/graphx.schema.json`](config/schema/graphx.schema.json) and enforced by the C++ loader. The files in [`config/`](config/) are human-readable projections that make each concern easy to discuss. [`compose.yaml`](compose.yaml) is checked in as a static deployment projection for now.
 
 Logical nodes contain only GraphX identity, kind, and ports. Container image and
 command hints belong under `deployment.services`, so runtime semantics remain
 independent of Docker and other schedulers.
 
 The `graphx validate` command checks syntax, limits, identifiers, duplicate definitions, endpoint directions, schemas, transport settings, and cycles. `graphx inspect` prints the normalized model. A future `graphx generate` command may derive Compose/Kubernetes projections; until then, update `graphx.yaml` first and keep static projections aligned.
+
+Network validation additionally checks IPv4 subnet membership, node/router
+references, MAC syntax, VLAN ranges, mirror output ports, and logical-edge path
+hops. The GUI can switch between the application graph and the infrastructure
+path; selecting a logical edge highlights its macvlan/OVS/router/OVS/ipvlan path.
 
 ### Configuration commands
 
@@ -89,6 +124,7 @@ The `graphx validate` command checks syntax, limits, identifiers, duplicate defi
 ./build/dev/graphx inspect graphx.yaml
 ./build/dev/graphx inspect graphx.yaml \
   --set transport.tcp.samples.host=127.0.0.1
+./build/dev/graphx infra status examples/mixed-network/graphx.yaml --dry-run
 ```
 
 The configuration path defaults to `graphx.yaml` and can be set with
@@ -139,7 +175,8 @@ Pause, fault injection, and reset are development-control scaffolds. They update
 │   ├── sink/               consumer process
 │   └── telemetry/          static web + JSON control service
 ├── config/                 graph/transport/deployment projections
-├── docker/                 telemetry multi-stage image
+├── docker/                 telemetry and userspace-OVS images
+├── examples/mixed-network/ native Linux and Docker Desktop network labs
 ├── include/graphx/         public C++ contracts
 ├── src/                    envelope, framing, and transports
 ├── tests/                  dependency-free unit/integration test runner
@@ -190,6 +227,8 @@ To add observability, implement `TraceSink`. An OpenTelemetry adapter can turn a
 - malformed and oversized configuration rejection;
 - cycle rejection and all three transport-factory paths;
 - the `graphx validate` CLI against the repository model.
+- network-model parsing, reference validation, infrastructure planning, OVS mirrors,
+  forwarding, Docker macvlan/ipvlan creation, and netem command generation.
 
 The tests use no third-party framework so a fresh scaffold remains easy to build and study.
 

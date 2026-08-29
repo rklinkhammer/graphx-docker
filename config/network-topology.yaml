@@ -1,0 +1,10 @@
+# Projection of graphx.yaml: network infrastructure and logical-edge paths.
+networks:
+  - { id: graphx, driver: bridge, subnet: 172.30.0.0/24, gateway: 172.30.0.1 }
+interfaces:
+  generator: [{ id: data, network: graphx }]
+  transform: [{ id: data, network: graphx }]
+  sink: [{ id: data, network: graphx }]
+edge_paths:
+  samples: [generator, graphx, transform]
+  transformed: [transform, graphx, sink]

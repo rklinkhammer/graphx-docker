@@ -1,0 +1,14 @@
+services:
+  ovs-router:
+    build:
+      context: ../../..
+      dockerfile: docker/ovs/Dockerfile
+    image: graphx-ovs:latest
+    privileged: true
+    devices: ["/dev/net/tun:/dev/net/tun"]
+    networks:
+      mac-sim: { ipv4_address: 10.10.0.2 }
+      ipv-sim: { ipv4_address: 10.20.0.2 }
+networks:
+  mac-sim: { name: gx-mac-sim, external: true }
+  ipv-sim: { name: gx-ipv-sim, external: true }

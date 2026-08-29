@@ -30,6 +30,8 @@ add_library(graphx
   src/envelope.cpp
   src/framing.cpp
   src/in_process_transport.cpp
+  src/infra.cpp
+  src/network.cpp
   src/observability.cpp
   src/tcp_transport.cpp
   src/unix_domain_socket_transport.cpp

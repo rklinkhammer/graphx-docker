@@ -1,4 +1,5 @@
 #include "graphx/config.hpp"
+#include "graphx/infra.hpp"
 #include "graphx/transport_factory.hpp"
 
 #include <chrono>
@@ -76,6 +77,56 @@ void authoritative_config_loads() {
   expect(config.node("transform").ports.size() == 2, "node lookup");
   expect(config.deployment.services.size() == 3, "deployment placements");
   expect(config.deployment.services.front().node_id == "generator", "deployment separation");
+  expect(config.network_infrastructure.networks.size() == 1, "network layer");
+  expect(config.network_infrastructure.network("graphx").driver == graphx::NetworkDriver::bridge,
+         "bridge network model");
+  expect(config.network_infrastructure.edge_path("samples").hops.size() == 3,
+         "simple network path");
+}
+
+void mixed_network_model_and_plan_load() {
+  const auto config = graphx::load_config(std::filesystem::path(GRAPHX_SOURCE_DIR) /
+                                          "examples/mixed-network/graphx.yaml");
+  expect(config.network_infrastructure.network("gx-mac-domain").driver ==
+             graphx::NetworkDriver::macvlan,
+         "macvlan model");
+  expect(config.network_infrastructure.network("gx-ipv-domain").mode == "l2", "ipvlan L2 model");
+  expect(config.network_infrastructure.router("domain-router").interfaces.size() == 2,
+         "router interfaces");
+  expect(config.network_infrastructure.network_switch("br-gx-mac").mirror.has_value(),
+         "OVS mirror model");
+  const auto commands = graphx::infrastructure_plan(config, graphx::InfraAction::create);
+  std::string plan;
+  for (const auto& command : commands) plan += graphx::format_command(command) + '\n';
+  expect(plan.find("add-br br-gx-mac") != std::string::npos, "mac OVS bridge plan");
+  expect(plan.find("--driver macvlan") != std::string::npos, "macvlan create plan");
+  expect(plan.find("ipvlan_mode=l2") != std::string::npos, "ipvlan create plan");
+  expect(plan.find("net.ipv4.ip_forward=1") != std::string::npos, "forwarding plan");
+  expect(plan.find("create Mirror") != std::string::npos, "mirror plan");
+  const auto fault =
+      graphx::netem_command(config, "domain-router", "ipv", false, "20ms", "3ms", "1%", {});
+  expect(graphx::format_command(fault).find("netem delay 20ms 3ms loss 1%") != std::string::npos,
+         "netem plan");
+}
+
+void invalid_network_reference_is_rejected() {
+  TemporaryConfig file(std::string(valid_config) + R"yaml(
+network:
+  networks:
+    - { id: lab, driver: bridge, subnet: 10.0.0.0/24, gateway: 10.0.0.1 }
+  interfaces:
+    source:
+      - { id: data, network: missing, address: 10.0.0.10/24 }
+  edge_paths:
+    sample-edge: [source, missing, target]
+)yaml");
+  try {
+    [[maybe_unused]] const auto ignored = graphx::load_config(file.path());
+    throw std::runtime_error("invalid network reference was accepted");
+  } catch (const graphx::ConfigError& error) {
+    expect(diagnostic_contains(error, "unknown network 'missing'"), "unknown network diagnostic");
+    expect(diagnostic_contains(error, "unknown hop 'missing'"), "unknown hop diagnostic");
+  }
 }
 
 void explicit_override_wins() {
@@ -287,6 +338,8 @@ int main() {
   ::unsetenv("GRAPHX_OVERRIDES");
   const std::pair<const char*, std::function<void()>> tests[] = {
       {"authoritative config", authoritative_config_loads},
+      {"mixed network model", mixed_network_model_and_plan_load},
+      {"invalid network reference", invalid_network_reference_is_rejected},
       {"override precedence", explicit_override_wins},
       {"invalid override", invalid_override_is_rejected},
       {"aggregated errors", semantic_errors_are_aggregated},

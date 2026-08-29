@@ -1,0 +1,12 @@
+services:
+  generator:
+    build: ../../..
+    image: graphx-demo:latest
+    entrypoint: ["/usr/local/bin/graphx-generator"]
+    volumes: ["../graphx.yaml:/etc/graphx/graphx.yaml:ro"]
+    networks:
+      mac-domain:
+        ipv4_address: 10.10.0.10
+        mac_address: "02:10:00:00:00:10"
+networks:
+  mac-domain: { name: gx-mac-domain, external: true }

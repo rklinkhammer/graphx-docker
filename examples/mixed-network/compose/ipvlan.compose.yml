@@ -1,0 +1,17 @@
+services:
+  transform:
+    build: ../../..
+    image: graphx-demo:latest
+    entrypoint: ["/usr/local/bin/graphx-transform"]
+    volumes: ["../graphx.yaml:/etc/graphx/graphx.yaml:ro"]
+    networks:
+      ipv-domain: { ipv4_address: 10.20.0.20 }
+  sink:
+    build: ../../..
+    image: graphx-demo:latest
+    entrypoint: ["/usr/local/bin/graphx-sink"]
+    volumes: ["../graphx.yaml:/etc/graphx/graphx.yaml:ro"]
+    networks:
+      ipv-domain: { ipv4_address: 10.20.0.30 }
+networks:
+  ipv-domain: { name: gx-ipv-domain, external: true }

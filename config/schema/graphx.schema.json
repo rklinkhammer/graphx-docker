@@ -32,6 +32,7 @@
         "in_process": { "type": "object", "additionalProperties": { "$ref": "#/$defs/inProcess" } }
       }
     },
+    "network": { "$ref": "#/$defs/networkInfrastructure" },
     "deployment": {
       "type": "object",
       "additionalProperties": false,
@@ -98,6 +99,120 @@
       "type": "object", "additionalProperties": false,
       "required": ["channel"],
       "properties": { "channel": { "$ref": "#/$defs/id" } }
+    },
+    "networkInfrastructure": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "networks": { "type": "array", "items": { "$ref": "#/$defs/networkDefinition" } },
+        "switches": { "type": "array", "items": { "$ref": "#/$defs/switchDefinition" } },
+        "routers": { "type": "array", "items": { "$ref": "#/$defs/routerDefinition" } },
+        "interfaces": {
+          "type": "object",
+          "additionalProperties": { "type": "array", "items": { "$ref": "#/$defs/networkInterface" } }
+        },
+        "edge_paths": {
+          "type": "object",
+          "additionalProperties": { "type": "array", "minItems": 2, "items": { "$ref": "#/$defs/id" } }
+        }
+      }
+    },
+    "networkDefinition": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "driver", "subnet", "gateway"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "driver": { "enum": ["bridge", "macvlan", "ipvlan"] },
+        "subnet": { "type": "string", "minLength": 1, "maxLength": 43 },
+        "gateway": { "type": "string", "minLength": 1, "maxLength": 39 },
+        "parent": { "type": "string", "minLength": 1, "maxLength": 15 },
+        "mode": { "enum": ["l2", "l3", "l3s"] },
+        "external": { "type": "boolean" }
+      }
+    },
+    "vlan": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "access_tag": { "type": "integer", "minimum": 1, "maximum": 4094 },
+        "trunks": { "type": "array", "items": { "type": "integer", "minimum": 1, "maximum": 4094 } }
+      }
+    },
+    "switchPort": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "interface"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "interface": { "type": "string", "minLength": 1, "maxLength": 15 },
+        "peer": { "type": "string", "minLength": 1, "maxLength": 15 },
+        "vlan": { "$ref": "#/$defs/vlan" }
+      }
+    },
+    "switchDefinition": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "kind", "ports"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 15 },
+        "kind": { "const": "openvswitch" },
+        "datapath": { "enum": ["system", "netdev"] },
+        "ports": { "type": "array", "items": { "$ref": "#/$defs/switchPort" } },
+        "mirror": {
+          "type": "object", "additionalProperties": false,
+          "required": ["id", "output_port"],
+          "properties": {
+            "id": { "$ref": "#/$defs/id" },
+            "output_port": { "$ref": "#/$defs/id" },
+            "select_all": { "type": "boolean" }
+          }
+        }
+      }
+    },
+    "routerInterface": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "network", "address", "device", "peer", "switch"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" }, "network": { "$ref": "#/$defs/id" },
+        "address": { "type": "string", "minLength": 1, "maxLength": 43 },
+        "device": { "type": "string", "minLength": 1, "maxLength": 15 },
+        "peer": { "type": "string", "minLength": 1, "maxLength": 15 },
+        "switch": { "type": "string", "minLength": 1, "maxLength": 15 }
+      }
+    },
+    "route": {
+      "type": "object", "additionalProperties": false, "required": ["destination"],
+      "properties": {
+        "destination": { "type": "string", "minLength": 1, "maxLength": 43 },
+        "via": { "type": "string", "minLength": 1, "maxLength": 39 },
+        "device": { "type": "string", "minLength": 1, "maxLength": 15 }
+      }
+    },
+    "policy": {
+      "type": "object", "additionalProperties": false, "required": ["id"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "source": { "type": "string", "minLength": 1, "maxLength": 43 },
+        "destination": { "type": "string", "minLength": 1, "maxLength": 43 },
+        "action": { "enum": ["accept", "drop"] }
+      }
+    },
+    "routerDefinition": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "kind", "interfaces"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "kind": { "enum": ["linux_namespace", "container"] },
+        "namespace": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "forwarding": { "type": "boolean" },
+        "interfaces": { "type": "array", "minItems": 2, "items": { "$ref": "#/$defs/routerInterface" } },
+        "routes": { "type": "array", "items": { "$ref": "#/$defs/route" } },
+        "policies": { "type": "array", "items": { "$ref": "#/$defs/policy" } }
+      }
+    },
+    "networkInterface": {
+      "type": "object", "additionalProperties": false, "required": ["id", "network"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" }, "network": { "$ref": "#/$defs/id" },
+        "address": { "type": "string", "minLength": 1, "maxLength": 43 },
+        "mac": { "type": "string", "pattern": "^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$" }
+      }
     },
     "service": {
       "type": "object", "additionalProperties": false,

@@ -28,6 +28,23 @@ transport:
   tcp:
     samples: { host: transform, bind: 0.0.0.0, port: 7001, framing: u32be }
     transformed: { host: sink, bind: 0.0.0.0, port: 7002, framing: u32be }
+network:
+  networks:
+    - id: graphx
+      driver: bridge
+      subnet: 172.30.0.0/24
+      gateway: 172.30.0.1
+      external: false
+  interfaces:
+    generator:
+      - { id: data, network: graphx }
+    transform:
+      - { id: data, network: graphx }
+    sink:
+      - { id: data, network: graphx }
+  edge_paths:
+    samples: [generator, graphx, transform]
+    transformed: [transform, graphx, sink]
 deployment:
   network: graphx
   services:
