@@ -59,7 +59,8 @@ void in_process() {
   const auto message = receiver.receive(std::chrono::milliseconds(10));
   expect(message && message->payload == "hello", "in-process delivery");
   const auto measured = metrics.edge("local");
-  expect(measured.sent == 1 && measured.received == 1 && measured.wire_bytes > 0 &&
+  expect(measured.sent == 1 && measured.received == 1 && measured.sent_wire_bytes > 0 &&
+             measured.received_wire_bytes > 0 &&
              measured.connection == graphx::ConnectionState::connected,
          "in-process tracing parity");
 }
@@ -76,7 +77,8 @@ void metrics_sink() {
   metrics.on_backpressure("metrics-edge", {}, true);
   const auto edge = metrics.edge("metrics-edge");
   expect(edge.sent == 1 && edge.received == 1, "metrics message counters");
-  expect(edge.wire_bytes == 128 && edge.errors == 1, "metrics byte/error counters");
+  expect(edge.sent_wire_bytes == 64 && edge.received_wire_bytes == 64 && edge.errors == 1,
+         "metrics directional byte/error counters");
   expect(edge.total_latency == std::chrono::microseconds(25), "metrics latency");
   expect(edge.latency_buckets[1] == 1, "metrics latency histogram");
   expect(edge.connection == graphx::ConnectionState::connected && edge.reconnects == 1,
@@ -200,7 +202,8 @@ void shared_memory_wraparound_and_cleanup() {
   producer.close();
   expect(!consumer.receive(100ms), "shared-memory close after drain");
   const auto measured = metrics.edge("shm-wrap");
-  expect(measured.sent == 20 && measured.received == 20 && measured.wire_bytes > 0,
+  expect(measured.sent == 20 && measured.received == 20 && measured.sent_wire_bytes > 0 &&
+             measured.received_wire_bytes > 0,
          "shared-memory tracing hooks");
   consumer.close();
   const int stale = ::shm_open(segment.c_str(), O_RDWR, 0600);

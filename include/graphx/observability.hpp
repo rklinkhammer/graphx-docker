@@ -46,7 +46,8 @@ class NullTraceSink final : public TraceSink {
 struct EdgeMetrics {
   std::uint64_t sent{};
   std::uint64_t received{};
-  std::uint64_t wire_bytes{};
+  std::uint64_t sent_wire_bytes{};
+  std::uint64_t received_wire_bytes{};
   std::uint64_t errors{};
   std::uint64_t reconnects{};
   std::uint64_t backpressure_events{};

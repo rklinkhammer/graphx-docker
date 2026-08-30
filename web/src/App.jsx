@@ -5,6 +5,17 @@ import { Topology } from './components/Topology'
 import { applicationEdges, applicationNodes, edgePaths, infrastructureNodes, networkEdges } from './data/topology'
 import { useTelemetry } from './useTelemetry'
 
+function formatBytes(value) {
+  if (!Number.isFinite(value)) return '—'
+  if (value < 1024) return `${value} B`
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KiB`
+  return `${(value / (1024 * 1024)).toFixed(1)} MiB`
+}
+
+function formatLatency(value) {
+  return Number.isFinite(value) ? `${value.toLocaleString()} µs` : '—'
+}
+
 export default function App() {
   const { snapshot, connected } = useTelemetry()
   const [selectedId, setSelectedId] = useState('samples')
@@ -22,11 +33,17 @@ export default function App() {
     const metric = snapshot?.edges?.[edge.id]
     if (!metric) return edge
     return { ...edge, data: { ...edge.data,
-      rate: `${metric.rate} msg/s`, messages: metric.messages.toLocaleString(),
-      latency: `${metric.latencyUs} µs`, drops: metric.drops,
+      rate: `${metric.messageRate.toLocaleString()} msg/s`,
+      byteRate: `${formatBytes(metric.byteRate)}/s`,
+      messages: `${metric.sent.toLocaleString()} / ${metric.received.toLocaleString()}`,
+      latency: formatLatency(metric.meanLatencyUs), p95Latency: formatLatency(metric.p95LatencyUs),
+      drops: metric.drops, errors: metric.errors,
       connection: metric.connection, reconnects: metric.reconnects,
       backpressure: `${metric.backpressureEvents} / ${metric.backpressureUs} µs`,
-      bytes: metric.wireBytes, recent: snapshot.recent?.filter(item => item.edgeId === edge.id) || [],
+      rejected: metric.rejected,
+      bytes: `${formatBytes(metric.sentWireBytes)} / ${formatBytes(metric.receivedWireBytes)}`,
+      metricSources: metric.metricSources,
+      recent: snapshot.recent?.filter(item => item.edgeId === edge.id) || [],
     }}
   }), [topology, snapshot])
   useEffect(() => {

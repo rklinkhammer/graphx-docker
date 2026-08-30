@@ -62,6 +62,9 @@ Expected results:
   heartbeat timeout.
 - Node heartbeats update measured process CPU in `/api/topology`, the node cards,
   and the `graphx_node_cpu_percent` Prometheus gauge.
+- Edge telemetry keeps sent/received message and wire-byte counters separate,
+  derives five-second message/byte rates, exports a valid latency histogram, and
+  counts errors, drops, rejections, reconnects and backpressure independently.
 
 For a focused rerun:
 
@@ -92,11 +95,14 @@ Run the transform with the same exports, then the generator. Open
 
 1. application and network-path views both render;
 2. selecting `samples` highlights macvlan → OVS → router → OVS → ipvlan;
-3. edge connection state changes to connected and message/latency values replace
-   unavailable markers;
-4. recent messages retain the same trace ID through the transform;
-5. `curl http://localhost:8080/metrics` exposes edge counters, latency,
-   connection, reconnect and backpressure series.
+3. edge connection state changes to connected; sent/received values advance and
+   rates replace unavailable markers;
+4. mean and p95 receive latency appear, while metric provenance identifies
+   counters as measured and five-second rates as derived;
+5. recent messages retain the same trace ID through the transform;
+6. `curl http://localhost:8080/metrics` exposes directional counters, latency
+   histogram buckets/sum/count, errors, drops, rejections, connection, reconnect
+   and backpressure series.
 
 Set `GRAPHX_MAX_MESSAGES=20` on the generator for a finite run.
 

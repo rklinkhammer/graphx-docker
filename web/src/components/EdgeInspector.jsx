@@ -14,17 +14,22 @@ export function EdgeInspector({ edge, networkPath }) {
     </dl>
     <div className="metric-grid">
       <div><Waves/><span>Throughput</span><strong>{d.rate}</strong></div>
-      <div><Activity/><span>Messages</span><strong>{d.messages}</strong></div>
+      <div><Activity/><span>Sent / received</span><strong>{d.messages}</strong></div>
       <div><Clock3/><span>Mean latency</span><strong>{d.latency}</strong></div>
-      <div><Database/><span>Dropped</span><strong>{d.drops}</strong></div>
+      <div><Clock3/><span>p95 latency</span><strong>{d.p95Latency ?? '—'}</strong></div>
+      <div><Database/><span>Wire bandwidth</span><strong>{d.byteRate ?? '—'}</strong></div>
+      <div><Database/><span>Bytes sent / received</span><strong>{d.bytes ?? '—'}</strong></div>
+      <div><Activity/><span>Errors / dropped</span><strong>{d.errors ?? '—'} / {d.drops}</strong></div>
       <div><Radio/><span>Reconnects</span><strong>{d.reconnects ?? '—'}</strong></div>
       <div><Waves/><span>Backpressure</span><strong>{d.backpressure ?? '—'}</strong></div>
+      <div><Activity/><span>Rejected</span><strong>{d.rejected ?? '—'}</strong></div>
     </div>
+    <p className="metric-basis">Counters and latency are measured · rates are derived over 5 s · unavailable values are shown as —</p>
     <h3>Recent messages</h3>
     <div className="messages">
-      {d.recent?.length ? d.recent.slice(0, 6).map(message => <div key={`${message.nodeId}-${message.sequence}`}><span><Search size={13}/> {message.sequence}</span><span>{message.type}</span><span>{message.latencyUs} µs</span></div>) : <div><span>—</span><span>Waiting for traffic</span><span>—</span></div>}
+      {d.recent?.length ? d.recent.slice(0, 6).map(message => <div key={`${message.nodeId}-${message.sequence}-${message.timestamp}`}><span><Search size={13}/> {message.sequence}</span><span>{message.type || 'unknown'}</span><span>{message.latencyUs} µs</span><span title={message.traceId || 'Trace ID unavailable'}>{message.traceId ? message.traceId.slice(0, 8) : '—'}</span></div>) : <div><span>—</span><span>Waiting for traffic</span><span>—</span><span>—</span></div>}
     </div>
-    <div className="placeholder"><strong>Trace + packet correlation</strong><p>Reserved for OpenTelemetry trace IDs and PCAPNG packet offsets.</p></div>
+    <div className="placeholder"><strong>Trace + packet correlation</strong><p>Live trace IDs are shown above. PCAPNG packet offsets and Wireshark capture opening arrive in Phase 6.</p></div>
     <h3>Network path</h3>
     <div className="network-path">{networkPath?.map((hop, index) => <span key={hop}>{index > 0 && <i>→</i>}{hop}</span>)}</div>
     <div className="actions"><button>Inspect messages</button><button disabled>Open capture</button></div>

@@ -103,13 +103,14 @@ portable() {
   for _ in {1..40}; do curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/health" >/dev/null 2>&1 && break; sleep 0.1; done
   GRAPHX_TEST_UDP_PORT=${GRAPHX_TEST_UDP_PORT:-19000} node -e '
     const d = require("node:dgram").createSocket("udp4");
-    const base = {kind:"trace", nodeId:"generator", edgeId:"samples", timestamp:Date.now()};
+    const base = {kind:"trace", nodeId:"generator", edgeId:"samples", timestamp:Date.now(), traceId:"0123456789abcdef0123456789abcdef"};
     const events = [
       {...base,event:"connection",message:"connected"},
       {...base,event:"send",sequence:1,wireBytes:64},
       {...base,event:"receive",sequence:1,wireBytes:64,latencyUs:25},
       {...base,event:"reconnect"},
       {...base,event:"backpressure",latencyUs:40,message:"blocked"},
+      {...base,event:"backpressure",latencyUs:10,message:"rejected"},
       {...base,event:"heartbeat",cpuPercent:12.5}
     ];
     for (const event of events) d.send(JSON.stringify(event), Number(process.env.GRAPHX_TEST_UDP_PORT), "127.0.0.1");
@@ -117,13 +118,36 @@ portable() {
   '
   sleep 0.1
   curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/topology" | grep -q 'ipvlan-l2-pipeline'
-  curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/topology" | grep -q '"reconnects":1'
-  curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/topology" | grep -q '"cpuPercent":12.5'
-  curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/topology" | grep -q '"networkNodes"'
+  curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/topology" >"$TMP_DIR/topology.json"
+  node -e '
+    const fs = require("node:fs");
+    const snapshot = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+    const edge = snapshot.edges.samples;
+    const failures = [];
+    if (edge.sent !== 1 || edge.received !== 1) failures.push("directional message counters");
+    if (edge.sentWireBytes !== 64 || edge.receivedWireBytes !== 64) failures.push("directional byte counters");
+    if (edge.meanLatencyUs !== 25 || edge.p95LatencyUs !== 50) failures.push("latency summary");
+    if (edge.reconnects !== 1 || edge.backpressureEvents !== 2) failures.push("pressure/reconnect counters");
+    if (edge.rejected !== 1 || edge.drops !== 1) failures.push("rejection/drop counters");
+    if (edge.metricSources?.counters !== "measured" || edge.metricSources?.throughput !== "derived-5s") failures.push("metric provenance");
+    if (snapshot.nodes.generator.cpuPercent !== 12.5) failures.push("node CPU");
+    if (snapshot.recent[0]?.traceId !== "0123456789abcdef0123456789abcdef") failures.push("trace correlation");
+    if (failures.length) throw new Error(`bad telemetry: ${failures.join(", ")}`);
+  ' "$TMP_DIR/topology.json"
+  grep -q '"networkNodes"' "$TMP_DIR/topology.json"
   curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/topology" | grep -q 'br-l2-gen'
-  curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/metrics" | grep -q 'graphx_edge_messages_total'
-  curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/metrics" | grep -q 'graphx_edge_backpressure_events_total{edge="samples"} 1'
-  curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/metrics" | grep -q 'graphx_node_cpu_percent{node="generator"} 12.5'
+  curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/metrics" >"$TMP_DIR/metrics.txt"
+  grep -q 'graphx_edge_messages_total{edge="samples",direction="sent"} 1' "$TMP_DIR/metrics.txt"
+  grep -q 'graphx_edge_messages_total{edge="samples",direction="received"} 1' "$TMP_DIR/metrics.txt"
+  grep -q 'graphx_edge_wire_bytes_total{edge="samples",direction="sent"} 64' "$TMP_DIR/metrics.txt"
+  grep -q 'graphx_edge_wire_bytes_total{edge="samples",direction="received"} 64' "$TMP_DIR/metrics.txt"
+  grep -q 'graphx_edge_latency_seconds_bucket{edge="samples",le="0.00005"} 1' "$TMP_DIR/metrics.txt"
+  grep -q 'graphx_edge_latency_seconds_sum{edge="samples"} 0.000025' "$TMP_DIR/metrics.txt"
+  grep -q 'graphx_edge_latency_seconds_count{edge="samples"} 1' "$TMP_DIR/metrics.txt"
+  grep -q 'graphx_edge_backpressure_events_total{edge="samples"} 2' "$TMP_DIR/metrics.txt"
+  grep -q 'graphx_edge_rejected_total{edge="samples"} 1' "$TMP_DIR/metrics.txt"
+  grep -q 'graphx_edge_dropped_total{edge="samples"} 1' "$TMP_DIR/metrics.txt"
+  grep -q 'graphx_node_cpu_percent{node="generator"} 12.5' "$TMP_DIR/metrics.txt"
   curl -fsS -X POST "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/control/reset" | grep -q '"accepted":true'
   curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/metrics" | grep -q 'graphx_edge_connected{edge="samples"} 1'
   test "$(curl -sS -o "$TMP_DIR/pause.json" -w '%{http_code}' -X POST "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/control/pause")" = 501

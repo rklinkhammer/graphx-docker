@@ -5,8 +5,8 @@ export const initialNodes = [
 ]
 
 export const initialEdges = [
-  { id: 'samples', source: 'generator', target: 'transform', type: 'telemetry', data: { label: 'samples', rate: '—', messages: '—', latency: '—', drops: '—', connection: 'unavailable', reconnects: '—', backpressure: '—', port: 7001, schema: 'Sample' } },
-  { id: 'transformed', source: 'transform', target: 'sink', type: 'telemetry', data: { label: 'transformed', rate: '—', messages: '—', latency: '—', drops: '—', connection: 'unavailable', reconnects: '—', backpressure: '—', port: 7002, schema: 'TransformedSample' } },
+  { id: 'samples', source: 'generator', target: 'transform', type: 'telemetry', data: { label: 'samples', rate: '—', byteRate: '—', messages: '—', latency: '—', p95Latency: '—', bytes: '—', errors: '—', drops: '—', rejected: '—', connection: 'unavailable', reconnects: '—', backpressure: '—', port: 7001, schema: 'Sample' } },
+  { id: 'transformed', source: 'transform', target: 'sink', type: 'telemetry', data: { label: 'transformed', rate: '—', byteRate: '—', messages: '—', latency: '—', p95Latency: '—', bytes: '—', errors: '—', drops: '—', rejected: '—', connection: 'unavailable', reconnects: '—', backpressure: '—', port: 7002, schema: 'TransformedSample' } },
 ]
 
 export const networkNodes = [
@@ -36,8 +36,9 @@ export function applicationNodes(topology) {
 export function applicationEdges(topology) {
   if (!topology?.edges?.length) return initialEdges
   return topology.edges.map(edge => ({ id: edge.id, source: edge.source, target: edge.target,
-    type: 'telemetry', data: { label: edge.id, rate: '—', messages: '—', latency: '—',
-      drops: '—', connection: 'unavailable', reconnects: '—', backpressure: '—',
+    type: 'telemetry', data: { label: edge.id, rate: '—', byteRate: '—', messages: '—', latency: '—',
+      p95Latency: '—', bytes: '—', errors: '—', drops: '—', rejected: '—',
+      connection: 'unavailable', reconnects: '—', backpressure: '—',
       port: edge.port, schema: edge.schema, transport: edge.transport } }))
 }
 

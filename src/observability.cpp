@@ -134,7 +134,7 @@ void MetricsTraceSink::on_send(std::string_view edge_id, const Envelope&,
   std::scoped_lock lock(mutex_);
   auto& value = edges_[std::string(edge_id)];
   ++value.sent;
-  value.wire_bytes += wire_bytes;
+  value.sent_wire_bytes += wire_bytes;
 }
 
 void MetricsTraceSink::on_receive(std::string_view edge_id, const Envelope&,
@@ -143,7 +143,7 @@ void MetricsTraceSink::on_receive(std::string_view edge_id, const Envelope&,
   std::scoped_lock lock(mutex_);
   auto& value = edges_[std::string(edge_id)];
   ++value.received;
-  value.wire_bytes += wire_bytes;
+  value.received_wire_bytes += wire_bytes;
   value.total_latency += latency;
   std::size_t bucket{};
   while (bucket < kLatencyBounds.size() && latency > kLatencyBounds[bucket]) ++bucket;

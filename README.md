@@ -129,6 +129,12 @@ npm run dev
 
 Install and run the lightweight telemetry service separately with `npm install --prefix apps/telemetry && node apps/telemetry/server.mjs`. It reads `GRAPHX_CONFIG` (defaulting to the repository `graphx.yaml`) and derives the application graph, network path, transports, and heartbeat policy from that file. Vite proxies `/api` and the configured WebSocket path to port 8080. The console uses unavailable markers until node processes publish telemetry.
 
+The collector keeps sent and received message/byte counters separately, derives
+rates over a five-second window, and publishes receive-latency histograms,
+errors, drops, rejections, reconnects, backpressure, and process CPU. See
+[`docs/observability.md`](docs/observability.md) for exact semantics and the
+boundary between Phase 5 telemetry and Phase 6 Wireshark integration.
+
 ## Demo data path
 
 ```text
@@ -263,7 +269,9 @@ The browser application is divided along the product concepts:
 - `Topology` owns React Flow, drag behavior, zooming, minimap, and ELK layered layout.
 - `NodeCard` renders a process/container boundary and health metadata.
 - `TelemetryEdge` overlays throughput and latency on a selectable edge.
-- `EdgeInspector` presents connection/framing facts, edge metrics, recent messages, and trace/capture correlation placeholders.
+- `EdgeInspector` presents connection/framing facts, directional edge metrics,
+  recent messages, and live trace IDs. Packet-capture correlation remains a
+  clearly marked Phase 6 boundary.
 - `server.mjs` serves the built console, receives runtime events over UDP,
   aggregates metrics, broadcasts WebSocket snapshots, and exposes
   health/topology/control endpoints plus Prometheus text output at `/metrics`.
@@ -272,6 +280,11 @@ Each node heartbeat includes process CPU usage measured over the heartbeat
 interval. The node cards show sub-percent values with two decimal places, and
 Prometheus exposes the same samples as `graphx_node_cpu_percent`. This is GraphX
 process CPU—not aggregate host or Docker daemon CPU.
+
+Edge counters and latency are measured from observed runtime events. Message and
+wire-byte rates are derived from sends in the active five-second window. The UI
+shows sent/received values independently and uses `—` when a value is genuinely
+unavailable instead of displaying a synthetic zero.
 
 Reset clears telemetry aggregation. Pause and fault buttons are explicit
 development-control placeholders and return HTTP 501; the console surfaces that
@@ -366,10 +379,11 @@ The tests use no third-party framework so a fresh scaffold remains easy to build
    observability configuration, configuration-driven topology, heartbeat expiry,
    and richer transport events are implemented. Remaining hardening includes TLS
    and interruptible Unix-listener creation before its first peer connects.
-2. **OpenTelemetry** — initial OTLP/HTTP spans, Prometheus-style edge metrics,
-   connection/backpressure events, processing spans, and trace-ID propagation are
-   implemented. Follow-ups include W3C trace-context fields, batching/retry, and
-   collector conformance coverage.
+2. **Real observability** — directional message/byte counters, stable rolling
+   rates, Prometheus latency histograms, errors/drops/rejections, connection and
+   backpressure events, process CPU, processing spans, and trace-ID presentation
+   are implemented. Follow-ups include W3C trace-context fields, OTLP
+   batching/retry, and collector conformance coverage.
 3. **Wireshark integration** — PCAPNG custom blocks, extcap interface, and message-to-packet correlation in the edge inspector.
 4. **Control plane** — authenticated runtime commands, topology validation/generation, and real container-health events.
 
