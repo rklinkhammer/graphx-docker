@@ -6,9 +6,37 @@ GraphX is a small, educational framework for describing a processing graph once,
 > transports work; capture interfaces are intentionally integration points rather
 > than pretending a full Wireshark backend already exists.
 
-## Quick start
+## Run the complete demo
 
-### Build and test locally
+Requirements: Docker Engine or Docker Desktop with Compose, plus `curl`.
+
+```sh
+cd ~/workspace/graphx-docker
+scripts/demo.sh start
+```
+
+The command builds and starts the complete portable system, waits for telemetry,
+and proves that both TCP message counters advance. A healthy run prints five
+`PASS` lines. Open [http://localhost:8080](http://localhost:8080); the console
+should show **Traffic flowing**, all three nodes running, and increasing sample
+counts. To see the doubled values arriving at the sink:
+
+```sh
+scripts/demo.sh logs
+```
+
+Use `Ctrl-C` to leave the log view, then stop the system with:
+
+```sh
+scripts/demo.sh stop
+```
+
+The complete user walkthrough, expected output, health checks, and troubleshooting
+are in [`docs/complete-system-demo.md`](docs/complete-system-demo.md). Start there
+before running the privileged network laboratories or the exhaustive developer
+test suite.
+
+## Build and test locally
 
 Requirements: CMake 3.25+, Ninja, a C++20/23 compiler, and network access on the
 first configure when yaml-cpp 0.9.0 is not already installed. The fallback
@@ -28,7 +56,7 @@ privileged native-Linux tiers are documented in
 
 The library uses C++23 by default but only relies on broadly available C++20-era facilities. Set `CMAKE_CXX_STANDARD=20` if your toolchain needs it.
 
-### Run the container demo
+## Run the container demo manually
 
 Requirements: Docker with Compose.
 
@@ -38,9 +66,12 @@ docker compose up --build
 
 Open [http://localhost:8080](http://localhost:8080). The `generator` connects to `transform:7001`, and `transform` connects to `sink:7002`. Those hostnames are resolved by Docker's service-name DNS on the private `graphx` bridge network.
 
-Stop the demo with `Ctrl-C`, then run `docker compose down`.
+This foreground form is useful for reading raw logs. The guided
+`scripts/demo.sh start` path above is preferred because it also verifies real
+end-to-end traffic. Stop the foreground process with `Ctrl-C`, then run
+`docker compose down`.
 
-### Run the mixed network laboratory
+## Run the mixed network laboratory
 
 GraphX now has a first-class network infrastructure layer with Docker bridge,
 macvlan, and ipvlan definitions; node interfaces; Open vSwitch ports, VLAN
@@ -76,7 +107,7 @@ Three focused native-Linux examples isolate each driver/mode:
 - [`examples/ipvlan-l3`](examples/ipvlan-l3/README.md): one independent IPvlan L3
   network/subnet per node, routed by the shared IPvlan parent data path.
 
-### Run the local shared-memory demo
+## Run the local shared-memory demo
 
 The same three-node application can run as separate local processes over two
 bounded POSIX shared-memory rings:
@@ -88,7 +119,7 @@ examples/shared-memory/run.sh
 See [`examples/shared-memory/README.md`](examples/shared-memory/README.md) and
 [`docs/shared-memory-transport.md`](docs/shared-memory-transport.md).
 
-### Run the web console during development
+## Run the web console during development
 
 ```sh
 cd web

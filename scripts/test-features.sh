@@ -118,6 +118,7 @@ portable() {
   curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/metrics" | grep -q 'graphx_edge_messages_total'
   curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/metrics" | grep -q 'graphx_edge_backpressure_events_total{edge="samples"} 1'
   curl -fsS -X POST "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/control/reset" | grep -q '"accepted":true'
+  curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/metrics" | grep -q 'graphx_edge_connected{edge="samples"} 1'
   test "$(curl -sS -o "$TMP_DIR/pause.json" -w '%{http_code}' -X POST "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/control/pause")" = 501
   grep -q '"accepted":false' "$TMP_DIR/pause.json"
   sleep 0.6
@@ -134,7 +135,7 @@ docker_suite() {
   docker compose -f "$ROOT/compose.yaml" up -d --build
   trap 'docker compose -f "$ROOT/compose.yaml" down --remove-orphans; cleanup' EXIT INT TERM
   for _ in {1..60}; do curl -fsS http://127.0.0.1:8080/api/health >/dev/null && break; sleep 1; done
-  curl -fsS http://127.0.0.1:8080/api/topology | grep -q 'sample-pipeline'
+  "$ROOT/scripts/demo.sh" verify
   docker compose -f "$ROOT/compose.yaml" ps
   docker compose -f "$ROOT/compose.yaml" down --remove-orphans
   trap cleanup EXIT INT TERM

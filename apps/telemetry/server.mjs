@@ -106,12 +106,15 @@ const server = createServer((request, response) => {
     if (action === 'reset') {
       state = { paused: false, fault: false, updatedAt: new Date().toISOString() }
       recent.length = 0
-      for (const edge of Object.values(edges)) Object.assign(edge, {
-        messages: 0, received: 0, wireBytes: 0, drops: 0, errors: 0, rate: 0,
-        latencyUs: 0, reconnects: 0, backpressureEvents: 0, backpressureUs: 0,
-        rejected: 0, connection: 'disconnected', lastSequence: 0,
-        windowCount: 0, windowStart: Date.now(),
-      })
+      for (const edge of Object.values(edges)) {
+        const connection = edge.connection
+        Object.assign(edge, {
+          messages: 0, received: 0, wireBytes: 0, drops: 0, errors: 0, rate: 0,
+          latencyUs: 0, reconnects: 0, backpressureEvents: 0, backpressureUs: 0,
+          rejected: 0, connection, lastSequence: 0,
+          windowCount: 0, windowStart: Date.now(),
+        })
+      }
       state.updatedAt = new Date().toISOString()
       broadcast()
       return json(response, 200, { accepted: true, action, state })
@@ -146,6 +149,9 @@ udp.on('message', data => {
       edge.lastSeen = receivedAt
       edge.lastSequence = event.sequence || edge.lastSequence
       if (event.event === 'send') {
+        // A live data event is authoritative evidence that the transport path is
+        // usable, including after the telemetry service itself has restarted.
+        edge.connection = 'connected'
         edge.messages += 1
         edge.wireBytes += event.wireBytes || 0
         edge.windowCount += 1
@@ -154,6 +160,7 @@ udp.on('message', data => {
         if (elapsed >= 5000) { edge.windowCount = 0; edge.windowStart = Date.now() }
       }
       if (event.event === 'receive') {
+        edge.connection = 'connected'
         edge.received += 1
         edge.latencyUs = event.latencyUs || 0
         recent.unshift(event)

@@ -1,5 +1,10 @@
 # GraphX feature test procedure
 
+This document is the exhaustive developer/acceptance procedure. For the first
+user run of the complete application, follow
+[`complete-system-demo.md`](complete-system-demo.md); it has one start command,
+observable success criteria, a live traffic check, and troubleshooting steps.
+
 This procedure exercises the source model, all four transports, hardened TCP
 behavior, telemetry and browser assets, Docker deployment, infrastructure
 planning, and the optional native network laboratories. Start with the portable
@@ -113,7 +118,20 @@ and wire-byte attributes are present.
 
 ## 4. Docker bridge deployment
 
-Run `scripts/test-features.sh docker`. Then, for manual inspection:
+The user-level smoke test is:
+
+```sh
+scripts/demo.sh start
+scripts/demo.sh logs       # Ctrl-C leaves the demo running
+scripts/demo.sh verify
+scripts/demo.sh stop
+```
+
+`verify` fails unless all four services run, both TCP edges report connected,
+and received counters on both edges increase during a two-second observation.
+
+For exhaustive automated coverage, run `scripts/test-features.sh docker`. For
+raw manual inspection:
 
 ```sh
 docker compose up --build
