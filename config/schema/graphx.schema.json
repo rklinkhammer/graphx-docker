@@ -143,8 +143,14 @@
     },
     "networkDefinition": {
       "type": "object", "additionalProperties": false,
-      "required": ["id", "driver", "subnet"],
+      "required": ["id", "driver"],
       "allOf": [
+        {
+          "oneOf": [
+            { "required": ["subnet"] },
+            { "required": ["subnets"] }
+          ]
+        },
         {
           "if": {
             "required": ["driver", "mode"],
@@ -158,6 +164,10 @@
         "id": { "$ref": "#/$defs/id" },
         "driver": { "enum": ["bridge", "macvlan", "ipvlan"] },
         "subnet": { "type": "string", "minLength": 1, "maxLength": 43 },
+        "subnets": {
+          "type": "array", "minItems": 1, "maxItems": 16, "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1, "maxLength": 43 }
+        },
         "gateway": { "type": "string", "minLength": 1, "maxLength": 39 },
         "parent": { "type": "string", "minLength": 1, "maxLength": 15 },
         "mode": { "enum": ["l2", "l3", "l3s"] },

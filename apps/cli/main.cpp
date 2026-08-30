@@ -86,12 +86,15 @@ int topology_command(const std::string& command, int argc, char** argv) {
       std::cout << " channel=" << edge.transport.channel;
     std::cout << '\n';
   }
-  for (const auto& network : config.network_infrastructure.networks)
+  for (const auto& network : config.network_infrastructure.networks) {
     std::cout << "network " << network.id << " driver=" << to_string(network.driver)
-              << " subnet=" << network.subnet
-              << (network.gateway.empty() ? "" : " gateway=" + network.gateway)
+              << " subnets=";
+    for (std::size_t index = 0; index < network.subnets.size(); ++index)
+      std::cout << (index == 0 ? "" : ",") << network.subnets[index];
+    std::cout << (network.gateway.empty() ? "" : " gateway=" + network.gateway)
               << (network.parent.empty() ? "" : " parent=" + network.parent)
               << (network.mode.empty() ? "" : " mode=" + network.mode) << '\n';
+  }
   for (const auto& network_switch : config.network_infrastructure.switches)
     std::cout << "switch " << network_switch.id << " kind=" << to_string(network_switch.kind)
               << " datapath=" << network_switch.datapath << " ports=" << network_switch.ports.size()

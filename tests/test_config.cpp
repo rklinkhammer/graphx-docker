@@ -243,13 +243,17 @@ void standalone_network_examples_load() {
          "IPvlan L2 routed domains");
 
   const auto layer_three = graphx::load_config(root / "ipvlan-l3/graphx.yaml");
-  expect(layer_three.network_infrastructure.networks.size() == 3,
-         "one IPvlan L3 domain per node");
+  expect(layer_three.network_infrastructure.networks.size() == 1 &&
+             layer_three.network_infrastructure.networks.front().subnets.size() == 3,
+         "one supported multi-subnet IPvlan L3 network");
   std::string plan;
   for (const auto& command :
        graphx::infrastructure_plan(layer_three, graphx::InfraAction::create))
     plan += graphx::format_command(command) + '\n';
   expect(plan.find("ipvlan_mode=l3") != std::string::npos, "IPvlan L3 plan");
+  expect(plan.find("--subnet 10.42.1.0/24 --subnet 10.42.2.0/24 --subnet 10.42.3.0/24") !=
+             std::string::npos,
+         "IPvlan L3 multi-subnet plan");
   expect(plan.find("--gateway") == std::string::npos, "IPvlan L3 omits gateway");
 }
 

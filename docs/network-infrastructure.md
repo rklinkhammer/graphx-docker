@@ -32,10 +32,12 @@ The provisioner targets clean development labs. It does not yet persist state,
 reconcile drift, or roll back a partially failed create operation.
 
 Focused examples are available for a single macvlan domain, three independently
-routed IPvlan L2 domains, and three independent IPvlan L3 domains. See
-`examples/macvlan`, `examples/ipvlan-l2`, and `examples/ipvlan-l3`. The IPvlan L3
-model permits an omitted gateway because L3 mode installs a device route instead
-of using an L2 next hop.
+routed IPvlan L2 domains, and three IPvlan L3 subnet domains in one external
+multi-subnet network. See `examples/macvlan`, `examples/ipvlan-l2`, and
+`examples/ipvlan-l3`. Docker allows only one IPvlan network to claim a parent;
+the supported L3 layout therefore supplies repeated `--subnet` arguments on that
+network. The IPvlan L3 model permits an omitted gateway because L3 mode installs
+a device route instead of using an L2 next hop.
 
 ## Faults and inspection
 

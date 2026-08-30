@@ -47,9 +47,9 @@ void append_docker_network(std::vector<InfraCommand>& commands, const NetworkDef
                       "network",
                       "create",
                       "--driver",
-                      std::string(to_string(network.driver)),
-                      "--subnet",
-                      network.subnet};
+                      std::string(to_string(network.driver))};
+  for (const auto& subnet : network.subnets)
+    result.arguments.insert(result.arguments.end(), {"--subnet", subnet});
   if (!network.gateway.empty())
     result.arguments.insert(result.arguments.end(), {"--gateway", network.gateway});
   if (network.driver == NetworkDriver::macvlan || network.driver == NetworkDriver::ipvlan)

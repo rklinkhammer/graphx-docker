@@ -105,7 +105,7 @@ Three focused native-Linux examples isolate each driver/mode:
 - [`examples/ipvlan-l2`](examples/ipvlan-l2/README.md): one independent IPvlan L2
   network per node, connected through OVS and a namespace router;
 - [`examples/ipvlan-l3`](examples/ipvlan-l3/README.md): one independent IPvlan L3
-  network/subnet per node, routed by the shared IPvlan parent data path.
+  subnet per node in Docker's supported multi-subnet network layout.
 
 ## Run the local shared-memory demo
 

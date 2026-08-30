@@ -32,6 +32,20 @@ Stop containers before deleting their external networks:
 examples/mixed-network/scripts/linux-down.sh
 ```
 
+`linux-up.sh` refuses to overwrite existing interfaces, OVS bridges, namespaces,
+or Docker networks. If a previous run was interrupted or startup reports that an
+interface already exists, recover and retry with:
+
+```sh
+examples/mixed-network/scripts/linux-down.sh
+examples/mixed-network/scripts/linux-up.sh
+```
+
+Startup is transactional after its preflight check: if infrastructure or either
+Compose project fails during that attempt, the helper tears down what that
+attempt created. The preflight deliberately does not delete existing resources,
+because they may belong to a still-running lab that should be inspected first.
+
 Macvlan isolates its parent host from macvlan children by design. Routed traffic
 between the two container domains works, but host-to-container access needs a
 separate host macvlan shim and route, which this example intentionally omits.

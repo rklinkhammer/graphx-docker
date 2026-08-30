@@ -490,7 +490,9 @@ class ConfigParser {
       const auto path = "network.networks[" + std::to_string(index) + "]";
       const auto value = values[index];
       if (!require_map(value, path)) continue;
-      strict_keys(value, path, {"id", "driver", "subnet", "gateway", "parent", "mode", "external"});
+      strict_keys(value, path,
+                  {"id", "driver", "subnet", "subnets", "gateway", "parent", "mode",
+                   "external"});
       NetworkDefinition network;
       network.id = text(value["id"], path + ".id", 64);
       identifier(network.id, path + ".id");
@@ -505,11 +507,25 @@ class ConfigParser {
         network.driver = NetworkDriver::ipvlan;
       else
         error(path + ".driver", "must be 'bridge', 'macvlan', or 'ipvlan'");
-      network.subnet = text(value["subnet"], path + ".subnet", 43);
       if (value["parent"]) network.parent = text(value["parent"], path + ".parent", 15);
       if (value["mode"]) network.mode = text(value["mode"], path + ".mode", 8);
       const bool layer_three = network.driver == NetworkDriver::ipvlan &&
                                (network.mode == "l3" || network.mode == "l3s");
+      if (value["subnet"] && value["subnets"])
+        error(path, "must use either 'subnet' or 'subnets', not both");
+      if (value["subnet"])
+        network.subnets.push_back(text(value["subnet"], path + ".subnet", 43));
+      else if (value["subnets"] && require_sequence(value["subnets"], path + ".subnets")) {
+        if (value["subnets"].size() == 0 || value["subnets"].size() > 16)
+          error(path + ".subnets", "must contain between 1 and 16 subnets");
+        for (std::size_t subnet_index = 0; subnet_index < value["subnets"].size(); ++subnet_index)
+          network.subnets.push_back(text(value["subnets"][subnet_index],
+                                         path + ".subnets[" + std::to_string(subnet_index) + "]",
+                                         43));
+      } else if (!value["subnet"])
+        error(path + ".subnet", "or 'subnets' is required");
+      if (!layer_three && network.subnets.size() > 1)
+        error(path + ".subnets", "multiple subnets require ipvlan l3 or l3s mode");
       if (value["gateway"])
         network.gateway = text(value["gateway"], path + ".gateway", 39);
       else if (!layer_three)
@@ -916,27 +932,39 @@ class ConfigParser {
   void validate_network_infrastructure(const GraphConfig& config) {
     const auto& infrastructure = config.network_infrastructure;
     std::unordered_set<std::string> network_ids;
-    std::unordered_map<std::string, Ipv4Cidr> subnets;
+    std::unordered_map<std::string, std::vector<Ipv4Cidr>> subnets;
     for (std::size_t index = 0; index < infrastructure.networks.size(); ++index) {
       const auto& network = infrastructure.networks[index];
       const auto path = "network.networks[" + std::to_string(index) + "]";
       network_ids.insert(network.id);
-      const auto subnet = ipv4_cidr(network.subnet);
-      if (!subnet)
-        error(path + ".subnet", "must be an IPv4 CIDR");
-      else {
-        subnets.emplace(network.id, *subnet);
-        const auto literal = network.subnet.substr(0, network.subnet.find('/'));
+      auto& parsed_subnets = subnets[network.id];
+      std::unordered_set<std::string> seen_subnets;
+      for (std::size_t subnet_index = 0; subnet_index < network.subnets.size(); ++subnet_index) {
+        const auto subnet_path = network.subnets.size() == 1
+                                     ? path + ".subnet"
+                                     : path + ".subnets[" + std::to_string(subnet_index) + "]";
+        const auto& literal_cidr = network.subnets[subnet_index];
+        const auto subnet = ipv4_cidr(literal_cidr);
+        if (!seen_subnets.insert(literal_cidr).second)
+          error(subnet_path, "duplicates another network subnet");
+        if (!subnet) {
+          error(subnet_path, "must be an IPv4 CIDR");
+          continue;
+        }
+        parsed_subnets.push_back(*subnet);
+        const auto literal = literal_cidr.substr(0, literal_cidr.find('/'));
         const auto address = ipv4_address(literal);
         if (address && *address != subnet->network)
-          error(path + ".subnet", "must use the network address for its prefix");
+          error(subnet_path, "must use the network address for its prefix");
       }
       if (!network.gateway.empty()) {
         const auto gateway = ipv4_address(network.gateway);
         if (!gateway)
           error(path + ".gateway", "must be an IPv4 address");
-        else if (subnet && (*gateway & subnet->mask) != subnet->network)
-          error(path + ".gateway", "must be inside the network subnet");
+        else if (std::ranges::none_of(parsed_subnets, [&](const auto& subnet) {
+                   return (*gateway & subnet.mask) == subnet.network;
+                 }))
+          error(path + ".gateway", "must be inside a network subnet");
       }
     }
 
@@ -971,8 +999,11 @@ class ConfigParser {
         if (!address)
           error(interface_path + ".address", "must be an IPv4 CIDR");
         else if (const auto subnet = subnets.find(interface.network);
-                 subnet != subnets.end() && address->network != subnet->second.network)
-          error(interface_path + ".address", "must be inside its network subnet");
+                 subnet != subnets.end() &&
+                 std::ranges::none_of(subnet->second, [&](const auto& candidate) {
+                   return address->network == candidate.network && address->mask == candidate.mask;
+                 }))
+          error(interface_path + ".address", "must be inside one of its network subnets");
       }
       for (std::size_t index = 0; index < router.routes.size(); ++index)
         if (!ipv4_cidr(router.routes[index].destination))
@@ -1003,8 +1034,11 @@ class ConfigParser {
         if (!address)
           error(path + ".address", "must be an IPv4 CIDR");
         else if (const auto subnet = subnets.find(interface.network);
-                 subnet != subnets.end() && address->network != subnet->second.network)
-          error(path + ".address", "must be inside its network subnet");
+                 subnet != subnets.end() &&
+                 std::ranges::none_of(subnet->second, [&](const auto& candidate) {
+                   return address->network == candidate.network && address->mask == candidate.mask;
+                 }))
+          error(path + ".address", "must be inside one of its network subnets");
       }
     }
 

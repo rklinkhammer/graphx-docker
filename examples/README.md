@@ -4,7 +4,7 @@
 |---|---:|---|---|
 | `macvlan` | one L2 domain | direct macvlan switching | native Linux |
 | `ipvlan-l2` | three, one per node | OVS + Linux router namespace | native Linux |
-| `ipvlan-l3` | three, one per node | shared IPvlan L3 parent | native Linux |
+| `ipvlan-l3` | three L3 subnets, one per node | one multi-subnet IPvlan network and parent | native Linux |
 | `mixed-network` | macvlan + IPvlan L2 | OVS + Linux router namespace | native Linux; Docker Desktop simulation on macOS |
 | `shared-memory` | local IPC | bounded POSIX shared-memory rings | Linux and macOS local processes |
 

@@ -21,7 +21,7 @@ struct VlanMetadata {
 struct NetworkDefinition {
   std::string id;
   NetworkDriver driver{NetworkDriver::bridge};
-  std::string subnet;
+  std::vector<std::string> subnets;
   std::string gateway;
   std::string parent;
   std::string mode;

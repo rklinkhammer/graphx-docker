@@ -174,8 +174,11 @@ GRAPHX_ALLOW_PRIVILEGED_TESTS=1 scripts/test-features.sh linux-network
 
 The standalone macvlan demo verifies explicit container MAC addresses. The
 IPvlan L2 demo verifies three independent Docker domains routed through their
-OVS attachments. The IPvlan L3 demo verifies three independent node subnets on
-the L3 parent path. The mixed demo verifies macvlan-to-ipvlan routing through
+OVS attachments. The IPvlan L3 demo verifies three independent node subnets in
+one external, multi-subnet IPvlan L3 network on the shared parent path. Docker
+rejects multiple IPvlan network objects that claim the same parent, so
+subnet/IPAM domains—not duplicate parent claims—provide the per-node L3
+separation. The mixed demo verifies macvlan-to-ipvlan routing through
 10.10.0.1 and 10.20.0.1, forwarding, nftables policy, OVS mirrors and a netem
 apply/clear cycle.
 
@@ -229,6 +232,12 @@ external networks. If a run stops unexpectedly, inspect `docker compose ls`,
 `docker network ls`, `ip netns list`, and `ovs-vsctl show`, then rerun that
 example's teardown helper. Shared-memory listeners unlink their segments during
 normal shutdown and replace stale names on the next start.
+
+For the mixed native-Linux lab, `RTNETLINK answers: File exists` means an earlier
+run left one or more named interfaces behind; a dry run never creates them. Run
+`examples/mixed-network/scripts/linux-down.sh` and then retry `linux-up.sh`. The
+startup helper now detects this state before making changes and rolls back only
+resources created by its own failed attempt.
 
 For a failure, retain the failing CTest output, node logs, `graphx inspect`
 output, Docker service status, infrastructure status, OVS state and router

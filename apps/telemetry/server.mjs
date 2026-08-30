@@ -36,7 +36,7 @@ function topologyModel() {
   const infrastructure = new Map(graphNodes.map(node => [node.id, node]))
   for (const item of network.networks || []) infrastructure.set(item.id, {
     id: item.id, label: item.id, role: `${item.driver}${item.mode ? ` ${item.mode}` : ''}`,
-    image: item.subnet, input: true, output: true,
+    image: (item.subnets || [item.subnet]).join(', '), input: true, output: true,
   })
   for (const item of network.switches || []) infrastructure.set(item.id, {
     id: item.id, label: item.id, role: 'Open vSwitch',

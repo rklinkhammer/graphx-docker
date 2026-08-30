@@ -6,4 +6,4 @@ services:
     networks:
       data: { ipv4_address: 10.42.2.20 }
 networks:
-  data: { name: gx-ipvl3-transform, external: true }
+  data: { name: gx-ipvl3-domains, external: true }
