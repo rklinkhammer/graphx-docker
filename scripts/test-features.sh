@@ -33,6 +33,10 @@ portable() {
   require npm
   require curl
 
+  # The suite supplies its own topology and overrides. Isolate it from values a
+  # user may have exported while manually running the TCP demo.
+  unset GRAPHX_CONFIG GRAPHX_OVERRIDES GRAPHX_MAX_MESSAGES GRAPHX_INTERVAL_MS
+
   step "Configure, build, and run the C++23 suite"
   cmake --preset dev -S "$ROOT"
   cmake --build "$BUILD_DIR" -j "${GRAPHX_BUILD_JOBS:-4}"

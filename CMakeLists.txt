@@ -66,8 +66,15 @@ if(GRAPHX_BUILD_TESTS)
   add_test(NAME graphx-config-tests COMMAND graphx-config-tests)
   add_test(NAME graphx-config-cli
     COMMAND graphx-cli validate ${CMAKE_SOURCE_DIR}/graphx.yaml)
+  set(graphx_config_cli_tests graphx-config-cli)
   foreach(example mixed-network macvlan ipvlan-l2 ipvlan-l3 shared-memory)
     add_test(NAME graphx-config-${example}
       COMMAND graphx-cli validate ${CMAKE_SOURCE_DIR}/examples/${example}/graphx.yaml)
+    list(APPEND graphx_config_cli_tests graphx-config-${example})
   endforeach()
+  # Configuration tests must validate the checked-in files exactly as written.
+  # Do not let deployment overrides exported by an earlier manual demo leak into
+  # CTest and invalidate topologies that intentionally use another transport.
+  set_tests_properties(${graphx_config_cli_tests}
+    PROPERTIES ENVIRONMENT "GRAPHX_OVERRIDES=")
 endif()

@@ -98,6 +98,16 @@ Run the transform with the same exports, then the generator. Open
 
 Set `GRAPHX_MAX_MESSAGES=20` on the generator for a finite run.
 
+When returning to configuration validation or another example in the same
+shell, clear the TCP-only settings:
+
+```sh
+unset GRAPHX_CONFIG GRAPHX_OVERRIDES GRAPHX_MAX_MESSAGES GRAPHX_INTERVAL_MS
+```
+
+CTest and `scripts/test-features.sh` isolate themselves from these variables,
+but a direct `graphx validate` command intentionally honors exported overrides.
+
 ## 3. OTLP/HTTP trace export
 
 Run any OTLP/HTTP collector that accepts JSON on port 4318, then add these
