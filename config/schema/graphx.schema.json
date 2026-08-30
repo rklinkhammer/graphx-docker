@@ -46,7 +46,7 @@
         "telemetry": { "$ref": "#/$defs/telemetry" }
       }
     },
-    "observability": { "type": "object" }
+    "observability": { "$ref": "#/$defs/observability" }
   },
   "$defs": {
     "id": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$" },
@@ -263,6 +263,43 @@
       "properties": {
         "service": { "type": "string", "minLength": 1, "maxLength": 128 },
         "port": { "type": "integer", "minimum": 1, "maximum": 65535 }
+      }
+    },
+    "observabilitySignal": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "exporters": {
+          "type": "array", "minItems": 1, "uniqueItems": true,
+          "items": { "enum": ["console", "udp-json", "otlp-http"] }
+        }
+      }
+    },
+    "observability": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "metrics": {
+          "allOf": [{ "$ref": "#/$defs/observabilitySignal" }],
+          "properties": { "exporters": { "items": { "enum": ["console", "udp-json"] } } }
+        },
+        "tracing": { "$ref": "#/$defs/observabilitySignal" },
+        "telemetry": {
+          "type": "object", "additionalProperties": false,
+          "properties": {
+            "host": { "type": "string", "minLength": 1, "maxLength": 253 },
+            "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+            "websocket": { "type": "string", "pattern": "^/", "maxLength": 128 },
+            "heartbeat_interval_ms": { "type": "integer", "minimum": 1, "maximum": 600000 },
+            "heartbeat_timeout_ms": { "type": "integer", "minimum": 2, "maximum": 3600000 }
+          }
+        },
+        "capture": {
+          "type": "object", "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "provider": { "type": "string", "minLength": 1, "maxLength": 128 }
+          }
+        }
       }
     }
   }

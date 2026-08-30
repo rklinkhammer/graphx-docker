@@ -1,17 +1,62 @@
 import dgram from 'node:dgram'
-import { createReadStream, existsSync } from 'node:fs'
+import { createReadStream, existsSync, readFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { extname, join, normalize } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { WebSocketServer } from 'ws'
+import { parse } from 'yaml'
 
 const root = normalize(process.env.GRAPHX_WEB_ROOT || join(fileURLToPath(new URL('.', import.meta.url)), '../../web/dist'))
 const port = Number(process.env.PORT || 8080)
 const udpPort = Number(process.env.GRAPHX_TELEMETRY_PORT || 9000)
+const configPath = process.env.GRAPHX_CONFIG || normalize(join(fileURLToPath(new URL('.', import.meta.url)), '../../graphx.yaml'))
+const config = parse(readFileSync(configPath, 'utf8'))
+const graph = config.graph || { id: 'graphx', nodes: [], edges: [] }
+const deployment = config.deployment?.services || {}
+const transport = config.transport || {}
+const heartbeatTimeout = Number(process.env.GRAPHX_HEARTBEAT_TIMEOUT_MS || config.observability?.telemetry?.heartbeat_timeout_ms || 5000)
+const websocketPath = config.observability?.telemetry?.websocket || '/ws'
+
+function topologyModel() {
+  const graphNodes = graph.nodes.map(node => ({
+    id: node.id, label: node.id, role: node.kind, image: deployment[node.id]?.image || 'local process',
+    input: node.ports.some(port => port.direction === 'input'),
+    output: node.ports.some(port => port.direction === 'output'),
+  }))
+  const graphEdges = graph.edges.map(edge => {
+    const [source] = edge.from.split('.')
+    const [target, targetPort] = edge.to.split('.')
+    const targetNode = graph.nodes.find(node => node.id === target)
+    const schema = targetNode?.ports.find(port => port.name === targetPort)?.schema || 'unknown'
+    const settings = transport[edge.transport]?.[edge.id] || {}
+    return { id: edge.id, source, target, transport: edge.transport,
+      port: settings.port || null, schema }
+  })
+  const network = config.network || {}
+  const infrastructure = new Map(graphNodes.map(node => [node.id, node]))
+  for (const item of network.networks || []) infrastructure.set(item.id, {
+    id: item.id, label: item.id, role: `${item.driver}${item.mode ? ` ${item.mode}` : ''}`,
+    image: item.subnet, input: true, output: true,
+  })
+  for (const item of network.switches || []) infrastructure.set(item.id, {
+    id: item.id, label: item.id, role: 'Open vSwitch',
+    image: item.mirror ? `SPAN · ${item.mirror.id}` : item.datapath || 'system',
+    input: true, output: true,
+  })
+  for (const item of network.routers || []) infrastructure.set(item.id, {
+    id: item.id, label: item.id, role: item.kind.replaceAll('_', ' '),
+    image: item.forwarding === false ? 'forwarding off' : 'IPv4 forwarding',
+    input: true, output: true,
+  })
+  return { graph: graph.id, nodes: graphNodes, edges: graphEdges,
+    networkNodes: [...infrastructure.values()], edgePaths: network.edge_paths || {} }
+}
+
+const topology = topologyModel()
 let state = { paused: false, fault: false, updatedAt: new Date().toISOString() }
 const recent = []
-const nodes = Object.fromEntries(['generator', 'transform', 'sink'].map(id => [id, { status: 'starting', lastSeen: null }]))
-const edges = Object.fromEntries(['samples', 'transformed'].map(id => [id, {
+const nodes = Object.fromEntries(topology.nodes.map(node => [node.id, { status: 'starting', lastSeen: null }]))
+const edges = Object.fromEntries(topology.edges.map(edge => [edge.id, {
   messages: 0, received: 0, wireBytes: 0, drops: 0, errors: 0, rate: 0,
   latencyUs: 0, reconnects: 0, backpressureEvents: 0, backpressureUs: 0,
   rejected: 0, connection: 'disconnected', lastSequence: 0, lastSeen: null,
@@ -20,7 +65,8 @@ const edges = Object.fromEntries(['samples', 'transformed'].map(id => [id, {
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png' }
 
 function snapshot() {
-  return { kind: 'snapshot', graph: 'sample-pipeline', state, nodes, edges,
+  return { kind: 'snapshot', graph: graph.id, topology,
+    telemetry: { websocket: websocketPath, heartbeatTimeoutMs: heartbeatTimeout }, state, nodes, edges,
     recent: recent.slice(0, 30), timestamp: Date.now() }
 }
 
@@ -82,7 +128,7 @@ const server = createServer((request, response) => {
   createReadStream(fallback).pipe(response)
 })
 
-const webSockets = new WebSocketServer({ server, path: '/ws' })
+const webSockets = new WebSocketServer({ server, path: websocketPath })
 webSockets.on('connection', socket => socket.send(JSON.stringify(snapshot())))
 function broadcast() {
   const message = JSON.stringify(snapshot())
@@ -93,10 +139,11 @@ const udp = dgram.createSocket('udp4')
 udp.on('message', data => {
   try {
     const event = JSON.parse(data.toString('utf8'))
-    if (nodes[event.nodeId]) nodes[event.nodeId] = { status: 'running', lastSeen: event.timestamp }
+    const receivedAt = Date.now()
+    if (nodes[event.nodeId]) nodes[event.nodeId] = { status: 'running', lastSeen: receivedAt }
     const edge = edges[event.edgeId]
     if (edge) {
-      edge.lastSeen = event.timestamp
+      edge.lastSeen = receivedAt
       edge.lastSequence = event.sequence || edge.lastSequence
       if (event.event === 'send') {
         edge.messages += 1
@@ -126,4 +173,15 @@ udp.on('message', data => {
 })
 
 udp.bind(udpPort, '0.0.0.0')
+setInterval(() => {
+  const now = Date.now()
+  let changed = false
+  for (const node of Object.values(nodes)) {
+    if (node.lastSeen && now - node.lastSeen > heartbeatTimeout && node.status !== 'offline') {
+      node.status = 'offline'
+      changed = true
+    }
+  }
+  if (changed) broadcast()
+}, Math.max(250, Math.min(heartbeatTimeout / 2, 1000))).unref()
 server.listen(port, '0.0.0.0', () => console.log(`GraphX telemetry HTTP/WebSocket :${port}, UDP :${udpPort}`))

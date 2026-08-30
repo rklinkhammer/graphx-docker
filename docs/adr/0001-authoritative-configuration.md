@@ -15,9 +15,10 @@ transport, and deployment models could drift.
 `graphx.yaml` is the authoritative source model. Version 1 is represented by a
 typed C++ configuration model and a JSON Schema 2020-12 document. The loader
 performs strict semantic validation after YAML parsing and aggregates errors.
-Unknown keys in the core `version`, `graph`, `transport`, `network`, and `deployment`
-surfaces are rejected. `observability` remains an open extension surface owned
-by its later phase. Image and process-command hints live in deployment service
+Unknown keys in the core `version`, `graph`, `transport`, `network`, `deployment`,
+and `observability` surfaces are rejected. Observability signals, exporters,
+telemetry heartbeats, and capture-provider selection are strongly typed. Image
+and process-command hints live in deployment service
 placements, never in logical graph nodes.
 
 Runtime edge transports are created by a factory from validated transport

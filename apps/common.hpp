@@ -5,6 +5,8 @@
 #include "graphx/transport_factory.hpp"
 
 #include <chrono>
+#include <algorithm>
+#include <csignal>
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
@@ -13,6 +15,23 @@
 #include <thread>
 
 namespace demo {
+
+inline volatile std::sig_atomic_t shutdown_requested = 0;
+inline void request_shutdown(int) { shutdown_requested = 1; }
+inline void install_signal_handlers() {
+  std::signal(SIGINT, request_shutdown);
+  std::signal(SIGTERM, request_shutdown);
+}
+inline bool stopping() noexcept { return shutdown_requested != 0; }
+
+inline void interruptible_pause(std::chrono::milliseconds duration) {
+  constexpr auto quantum = std::chrono::milliseconds(50);
+  while (!stopping() && duration.count() > 0) {
+    const auto wait = std::min(duration, quantum);
+    std::this_thread::sleep_for(wait);
+    duration -= wait;
+  }
+}
 
 inline std::string env(const char* name, std::string fallback) {
   if (const char* value = std::getenv(name)) return value;
@@ -61,19 +80,39 @@ class ConsoleTraceSink final : public graphx::TraceSink {
 
 class RuntimeTraceSink final : public graphx::TraceSink {
  public:
-  explicit RuntimeTraceSink(std::string node_id)
-      : telemetry_(node_id, env("GRAPHX_TELEMETRY_HOST", "127.0.0.1"),
-                   port("GRAPHX_TELEMETRY_PORT", 9000)) {
-    composite_.add(console_);
-    composite_.add(metrics_);
-    composite_.add(telemetry_);
+  RuntimeTraceSink(std::string node_id, const graphx::GraphConfig& config)
+      : node_id_(std::move(node_id)),
+        heartbeat_interval_(config.observability.telemetry.heartbeat_interval_ms) {
+    const auto contains = [](const auto& signal, std::string_view exporter) {
+      return signal.enabled && std::ranges::find(signal.exporters, exporter) != signal.exporters.end();
+    };
+    if (contains(config.observability.metrics, "console") ||
+        contains(config.observability.tracing, "console"))
+      composite_.add(console_);
+    if (config.observability.metrics.enabled) composite_.add(metrics_);
+    if (contains(config.observability.metrics, "udp-json") ||
+        contains(config.observability.tracing, "udp-json")) {
+      telemetry_ = std::make_unique<graphx::UdpJsonTraceSink>(
+          node_id_, env("GRAPHX_TELEMETRY_HOST", config.observability.telemetry.host),
+          port("GRAPHX_TELEMETRY_PORT", config.observability.telemetry.port));
+      composite_.add(*telemetry_);
+    }
     const auto otlp_host = env("GRAPHX_OTLP_HOST", "");
-    if (!otlp_host.empty()) {
+    if (!otlp_host.empty() || contains(config.observability.tracing, "otlp-http")) {
       otlp_ = std::make_unique<graphx::OtlpHttpTraceSink>(
-          std::move(node_id), otlp_host, port("GRAPHX_OTLP_PORT", 4318),
+          node_id_, otlp_host.empty() ? "127.0.0.1" : otlp_host,
+          port("GRAPHX_OTLP_PORT", 4318),
           env("GRAPHX_OTLP_PATH", "/v1/traces"));
       composite_.add(*otlp_);
     }
+    heartbeat(true);
+  }
+
+  void heartbeat(bool force = false) {
+    const auto now = std::chrono::steady_clock::now();
+    if (!force && now - last_heartbeat_ < heartbeat_interval_) return;
+    last_heartbeat_ = now;
+    composite_.on_heartbeat(node_id_);
   }
 
   void on_send(std::string_view edge, const graphx::Envelope& envelope,
@@ -99,11 +138,15 @@ class RuntimeTraceSink final : public graphx::TraceSink {
                      std::chrono::nanoseconds duration, bool success) override {
     composite_.on_processing(node, envelope, duration, success);
   }
+  void on_heartbeat(std::string_view node) override { composite_.on_heartbeat(node); }
 
  private:
+  std::string node_id_;
+  std::chrono::milliseconds heartbeat_interval_;
+  std::chrono::steady_clock::time_point last_heartbeat_{};
   ConsoleTraceSink console_;
   graphx::MetricsTraceSink metrics_;
-  graphx::UdpJsonTraceSink telemetry_;
+  std::unique_ptr<graphx::UdpJsonTraceSink> telemetry_;
   std::unique_ptr<graphx::OtlpHttpTraceSink> otlp_;
   graphx::CompositeTraceSink composite_;
 };

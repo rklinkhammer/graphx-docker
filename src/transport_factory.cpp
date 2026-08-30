@@ -20,7 +20,6 @@ TransportPtr TransportFactory::create(const EdgeConfig& edge, ConnectionMode mod
       TcpOptions options;
       options.connect_timeout = std::chrono::milliseconds(transport.connect_timeout_ms);
       options.send_timeout = std::chrono::milliseconds(transport.send_timeout_ms);
-      options.connect_timeout = std::chrono::milliseconds(transport.connect_timeout_ms);
       options.retry.max_attempts = transport.retry_attempts;
       options.retry.initial_backoff =
           std::chrono::milliseconds(transport.retry_initial_backoff_ms);
@@ -47,6 +46,7 @@ TransportPtr TransportFactory::create(const EdgeConfig& edge, ConnectionMode mod
       options.capacity = transport.capacity;
       options.max_message_bytes = transport.max_message_bytes;
       options.send_timeout = std::chrono::milliseconds(transport.send_timeout_ms);
+      options.connect_timeout = std::chrono::milliseconds(transport.connect_timeout_ms);
       options.backpressure = transport.backpressure == "reject"
                                  ? SharedMemoryBackpressure::reject
                                  : SharedMemoryBackpressure::block;
@@ -68,7 +68,7 @@ TransportPtr TransportFactory::create(const EdgeConfig& edge, ConnectionMode mod
           channels_[transport.channel] = channel;
         }
       }
-      return std::make_unique<InProcessTransport>(std::move(channel));
+      return std::make_unique<InProcessTransport>(std::move(channel), edge.edge.id, trace_sink);
     }
   }
   throw std::invalid_argument("unsupported transport kind");

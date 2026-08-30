@@ -216,6 +216,10 @@ void CompositeTraceSink::on_processing(std::string_view node_id, const Envelope&
   for (auto* sink : sinks_) sink->on_processing(node_id, envelope, duration, success);
 }
 
+void CompositeTraceSink::on_heartbeat(std::string_view node_id) {
+  for (auto* sink : sinks_) sink->on_heartbeat(node_id);
+}
+
 struct UdpJsonTraceSink::Impl {
   std::string node_id;
   int socket{-1};
@@ -281,6 +285,10 @@ void UdpJsonTraceSink::on_backpressure(std::string_view edge_id,
 void UdpJsonTraceSink::on_processing(std::string_view node_id, const Envelope& envelope,
                                      std::chrono::nanoseconds duration, bool success) {
   emit("processing", node_id, &envelope, 0, duration, success ? "ok" : "error");
+}
+
+void UdpJsonTraceSink::on_heartbeat(std::string_view node_id) {
+  emit("heartbeat", node_id, nullptr, 0, {});
 }
 
 void UdpJsonTraceSink::emit(std::string_view event, std::string_view edge_id,

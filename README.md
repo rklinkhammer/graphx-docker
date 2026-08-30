@@ -96,7 +96,7 @@ npm install
 npm run dev
 ```
 
-Install and run the lightweight telemetry service separately with `npm install --prefix apps/telemetry && node apps/telemetry/server.mjs`. Vite proxies `/api` and `/ws` to port 8080. The console shows fallback preview values until node processes begin publishing events, then switches to WebSocket snapshots.
+Install and run the lightweight telemetry service separately with `npm install --prefix apps/telemetry && node apps/telemetry/server.mjs`. It reads `GRAPHX_CONFIG` (defaulting to the repository `graphx.yaml`) and derives the application graph, network path, transports, and heartbeat policy from that file. Vite proxies `/api` and the configured WebSocket path to port 8080. The console uses unavailable markers until node processes publish telemetry.
 
 ## Demo data path
 
@@ -112,7 +112,10 @@ Each program is a separate executable and container entry point:
 - `graphx-transform` listens for samples, doubles the text-encoded integer, and emits `TransformedSample`.
 - `graphx-sink` listens and prints sequence, value, and trace ID.
 
-The applications load and validate `graphx.yaml` before opening a transport. In
+The applications load and validate `graphx.yaml` before opening observability
+exporters or transports. SIGINT/SIGTERM requests a bounded polling shutdown;
+nodes stop taking work, close their transports, and exit without relying on a
+forced container stop. In
 Compose, listeners bind to `0.0.0.0`; clients use service names instead of fixed
 container addresses. TCP retry, exponential backoff, connect/send deadlines, and
 reconnect behavior are configured per edge. Listeners retain their listening
@@ -269,9 +272,10 @@ The demo accepts these variables:
 | `GRAPHX_CONFIG` | runtime nodes, CLI | `graphx.yaml` | Authoritative configuration path |
 | `GRAPHX_OVERRIDES` | runtime nodes, CLI | empty | Semicolon-separated dotted scalar overrides |
 | `GRAPHX_INTERVAL_MS` | generator | `500` | Emit interval |
-| `GRAPHX_MAX_MESSAGES` | generator | `0` | Stop after this many messages; zero runs continuously |
+| `GRAPHX_MAX_MESSAGES` | all demo nodes | `0` | Drain/stop after this many messages; zero runs continuously |
 | `GRAPHX_TELEMETRY_HOST` | all nodes | `127.0.0.1` | Best-effort UDP telemetry collector |
 | `GRAPHX_TELEMETRY_PORT` | all nodes, telemetry | `9000` | UDP event-ingest port |
+| `GRAPHX_HEARTBEAT_TIMEOUT_MS` | telemetry | configured value | Operations/test override for offline detection |
 | `GRAPHX_OTLP_HOST` | all nodes | empty (disabled) | OTLP/HTTP JSON collector host |
 | `GRAPHX_OTLP_PORT` | all nodes | `4318` | OTLP/HTTP collector port |
 | `GRAPHX_OTLP_PATH` | all nodes | `/v1/traces` | OTLP trace endpoint |
@@ -288,7 +292,11 @@ the same envelope and tracing behavior can be compared across them. A future
 specialized API may add zero-copy shared-memory views without expanding the
 baseline contract prematurely.
 
-To add observability, implement `TraceSink`. An OpenTelemetry adapter can turn an envelope trace ID into spans and edge measurements into counters/histograms. Implement `CaptureSink` to write the exact framed bytes; an `ExtcapProvider` can then expose that stream as a Wireshark interface and correlate packet blocks with envelope trace IDs.
+To add observability, implement `TraceSink` and add its exporter name to the
+typed `observability.metrics` or `observability.tracing` configuration. The
+included OTLP/HTTP adapter turns envelope trace IDs into spans. Implement
+`CaptureSink` to write exact framed bytes; an `ExtcapProvider` can then expose
+that stream as a Wireshark interface and correlate packet blocks with trace IDs.
 
 ## Tests
 
@@ -318,8 +326,10 @@ The tests use no third-party framework so a fresh scaffold remains easy to build
 
 ## Roadmap
 
-1. **Runtime lifecycle follow-up** — optional TLS, process-level graceful shutdown,
-   and richer connection/reconnect telemetry. Core TCP hardening is implemented.
+1. **Runtime lifecycle follow-up** — coordinated SIGINT/SIGTERM shutdown, typed
+   observability configuration, configuration-driven topology, heartbeat expiry,
+   and richer transport events are implemented. Remaining hardening includes TLS
+   and interruptible Unix-listener creation before its first peer connects.
 2. **OpenTelemetry** — initial OTLP/HTTP spans, Prometheus-style edge metrics,
    connection/backpressure events, processing spans, and trace-ID propagation are
    implemented. Follow-ups include W3C trace-context fields, batching/retry, and

@@ -9,7 +9,7 @@ tier. The privileged tier is deliberately never selected automatically.
 
 | Tier | Host | Coverage | Command |
 |---|---|---|---|
-| Portable | macOS or Linux | C++20/23, unit/integration tests, config/infra dry-runs, TCP and shared-memory process pipelines, web build, telemetry API and Prometheus output | `scripts/test-features.sh portable` |
+| Portable | macOS or Linux | C++20/23, unit/integration tests, config/infra dry-runs, TCP and shared-memory process pipelines, graceful SIGTERM, web build, configuration-driven telemetry, heartbeat expiry, API and Prometheus output | `scripts/test-features.sh portable` |
 | Docker | macOS or Linux with Docker | Portable tier plus the standard bridge-network Compose deployment | `scripts/test-features.sh docker` |
 | Native network | Linux only | Portable tier plus real macvlan, IPvlan L2/L3, OVS, namespace routing, nftables and netem | `GRAPHX_ALLOW_PRIVILEGED_TESTS=1 scripts/test-features.sh linux-network` |
 
@@ -46,11 +46,15 @@ Expected results:
 - Every `graphx.yaml` validates. Infrastructure create/status/destroy and a
   netem fault are rendered with `--dry-run` without changing the host.
 - The TCP and shared-memory pipelines each deliver sequence 8 with value 16.
+- Generator, transform, and sink exit cleanly after finite runs and SIGTERM.
 - Runtime output contains structured connection and processing events.
 - The web production bundle builds.
 - `/api/health`, `/api/topology`, and `/metrics` respond. Telemetry reset is
   accepted; pause returns HTTP 501 because an authenticated runtime control
   channel does not yet exist. The UI must not claim that rejected controls ran.
+- `/api/topology` reflects the nodes, edges, transport details, and network paths
+  in `GRAPHX_CONFIG`; a silent node transitions to `offline` after its configured
+  heartbeat timeout.
 
 For a focused rerun:
 

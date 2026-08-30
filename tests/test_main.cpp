@@ -53,10 +53,15 @@ void envelope_round_trip() {
 
 void in_process() {
   auto channel = std::make_shared<graphx::InProcessChannel>();
-  graphx::InProcessTransport sender(channel), receiver(channel);
+  graphx::MetricsTraceSink metrics;
+  graphx::InProcessTransport sender(channel, "local", &metrics), receiver(channel, "local", &metrics);
   sender.send(graphx::Envelope::make(7, "Ping", "hello"));
   const auto message = receiver.receive(std::chrono::milliseconds(10));
   expect(message && message->payload == "hello", "in-process delivery");
+  const auto measured = metrics.edge("local");
+  expect(measured.sent == 1 && measured.received == 1 && measured.wire_bytes > 0 &&
+             measured.connection == graphx::ConnectionState::connected,
+         "in-process tracing parity");
 }
 
 void metrics_sink() {
@@ -565,9 +570,10 @@ void tcp_end_to_end() {
 void unix_socket_end_to_end() {
   const auto path = "/tmp/graphx-test-" + std::to_string(::getpid()) + ".sock";
   std::exception_ptr server_error;
+  graphx::MetricsTraceSink metrics;
   std::thread server([&] {
     try {
-      auto receiver = graphx::UnixDomainSocketTransport::listen(path, "test-uds");
+      auto receiver = graphx::UnixDomainSocketTransport::listen(path, "test-uds", &metrics);
       auto envelope = receiver.receive(std::chrono::seconds(2));
       expect(envelope && envelope->payload == "over uds", "Unix socket delivery");
       envelope->payload = "ack";
@@ -578,7 +584,7 @@ void unix_socket_end_to_end() {
     std::optional<graphx::UnixDomainSocketTransport> sender;
     std::string connect_error;
     for (int attempt = 0; attempt < 20 && !sender; ++attempt) {
-      try { sender.emplace(graphx::UnixDomainSocketTransport::connect(path, "test-uds")); }
+      try { sender.emplace(graphx::UnixDomainSocketTransport::connect(path, "test-uds", &metrics)); }
       catch (const std::exception& error) {
         connect_error = error.what();
         std::this_thread::sleep_for(std::chrono::milliseconds(25));
@@ -594,6 +600,9 @@ void unix_socket_end_to_end() {
   }
   server.join();
   if (server_error) std::rethrow_exception(server_error);
+  const auto measured = metrics.edge("test-uds");
+  expect(measured.sent == 2 && measured.received == 2,
+         "Unix socket tracing parity");
 }
 
 }  // namespace

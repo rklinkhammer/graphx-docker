@@ -16,6 +16,15 @@ trap cleanup EXIT INT TERM
 
 step() { printf '\n==> %s\n' "$*"; }
 require() { command -v "$1" >/dev/null || { echo "missing prerequisite: $1" >&2; exit 2; }; }
+wait_for_exit() {
+  local pid=$1 name=$2
+  for _ in {1..100}; do
+    if ! kill -0 "$pid" 2>/dev/null; then wait "$pid"; return; fi
+    sleep 0.05
+  done
+  echo "$name did not stop cleanly" >&2
+  return 1
+}
 
 portable() {
   require cmake
@@ -54,13 +63,23 @@ portable() {
   "$BUILD_DIR/graphx-sink" >"$TMP_DIR/sink.log" 2>&1 & PIDS+=("$!")
   "$BUILD_DIR/graphx-transform" >"$TMP_DIR/transform.log" 2>&1 & PIDS+=("$!")
   "$BUILD_DIR/graphx-generator" >"$TMP_DIR/generator.log" 2>&1
-  for _ in {1..100}; do grep -q 'sink seq=8 value=16' "$TMP_DIR/sink.log" && break; sleep 0.05; done
-  kill "${PIDS[1]}" "${PIDS[0]}" 2>/dev/null || true
-  wait "${PIDS[1]}" 2>/dev/null || true
-  wait "${PIDS[0]}" 2>/dev/null || true
+  wait_for_exit "${PIDS[1]}" transform
+  wait_for_exit "${PIDS[0]}" sink
   PIDS=()
   grep -q 'sink seq=8 value=16' "$TMP_DIR/sink.log"
   grep -q 'event=connection state=connected' "$TMP_DIR/transform.log"
+
+  step "Verify coordinated SIGTERM shutdown"
+  export GRAPHX_MAX_MESSAGES=0 GRAPHX_INTERVAL_MS=10
+  "$BUILD_DIR/graphx-sink" >"$TMP_DIR/signal-sink.log" 2>&1 & PIDS+=("$!")
+  "$BUILD_DIR/graphx-transform" >"$TMP_DIR/signal-transform.log" 2>&1 & PIDS+=("$!")
+  "$BUILD_DIR/graphx-generator" >"$TMP_DIR/signal-generator.log" 2>&1 & PIDS+=("$!")
+  sleep 0.5
+  kill -TERM "${PIDS[@]}"
+  wait_for_exit "${PIDS[2]}" generator
+  wait_for_exit "${PIDS[1]}" transform
+  wait_for_exit "${PIDS[0]}" sink
+  PIDS=()
 
   step "Run the finite shared-memory process pipeline"
   unset GRAPHX_OVERRIDES
@@ -73,6 +92,7 @@ portable() {
   npm ci --prefix "$ROOT/web" --no-audit --no-fund
   npm run build --prefix "$ROOT/web"
   PORT=${GRAPHX_TEST_HTTP_PORT:-18080} GRAPHX_TELEMETRY_PORT=${GRAPHX_TEST_UDP_PORT:-19000} \
+    GRAPHX_HEARTBEAT_TIMEOUT_MS=400 GRAPHX_CONFIG="$ROOT/examples/ipvlan-l2/graphx.yaml" \
     GRAPHX_WEB_ROOT="$ROOT/web/dist" node "$ROOT/apps/telemetry/server.mjs" \
     >"$TMP_DIR/telemetry.log" 2>&1 &
   PIDS+=("$!")
@@ -91,13 +111,17 @@ portable() {
     setTimeout(() => d.close(), 50);
   '
   sleep 0.1
-  curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/topology" | grep -q 'sample-pipeline'
+  curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/topology" | grep -q 'ipvlan-l2-pipeline'
   curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/topology" | grep -q '"reconnects":1'
+  curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/topology" | grep -q '"networkNodes"'
+  curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/topology" | grep -q 'br-l2-gen'
   curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/metrics" | grep -q 'graphx_edge_messages_total'
   curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/metrics" | grep -q 'graphx_edge_backpressure_events_total{edge="samples"} 1'
   curl -fsS -X POST "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/control/reset" | grep -q '"accepted":true'
   test "$(curl -sS -o "$TMP_DIR/pause.json" -w '%{http_code}' -X POST "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/control/pause")" = 501
   grep -q '"accepted":false' "$TMP_DIR/pause.json"
+  sleep 0.6
+  curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/topology" | grep -q '"status":"offline"'
 
   step "Portable feature suite passed"
 }

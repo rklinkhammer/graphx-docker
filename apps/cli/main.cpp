@@ -108,6 +108,15 @@ int topology_command(const std::string& command, int argc, char** argv) {
   for (const auto& service : config.deployment.services)
     std::cout << "deployment " << service.node_id << " image=" << service.image
               << " command=" << service.command << '\n';
+  std::cout << "observability metrics="
+            << (config.observability.metrics.enabled ? "enabled" : "disabled")
+            << " tracing=" << (config.observability.tracing.enabled ? "enabled" : "disabled")
+            << " telemetry=" << config.observability.telemetry.host << ':'
+            << config.observability.telemetry.port
+            << " heartbeat=" << config.observability.telemetry.heartbeat_interval_ms << '/'
+            << config.observability.telemetry.heartbeat_timeout_ms << "ms"
+            << " capture=" << (config.observability.capture.enabled ? "enabled" : "disabled")
+            << '\n';
   return 0;
 }
 

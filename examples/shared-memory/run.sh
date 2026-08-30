@@ -14,9 +14,10 @@ cleanup() {
 trap cleanup EXIT INT TERM
 export GRAPHX_CONFIG="$example_dir/graphx.yaml"
 export GRAPHX_INTERVAL_MS="${GRAPHX_INTERVAL_MS:-50}"
+export GRAPHX_MAX_MESSAGES="$message_count"
 "$build_dir/graphx-sink" >"$log_dir/sink.log" 2>&1 & pids+=("$!")
 "$build_dir/graphx-transform" >"$log_dir/transform.log" 2>&1 & pids+=("$!")
-GRAPHX_MAX_MESSAGES="$message_count" "$build_dir/graphx-generator" \
+"$build_dir/graphx-generator" \
   >"$log_dir/generator.log" 2>&1 & pids+=("$!")
 status=0
 for pid in "${pids[@]}"; do wait "$pid" || status=$?; done

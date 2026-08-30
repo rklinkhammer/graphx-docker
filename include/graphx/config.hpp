@@ -65,6 +65,31 @@ struct DeploymentConfig {
   std::uint16_t telemetry_port{};
 };
 
+struct ObservabilitySignalConfig {
+  bool enabled{true};
+  std::vector<std::string> exporters{"console", "udp-json"};
+};
+
+struct TelemetryConfig {
+  std::string host{"127.0.0.1"};
+  std::uint16_t port{9000};
+  std::string websocket{"/ws"};
+  std::uint32_t heartbeat_interval_ms{1000};
+  std::uint32_t heartbeat_timeout_ms{5000};
+};
+
+struct CaptureConfig {
+  bool enabled{};
+  std::string provider;
+};
+
+struct ObservabilityConfig {
+  ObservabilitySignalConfig metrics;
+  ObservabilitySignalConfig tracing;
+  TelemetryConfig telemetry;
+  CaptureConfig capture;
+};
+
 struct GraphConfig {
   std::uint32_t version{};
   std::string id;
@@ -72,6 +97,7 @@ struct GraphConfig {
   std::vector<EdgeConfig> edges;
   NetworkInfrastructureConfig network_infrastructure;
   DeploymentConfig deployment;
+  ObservabilityConfig observability;
 
   [[nodiscard]] const NodeConfig& node(std::string_view id) const;
   [[nodiscard]] const EdgeConfig& edge(std::string_view id) const;

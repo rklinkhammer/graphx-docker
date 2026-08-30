@@ -6,7 +6,7 @@ export function EdgeInspector({ edge, networkPath }) {
   return <aside className="inspector">
     <div className="eyebrow">EDGE INSPECTOR</div>
     <h2>{edge.source} <span>→</span> {edge.target}</h2>
-    <div className="connection"><span className="pulse"/>TCP {d.connection || 'unavailable'}</div>
+    <div className="connection"><span className="pulse"/>{d.transport || 'transport'} {d.connection || 'unavailable'}</div>
     <dl className="facts">
       <div><dt>Destination</dt><dd>{edge.target}:{d.port}</dd></div>
       <div><dt>Schema</dt><dd>{d.schema}</dd></div>

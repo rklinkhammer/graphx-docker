@@ -25,9 +25,34 @@ export const edgePaths = {
   transformed: ['transform', 'gx-ipv-domain', 'sink'],
 }
 
-export function networkEdges(selectedId) {
+export function applicationNodes(topology) {
+  if (!topology?.nodes?.length) return initialNodes
+  return topology.nodes.map(node => ({ id: node.id, data: {
+    label: node.label, role: node.role, status: 'starting', cpu: 0,
+    image: node.image, input: node.input, output: node.output,
+  }}))
+}
+
+export function applicationEdges(topology) {
+  if (!topology?.edges?.length) return initialEdges
+  return topology.edges.map(edge => ({ id: edge.id, source: edge.source, target: edge.target,
+    type: 'telemetry', data: { label: edge.id, rate: '—', messages: '—', latency: '—',
+      drops: '—', connection: 'unavailable', reconnects: '—', backpressure: '—',
+      port: edge.port, schema: edge.schema, transport: edge.transport } }))
+}
+
+export function infrastructureNodes(topology) {
+  if (!topology?.networkNodes?.length) return networkNodes
+  return topology.networkNodes.map(node => ({ id: node.id, data: {
+    label: node.label, role: node.role, status: 'modeled', cpu: 0,
+    image: node.image, input: node.input, output: node.output,
+  }}))
+}
+
+export function networkEdges(selectedId, topology) {
   const edges = []
-  for (const [logicalEdge, path] of Object.entries(edgePaths)) {
+  const paths = topology?.edgePaths || edgePaths
+  for (const [logicalEdge, path] of Object.entries(paths)) {
     path.slice(0, -1).forEach((source, index) => edges.push({
       id: `${logicalEdge}-hop-${index}`, source, target: path[index + 1], type: 'telemetry',
       data: { logicalEdge, highlighted: logicalEdge === selectedId,

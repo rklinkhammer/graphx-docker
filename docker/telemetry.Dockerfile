@@ -10,8 +10,9 @@ WORKDIR /app
 COPY apps/telemetry/package*.json ./
 RUN npm ci --omit=dev
 COPY apps/telemetry/server.mjs ./server.mjs
+COPY graphx.yaml ./graphx.yaml
 COPY --from=web /app/web/dist ./web/dist
-ENV GRAPHX_WEB_ROOT=/app/web/dist PORT=8080
+ENV GRAPHX_WEB_ROOT=/app/web/dist GRAPHX_CONFIG=/app/graphx.yaml PORT=8080
 USER node
 EXPOSE 8080
 CMD ["node", "server.mjs"]

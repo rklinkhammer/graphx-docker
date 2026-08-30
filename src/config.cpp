@@ -122,6 +122,7 @@ class ConfigParser {
     parse_transports(root_["transport"], config);
     parse_network_infrastructure(root_["network"], config);
     parse_deployment(root_["deployment"], config);
+    parse_observability(root_["observability"], config);
     validate_graph(config);
     if (!errors_.empty()) throw ConfigError(std::move(errors_));
     return config;
@@ -757,6 +758,90 @@ class ConfigParser {
         error("deployment.telemetry.port", "must be between 1 and 65535");
       else
         config.deployment.telemetry_port = static_cast<std::uint16_t>(port);
+    }
+  }
+
+  void parse_signal(const YAML::Node& value, const std::string& path,
+                    ObservabilitySignalConfig& signal, bool allow_otlp) {
+    if (!value) return;
+    if (!require_map(value, path)) return;
+    strict_keys(value, path, {"enabled", "exporters"});
+    signal.enabled = bool_value(value["enabled"], path + ".enabled", true);
+    if (!value["exporters"]) return;
+    if (!require_sequence(value["exporters"], path + ".exporters")) return;
+    signal.exporters.clear();
+    std::unordered_set<std::string> seen;
+    for (std::size_t index = 0; index < value["exporters"].size(); ++index) {
+      const auto item_path = path + ".exporters[" + std::to_string(index) + "]";
+      auto exporter = text(value["exporters"][index], item_path, 32);
+      if (exporter != "console" && exporter != "udp-json" &&
+          (!allow_otlp || exporter != "otlp-http"))
+        error(item_path, allow_otlp ? "must be 'console', 'udp-json', or 'otlp-http'"
+                                    : "must be 'console' or 'udp-json'");
+      if (!exporter.empty() && !seen.insert(exporter).second)
+        error(item_path, "duplicate exporter '" + exporter + "'");
+      signal.exporters.push_back(std::move(exporter));
+    }
+    if (signal.enabled && signal.exporters.empty())
+      error(path + ".exporters", "must not be empty when enabled");
+  }
+
+  void parse_observability(const YAML::Node& value, GraphConfig& config) {
+    if (!value) return;
+    if (!require_map(value, "observability")) return;
+    strict_keys(value, "observability", {"metrics", "tracing", "telemetry", "capture"});
+    parse_signal(value["metrics"], "observability.metrics", config.observability.metrics, false);
+    parse_signal(value["tracing"], "observability.tracing", config.observability.tracing, true);
+    if (const auto telemetry = value["telemetry"]) {
+      if (require_map(telemetry, "observability.telemetry")) {
+        strict_keys(telemetry, "observability.telemetry",
+                    {"host", "port", "websocket", "heartbeat_interval_ms",
+                     "heartbeat_timeout_ms"});
+        if (telemetry["host"])
+          config.observability.telemetry.host =
+              text(telemetry["host"], "observability.telemetry.host", 253);
+        if (telemetry["port"]) {
+          const auto port = unsigned_value(telemetry["port"], "observability.telemetry.port");
+          if (port == 0 || port > 65535)
+            error("observability.telemetry.port", "must be between 1 and 65535");
+          else
+            config.observability.telemetry.port = static_cast<std::uint16_t>(port);
+        }
+        if (telemetry["websocket"]) {
+          config.observability.telemetry.websocket =
+              text(telemetry["websocket"], "observability.telemetry.websocket", 128);
+          if (!config.observability.telemetry.websocket.starts_with('/'))
+            error("observability.telemetry.websocket", "must start with '/'");
+        }
+        if (telemetry["heartbeat_interval_ms"])
+          config.observability.telemetry.heartbeat_interval_ms = unsigned_value(
+              telemetry["heartbeat_interval_ms"],
+              "observability.telemetry.heartbeat_interval_ms");
+        if (telemetry["heartbeat_timeout_ms"])
+          config.observability.telemetry.heartbeat_timeout_ms = unsigned_value(
+              telemetry["heartbeat_timeout_ms"], "observability.telemetry.heartbeat_timeout_ms");
+        if (config.observability.telemetry.heartbeat_interval_ms == 0 ||
+            config.observability.telemetry.heartbeat_interval_ms > 600000)
+          error("observability.telemetry.heartbeat_interval_ms",
+                "must be between 1 and 600000");
+        if (config.observability.telemetry.heartbeat_timeout_ms <
+                config.observability.telemetry.heartbeat_interval_ms * 2ULL ||
+            config.observability.telemetry.heartbeat_timeout_ms > 3600000)
+          error("observability.telemetry.heartbeat_timeout_ms",
+                "must be at least twice heartbeat_interval_ms and at most 3600000");
+      }
+    }
+    if (const auto capture = value["capture"]) {
+      if (require_map(capture, "observability.capture")) {
+        strict_keys(capture, "observability.capture", {"enabled", "provider"});
+        config.observability.capture.enabled =
+            bool_value(capture["enabled"], "observability.capture.enabled", false);
+        if (capture["provider"])
+          config.observability.capture.provider =
+              text(capture["provider"], "observability.capture.provider", 128);
+        if (config.observability.capture.enabled && config.observability.capture.provider.empty())
+          error("observability.capture.provider", "is required when capture is enabled");
+      }
     }
   }
 

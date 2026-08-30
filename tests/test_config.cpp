@@ -90,6 +90,12 @@ void authoritative_config_loads() {
          "bridge network model");
   expect(config.network_infrastructure.edge_path("samples").hops.size() == 3,
          "simple network path");
+  expect(config.observability.metrics.enabled &&
+             config.observability.metrics.exporters.size() == 2,
+         "typed metrics configuration");
+  expect(config.observability.telemetry.host == "telemetry" &&
+             config.observability.telemetry.heartbeat_timeout_ms == 5000,
+         "typed telemetry configuration");
 }
 
 void tcp_policy_loads() {
@@ -137,6 +143,7 @@ transport:
       capacity: 8
       max_message_bytes: 8192
       backpressure: reject
+      connect_timeout_ms: 75
       send_timeout_ms: 250
 )yaml");
   const auto transport = graphx::load_config(file.path()).edge("shared-edge").transport;
@@ -144,8 +151,27 @@ transport:
   expect(transport.segment == "gx-config-shared" && transport.capacity == 8,
          "shared-memory layout settings");
   expect(transport.max_message_bytes == 8192 && transport.backpressure == "reject" &&
-             transport.send_timeout_ms == 250,
+             transport.send_timeout_ms == 250 && transport.connect_timeout_ms == 75,
          "shared-memory pressure settings");
+}
+
+void invalid_observability_is_rejected() {
+  TemporaryConfig file(std::string(valid_config) + R"yaml(
+observability:
+  metrics: { enabled: true, exporters: [console, console, mystery] }
+  telemetry: { host: collector, port: 9000, websocket: ws, heartbeat_interval_ms: 1000, heartbeat_timeout_ms: 1500 }
+  capture: { enabled: true }
+)yaml");
+  try {
+    [[maybe_unused]] const auto ignored = graphx::load_config(file.path());
+    throw std::runtime_error("invalid observability configuration was accepted");
+  } catch (const graphx::ConfigError& error) {
+    expect(diagnostic_contains(error, "duplicate exporter"), "duplicate exporter diagnostic");
+    expect(diagnostic_contains(error, "must be 'console'"), "unknown exporter diagnostic");
+    expect(diagnostic_contains(error, "must start with"), "WebSocket path diagnostic");
+    expect(diagnostic_contains(error, "at least twice"), "heartbeat relationship diagnostic");
+    expect(diagnostic_contains(error, "capture.provider"), "capture provider diagnostic");
+  }
 }
 
 void invalid_shared_memory_config_is_rejected() {
@@ -467,6 +493,25 @@ void shared_memory_factory_round_trip() {
          "shared-memory factory delivery");
 }
 
+void shared_memory_factory_uses_connect_timeout() {
+  graphx::TransportFactory factory;
+  graphx::EdgeConfig edge;
+  edge.edge.id = "factory-shared-timeout";
+  edge.transport.kind = graphx::TransportKind::shared_memory;
+  edge.transport.segment = "/gx-factory-missing-" + std::to_string(::getpid());
+  edge.transport.connect_timeout_ms = 30;
+  const auto start = std::chrono::steady_clock::now();
+  bool failed{};
+  try {
+    [[maybe_unused]] auto ignored = factory.create(edge, graphx::ConnectionMode::connect);
+  } catch (const std::exception&) {
+    failed = true;
+  }
+  expect(failed, "missing shared segment connected");
+  expect(std::chrono::steady_clock::now() - start < 1s,
+         "shared-memory factory connect timeout propagation");
+}
+
 }  // namespace
 
 int main() {
@@ -476,6 +521,7 @@ int main() {
       {"TCP policy", tcp_policy_loads},
       {"invalid TCP policy", invalid_tcp_policy_is_rejected},
       {"shared-memory config", shared_memory_config_loads},
+      {"invalid observability", invalid_observability_is_rejected},
       {"invalid shared-memory config", invalid_shared_memory_config_is_rejected},
       {"mixed network model", mixed_network_model_and_plan_load},
       {"standalone network examples", standalone_network_examples_load},
@@ -490,7 +536,8 @@ int main() {
       {"factory validation", factory_rejects_unvalidated_settings},
       {"TCP factory", tcp_factory_round_trip},
       {"Unix socket factory", unix_factory_round_trip},
-      {"shared-memory factory", shared_memory_factory_round_trip}};
+      {"shared-memory factory", shared_memory_factory_round_trip},
+      {"shared-memory factory timeout", shared_memory_factory_uses_connect_timeout}};
   int failures{};
   for (const auto& [name, test] : tests) {
     try {

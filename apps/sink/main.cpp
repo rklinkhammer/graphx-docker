@@ -1,21 +1,30 @@
 #include "../common.hpp"
 
 int main() {
-  demo::RuntimeTraceSink trace("sink");
+  demo::install_signal_handlers();
   try {
     const auto config = graphx::load_config(demo::config_path());
+    demo::RuntimeTraceSink trace("sink", config);
     [[maybe_unused]] const auto& node = config.node("sink");
     graphx::TransportFactory transports;
     auto input =
         transports.create(config.edge("transformed"), graphx::ConnectionMode::listen, &trace);
-    while (auto envelope = input->receive()) {
+    const auto maximum = std::stoull(demo::env("GRAPHX_MAX_MESSAGES", "0"));
+    std::uint64_t processed{};
+    while (!demo::stopping() && (maximum == 0 || processed < maximum)) {
+      trace.heartbeat();
+      auto envelope = input->receive(std::chrono::milliseconds(200));
+      if (!envelope) continue;
       const auto processing_start = std::chrono::steady_clock::now();
       std::cout << "sink seq=" << envelope->sequence << " value=" << envelope->payload
                 << " trace=" << envelope->trace_id << std::endl;
       trace.on_processing("sink", *envelope,
                           std::chrono::steady_clock::now() - processing_start, true);
+      ++processed;
     }
+    input->close();
   } catch (const std::exception& error) {
+    if (demo::stopping()) return 0;
     std::cerr << "sink: " << error.what() << '\n';
     return 1;
   }

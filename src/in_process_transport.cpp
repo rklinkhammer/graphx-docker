@@ -1,5 +1,6 @@
 #include "graphx/in_process_transport.hpp"
 
+#include <algorithm>
 #include <stdexcept>
 
 namespace graphx {
@@ -32,10 +33,24 @@ void InProcessChannel::close() {
   ready_.notify_all();
 }
 
-void InProcessTransport::send(const Envelope& envelope) { channel_->push(envelope); }
-std::optional<Envelope> InProcessTransport::receive(std::chrono::milliseconds timeout) {
-  return channel_->pop(timeout);
+void InProcessTransport::send(const Envelope& envelope) {
+  channel_->push(envelope);
+  trace_sink_->on_send(edge_id_, envelope, serialize(envelope).size());
 }
-void InProcessTransport::close() { channel_->close(); }
+std::optional<Envelope> InProcessTransport::receive(std::chrono::milliseconds timeout) {
+  auto envelope = channel_->pop(timeout);
+  if (envelope) {
+    const auto now = std::chrono::system_clock::now().time_since_epoch();
+    const auto now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(now).count();
+    trace_sink_->on_receive(
+        edge_id_, *envelope, serialize(*envelope).size(),
+        std::chrono::nanoseconds(std::max<std::int64_t>(0, now_ns - envelope->timestamp_ns)));
+  }
+  return envelope;
+}
+void InProcessTransport::close() {
+  channel_->close();
+  trace_sink_->on_connection(edge_id_, ConnectionState::closed);
+}
 
 }  // namespace graphx

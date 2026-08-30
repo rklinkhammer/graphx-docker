@@ -27,9 +27,27 @@ sockaddr_un address_for(const std::string& path) {
   return address;
 }
 
+int send_flags() noexcept {
+#ifdef MSG_NOSIGNAL
+  return MSG_NOSIGNAL;
+#else
+  return 0;
+#endif
+}
+
+void configure_socket(int socket) {
+#ifdef SO_NOSIGPIPE
+  int enabled = 1;
+  if (::setsockopt(socket, SOL_SOCKET, SO_NOSIGPIPE, &enabled, sizeof(enabled)) != 0)
+    throw socket_error("configure Unix socket SIGPIPE protection");
+#else
+  (void)socket;
+#endif
+}
+
 void write_all(int socket, std::span<const std::byte> bytes) {
   while (!bytes.empty()) {
-    const auto sent = ::send(socket, bytes.data(), bytes.size(), 0);
+    const auto sent = ::send(socket, bytes.data(), bytes.size(), send_flags());
     if (sent < 0 && errno == EINTR) continue;
     if (sent <= 0) throw socket_error("Unix socket send");
     bytes = bytes.subspan(static_cast<std::size_t>(sent));
@@ -60,13 +78,17 @@ UnixDomainSocketTransport UnixDomainSocketTransport::connect(
     std::string path, std::string edge_id, TraceSink* trace_sink) {
   const int socket = ::socket(AF_UNIX, SOCK_STREAM, 0);
   if (socket < 0) throw socket_error("create Unix socket");
+  if (trace_sink) trace_sink->on_connection(edge_id, ConnectionState::connecting);
+  configure_socket(socket);
   const auto address = address_for(path);
   if (::connect(socket, reinterpret_cast<const sockaddr*>(&address), sizeof(address)) != 0) {
     const auto error = socket_error("connect Unix socket");
     ::close(socket);
     throw error;
   }
-  return UnixDomainSocketTransport(socket, std::move(edge_id), trace_sink);
+  auto transport = UnixDomainSocketTransport(socket, std::move(edge_id), trace_sink);
+  transport.trace_sink_->on_connection(transport.edge_id_, ConnectionState::connected);
+  return transport;
 }
 
 UnixDomainSocketTransport UnixDomainSocketTransport::listen(
@@ -74,6 +96,7 @@ UnixDomainSocketTransport UnixDomainSocketTransport::listen(
   ::unlink(path.c_str());
   const int listener = ::socket(AF_UNIX, SOCK_STREAM, 0);
   if (listener < 0) throw socket_error("create Unix listener");
+  if (trace_sink) trace_sink->on_connection(edge_id, ConnectionState::listening);
   const auto address = address_for(path);
   if (::bind(listener, reinterpret_cast<const sockaddr*>(&address), sizeof(address)) != 0 ||
       ::listen(listener, 1) != 0) {
@@ -88,8 +111,11 @@ UnixDomainSocketTransport UnixDomainSocketTransport::listen(
     ::unlink(path.c_str());
     throw socket_error("accept Unix socket");
   }
-  return UnixDomainSocketTransport(accepted, std::move(edge_id), trace_sink,
-                                   std::move(path));
+  configure_socket(accepted);
+  auto transport = UnixDomainSocketTransport(accepted, std::move(edge_id), trace_sink,
+                                             std::move(path));
+  transport.trace_sink_->on_connection(transport.edge_id_, ConnectionState::connected);
+  return transport;
 }
 
 UnixDomainSocketTransport::UnixDomainSocketTransport(
@@ -118,10 +144,15 @@ UnixDomainSocketTransport& UnixDomainSocketTransport::operator=(
 UnixDomainSocketTransport::~UnixDomainSocketTransport() { close(); }
 
 void UnixDomainSocketTransport::send(const Envelope& envelope) {
-  const auto serialized = serialize(envelope);
-  const auto framed = frame(serialized);
-  write_all(socket_, framed);
-  trace_sink_->on_send(edge_id_, envelope, framed.size());
+  try {
+    const auto serialized = serialize(envelope);
+    const auto framed = frame(serialized);
+    write_all(socket_, framed);
+    trace_sink_->on_send(edge_id_, envelope, framed.size());
+  } catch (const std::exception& error) {
+    trace_sink_->on_error(edge_id_, error.what());
+    throw;
+  }
 }
 
 std::optional<Envelope> UnixDomainSocketTransport::receive(
@@ -153,6 +184,8 @@ void UnixDomainSocketTransport::close() {
     ::shutdown(socket_, SHUT_RDWR);
     ::close(socket_);
     socket_ = -1;
+    try { trace_sink_->on_connection(edge_id_, ConnectionState::closed); }
+    catch (...) { /* Destruction must not fail because an observer failed. */ }
   }
   if (!owned_path_.empty()) {
     ::unlink(owned_path_.c_str());
