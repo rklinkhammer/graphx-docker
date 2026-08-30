@@ -7,6 +7,7 @@
 #include <chrono>
 #include <algorithm>
 #include <csignal>
+#include <ctime>
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
@@ -111,8 +112,19 @@ class RuntimeTraceSink final : public graphx::TraceSink {
   void heartbeat(bool force = false) {
     const auto now = std::chrono::steady_clock::now();
     if (!force && now - last_heartbeat_ < heartbeat_interval_) return;
+    const auto cpu_now = std::clock();
+    const auto wall_seconds = std::chrono::duration<double>(now - last_cpu_sample_).count();
+    double cpu_percent{};
+    if (cpu_now != static_cast<std::clock_t>(-1) &&
+        last_cpu_clock_ != static_cast<std::clock_t>(-1) && wall_seconds > 0.0) {
+      const auto cpu_seconds =
+          static_cast<double>(cpu_now - last_cpu_clock_) / static_cast<double>(CLOCKS_PER_SEC);
+      cpu_percent = std::clamp(cpu_seconds / wall_seconds * 100.0, 0.0, 999.9);
+    }
     last_heartbeat_ = now;
-    composite_.on_heartbeat(node_id_);
+    last_cpu_sample_ = now;
+    last_cpu_clock_ = cpu_now;
+    composite_.on_heartbeat(node_id_, cpu_percent);
   }
 
   void on_send(std::string_view edge, const graphx::Envelope& envelope,
@@ -138,12 +150,16 @@ class RuntimeTraceSink final : public graphx::TraceSink {
                      std::chrono::nanoseconds duration, bool success) override {
     composite_.on_processing(node, envelope, duration, success);
   }
-  void on_heartbeat(std::string_view node) override { composite_.on_heartbeat(node); }
+  void on_heartbeat(std::string_view node, double cpu_percent) override {
+    composite_.on_heartbeat(node, cpu_percent);
+  }
 
  private:
   std::string node_id_;
   std::chrono::milliseconds heartbeat_interval_;
   std::chrono::steady_clock::time_point last_heartbeat_{};
+  std::chrono::steady_clock::time_point last_cpu_sample_{std::chrono::steady_clock::now()};
+  std::clock_t last_cpu_clock_{std::clock()};
   ConsoleTraceSink console_;
   graphx::MetricsTraceSink metrics_;
   std::unique_ptr<graphx::UdpJsonTraceSink> telemetry_;

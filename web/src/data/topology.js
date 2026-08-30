@@ -1,7 +1,7 @@
 export const initialNodes = [
-  { id: 'generator', position: { x: 40, y: 120 }, data: { label: 'Generator', role: 'Source', status: 'healthy', cpu: 3, image: 'graphx-demo:latest', input: false, output: true } },
-  { id: 'transform', position: { x: 350, y: 120 }, data: { label: 'Transform', role: 'Processor', status: 'healthy', cpu: 17, image: 'graphx-demo:latest', input: true, output: true } },
-  { id: 'sink', position: { x: 660, y: 120 }, data: { label: 'Sink', role: 'Consumer', status: 'healthy', cpu: 6, image: 'graphx-demo:latest', input: true, output: false } },
+  { id: 'generator', position: { x: 40, y: 120 }, data: { label: 'Generator', role: 'Source', status: 'healthy', cpu: null, image: 'graphx-demo:latest', input: false, output: true } },
+  { id: 'transform', position: { x: 350, y: 120 }, data: { label: 'Transform', role: 'Processor', status: 'healthy', cpu: null, image: 'graphx-demo:latest', input: true, output: true } },
+  { id: 'sink', position: { x: 660, y: 120 }, data: { label: 'Sink', role: 'Consumer', status: 'healthy', cpu: null, image: 'graphx-demo:latest', input: true, output: false } },
 ]
 
 export const initialEdges = [
@@ -28,7 +28,7 @@ export const edgePaths = {
 export function applicationNodes(topology) {
   if (!topology?.nodes?.length) return initialNodes
   return topology.nodes.map(node => ({ id: node.id, data: {
-    label: node.label, role: node.role, status: 'starting', cpu: 0,
+    label: node.label, role: node.role, status: 'starting', cpu: null,
     image: node.image, input: node.input, output: node.output,
   }}))
 }
@@ -44,7 +44,7 @@ export function applicationEdges(topology) {
 export function infrastructureNodes(topology) {
   if (!topology?.networkNodes?.length) return networkNodes
   return topology.networkNodes.map(node => ({ id: node.id, data: {
-    label: node.label, role: node.role, status: 'modeled', cpu: 0,
+    label: node.label, role: node.role, status: 'modeled', cpu: null,
     image: node.image, input: node.input, output: node.output,
   }}))
 }

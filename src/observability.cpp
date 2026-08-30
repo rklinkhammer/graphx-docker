@@ -216,8 +216,8 @@ void CompositeTraceSink::on_processing(std::string_view node_id, const Envelope&
   for (auto* sink : sinks_) sink->on_processing(node_id, envelope, duration, success);
 }
 
-void CompositeTraceSink::on_heartbeat(std::string_view node_id) {
-  for (auto* sink : sinks_) sink->on_heartbeat(node_id);
+void CompositeTraceSink::on_heartbeat(std::string_view node_id, double cpu_percent) {
+  for (auto* sink : sinks_) sink->on_heartbeat(node_id, cpu_percent);
 }
 
 struct UdpJsonTraceSink::Impl {
@@ -287,14 +287,14 @@ void UdpJsonTraceSink::on_processing(std::string_view node_id, const Envelope& e
   emit("processing", node_id, &envelope, 0, duration, success ? "ok" : "error");
 }
 
-void UdpJsonTraceSink::on_heartbeat(std::string_view node_id) {
-  emit("heartbeat", node_id, nullptr, 0, {});
+void UdpJsonTraceSink::on_heartbeat(std::string_view node_id, double cpu_percent) {
+  emit("heartbeat", node_id, nullptr, 0, {}, {}, cpu_percent);
 }
 
 void UdpJsonTraceSink::emit(std::string_view event, std::string_view edge_id,
                             const Envelope* envelope, std::size_t wire_bytes,
                             std::chrono::nanoseconds latency,
-                            std::string_view message) {
+                            std::string_view message, double cpu_percent) {
   if (!impl_ || impl_->socket < 0) return;
   const auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
       std::chrono::system_clock::now().time_since_epoch()).count();
@@ -312,6 +312,8 @@ void UdpJsonTraceSink::emit(std::string_view event, std::string_view edge_id,
          << ",\"traceId\":\"" << escape_json(envelope->trace_id) << '"';
   }
   if (!message.empty()) json << ",\"message\":\"" << escape_json(message) << '"';
+  if (cpu_percent >= 0.0)
+    json << ",\"cpuPercent\":" << std::fixed << std::setprecision(3) << cpu_percent;
   json << '}';
   const auto value = json.str();
   ::send(impl_->socket, value.data(), value.size(), 0);

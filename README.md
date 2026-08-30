@@ -268,6 +268,11 @@ The browser application is divided along the product concepts:
   aggregates metrics, broadcasts WebSocket snapshots, and exposes
   health/topology/control endpoints plus Prometheus text output at `/metrics`.
 
+Each node heartbeat includes process CPU usage measured over the heartbeat
+interval. The node cards show sub-percent values with two decimal places, and
+Prometheus exposes the same samples as `graphx_node_cpu_percent`. This is GraphX
+process CPU—not aggregate host or Docker daemon CPU.
+
 Reset clears telemetry aggregation. Pause and fault buttons are explicit
 development-control placeholders and return HTTP 501; the console surfaces that
 result rather than pretending a runtime action occurred. Native netem fault hooks

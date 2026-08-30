@@ -32,7 +32,7 @@ class TraceSink {
   virtual void on_backpressure(std::string_view, std::chrono::nanoseconds, bool) {}
   virtual void on_processing(std::string_view, const Envelope&,
                              std::chrono::nanoseconds, bool) {}
-  virtual void on_heartbeat(std::string_view) {}
+  virtual void on_heartbeat(std::string_view, double) {}
 };
 
 class NullTraceSink final : public TraceSink {
@@ -88,7 +88,7 @@ class CompositeTraceSink final : public TraceSink {
                        bool rejected) override;
   void on_processing(std::string_view node_id, const Envelope& envelope,
                      std::chrono::nanoseconds duration, bool success) override;
-  void on_heartbeat(std::string_view node_id) override;
+  void on_heartbeat(std::string_view node_id, double cpu_percent) override;
 
  private:
   std::vector<TraceSink*> sinks_;
@@ -114,12 +114,12 @@ class UdpJsonTraceSink final : public TraceSink {
                        bool rejected) override;
   void on_processing(std::string_view node_id, const Envelope& envelope,
                      std::chrono::nanoseconds duration, bool success) override;
-  void on_heartbeat(std::string_view node_id) override;
+  void on_heartbeat(std::string_view node_id, double cpu_percent) override;
 
  private:
   void emit(std::string_view event, std::string_view edge_id, const Envelope* envelope,
             std::size_t wire_bytes, std::chrono::nanoseconds latency,
-            std::string_view message = {});
+            std::string_view message = {}, double cpu_percent = -1.0);
   struct Impl;
   std::unique_ptr<Impl> impl_;
 };

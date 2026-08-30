@@ -109,7 +109,8 @@ portable() {
       {...base,event:"send",sequence:1,wireBytes:64},
       {...base,event:"receive",sequence:1,wireBytes:64,latencyUs:25},
       {...base,event:"reconnect"},
-      {...base,event:"backpressure",latencyUs:40,message:"blocked"}
+      {...base,event:"backpressure",latencyUs:40,message:"blocked"},
+      {...base,event:"heartbeat",cpuPercent:12.5}
     ];
     for (const event of events) d.send(JSON.stringify(event), Number(process.env.GRAPHX_TEST_UDP_PORT), "127.0.0.1");
     setTimeout(() => d.close(), 50);
@@ -117,10 +118,12 @@ portable() {
   sleep 0.1
   curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/topology" | grep -q 'ipvlan-l2-pipeline'
   curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/topology" | grep -q '"reconnects":1'
+  curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/topology" | grep -q '"cpuPercent":12.5'
   curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/topology" | grep -q '"networkNodes"'
   curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/topology" | grep -q 'br-l2-gen'
   curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/metrics" | grep -q 'graphx_edge_messages_total'
   curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/metrics" | grep -q 'graphx_edge_backpressure_events_total{edge="samples"} 1'
+  curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/metrics" | grep -q 'graphx_node_cpu_percent{node="generator"} 12.5'
   curl -fsS -X POST "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/control/reset" | grep -q '"accepted":true'
   curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/metrics" | grep -q 'graphx_edge_connected{edge="samples"} 1'
   test "$(curl -sS -o "$TMP_DIR/pause.json" -w '%{http_code}' -X POST "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/control/pause")" = 501

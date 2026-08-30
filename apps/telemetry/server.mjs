@@ -55,7 +55,9 @@ function topologyModel() {
 const topology = topologyModel()
 let state = { paused: false, fault: false, updatedAt: new Date().toISOString() }
 const recent = []
-const nodes = Object.fromEntries(topology.nodes.map(node => [node.id, { status: 'starting', lastSeen: null }]))
+const nodes = Object.fromEntries(topology.nodes.map(node => [node.id, {
+  status: 'starting', lastSeen: null, cpuPercent: null,
+}]))
 const edges = Object.fromEntries(topology.edges.map(edge => [edge.id, {
   messages: 0, received: 0, wireBytes: 0, drops: 0, errors: 0, rate: 0,
   latencyUs: 0, reconnects: 0, backpressureEvents: 0, backpressureUs: 0,
@@ -78,6 +80,11 @@ function json(response, status, value) {
 function prometheus() {
   const lines = ['# HELP graphx_edge_messages_total GraphX edge events.',
     '# TYPE graphx_edge_messages_total counter']
+  lines.push('# HELP graphx_node_cpu_percent Process CPU used by a GraphX node as a percentage of one core.')
+  lines.push('# TYPE graphx_node_cpu_percent gauge')
+  for (const [id, node] of Object.entries(nodes))
+    if (Number.isFinite(node.cpuPercent))
+      lines.push(`graphx_node_cpu_percent{node="${id}"} ${node.cpuPercent}`)
   for (const [id, edge] of Object.entries(edges)) {
     const label = `edge="${id}"`
     lines.push(`graphx_edge_messages_total{${label},direction="sent"} ${edge.messages}`)
@@ -143,7 +150,13 @@ udp.on('message', data => {
   try {
     const event = JSON.parse(data.toString('utf8'))
     const receivedAt = Date.now()
-    if (nodes[event.nodeId]) nodes[event.nodeId] = { status: 'running', lastSeen: receivedAt }
+    if (nodes[event.nodeId]) {
+      const cpuPercent = Number(event.cpuPercent)
+      nodes[event.nodeId] = {
+        ...nodes[event.nodeId], status: 'running', lastSeen: receivedAt,
+        ...(Number.isFinite(cpuPercent) && cpuPercent >= 0 ? { cpuPercent } : {}),
+      }
+    }
     const edge = edges[event.edgeId]
     if (edge) {
       edge.lastSeen = receivedAt

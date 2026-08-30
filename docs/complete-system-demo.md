@@ -36,6 +36,8 @@ Open <http://localhost:8080>. The top status bar should say **Traffic flowing**.
 The application view shows generator → transform → sink. Each edge displays a
 non-zero message rate. Select either edge to see its total and recent messages.
 The **Network path** view shows the portable demo's Docker bridge path.
+Node cards show measured process CPU; this lightweight demo commonly uses less
+than 1%, so the console retains two decimal places for those readings.
 
 Pause and fault injection are visibly disabled in this demo because the runtime
 control plane is not implemented. Reset clears accumulated counters; it does not

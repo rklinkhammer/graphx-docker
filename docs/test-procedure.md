@@ -60,6 +60,8 @@ Expected results:
 - `/api/topology` reflects the nodes, edges, transport details, and network paths
   in `GRAPHX_CONFIG`; a silent node transitions to `offline` after its configured
   heartbeat timeout.
+- Node heartbeats update measured process CPU in `/api/topology`, the node cards,
+  and the `graphx_node_cpu_percent` Prometheus gauge.
 
 For a focused rerun:
 

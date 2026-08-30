@@ -11,9 +11,13 @@ export default function App() {
   const [controlStatus, setControlStatus] = useState('Runtime controls are unavailable in this demo')
   const [view, setView] = useState('application')
   const topology = snapshot?.topology
-  const graphNodes = useMemo(() => applicationNodes(topology).map(node => ({ ...node, data: { ...node.data,
-    status: snapshot?.nodes?.[node.id]?.status || (connected ? 'starting' : 'unavailable'),
-  }})), [topology, snapshot, connected])
+  const graphNodes = useMemo(() => applicationNodes(topology).map(node => {
+    const runtime = snapshot?.nodes?.[node.id]
+    return { ...node, data: { ...node.data,
+      status: runtime?.status || (connected ? 'starting' : 'unavailable'),
+      cpu: Number.isFinite(runtime?.cpuPercent) ? runtime.cpuPercent : null,
+    }}
+  }), [topology, snapshot, connected])
   const edges = useMemo(() => applicationEdges(topology).map(edge => {
     const metric = snapshot?.edges?.[edge.id]
     if (!metric) return edge
@@ -38,6 +42,8 @@ export default function App() {
   }, [snapshot, graphNodes, connected])
   const pathNodes = useMemo(() => infrastructureNodes(topology).map(node => ({ ...node, data: {
     ...node.data, status: snapshot?.nodes?.[node.id]?.status || node.data.status,
+    cpu: Number.isFinite(snapshot?.nodes?.[node.id]?.cpuPercent)
+      ? snapshot.nodes[node.id].cpuPercent : null,
   }})), [topology, snapshot])
   const paths = topology?.edgePaths || edgePaths
   const displayedNodes = view === 'application' ? graphNodes : pathNodes

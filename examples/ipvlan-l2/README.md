@@ -15,8 +15,13 @@ Linux prerequisites are Docker Engine, Open vSwitch, iproute2, nftables, and
 optionally tcpdump/dumpcap.
 
 ```sh
-
-
+cmake --preset dev && cmake --build --preset dev
+./build/dev/graphx validate examples/ipvlan-l2/graphx.yaml
+./build/dev/graphx infra create examples/ipvlan-l2/graphx.yaml --dry-run
+examples/ipvlan-l2/scripts/up.sh
+docker logs -f gx-ipvl2-sink-sink-1
+examples/ipvlan-l2/scripts/capture.sh transform
+examples/ipvlan-l2/scripts/down.sh
 ```
 
 The OVS bridge in every domain has a SPAN output. `tc netem` can be attached to
