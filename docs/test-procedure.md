@@ -6,7 +6,7 @@ user run of the complete application, follow
 observable success criteria, a live traffic check, and troubleshooting steps.
 
 This procedure exercises the source model, all four transports, hardened TCP
-behavior, telemetry and browser assets, Docker deployment, infrastructure
+behavior, telemetry, correlated PCAPNG output/extcap, browser assets, Docker deployment, infrastructure
 planning, and the optional native network laboratories. Start with the portable
 tier. The privileged tier is deliberately never selected automatically.
 
@@ -65,6 +65,9 @@ Expected results:
 - Edge telemetry keeps sent/received message and wire-byte counters separate,
   derives five-second message/byte rates, exports a valid latency histogram, and
   counts errors, drops, rejections, reconnects and backpressure independently.
+- The finite TCP pipeline writes valid non-empty PCAPNG files for all three
+  nodes, retains trace IDs in capture metadata, and passes a byte-for-byte
+  extcap and HTTP-download check.
 
 For a focused rerun:
 
@@ -213,9 +216,10 @@ router interface and increased application latency or loss. Clearing the fault
 must remove the netem qdisc. Capture hooks should receive traffic mirrored from
 both bridge domains; stop the capture explicitly after collecting a short sample.
 
-Capture-to-envelope correlation and PCAPNG custom blocks remain extension
-points, so the current acceptance criterion is valid mirrored packet capture,
-not a clickable Wireshark packet offset in the GUI.
+OVS capture remains real network-packet capture. Separately, the application
+PCAPNG sink correlates GraphX frames by trace ID, packet index, and byte offset.
+The current acceptance criterion does not require automatic matching between
+those two independent capture files.
 
 ## 7. macOS userspace-OVS simulation
 

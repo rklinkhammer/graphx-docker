@@ -1,3 +1,4 @@
+#include "graphx/capture.hpp"
 #include "graphx/envelope.hpp"
 #include "graphx/framing.hpp"
 #include "graphx/in_process_transport.hpp"
@@ -9,7 +10,9 @@
 #include <array>
 #include <chrono>
 #include <exception>
+#include <filesystem>
 #include <fcntl.h>
+#include <fstream>
 #include <future>
 #include <functional>
 #include <iostream>
@@ -49,6 +52,64 @@ void envelope_round_trip() {
   expect(output.timestamp_ns == input.timestamp_ns, "envelope timestamp");
   expect(output.type == input.type && output.payload == input.payload, "envelope body");
   expect(output.attributes == input.attributes, "envelope attributes");
+}
+
+std::uint16_t little_u16(std::span<const std::byte> bytes, std::size_t offset) {
+  return std::to_integer<std::uint8_t>(bytes[offset]) |
+         (std::to_integer<std::uint8_t>(bytes[offset + 1]) << 8);
+}
+
+std::uint32_t little_u32(std::span<const std::byte> bytes, std::size_t offset) {
+  std::uint32_t value{};
+  for (int index = 3; index >= 0; --index)
+    value = (value << 8) | std::to_integer<std::uint8_t>(bytes[offset + index]);
+  return value;
+}
+
+void pcapng_capture() {
+  const auto path = std::filesystem::temp_directory_path() /
+                    ("graphx-capture-" + std::to_string(::getpid()) + ".pcapng");
+  std::filesystem::remove(path);
+  auto envelope = graphx::Envelope::make(42, "Sample", "payload");
+  envelope.trace_id = "trace-capture-42";
+  const auto framed = graphx::frame(graphx::serialize(envelope));
+  const auto timestamp = std::chrono::system_clock::time_point{
+      std::chrono::duration_cast<std::chrono::system_clock::duration>(
+          std::chrono::nanoseconds{123456789})};
+  {
+    graphx::PcapngCaptureSink capture(path);
+    capture.record_frame("samples", framed, timestamp,
+                         {.direction = graphx::CaptureSink::Direction::sent,
+                          .sequence = envelope.sequence,
+                          .trace_id = envelope.trace_id,
+                          .type = envelope.type});
+    expect(capture.packet_count() == 1 && capture.path() == path &&
+               capture.last_packet_offset() > 0,
+           "PCAPNG capture state");
+  }
+
+  std::ifstream stream(path, std::ios::binary);
+  const std::vector<char> characters((std::istreambuf_iterator<char>(stream)), {});
+  const auto* begin = reinterpret_cast<const std::byte*>(characters.data());
+  const std::span<const std::byte> bytes(begin, characters.size());
+  expect(bytes.size() > framed.size() + 80, "PCAPNG output size");
+  expect(little_u32(bytes, 0) == 0x0a0d0d0a, "PCAPNG section header");
+  const auto section_length = little_u32(bytes, 4);
+  expect(little_u32(bytes, section_length) == 1, "PCAPNG interface block");
+  expect(little_u16(bytes, section_length + 8) == 147, "PCAPNG USER0 link type");
+  const auto interface_length = little_u32(bytes, section_length + 4);
+  const auto packet_offset = section_length + interface_length;
+  expect(little_u32(bytes, packet_offset) == 6, "PCAPNG enhanced packet block");
+  expect(little_u32(bytes, packet_offset + 20) == framed.size(), "PCAPNG captured length");
+  expect(std::equal(framed.begin(), framed.end(), bytes.begin() + packet_offset + 28),
+         "PCAPNG exact framed bytes");
+  const std::string file_text(characters.begin(), characters.end());
+  expect(file_text.find("\"edge\":\"samples\"") != std::string::npos &&
+             file_text.find("\"direction\":\"sent\"") != std::string::npos &&
+             file_text.find("\"sequence\":42") != std::string::npos &&
+             file_text.find("\"trace_id\":\"trace-capture-42\"") != std::string::npos,
+         "PCAPNG correlation metadata");
+  std::filesystem::remove(path);
 }
 
 void in_process() {
@@ -613,6 +674,7 @@ void unix_socket_end_to_end() {
 int main() {
   const std::pair<const char*, std::function<void()>> tests[] = {
       {"framing", framing}, {"envelope", envelope_round_trip},
+      {"PCAPNG capture", pcapng_capture},
       {"in-process", in_process}, {"metrics", metrics_sink},
       {"OTLP HTTP JSON", otlp_http_json_export},
       {"shared-memory wraparound", shared_memory_wraparound_and_cleanup},

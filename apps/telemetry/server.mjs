@@ -1,7 +1,7 @@
 import dgram from 'node:dgram'
-import { createReadStream, existsSync, readFileSync } from 'node:fs'
+import { createReadStream, existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { createServer } from 'node:http'
-import { extname, join, normalize } from 'node:path'
+import { extname, join, normalize, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { WebSocketServer } from 'ws'
 import { parse } from 'yaml'
@@ -16,6 +16,13 @@ const deployment = config.deployment?.services || {}
 const transport = config.transport || {}
 const heartbeatTimeout = Number(process.env.GRAPHX_HEARTBEAT_TIMEOUT_MS || config.observability?.telemetry?.heartbeat_timeout_ms || 5000)
 const websocketPath = config.observability?.telemetry?.websocket || '/ws'
+const configuredCapture = config.observability?.capture || { enabled: false, provider: '' }
+const captureConfig = { ...configuredCapture,
+  enabled: process.env.GRAPHX_CAPTURE_ENABLED == null ? Boolean(configuredCapture.enabled) :
+    ['1', 'true', 'yes', 'on'].includes(process.env.GRAPHX_CAPTURE_ENABLED.toLowerCase()),
+  provider: process.env.GRAPHX_CAPTURE_PROVIDER || configuredCapture.provider || '',
+}
+const captureDirectory = resolve(process.env.GRAPHX_CAPTURE_DIR || captureConfig.directory || 'captures')
 const rateWindowSeconds = 5
 const latencyBoundsUs = [10, 50, 100, 500, 1000, 5000, 10000]
 
@@ -57,6 +64,7 @@ function topologyModel() {
 const topology = topologyModel()
 let state = { paused: false, fault: false, updatedAt: new Date().toISOString() }
 const recent = []
+const captureReferences = []
 const nodes = Object.fromEntries(topology.nodes.map(node => [node.id, {
   status: 'starting', lastSeen: null, cpuPercent: null,
 }]))
@@ -129,6 +137,27 @@ function edgeView(edge, timestamp = Date.now()) {
   }
 }
 
+function captureFiles() {
+  if (!captureConfig.enabled || captureConfig.provider !== 'pcapng' ||
+      !existsSync(captureDirectory)) return []
+  try {
+    return readdirSync(captureDirectory, { withFileTypes: true })
+      .filter(entry => entry.isFile() && /^[A-Za-z][A-Za-z0-9_-]{0,63}\.pcapng$/.test(entry.name))
+      .map(entry => {
+        const details = statSync(join(captureDirectory, entry.name))
+        return { name: entry.name, nodeId: entry.name.slice(0, -7), size: details.size,
+          modifiedAt: details.mtime.toISOString(), url: `/captures/${encodeURIComponent(entry.name)}` }
+      })
+  } catch { return [] }
+}
+
+function recentWithCapture() {
+  return recent.slice(0, 30).map(event => ({ ...event,
+    captures: captureReferences.filter(reference => reference.traceId === event.traceId &&
+      reference.edgeId === event.edgeId).slice(0, 4),
+  }))
+}
+
 function snapshot() {
   const timestamp = Date.now()
   const edgeViews = Object.fromEntries(
@@ -136,7 +165,9 @@ function snapshot() {
   return { kind: 'snapshot', graph: graph.id, topology,
     telemetry: { websocket: websocketPath, heartbeatTimeoutMs: heartbeatTimeout,
       rateWindowSeconds, latencyBoundsUs }, state, nodes, edges: edgeViews,
-    recent: recent.slice(0, 30), timestamp }
+    capture: { enabled: Boolean(captureConfig.enabled), provider: captureConfig.provider || null,
+      format: captureConfig.provider === 'pcapng' ? 'pcapng-user0' : null,
+      files: captureFiles() }, recent: recentWithCapture(), timestamp }
 }
 
 function json(response, status, value) {
@@ -209,6 +240,7 @@ const server = createServer((request, response) => {
   const url = new URL(request.url, `http://${request.headers.host || 'localhost'}`)
   if (url.pathname === '/api/health') return json(response, 200, { status: 'ok', service: 'graphx-telemetry' })
   if (url.pathname === '/api/topology') return json(response, 200, snapshot())
+  if (url.pathname === '/api/captures') return json(response, 200, snapshot().capture)
   if (url.pathname === '/metrics') {
     response.writeHead(200, { 'content-type': 'text/plain; version=0.0.4; charset=utf-8' })
     return response.end(prometheus())
@@ -218,6 +250,7 @@ const server = createServer((request, response) => {
     if (action === 'reset') {
       state = { paused: false, fault: false, updatedAt: new Date().toISOString() }
       recent.length = 0
+      captureReferences.length = 0
       for (const edge of Object.values(edges)) {
         const connection = edge.connection
         Object.assign(edge, emptyEdge(connection))
@@ -228,6 +261,19 @@ const server = createServer((request, response) => {
     }
     return json(response, 501, { accepted: false, action,
       error: 'runtime control channel is not implemented; use the documented netem hooks' })
+  }
+  if (url.pathname.startsWith('/captures/')) {
+    let name
+    try { name = decodeURIComponent(url.pathname.slice('/captures/'.length)) }
+    catch { return json(response, 400, { error: 'invalid capture name' }) }
+    if (!/^[A-Za-z][A-Za-z0-9_-]{0,63}\.pcapng$/.test(name))
+      return json(response, 404, { error: 'capture not found' })
+    const available = captureFiles().some(file => file.name === name)
+    const capturePath = join(captureDirectory, name)
+    if (!available || !existsSync(capturePath)) return json(response, 404, { error: 'capture not found' })
+    response.writeHead(200, { 'content-type': 'application/vnd.tcpdump.pcap',
+      'content-disposition': `attachment; filename="${name}"` })
+    return createReadStream(capturePath).pipe(response)
   }
   let requested = url.pathname === '/' ? 'index.html' : url.pathname.slice(1)
   const file = normalize(join(root, requested))
@@ -250,6 +296,12 @@ udp.on('message', data => {
   try {
     const event = JSON.parse(data.toString('utf8'))
     const receivedAt = Date.now()
+    if (event.kind === 'capture' && event.event === 'frame') {
+      captureReferences.unshift(event)
+      if (captureReferences.length > 200) captureReferences.length = 200
+      broadcast()
+      return
+    }
     if (nodes[event.nodeId]) {
       const cpuPercent = Number(event.cpuPercent)
       nodes[event.nodeId] = {

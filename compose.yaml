@@ -7,7 +7,11 @@ services:
     environment:
       GRAPHX_TELEMETRY_HOST: telemetry
       GRAPHX_TELEMETRY_PORT: "9000"
+      GRAPHX_CAPTURE_ENABLED: ${GRAPHX_CAPTURE_ENABLED:-false}
+      GRAPHX_CAPTURE_PROVIDER: pcapng
+      GRAPHX_CAPTURE_DIR: /captures
     depends_on: [telemetry]
+    volumes: [captures:/captures]
     networks: [graphx]
   transform:
     build: .
@@ -16,7 +20,11 @@ services:
     environment:
       GRAPHX_TELEMETRY_HOST: telemetry
       GRAPHX_TELEMETRY_PORT: "9000"
+      GRAPHX_CAPTURE_ENABLED: ${GRAPHX_CAPTURE_ENABLED:-false}
+      GRAPHX_CAPTURE_PROVIDER: pcapng
+      GRAPHX_CAPTURE_DIR: /captures
     depends_on: [sink, telemetry]
+    volumes: [captures:/captures]
     networks: [graphx]
   generator:
     build: .
@@ -26,7 +34,11 @@ services:
       GRAPHX_INTERVAL_MS: "500"
       GRAPHX_TELEMETRY_HOST: telemetry
       GRAPHX_TELEMETRY_PORT: "9000"
+      GRAPHX_CAPTURE_ENABLED: ${GRAPHX_CAPTURE_ENABLED:-false}
+      GRAPHX_CAPTURE_PROVIDER: pcapng
+      GRAPHX_CAPTURE_DIR: /captures
     depends_on: [transform, telemetry]
+    volumes: [captures:/captures]
     networks: [graphx]
   telemetry:
     build:
@@ -35,8 +47,16 @@ services:
     image: graphx-telemetry:latest
     ports: ["8080:8080"]
     expose: ["9000/udp"]
+    environment:
+      GRAPHX_CAPTURE_ENABLED: ${GRAPHX_CAPTURE_ENABLED:-false}
+      GRAPHX_CAPTURE_PROVIDER: pcapng
+      GRAPHX_CAPTURE_DIR: /captures
+    volumes: [captures:/captures]
     networks: [graphx]
 
 networks:
   graphx:
     driver: bridge
+
+volumes:
+  captures:

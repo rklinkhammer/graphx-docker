@@ -7,6 +7,7 @@ RUN npm run build
 
 FROM node:22-alpine
 WORKDIR /app
+RUN mkdir /captures && chmod 0777 /captures
 COPY apps/telemetry/package*.json ./
 RUN npm ci --omit=dev
 COPY apps/telemetry/server.mjs ./server.mjs

@@ -26,6 +26,7 @@ if(NOT yaml-cpp_FOUND)
 endif()
 
 add_library(graphx
+  src/capture.cpp
   src/config.cpp
   src/envelope.cpp
   src/framing.cpp

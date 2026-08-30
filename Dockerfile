@@ -11,6 +11,7 @@ RUN cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DGRAPHX_BUILD_TESTS
 
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends iproute2 && rm -rf /var/lib/apt/lists/*
+RUN mkdir /captures && chown 65532:65532 /captures
 COPY --from=build /src/build/graphx-generator /usr/local/bin/
 COPY --from=build /src/build/graphx-transform /usr/local/bin/
 COPY --from=build /src/build/graphx-sink /usr/local/bin/

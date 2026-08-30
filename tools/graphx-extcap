@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+interface=graphx
+capture_file=
+fifo=
+follow=true
+mode=
+
+while (($#)); do
+  case $1 in
+    --extcap-interfaces) mode=interfaces ;;
+    --extcap-dlts) mode=dlts ;;
+    --extcap-config) mode=config ;;
+    --capture) mode=capture ;;
+    --extcap-interface|--capture-file|--fifo|--follow|--extcap-capture-filter|--extcap-version)
+      key=$1
+      shift
+      (($#)) || { echo "$key requires a value" >&2; exit 2; }
+      case $key in
+        --extcap-interface) interface=$1 ;;
+        --capture-file) capture_file=$1 ;;
+        --fifo) fifo=$1 ;;
+        --follow) follow=$1 ;;
+      esac
+      ;;
+    --extcap-interface=*) interface=${1#*=} ;;
+    --capture-file=*) capture_file=${1#*=} ;;
+    --fifo=*) fifo=${1#*=} ;;
+    --follow=*) follow=${1#*=} ;;
+    --extcap-capture-filter=*|--extcap-version=*) ;;
+    --help)
+      echo "GraphX extcap: --extcap-interfaces | --extcap-dlts | --extcap-config | --capture --capture-file FILE --fifo FIFO"
+      exit 0
+      ;;
+  esac
+  shift
+done
+
+case $mode in
+  interfaces)
+    echo 'extcap {version=0.1.0}{display=GraphX PCAPNG capture}'
+    echo 'interface {value=graphx}{display=GraphX framed envelopes}'
+    ;;
+  dlts)
+    test "$interface" = graphx || { echo "unknown extcap interface: $interface" >&2; exit 2; }
+    echo 'dlt {number=147}{name=USER0}{display=GraphX framed envelope (USER0)}'
+    ;;
+  config)
+    test "$interface" = graphx || { echo "unknown extcap interface: $interface" >&2; exit 2; }
+    echo 'arg {number=0}{call=--capture-file}{display=GraphX PCAPNG file}{type=fileselect}{required=true}{group=Capture}'
+    echo 'arg {number=1}{call=--follow}{display=Follow live file}{type=boolean}{default=true}{group=Capture}'
+    ;;
+  capture)
+    test "$interface" = graphx || { echo "unknown extcap interface: $interface" >&2; exit 2; }
+    test -n "$capture_file" && test -f "$capture_file" || {
+      echo "--capture-file must identify an existing PCAPNG file" >&2; exit 2;
+    }
+    test -n "$fifo" || { echo "--fifo is required for capture" >&2; exit 2; }
+    if test "$follow" = true || test "$follow" = 1 || test "$follow" = yes; then
+      tail -c +1 -f "$capture_file" >"$fifo"
+    else
+      cp "$capture_file" "$fifo"
+    fi
+    ;;
+  *)
+    echo "no extcap operation selected" >&2
+    exit 2
+    ;;
+esac

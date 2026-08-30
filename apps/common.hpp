@@ -1,6 +1,8 @@
 #pragma once
 
+#include "graphx/capture.hpp"
 #include "graphx/config.hpp"
+#include "graphx/framing.hpp"
 #include "graphx/observability.hpp"
 #include "graphx/transport_factory.hpp"
 
@@ -41,6 +43,11 @@ inline std::string env(const char* name, std::string fallback) {
 
 inline std::uint16_t port(const char* name, std::uint16_t fallback) {
   return static_cast<std::uint16_t>(std::stoi(env(name, std::to_string(fallback))));
+}
+
+inline bool boolean_env(const char* name, bool fallback) {
+  const auto value = env(name, fallback ? "true" : "false");
+  return value == "1" || value == "true" || value == "yes" || value == "on";
 }
 
 class ConsoleTraceSink final : public graphx::TraceSink {
@@ -106,6 +113,17 @@ class RuntimeTraceSink final : public graphx::TraceSink {
           env("GRAPHX_OTLP_PATH", "/v1/traces"));
       composite_.add(*otlp_);
     }
+    const auto capture_enabled =
+        boolean_env("GRAPHX_CAPTURE_ENABLED", config.observability.capture.enabled);
+    const auto capture_provider =
+        env("GRAPHX_CAPTURE_PROVIDER", config.observability.capture.provider);
+    if (capture_enabled && capture_provider == "pcapng") {
+      const auto directory = env("GRAPHX_CAPTURE_DIR", config.observability.capture.directory);
+      capture_ = std::make_unique<graphx::PcapngCaptureSink>(
+          std::filesystem::path(directory) / (node_id_ + ".pcapng"));
+      std::cout << "capture node=" << node_id_ << " provider=pcapng path="
+                << capture_->path() << std::endl;
+    }
     heartbeat(true);
   }
 
@@ -130,10 +148,12 @@ class RuntimeTraceSink final : public graphx::TraceSink {
   void on_send(std::string_view edge, const graphx::Envelope& envelope,
                std::size_t bytes) override {
     composite_.on_send(edge, envelope, bytes);
+    capture_frame(edge, envelope, graphx::CaptureSink::Direction::sent);
   }
   void on_receive(std::string_view edge, const graphx::Envelope& envelope, std::size_t bytes,
                   std::chrono::nanoseconds latency) override {
     composite_.on_receive(edge, envelope, bytes, latency);
+    capture_frame(edge, envelope, graphx::CaptureSink::Direction::received);
   }
   void on_error(std::string_view edge, std::string_view message) override {
     composite_.on_error(edge, message);
@@ -155,6 +175,30 @@ class RuntimeTraceSink final : public graphx::TraceSink {
   }
 
  private:
+  void capture_frame(std::string_view edge, const graphx::Envelope& envelope,
+                     graphx::CaptureSink::Direction direction) noexcept {
+    if (!capture_) return;
+    try {
+      const auto framed = graphx::frame(graphx::serialize(envelope));
+      capture_->record_frame(edge, framed, std::chrono::system_clock::now(),
+                             {.direction = direction,
+                              .sequence = envelope.sequence,
+                              .trace_id = envelope.trace_id,
+                              .type = envelope.type});
+      if (telemetry_) {
+        const auto direction_name =
+            direction == graphx::CaptureSink::Direction::sent ? "sent" : "received";
+        telemetry_->on_capture(edge, envelope, direction_name,
+                               capture_->path().filename().string(),
+                               capture_->packet_count(), capture_->last_packet_offset());
+      }
+    } catch (const std::exception& error) {
+      std::cerr << "capture node=" << node_id_ << " event=error message=\""
+                << error.what() << "\"\n";
+      capture_.reset();
+    }
+  }
+
   std::string node_id_;
   std::chrono::milliseconds heartbeat_interval_;
   std::chrono::steady_clock::time_point last_heartbeat_{};
@@ -164,6 +208,7 @@ class RuntimeTraceSink final : public graphx::TraceSink {
   graphx::MetricsTraceSink metrics_;
   std::unique_ptr<graphx::UdpJsonTraceSink> telemetry_;
   std::unique_ptr<graphx::OtlpHttpTraceSink> otlp_;
+  std::unique_ptr<graphx::PcapngCaptureSink> capture_;
   graphx::CompositeTraceSink composite_;
 };
 

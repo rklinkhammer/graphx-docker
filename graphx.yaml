@@ -74,4 +74,4 @@ observability:
   metrics: { enabled: true, exporters: [console, udp-json] }
   tracing: { enabled: true, exporters: [console, udp-json] }
   telemetry: { host: telemetry, port: 9000, websocket: /ws, heartbeat_interval_ms: 1000, heartbeat_timeout_ms: 5000 }
-  capture: { enabled: false, provider: pcapng-extcap-future }
+  capture: { enabled: false, provider: pcapng, directory: captures }

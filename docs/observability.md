@@ -75,6 +75,8 @@ events observed by this collector; they are not durable accounting records.
 ## Packet capture boundary
 
 OVS SPAN ports and the example `tcpdump`/`dumpcap` hooks can collect packets now.
-Phase 6 adds the Wireshark-facing layer: PCAPNG generation, extcap control,
-packet offsets, and reliable packet-to-envelope correlation. Until then the
-console shows live application trace IDs but keeps **Open capture** disabled.
+The Phase 6 PCAPNG sink now records canonical application frames and reports
+packet indexes/offsets through telemetry. The console can download available
+files, and the extcap adapter can follow one in Wireshark. See
+[`capture.md`](capture.md). Automated matching to separate OVS packet captures
+remains future hardening.

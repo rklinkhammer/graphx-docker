@@ -116,6 +116,9 @@ class UdpJsonTraceSink final : public TraceSink {
   void on_processing(std::string_view node_id, const Envelope& envelope,
                      std::chrono::nanoseconds duration, bool success) override;
   void on_heartbeat(std::string_view node_id, double cpu_percent) override;
+  void on_capture(std::string_view edge_id, const Envelope& envelope,
+                  std::string_view direction, std::string_view file,
+                  std::uint64_t packet_index, std::uint64_t file_offset);
 
  private:
   void emit(std::string_view event, std::string_view edge_id, const Envelope* envelope,
@@ -153,13 +156,23 @@ class OtlpHttpTraceSink final : public TraceSink {
 
 class CaptureSink {
  public:
+  enum class Direction { sent, received };
+
+  struct Metadata {
+    Direction direction{Direction::sent};
+    std::uint64_t sequence{};
+    std::string_view trace_id;
+    std::string_view type;
+  };
+
   virtual ~CaptureSink() = default;
   virtual void record_frame(std::string_view edge_id,
                             std::span<const std::byte> frame,
-                            std::chrono::system_clock::time_point timestamp) = 0;
+                            std::chrono::system_clock::time_point timestamp,
+                            const Metadata& metadata) = 0;
 };
 
-// Extension point for a future PCAPNG writer and Wireshark extcap control pipe.
+// Extension point for a Wireshark extcap control pipe or another live source.
 class ExtcapProvider {
  public:
   virtual ~ExtcapProvider() = default;

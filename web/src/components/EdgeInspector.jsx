@@ -27,11 +27,14 @@ export function EdgeInspector({ edge, networkPath }) {
     <p className="metric-basis">Counters and latency are measured · rates are derived over 5 s · unavailable values are shown as —</p>
     <h3>Recent messages</h3>
     <div className="messages">
-      {d.recent?.length ? d.recent.slice(0, 6).map(message => <div key={`${message.nodeId}-${message.sequence}-${message.timestamp}`}><span><Search size={13}/> {message.sequence}</span><span>{message.type || 'unknown'}</span><span>{message.latencyUs} µs</span><span title={message.traceId || 'Trace ID unavailable'}>{message.traceId ? message.traceId.slice(0, 8) : '—'}</span></div>) : <div><span>—</span><span>Waiting for traffic</span><span>—</span><span>—</span></div>}
+      {d.recent?.length ? d.recent.slice(0, 6).map(message => {
+        const capture = message.captures?.[0]
+        return <div key={`${message.nodeId}-${message.sequence}-${message.timestamp}`}><span><Search size={13}/> {message.sequence}</span><span>{message.type || 'unknown'}</span><span>{message.latencyUs} µs</span><span title={message.traceId || 'Trace ID unavailable'}>{message.traceId ? message.traceId.slice(0, 8) : '—'}</span><span title={capture ? `${capture.captureFile} byte ${capture.captureOffset}` : 'Capture unavailable'}>{capture ? `#${capture.capturePacket}` : '—'}</span></div>
+      }) : <div><span>—</span><span>Waiting for traffic</span><span>—</span><span>—</span><span>—</span></div>}
     </div>
-    <div className="placeholder"><strong>Trace + packet correlation</strong><p>Live trace IDs are shown above. PCAPNG packet offsets and Wireshark capture opening arrive in Phase 6.</p></div>
+    <div className="placeholder"><strong>Trace + capture correlation</strong><p>Trace IDs join telemetry to PCAPNG packet numbers and byte offsets. GraphX frames use LINKTYPE_USER0 and are not labeled as Ethernet packets.</p></div>
     <h3>Network path</h3>
     <div className="network-path">{networkPath?.map((hop, index) => <span key={hop}>{index > 0 && <i>→</i>}{hop}</span>)}</div>
-    <div className="actions"><button>Inspect messages</button><button disabled>Open capture</button></div>
+    <div className="actions"><button>Inspect messages</button>{d.captureFiles?.length ? <a href={d.captureFiles[0].url} download>Download PCAPNG</a> : <button disabled>Capture unavailable</button>}</div>
   </aside>
 }

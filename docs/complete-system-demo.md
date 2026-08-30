@@ -45,6 +45,11 @@ Pause and fault injection are visibly disabled in this demo because the runtime
 control plane is not implemented. Reset clears accumulated counters; it does not
 stop traffic or disconnect the live TCP paths.
 
+To include correlated application-frame capture, start with
+`GRAPHX_CAPTURE_ENABLED=true scripts/demo.sh start`. Selecting an edge then
+exposes its available PCAPNG download. Capture remains disabled by default to
+avoid unbounded files during an ordinary long-running demo.
+
 ## 2. Observe actual values
 
 Follow all process output:

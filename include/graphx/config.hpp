@@ -81,6 +81,7 @@ struct TelemetryConfig {
 struct CaptureConfig {
   bool enabled{};
   std::string provider;
+  std::string directory{"captures"};
 };
 
 struct ObservabilityConfig {

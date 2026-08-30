@@ -32,6 +32,8 @@ export default function App() {
   const edges = useMemo(() => applicationEdges(topology).map(edge => {
     const metric = snapshot?.edges?.[edge.id]
     if (!metric) return edge
+    const captureFiles = snapshot?.capture?.files?.filter(file =>
+      file.nodeId === edge.source || file.nodeId === edge.target) || []
     return { ...edge, data: { ...edge.data,
       rate: `${metric.messageRate.toLocaleString()} msg/s`,
       byteRate: `${formatBytes(metric.byteRate)}/s`,
@@ -43,6 +45,7 @@ export default function App() {
       rejected: metric.rejected,
       bytes: `${formatBytes(metric.sentWireBytes)} / ${formatBytes(metric.receivedWireBytes)}`,
       metricSources: metric.metricSources,
+      captureFiles,
       recent: snapshot.recent?.filter(item => item.edgeId === edge.id) || [],
     }}
   }), [topology, snapshot])
@@ -85,6 +88,6 @@ export default function App() {
     </section>
     <section className="summary"><span><b>{graphNodes.length}</b> nodes</span><span><b>{edges.length}</b> logical edges</span><span><b>{Object.values(snapshot?.nodes || {}).filter(node => node.status !== 'running').length}</b> starting/offline</span><span className={traffic.flowing ? 'healthy' : 'waiting'}>● {traffic.flowing ? `Traffic flowing · ${traffic.samples.toLocaleString()} samples` : connected ? 'Waiting for samples' : 'Telemetry reconnecting'}</span><span>{controlStatus}</span></section>
     <section className="workspace"><div className="graph-panel"><div className="panel-label"><span>{view === 'application' ? 'APPLICATION DATAFLOW' : 'CONFIGURED NETWORK PATH'}</span><span>Drag nodes · Click edges to inspect</span></div><Topology nodes={displayedNodes} edges={displayedEdges} onEdgeSelect={setSelectedId}/></div><EdgeInspector edge={selected} networkPath={paths[selectedId]}/></section>
-    <footer><span>graphx.yaml</span><span>Telemetry · WebSocket</span><span>Capture provider · integration stub</span></footer>
+    <footer><span>graphx.yaml</span><span>Telemetry · WebSocket</span><span>Capture · {snapshot?.capture?.enabled ? snapshot.capture.provider : 'disabled'}</span></footer>
   </main>
 }

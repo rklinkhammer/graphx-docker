@@ -291,6 +291,25 @@ void UdpJsonTraceSink::on_heartbeat(std::string_view node_id, double cpu_percent
   emit("heartbeat", node_id, nullptr, 0, {}, {}, cpu_percent);
 }
 
+void UdpJsonTraceSink::on_capture(std::string_view edge_id, const Envelope& envelope,
+                                  std::string_view direction, std::string_view file,
+                                  std::uint64_t packet_index, std::uint64_t file_offset) {
+  if (!impl_ || impl_->socket < 0) return;
+  const auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
+      std::chrono::system_clock::now().time_since_epoch()).count();
+  std::ostringstream json;
+  json << "{\"kind\":\"capture\",\"event\":\"frame\",\"nodeId\":\""
+       << escape_json(impl_->node_id) << "\",\"edgeId\":\"" << escape_json(edge_id)
+       << "\",\"timestamp\":" << now << ",\"sequence\":" << envelope.sequence
+       << ",\"type\":\"" << escape_json(envelope.type) << "\",\"traceId\":\""
+       << escape_json(envelope.trace_id) << "\",\"direction\":\""
+       << escape_json(direction) << "\",\"captureFile\":\"" << escape_json(file)
+       << "\",\"capturePacket\":" << packet_index << ",\"captureOffset\":"
+       << file_offset << '}';
+  const auto value = json.str();
+  ::send(impl_->socket, value.data(), value.size(), 0);
+}
+
 void UdpJsonTraceSink::emit(std::string_view event, std::string_view edge_id,
                             const Envelope* envelope, std::size_t wire_bytes,
                             std::chrono::nanoseconds latency,

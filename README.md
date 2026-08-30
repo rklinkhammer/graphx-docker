@@ -2,9 +2,9 @@
 
 GraphX is a small, educational framework for describing a processing graph once, running its nodes in separate processes or containers, and inspecting what crosses each edge. This scaffold starts with a C++23 runtime, framed TCP and in-process transports, a three-stage demo, and a React Flow development console.
 
-> Status: framework scaffold. The demo path, live telemetry, and four baseline
-> transports work; capture interfaces are intentionally integration points rather
-> than pretending a full Wireshark backend already exists.
+> Status: framework scaffold. The demo path, live telemetry, four baseline
+> transports, correlated PCAPNG application capture, and an initial Wireshark
+> extcap adapter work. A native GraphX dissector is not yet included.
 
 ## Run the complete demo
 
@@ -107,6 +107,18 @@ Three focused native-Linux examples isolate each driver/mode:
 - [`examples/ipvlan-l3`](examples/ipvlan-l3/README.md): one independent IPvlan L3
   subnet per node in Docker's supported multi-subnet network layout.
 
+## Run the PCAPNG capture demo
+
+```sh
+examples/capture/run.sh
+```
+
+This portable demo writes one correlated PCAPNG file per node. For the standard
+Docker demo, use `GRAPHX_CAPTURE_ENABLED=true scripts/demo.sh start` and download
+captures from the selected edge in the console. See
+[`docs/capture.md`](docs/capture.md) for the file representation, Wireshark
+extcap setup, and USER0 limitations.
+
 ## Run the local shared-memory demo
 
 The same three-node application can run as separate local processes over two
@@ -177,7 +189,10 @@ The core contracts stay deliberately small:
   processing-duration, latency, byte-count, and error callbacks without coupling
   the runtime to one metrics stack. Metrics/histograms, fan-out, console,
   best-effort UDP JSON, and an optional bounded OTLP/HTTP JSON exporter are included.
-- **CaptureSink / ExtcapProvider** mark the boundary for future serialized-frame capture, PCAPNG writing, and Wireshark extcap control.
+- **CaptureSink / PcapngCaptureSink / ExtcapProvider** record canonical framed
+  envelopes with correlation metadata and preserve the boundary for alternate
+  live capture providers. The included extcap adapter follows a capture file
+  through Wireshark's FIFO interface.
 
 TCP uses a four-byte unsigned big-endian length followed by one serialized
 envelope. Frames are capped at 16 MiB before allocation. One receive deadline
@@ -328,6 +343,9 @@ The demo accepts these variables:
 | `GRAPHX_OTLP_HOST` | all nodes | empty (disabled) | OTLP/HTTP JSON collector host |
 | `GRAPHX_OTLP_PORT` | all nodes | `4318` | OTLP/HTTP collector port |
 | `GRAPHX_OTLP_PATH` | all nodes | `/v1/traces` | OTLP trace endpoint |
+| `GRAPHX_CAPTURE_ENABLED` | nodes, telemetry | configured value | Enable or disable runtime capture |
+| `GRAPHX_CAPTURE_PROVIDER` | nodes, telemetry | configured value | Capture provider; `pcapng` writes application frames |
+| `GRAPHX_CAPTURE_DIR` | nodes, telemetry | configured value | Shared capture-file directory |
 | `GRAPHX_WEB_ROOT` | telemetry | `web/dist` | Built frontend directory |
 | `PORT` | telemetry | `8080` | HTTP service port |
 
@@ -343,9 +361,9 @@ baseline contract prematurely.
 
 To add observability, implement `TraceSink` and add its exporter name to the
 typed `observability.metrics` or `observability.tracing` configuration. The
-included OTLP/HTTP adapter turns envelope trace IDs into spans. Implement
-`CaptureSink` to write exact framed bytes; an `ExtcapProvider` can then expose
-that stream as a Wireshark interface and correlate packet blocks with trace IDs.
+included OTLP/HTTP adapter turns envelope trace IDs into spans. The PCAPNG
+capture sink writes exact canonical framed bytes and correlation comments;
+`ExtcapProvider` remains the C++ boundary for alternate live sources.
 
 ## Tests
 
@@ -384,7 +402,11 @@ The tests use no third-party framework so a fresh scaffold remains easy to build
    backpressure events, process CPU, processing spans, and trace-ID presentation
    are implemented. Follow-ups include W3C trace-context fields, OTLP
    batching/retry, and collector conformance coverage.
-3. **Wireshark integration** — PCAPNG custom blocks, extcap interface, and message-to-packet correlation in the edge inspector.
+3. **Wireshark integration** — PCAPNG USER0 application-frame output, standard
+   correlation comments, packet indexes/offsets in the edge inspector, download
+   API, and initial extcap file-follow interface are implemented. Remaining work
+   includes a registered link type or native dissector, rotation, multi-file
+   merge, and automated correlation with OVS network captures.
 4. **Control plane** — authenticated runtime commands, topology validation/generation, and real container-health events.
 
 ## Design boundaries

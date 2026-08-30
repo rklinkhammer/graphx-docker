@@ -849,14 +849,21 @@ class ConfigParser {
     }
     if (const auto capture = value["capture"]) {
       if (require_map(capture, "observability.capture")) {
-        strict_keys(capture, "observability.capture", {"enabled", "provider"});
+        strict_keys(capture, "observability.capture", {"enabled", "provider", "directory"});
         config.observability.capture.enabled =
             bool_value(capture["enabled"], "observability.capture.enabled", false);
         if (capture["provider"])
           config.observability.capture.provider =
               text(capture["provider"], "observability.capture.provider", 128);
+        if (capture["directory"])
+          config.observability.capture.directory =
+              text(capture["directory"], "observability.capture.directory", 1024);
         if (config.observability.capture.enabled && config.observability.capture.provider.empty())
           error("observability.capture.provider", "is required when capture is enabled");
+        if (config.observability.capture.enabled &&
+            config.observability.capture.provider == "pcapng" &&
+            config.observability.capture.directory.empty())
+          error("observability.capture.directory", "is required for the pcapng provider");
       }
     }
   }

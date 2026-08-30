@@ -119,6 +119,9 @@ int topology_command(const std::string& command, int argc, char** argv) {
             << " heartbeat=" << config.observability.telemetry.heartbeat_interval_ms << '/'
             << config.observability.telemetry.heartbeat_timeout_ms << "ms"
             << " capture=" << (config.observability.capture.enabled ? "enabled" : "disabled")
+            << " provider=" << (config.observability.capture.provider.empty()
+                                      ? "none" : config.observability.capture.provider)
+            << " directory=" << config.observability.capture.directory
             << '\n';
   return 0;
 }

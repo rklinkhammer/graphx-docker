@@ -62,7 +62,8 @@ portable() {
 
   step "Run the finite local TCP pipeline"
   export GRAPHX_CONFIG="$ROOT/graphx.yaml"
-  export GRAPHX_OVERRIDES='transport.tcp.samples.host=127.0.0.1;transport.tcp.transformed.host=127.0.0.1'
+  export GRAPHX_OVERRIDES='transport.tcp.samples.host=127.0.0.1;transport.tcp.transformed.host=127.0.0.1;observability.capture.enabled=true'
+  export GRAPHX_CAPTURE_DIR="$TMP_DIR/captures"
   export GRAPHX_MAX_MESSAGES=8 GRAPHX_INTERVAL_MS=5
   "$BUILD_DIR/graphx-sink" >"$TMP_DIR/sink.log" 2>&1 & PIDS+=("$!")
   "$BUILD_DIR/graphx-transform" >"$TMP_DIR/transform.log" 2>&1 & PIDS+=("$!")
@@ -72,6 +73,24 @@ portable() {
   PIDS=()
   grep -q 'sink seq=8 value=16' "$TMP_DIR/sink.log"
   grep -q 'event=connection state=connected' "$TMP_DIR/transform.log"
+  for node in generator transform sink; do test -s "$TMP_DIR/captures/$node.pcapng"; done
+  node -e '
+    const fs = require("node:fs");
+    for (const path of process.argv.slice(1)) {
+      const capture = fs.readFileSync(path);
+      if (capture.readUInt32LE(0) !== 0x0a0d0d0a || !capture.includes(Buffer.from("trace-8")))
+        throw new Error(`invalid correlated PCAPNG capture: ${path}`);
+    }
+  ' "$TMP_DIR"/captures/*.pcapng
+  "$ROOT/tools/graphx-extcap" --extcap-interfaces | grep -q 'value=graphx'
+  "$ROOT/tools/graphx-extcap" --extcap-interface graphx --extcap-dlts | grep -q 'number=147'
+  "$ROOT/tools/graphx-extcap" --extcap-interface graphx --extcap-config | grep -q -- '--capture-file'
+  "$ROOT/tools/graphx-extcap" --extcap-interface graphx --capture \
+    --capture-file "$TMP_DIR/captures/generator.pcapng" \
+    --follow false --fifo "$TMP_DIR/extcap-output.pcapng"
+  cmp "$TMP_DIR/captures/generator.pcapng" "$TMP_DIR/extcap-output.pcapng"
+  export GRAPHX_OVERRIDES='transport.tcp.samples.host=127.0.0.1;transport.tcp.transformed.host=127.0.0.1'
+  unset GRAPHX_CAPTURE_DIR
 
   step "Verify coordinated SIGTERM shutdown"
   export GRAPHX_MAX_MESSAGES=0 GRAPHX_INTERVAL_MS=10
@@ -95,8 +114,11 @@ portable() {
   npm ci --prefix "$ROOT/apps/telemetry" --no-audit --no-fund
   npm ci --prefix "$ROOT/web" --no-audit --no-fund
   npm run build --prefix "$ROOT/web"
+  sed 's/provider: ovs-span/provider: pcapng/' \
+    "$ROOT/examples/ipvlan-l2/graphx.yaml" >"$TMP_DIR/telemetry-graphx.yaml"
   PORT=${GRAPHX_TEST_HTTP_PORT:-18080} GRAPHX_TELEMETRY_PORT=${GRAPHX_TEST_UDP_PORT:-19000} \
-    GRAPHX_HEARTBEAT_TIMEOUT_MS=400 GRAPHX_CONFIG="$ROOT/examples/ipvlan-l2/graphx.yaml" \
+    GRAPHX_HEARTBEAT_TIMEOUT_MS=400 GRAPHX_CONFIG="$TMP_DIR/telemetry-graphx.yaml" \
+    GRAPHX_CAPTURE_DIR="$TMP_DIR/captures" \
     GRAPHX_WEB_ROOT="$ROOT/web/dist" node "$ROOT/apps/telemetry/server.mjs" \
     >"$TMP_DIR/telemetry.log" 2>&1 &
   PIDS+=("$!")
@@ -108,6 +130,7 @@ portable() {
       {...base,event:"connection",message:"connected"},
       {...base,event:"send",sequence:1,wireBytes:64},
       {...base,event:"receive",sequence:1,wireBytes:64,latencyUs:25},
+      {...base,kind:"capture",event:"frame",sequence:1,direction:"received",captureFile:"generator.pcapng",capturePacket:1,captureOffset:144},
       {...base,event:"reconnect"},
       {...base,event:"backpressure",latencyUs:40,message:"blocked"},
       {...base,event:"backpressure",latencyUs:10,message:"rejected"},
@@ -132,6 +155,9 @@ portable() {
     if (edge.metricSources?.counters !== "measured" || edge.metricSources?.throughput !== "derived-5s") failures.push("metric provenance");
     if (snapshot.nodes.generator.cpuPercent !== 12.5) failures.push("node CPU");
     if (snapshot.recent[0]?.traceId !== "0123456789abcdef0123456789abcdef") failures.push("trace correlation");
+    if (snapshot.recent[0]?.captures?.[0]?.captureOffset !== 144) failures.push("capture correlation");
+    if (!snapshot.capture?.enabled || snapshot.capture?.provider !== "pcapng") failures.push("capture capability");
+    if (!snapshot.capture?.files?.some(file => file.name === "generator.pcapng")) failures.push("capture listing");
     if (failures.length) throw new Error(`bad telemetry: ${failures.join(", ")}`);
   ' "$TMP_DIR/topology.json"
   grep -q '"networkNodes"' "$TMP_DIR/topology.json"
@@ -148,6 +174,10 @@ portable() {
   grep -q 'graphx_edge_rejected_total{edge="samples"} 1' "$TMP_DIR/metrics.txt"
   grep -q 'graphx_edge_dropped_total{edge="samples"} 1' "$TMP_DIR/metrics.txt"
   grep -q 'graphx_node_cpu_percent{node="generator"} 12.5' "$TMP_DIR/metrics.txt"
+  curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/captures" | grep -q 'generator.pcapng'
+  curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/captures/generator.pcapng" \
+    >"$TMP_DIR/downloaded.pcapng"
+  cmp "$TMP_DIR/captures/generator.pcapng" "$TMP_DIR/downloaded.pcapng"
   curl -fsS -X POST "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/control/reset" | grep -q '"accepted":true'
   curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/metrics" | grep -q 'graphx_edge_connected{edge="samples"} 1'
   test "$(curl -sS -o "$TMP_DIR/pause.json" -w '%{http_code}' -X POST "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/control/pause")" = 501

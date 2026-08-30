@@ -174,6 +174,17 @@ observability:
   }
 }
 
+void capture_configuration() {
+  TemporaryConfig file(std::string(valid_config) + R"yaml(
+observability:
+  capture: { enabled: true, provider: pcapng, directory: test-captures }
+)yaml");
+  const auto capture = graphx::load_config(file.path()).observability.capture;
+  expect(capture.enabled && capture.provider == "pcapng" &&
+             capture.directory == "test-captures",
+         "PCAPNG capture configuration");
+}
+
 void invalid_shared_memory_config_is_rejected() {
   TemporaryConfig file(R"yaml(
 version: 1
@@ -526,6 +537,7 @@ int main() {
       {"invalid TCP policy", invalid_tcp_policy_is_rejected},
       {"shared-memory config", shared_memory_config_loads},
       {"invalid observability", invalid_observability_is_rejected},
+      {"capture config", capture_configuration},
       {"invalid shared-memory config", invalid_shared_memory_config_is_rejected},
       {"mixed network model", mixed_network_model_and_plan_load},
       {"standalone network examples", standalone_network_examples_load},

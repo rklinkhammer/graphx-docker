@@ -307,7 +307,8 @@
           "type": "object", "additionalProperties": false,
           "properties": {
             "enabled": { "type": "boolean" },
-            "provider": { "type": "string", "minLength": 1, "maxLength": 128 }
+            "provider": { "type": "string", "minLength": 1, "maxLength": 128 },
+            "directory": { "type": "string", "minLength": 1, "maxLength": 1024 }
           }
         }
       }
