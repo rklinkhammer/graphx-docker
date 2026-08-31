@@ -74,6 +74,11 @@ examples/mixed-network/scripts/fault.sh apply
 examples/mixed-network/scripts/fault.sh clear
 examples/mixed-network/scripts/capture.sh mac
 examples/mixed-network/scripts/capture.sh ipv
+examples/mixed-network/scripts/capture.sh mac captures/mixed-mac.pcapng
+examples/mixed-network/scripts/capture.sh ipv captures/mixed-ipv.pcapng
 ```
 
 Set `DELAY`, `JITTER`, and `LOSS` to override the default 20 ms, 3 ms, and 1%.
+The one-argument form displays live standard Ethernet packets with `tcpdump`.
+The two-argument form saves standard Ethernet PCAPNG with `dumpcap`. In the
+macOS profile both tools and OVS run inside the provided privileged container.

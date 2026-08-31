@@ -285,8 +285,7 @@ The browser application is divided along the product concepts:
 - `NodeCard` renders a process/container boundary and health metadata.
 - `TelemetryEdge` overlays throughput and latency on a selectable edge.
 - `EdgeInspector` presents connection/framing facts, directional edge metrics,
-  recent messages, and live trace IDs. Packet-capture correlation remains a
-  clearly marked Phase 6 boundary.
+  recent messages, live trace IDs, and correlated capture downloads.
 - `server.mjs` serves the built console, receives runtime events over UDP,
   aggregates metrics, broadcasts WebSocket snapshots, and exposes
   health/topology/control endpoints plus Prometheus text output at `/metrics`.
@@ -301,10 +300,12 @@ wire-byte rates are derived from sends in the active five-second window. The UI
 shows sent/received values independently and uses `—` when a value is genuinely
 unavailable instead of displaying a synthetic zero.
 
-Reset clears telemetry aggregation. Pause and fault buttons are explicit
-development-control placeholders and return HTTP 501; the console surfaces that
-result rather than pretending a runtime action occurred. Native netem fault hooks
-are available through `graphx infra fault` and the example helpers.
+Reset clears telemetry aggregation. When `GRAPHX_CONTROL_TOKEN` is configured,
+the authenticated pause/resume control is delivered over the existing connected
+UDP telemetry channel. Source nodes stop producing new envelopes while in-flight
+work drains. The API rejects missing/invalid credentials and reports when no
+live runtimes are available. Native netem fault hooks remain separate through
+`graphx infra fault` and the example helpers.
 
 ## Repository layout
 
@@ -404,10 +405,14 @@ The tests use no third-party framework so a fresh scaffold remains easy to build
    batching/retry, and collector conformance coverage.
 3. **Wireshark integration** — PCAPNG USER0 application-frame output, standard
    correlation comments, packet indexes/offsets in the edge inspector, download
-   API, and initial extcap file-follow interface are implemented. Remaining work
-   includes a registered link type or native dissector, rotation, multi-file
-   merge, and automated correlation with OVS network captures.
-4. **Control plane** — authenticated runtime commands, topology validation/generation, and real container-health events.
+   API, Ethernet PCAPNG output (`LINKTYPE_ETHERNET`), OVS mirror capture helpers,
+   and USER0/Ethernet extcap file-follow interfaces are implemented. Remaining
+   work includes a registered GraphX link type or native dissector, rotation,
+   multi-file merge, and automated correlation across the two capture layers.
+4. **Control plane (Phase 7)** — authenticated pause/resume delivery, runtime
+   acknowledgement, honest rejection states, and an end-to-end pause test are
+   implemented. Remaining work includes authenticated fault commands, generated
+   deployment topology, durable command auditing, and real Docker health events.
 
 ## Design boundaries
 

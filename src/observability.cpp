@@ -8,6 +8,7 @@
 #include <unistd.h>
 
 #include <condition_variable>
+#include <atomic>
 #include <cerrno>
 #include <deque>
 #include <iomanip>
@@ -223,6 +224,9 @@ void CompositeTraceSink::on_heartbeat(std::string_view node_id, double cpu_perce
 struct UdpJsonTraceSink::Impl {
   std::string node_id;
   int socket{-1};
+  std::atomic_bool paused{};
+  std::atomic_bool stopping{};
+  std::thread control_thread;
 };
 
 UdpJsonTraceSink::UdpJsonTraceSink(std::string node_id, std::string host,
@@ -246,10 +250,45 @@ UdpJsonTraceSink::UdpJsonTraceSink(std::string node_id, std::string host,
     if (candidate >= 0) ::close(candidate);
   }
   ::freeaddrinfo(addresses);
+  if (impl_->socket >= 0) {
+    impl_->control_thread = std::thread([state = impl_.get()] {
+      pollfd descriptor{state->socket, POLLIN, 0};
+      std::array<char, 2048> buffer{};
+      while (!state->stopping.load(std::memory_order_relaxed)) {
+        descriptor.revents = 0;
+        const auto ready = ::poll(&descriptor, 1, 100);
+        if (ready <= 0 || !(descriptor.revents & POLLIN)) continue;
+        const auto count = ::recv(state->socket, buffer.data(), buffer.size(), 0);
+        if (count <= 0) continue;
+        const std::string_view command(buffer.data(), static_cast<std::size_t>(count));
+        std::string_view action;
+        if (command.find("\"action\":\"pause\"") != std::string_view::npos) {
+          state->paused.store(true, std::memory_order_relaxed);
+          action = "pause";
+        } else if (command.find("\"action\":\"resume\"") != std::string_view::npos) {
+          state->paused.store(false, std::memory_order_relaxed);
+          action = "resume";
+        }
+        if (!action.empty()) {
+          const auto acknowledgement = std::string{"{\"kind\":\"control_ack\",\"nodeId\":\""} +
+              escape_json(state->node_id) + "\",\"action\":\"" +
+              std::string(action) + "\",\"accepted\":true}";
+          ::send(state->socket, acknowledgement.data(), acknowledgement.size(), 0);
+        }
+      }
+    });
+  }
 }
 
 UdpJsonTraceSink::~UdpJsonTraceSink() {
-  if (impl_ && impl_->socket >= 0) ::close(impl_->socket);
+  if (!impl_) return;
+  impl_->stopping.store(true, std::memory_order_relaxed);
+  if (impl_->control_thread.joinable()) impl_->control_thread.join();
+  if (impl_->socket >= 0) ::close(impl_->socket);
+}
+
+bool UdpJsonTraceSink::paused() const noexcept {
+  return impl_ && impl_->paused.load(std::memory_order_relaxed);
 }
 
 void UdpJsonTraceSink::on_send(std::string_view edge_id, const Envelope& envelope,

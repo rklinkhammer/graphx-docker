@@ -112,6 +112,50 @@ void pcapng_capture() {
   std::filesystem::remove(path);
 }
 
+void ethernet_pcapng_capture() {
+  const auto path = std::filesystem::temp_directory_path() /
+                    ("graphx-ethernet-" + std::to_string(::getpid()) + ".pcapng");
+  std::filesystem::remove(path);
+  const std::array frame{
+      std::byte{0x02}, std::byte{0x00}, std::byte{0x00}, std::byte{0x00},
+      std::byte{0x00}, std::byte{0x02}, std::byte{0x02}, std::byte{0x00},
+      std::byte{0x00}, std::byte{0x00}, std::byte{0x00}, std::byte{0x01},
+      std::byte{0x08}, std::byte{0x00}, std::byte{0x45}, std::byte{0x00},
+      std::byte{0x00}, std::byte{0x14}, std::byte{0x00}, std::byte{0x00}};
+  {
+    graphx::EthernetPcapngCaptureSink capture(path, "br-gx-mac");
+    capture.record_packet(frame, std::chrono::system_clock::now(),
+                          "OVS mirror br-gx-mac");
+    expect(capture.packet_count() == 1 && capture.last_packet_offset() > 0,
+           "Ethernet PCAPNG capture state");
+    bool rejected{};
+    try {
+      capture.record_packet(std::span<const std::byte>(frame).first(13),
+                            std::chrono::system_clock::now());
+    } catch (const std::invalid_argument&) { rejected = true; }
+    expect(rejected, "Ethernet capture rejects headerless data");
+  }
+
+  std::ifstream stream(path, std::ios::binary);
+  const std::vector<char> characters((std::istreambuf_iterator<char>(stream)), {});
+  const auto* begin = reinterpret_cast<const std::byte*>(characters.data());
+  const std::span<const std::byte> bytes(begin, characters.size());
+  const auto section_length = little_u32(bytes, 4);
+  expect(little_u16(bytes, section_length + 8) == 1, "PCAPNG Ethernet link type");
+  const auto interface_length = little_u32(bytes, section_length + 4);
+  const auto packet_offset = section_length + interface_length;
+  expect(little_u32(bytes, packet_offset) == 6, "Ethernet enhanced packet block");
+  expect(little_u32(bytes, packet_offset + 20) == frame.size(),
+         "Ethernet PCAPNG captured length");
+  expect(std::equal(frame.begin(), frame.end(), bytes.begin() + packet_offset + 28),
+         "Ethernet PCAPNG exact frame bytes");
+  const std::string file_text(characters.begin(), characters.end());
+  expect(file_text.find("IEEE 802.3/Ethernet") != std::string::npos &&
+             file_text.find("OVS mirror br-gx-mac") != std::string::npos,
+         "Ethernet PCAPNG interface and packet metadata");
+  std::filesystem::remove(path);
+}
+
 void in_process() {
   auto channel = std::make_shared<graphx::InProcessChannel>();
   graphx::MetricsTraceSink metrics;
@@ -147,6 +191,52 @@ void metrics_sink() {
   expect(edge.backpressure_events == 2 && edge.rejected == 1 &&
              edge.total_backpressure == std::chrono::microseconds(40),
          "metrics backpressure");
+}
+
+void udp_runtime_control() {
+  const int collector = ::socket(AF_INET, SOCK_DGRAM, 0);
+  expect(collector >= 0, "UDP control collector socket");
+  sockaddr_in address{};
+  address.sin_family = AF_INET;
+  address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+  address.sin_port = 0;
+  expect(::bind(collector, reinterpret_cast<sockaddr*>(&address), sizeof(address)) == 0,
+         "UDP control collector bind");
+  socklen_t address_size = sizeof(address);
+  expect(::getsockname(collector, reinterpret_cast<sockaddr*>(&address), &address_size) == 0,
+         "UDP control collector address");
+  timeval timeout{1, 0};
+  ::setsockopt(collector, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+
+  {
+    graphx::UdpJsonTraceSink sink("generator", "127.0.0.1", ntohs(address.sin_port));
+    sink.on_heartbeat("generator", 1.0);
+    std::array<char, 2048> event{};
+    sockaddr_storage runtime{};
+    socklen_t runtime_size = sizeof(runtime);
+    expect(::recvfrom(collector, event.data(), event.size(), 0,
+                      reinterpret_cast<sockaddr*>(&runtime), &runtime_size) > 0,
+           "UDP control endpoint registration");
+    const auto command = [&](std::string_view action) {
+      const auto json = std::string{"{\"kind\":\"control\",\"action\":\""} +
+                        std::string(action) + "\"}";
+      expect(::sendto(collector, json.data(), json.size(), 0,
+                      reinterpret_cast<sockaddr*>(&runtime), runtime_size) > 0,
+             "UDP runtime command delivery");
+    };
+    const auto await = [&](bool paused) {
+      for (int attempt = 0; attempt < 50; ++attempt) {
+        if (sink.paused() == paused) return true;
+        std::this_thread::sleep_for(10ms);
+      }
+      return false;
+    };
+    command("pause");
+    expect(await(true), "UDP pause command");
+    command("resume");
+    expect(await(false), "UDP resume command");
+  }
+  ::close(collector);
 }
 
 struct RawListener {
@@ -675,7 +765,9 @@ int main() {
   const std::pair<const char*, std::function<void()>> tests[] = {
       {"framing", framing}, {"envelope", envelope_round_trip},
       {"PCAPNG capture", pcapng_capture},
+      {"Ethernet PCAPNG capture", ethernet_pcapng_capture},
       {"in-process", in_process}, {"metrics", metrics_sink},
+      {"UDP runtime control", udp_runtime_control},
       {"OTLP HTTP JSON", otlp_http_json_export},
       {"shared-memory wraparound", shared_memory_wraparound_and_cleanup},
       {"shared-memory pressure", shared_memory_backpressure_and_limits},

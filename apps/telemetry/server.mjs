@@ -1,5 +1,6 @@
 import dgram from 'node:dgram'
-import { createReadStream, existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import { timingSafeEqual } from 'node:crypto'
+import { closeSync, createReadStream, existsSync, openSync, readFileSync, readSync, readdirSync, statSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { extname, join, normalize, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -23,6 +24,7 @@ const captureConfig = { ...configuredCapture,
   provider: process.env.GRAPHX_CAPTURE_PROVIDER || configuredCapture.provider || '',
 }
 const captureDirectory = resolve(process.env.GRAPHX_CAPTURE_DIR || captureConfig.directory || 'captures')
+const controlToken = process.env.GRAPHX_CONTROL_TOKEN || ''
 const rateWindowSeconds = 5
 const latencyBoundsUs = [10, 50, 100, 500, 1000, 5000, 10000]
 
@@ -65,6 +67,8 @@ const topology = topologyModel()
 let state = { paused: false, fault: false, updatedAt: new Date().toISOString() }
 const recent = []
 const captureReferences = []
+const controlEndpoints = new Map()
+const controlAcks = new Map()
 const nodes = Object.fromEntries(topology.nodes.map(node => [node.id, {
   status: 'starting', lastSeen: null, cpuPercent: null,
 }]))
@@ -137,16 +141,32 @@ function edgeView(edge, timestamp = Date.now()) {
   }
 }
 
+function pcapngLinkType(path) {
+  let descriptor
+  try {
+    descriptor = openSync(path, 'r')
+    const bytes = Buffer.alloc(512)
+    const count = readSync(descriptor, bytes, 0, bytes.length, 0)
+    if (count < 24 || bytes.readUInt32LE(0) !== 0x0a0d0d0a) return null
+    const sectionLength = bytes.readUInt32LE(4)
+    if (sectionLength + 10 > count || bytes.readUInt32LE(sectionLength) !== 1) return null
+    return bytes.readUInt16LE(sectionLength + 8)
+  } catch { return null }
+  finally { if (descriptor != null) closeSync(descriptor) }
+}
+
 function captureFiles() {
-  if (!captureConfig.enabled || captureConfig.provider !== 'pcapng' ||
-      !existsSync(captureDirectory)) return []
+  if (!captureConfig.enabled || !existsSync(captureDirectory)) return []
   try {
     return readdirSync(captureDirectory, { withFileTypes: true })
       .filter(entry => entry.isFile() && /^[A-Za-z][A-Za-z0-9_-]{0,63}\.pcapng$/.test(entry.name))
       .map(entry => {
-        const details = statSync(join(captureDirectory, entry.name))
+        const path = join(captureDirectory, entry.name)
+        const details = statSync(path)
+        const linkType = pcapngLinkType(path)
         return { name: entry.name, nodeId: entry.name.slice(0, -7), size: details.size,
-          modifiedAt: details.mtime.toISOString(), url: `/captures/${encodeURIComponent(entry.name)}` }
+          modifiedAt: details.mtime.toISOString(), url: `/captures/${encodeURIComponent(entry.name)}`,
+          linkType, format: linkType === 1 ? 'ethernet' : linkType === 147 ? 'graphx-frame' : 'unknown' }
       })
   } catch { return [] }
 }
@@ -162,17 +182,37 @@ function snapshot() {
   const timestamp = Date.now()
   const edgeViews = Object.fromEntries(
     Object.entries(edges).map(([id, edge]) => [id, edgeView(edge, timestamp)]))
+  const liveEndpoints = [...controlEndpoints.values()].filter(endpoint =>
+    timestamp - endpoint.lastSeen <= heartbeatTimeout)
+  const files = captureFiles()
   return { kind: 'snapshot', graph: graph.id, topology,
     telemetry: { websocket: websocketPath, heartbeatTimeoutMs: heartbeatTimeout,
-      rateWindowSeconds, latencyBoundsUs }, state, nodes, edges: edgeViews,
+      rateWindowSeconds, latencyBoundsUs }, state,
+    control: { available: controlToken.length > 0, connectedNodes: liveEndpoints.length,
+      acknowledgements: Object.fromEntries(controlAcks) }, nodes, edges: edgeViews,
     capture: { enabled: Boolean(captureConfig.enabled), provider: captureConfig.provider || null,
-      format: captureConfig.provider === 'pcapng' ? 'pcapng-user0' : null,
-      files: captureFiles() }, recent: recentWithCapture(), timestamp }
+      format: files.length ? 'pcapng' : null,
+      files }, recent: recentWithCapture(), timestamp }
 }
 
 function json(response, status, value) {
   response.writeHead(status, { 'content-type': 'application/json', 'access-control-allow-origin': '*' })
   response.end(JSON.stringify(value))
+}
+
+function authorized(request) {
+  if (!controlToken) return false
+  const supplied = request.headers.authorization?.startsWith('Bearer ')
+    ? request.headers.authorization.slice(7) : ''
+  const expectedBytes = Buffer.from(controlToken)
+  const suppliedBytes = Buffer.from(supplied)
+  return expectedBytes.length === suppliedBytes.length &&
+    timingSafeEqual(expectedBytes, suppliedBytes)
+}
+
+function liveControlEndpoints(timestamp = Date.now()) {
+  return [...controlEndpoints.entries()].filter(([, endpoint]) =>
+    timestamp - endpoint.lastSeen <= heartbeatTimeout)
 }
 
 function prometheus() {
@@ -248,19 +288,31 @@ const server = createServer((request, response) => {
   if (url.pathname.startsWith('/api/control/') && request.method === 'POST') {
     const action = url.pathname.split('/').pop()
     if (action === 'reset') {
-      state = { paused: false, fault: false, updatedAt: new Date().toISOString() }
       recent.length = 0
       captureReferences.length = 0
       for (const edge of Object.values(edges)) {
         const connection = edge.connection
         Object.assign(edge, emptyEdge(connection))
       }
-      state.updatedAt = new Date().toISOString()
+      state = { ...state, updatedAt: new Date().toISOString() }
       broadcast()
       return json(response, 200, { accepted: true, action, state })
     }
-    return json(response, 501, { accepted: false, action,
-      error: 'runtime control channel is not implemented; use the documented netem hooks' })
+    if (action !== 'pause' && action !== 'resume')
+      return json(response, 404, { accepted: false, action, error: 'unknown control action' })
+    if (!controlToken)
+      return json(response, 503, { accepted: false, action,
+        error: 'runtime control is disabled; set GRAPHX_CONTROL_TOKEN' })
+    if (!authorized(request))
+      return json(response, 401, { accepted: false, action, error: 'invalid control token' })
+    const endpoints = liveControlEndpoints()
+    if (!endpoints.length)
+      return json(response, 409, { accepted: false, action, error: 'no live runtime nodes' })
+    const command = Buffer.from(JSON.stringify({ kind: 'control', action, timestamp: Date.now() }))
+    for (const [, endpoint] of endpoints) udp.send(command, endpoint.port, endpoint.address)
+    state = { ...state, paused: action === 'pause', updatedAt: new Date().toISOString() }
+    broadcast()
+    return json(response, 202, { accepted: true, action, delivered: endpoints.length, state })
   }
   if (url.pathname.startsWith('/captures/')) {
     let name
@@ -292,10 +344,17 @@ function broadcast() {
 }
 
 const udp = dgram.createSocket('udp4')
-udp.on('message', data => {
+udp.on('message', (data, remote) => {
   try {
     const event = JSON.parse(data.toString('utf8'))
     const receivedAt = Date.now()
+    if (event.kind === 'control_ack' && nodes[event.nodeId] &&
+        (event.action === 'pause' || event.action === 'resume')) {
+      controlAcks.set(event.nodeId, { action: event.action,
+        accepted: event.accepted === true, receivedAt })
+      broadcast()
+      return
+    }
     if (event.kind === 'capture' && event.event === 'frame') {
       captureReferences.unshift(event)
       if (captureReferences.length > 200) captureReferences.length = 200
@@ -303,6 +362,8 @@ udp.on('message', data => {
       return
     }
     if (nodes[event.nodeId]) {
+      controlEndpoints.set(event.nodeId, { address: remote.address, port: remote.port,
+        lastSeen: receivedAt })
       const cpuPercent = Number(event.cpuPercent)
       nodes[event.nodeId] = {
         ...nodes[event.nodeId], status: 'running', lastSeen: receivedAt,

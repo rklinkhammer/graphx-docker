@@ -6,7 +6,8 @@ user run of the complete application, follow
 observable success criteria, a live traffic check, and troubleshooting steps.
 
 This procedure exercises the source model, all four transports, hardened TCP
-behavior, telemetry, correlated PCAPNG output/extcap, browser assets, Docker deployment, infrastructure
+behavior, authenticated runtime control, correlated GraphX/Ethernet PCAPNG and
+extcap, browser assets, Docker deployment, infrastructure
 planning, and the optional native network laboratories. Start with the portable
 tier. The privileged tier is deliberately never selected automatically.
 
@@ -54,9 +55,10 @@ Expected results:
 - Generator, transform, and sink exit cleanly after finite runs and SIGTERM.
 - Runtime output contains structured connection and processing events.
 - The web production bundle builds.
-- `/api/health`, `/api/topology`, and `/metrics` respond. Telemetry reset is
-  accepted; pause returns HTTP 501 because an authenticated runtime control
-  channel does not yet exist. The UI must not claim that rejected controls ran.
+- `/api/health`, `/api/topology`, and `/metrics` respond. An unauthenticated
+  pause is rejected; authenticated pause/resume is delivered and acknowledged.
+  The real TCP generator's sent counter stops while paused and advances again
+  after resume.
 - `/api/topology` reflects the nodes, edges, transport details, and network paths
   in `GRAPHX_CONFIG`; a silent node transitions to `offline` after its configured
   heartbeat timeout.
@@ -67,7 +69,8 @@ Expected results:
   counts errors, drops, rejections, reconnects and backpressure independently.
 - The finite TCP pipeline writes valid non-empty PCAPNG files for all three
   nodes, retains trace IDs in capture metadata, and passes a byte-for-byte
-  extcap and HTTP-download check.
+  extcap and HTTP-download check. Binary unit tests verify USER0 (147) for
+  GraphX frames and Ethernet (1) for actual Ethernet-frame capture.
 
 For a focused rerun:
 

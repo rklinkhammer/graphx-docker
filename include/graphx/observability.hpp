@@ -119,6 +119,10 @@ class UdpJsonTraceSink final : public TraceSink {
   void on_capture(std::string_view edge_id, const Envelope& envelope,
                   std::string_view direction, std::string_view file,
                   std::uint64_t packet_index, std::uint64_t file_offset);
+  // Runtime commands are accepted only from the connected telemetry peer.
+  // Pause is advisory: source nodes stop producing new envelopes while
+  // in-flight work is allowed to drain.
+  [[nodiscard]] bool paused() const noexcept;
 
  private:
   void emit(std::string_view event, std::string_view edge_id, const Envelope* envelope,

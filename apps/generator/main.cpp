@@ -15,6 +15,11 @@ int main() {
     const auto maximum = std::stoull(demo::env("GRAPHX_MAX_MESSAGES", "0"));
     for (std::uint64_t sequence = 1; !demo::stopping() && (maximum == 0 || sequence <= maximum);
          ++sequence) {
+      while (!demo::stopping() && trace.paused()) {
+        trace.heartbeat();
+        demo::interruptible_pause(std::chrono::milliseconds(50));
+      }
+      if (demo::stopping()) break;
       trace.heartbeat();
       auto envelope = graphx::Envelope::make(sequence, "Sample", std::to_string(sequence));
       envelope.attributes["source"] = "generator";

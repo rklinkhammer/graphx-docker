@@ -41,9 +41,20 @@ The **Network path** view shows the portable demo's Docker bridge path.
 Node cards show measured process CPU; this lightweight demo commonly uses less
 than 1%, so the console retains two decimal places for those readings.
 
-Pause and fault injection are visibly disabled in this demo because the runtime
-control plane is not implemented. Reset clears accumulated counters; it does not
-stop traffic or disconnect the live TCP paths.
+To enable authenticated source pause/resume, choose a token before startup:
+
+```sh
+GRAPHX_CONTROL_TOKEN='choose-a-local-demo-token' scripts/demo.sh start
+```
+
+Enter that same value in the console's **Control token** field. **Pause source**
+stops the generator after any in-flight envelope drains; **Resume** starts it
+again without resetting sequence numbers and remains available as a recovery
+action after a collector restart. The controls remain disabled when
+the server has no token, no live runtime, or the browser token field is empty.
+The server returns an explicit error for invalid credentials. Reset only clears
+accumulated counters and does not stop traffic. Fault injection remains a native
+network-lab operation.
 
 To include correlated application-frame capture, start with
 `GRAPHX_CAPTURE_ENABLED=true scripts/demo.sh start`. Selecting an edge then
@@ -113,7 +124,9 @@ Common causes:
 | Console says connecting | Verify `curl http://localhost:8080/api/health`, then reload the page. |
 | Console connects but waits for samples | Run `scripts/demo.sh verify`; inspect generator and transform logs for connection errors. |
 | Counters move but sink output is absent | Inspect the `transformed` edge and sink logs; the verify command reports this edge separately. |
-| Pause or fault cannot be clicked | Expected: these require a future authenticated control plane. Native Linux fault injection is available in the network labs. |
+| Pause cannot be clicked | Start with `GRAPHX_CONTROL_TOKEN=...`, wait for a live runtime, and enter the same token in the console. |
+| Pause says invalid token | The browser value must exactly match the telemetry container's `GRAPHX_CONTROL_TOKEN`; restart after changing the environment. |
+| Fault cannot be clicked | Expected: native Linux fault injection is available in the network labs. |
 
 ## Standard demo versus network laboratories
 

@@ -21,9 +21,12 @@ cmake --preset dev && cmake --build --preset dev
 examples/ipvlan-l2/scripts/up.sh
 docker logs -f gx-ipvl2-sink-sink-1
 examples/ipvlan-l2/scripts/capture.sh transform
+examples/ipvlan-l2/scripts/capture.sh transform captures/ipvlan-transform.pcapng
 examples/ipvlan-l2/scripts/down.sh
 ```
 
 The OVS bridge in every domain has a SPAN output. `tc netem` can be attached to
 any router interface with `graphx infra fault apply`, using router
 `ipvlan-l2-router` and interface `generator`, `transform`, or `sink`.
+The one-argument capture form displays Ethernet packets; the optional output
+argument writes a standard Ethernet PCAPNG file with `dumpcap`.

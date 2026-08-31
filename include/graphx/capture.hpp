@@ -32,4 +32,28 @@ class PcapngCaptureSink final : public CaptureSink {
   std::unique_ptr<Impl> impl_;
 };
 
+// Writer for actual IEEE 802.3/Ethernet frames. Unlike PcapngCaptureSink this
+// uses LINKTYPE_ETHERNET (1), and callers must supply bytes beginning with a
+// real Ethernet header captured from an L2 interface.
+class EthernetPcapngCaptureSink final {
+ public:
+  EthernetPcapngCaptureSink(std::filesystem::path path, std::string interface_name,
+                            std::uint32_t snaplen = 262144);
+  ~EthernetPcapngCaptureSink();
+  EthernetPcapngCaptureSink(const EthernetPcapngCaptureSink&) = delete;
+  EthernetPcapngCaptureSink& operator=(const EthernetPcapngCaptureSink&) = delete;
+
+  void record_packet(std::span<const std::byte> ethernet_frame,
+                     std::chrono::system_clock::time_point timestamp,
+                     std::string_view comment = {});
+
+  [[nodiscard]] const std::filesystem::path& path() const noexcept;
+  [[nodiscard]] std::uint64_t packet_count() const noexcept;
+  [[nodiscard]] std::uint64_t last_packet_offset() const noexcept;
+
+ private:
+  struct Impl;
+  std::unique_ptr<Impl> impl_;
+};
+
 }  // namespace graphx

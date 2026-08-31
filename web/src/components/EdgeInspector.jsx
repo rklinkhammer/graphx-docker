@@ -35,6 +35,6 @@ export function EdgeInspector({ edge, networkPath }) {
     <div className="placeholder"><strong>Trace + capture correlation</strong><p>Trace IDs join telemetry to PCAPNG packet numbers and byte offsets. GraphX frames use LINKTYPE_USER0 and are not labeled as Ethernet packets.</p></div>
     <h3>Network path</h3>
     <div className="network-path">{networkPath?.map((hop, index) => <span key={hop}>{index > 0 && <i>→</i>}{hop}</span>)}</div>
-    <div className="actions"><button>Inspect messages</button>{d.captureFiles?.length ? <a href={d.captureFiles[0].url} download>Download PCAPNG</a> : <button disabled>Capture unavailable</button>}</div>
+    <div className="actions"><button>Inspect messages</button>{d.captureFiles?.length ? d.captureFiles.slice(0, 2).map(file => <a key={file.name} href={file.url} download title={file.name}>Download {file.format === 'ethernet' ? 'Ethernet' : 'GraphX'}</a>) : <button disabled>Capture unavailable</button>}</div>
   </aside>
 }

@@ -145,6 +145,10 @@ class RuntimeTraceSink final : public graphx::TraceSink {
     composite_.on_heartbeat(node_id_, cpu_percent);
   }
 
+  [[nodiscard]] bool paused() const noexcept {
+    return telemetry_ && telemetry_->paused();
+  }
+
   void on_send(std::string_view edge, const graphx::Envelope& envelope,
                std::size_t bytes) override {
     composite_.on_send(edge, envelope, bytes);

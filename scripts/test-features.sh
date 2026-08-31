@@ -82,9 +82,15 @@ portable() {
         throw new Error(`invalid correlated PCAPNG capture: ${path}`);
     }
   ' "$TMP_DIR"/captures/*.pcapng
-  "$ROOT/tools/graphx-extcap" --extcap-interfaces | grep -q 'value=graphx'
-  "$ROOT/tools/graphx-extcap" --extcap-interface graphx --extcap-dlts | grep -q 'number=147'
-  "$ROOT/tools/graphx-extcap" --extcap-interface graphx --extcap-config | grep -q -- '--capture-file'
+  "$ROOT/tools/graphx-extcap" --extcap-interfaces >"$TMP_DIR/extcap-interfaces.txt"
+  grep -q 'value=graphx' "$TMP_DIR/extcap-interfaces.txt"
+  grep -q 'value=graphx-ethernet' "$TMP_DIR/extcap-interfaces.txt"
+  "$ROOT/tools/graphx-extcap" --extcap-interface graphx --extcap-dlts >"$TMP_DIR/extcap-graphx-dlt.txt"
+  grep -q 'number=147' "$TMP_DIR/extcap-graphx-dlt.txt"
+  "$ROOT/tools/graphx-extcap" --extcap-interface graphx-ethernet --extcap-dlts >"$TMP_DIR/extcap-ethernet-dlt.txt"
+  grep -q 'number=1' "$TMP_DIR/extcap-ethernet-dlt.txt"
+  "$ROOT/tools/graphx-extcap" --extcap-interface graphx --extcap-config >"$TMP_DIR/extcap-config.txt"
+  grep -q -- '--capture-file' "$TMP_DIR/extcap-config.txt"
   "$ROOT/tools/graphx-extcap" --extcap-interface graphx --capture \
     --capture-file "$TMP_DIR/captures/generator.pcapng" \
     --follow false --fifo "$TMP_DIR/extcap-output.pcapng"
@@ -117,8 +123,9 @@ portable() {
   sed 's/provider: ovs-span/provider: pcapng/' \
     "$ROOT/examples/ipvlan-l2/graphx.yaml" >"$TMP_DIR/telemetry-graphx.yaml"
   PORT=${GRAPHX_TEST_HTTP_PORT:-18080} GRAPHX_TELEMETRY_PORT=${GRAPHX_TEST_UDP_PORT:-19000} \
-    GRAPHX_HEARTBEAT_TIMEOUT_MS=400 GRAPHX_CONFIG="$TMP_DIR/telemetry-graphx.yaml" \
+    GRAPHX_HEARTBEAT_TIMEOUT_MS=1000 GRAPHX_CONFIG="$TMP_DIR/telemetry-graphx.yaml" \
     GRAPHX_CAPTURE_DIR="$TMP_DIR/captures" \
+    GRAPHX_CONTROL_TOKEN=feature-test-token \
     GRAPHX_WEB_ROOT="$ROOT/web/dist" node "$ROOT/apps/telemetry/server.mjs" \
     >"$TMP_DIR/telemetry.log" 2>&1 &
   PIDS+=("$!")
@@ -136,9 +143,15 @@ portable() {
       {...base,event:"backpressure",latencyUs:10,message:"rejected"},
       {...base,event:"heartbeat",cpuPercent:12.5}
     ];
+    d.on("message", data => {
+      const command = JSON.parse(data);
+      if (command.kind === "control") d.send(JSON.stringify({kind:"control_ack", nodeId:"generator",
+        action:command.action, accepted:true}), Number(process.env.GRAPHX_TEST_UDP_PORT), "127.0.0.1");
+    });
     for (const event of events) d.send(JSON.stringify(event), Number(process.env.GRAPHX_TEST_UDP_PORT), "127.0.0.1");
-    setTimeout(() => d.close(), 50);
-  '
+    setTimeout(() => d.close(), 5000);
+  ' &
+  PIDS+=("$!")
   sleep 0.1
   curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/topology" | grep -q 'ipvlan-l2-pipeline'
   curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/topology" >"$TMP_DIR/topology.json"
@@ -158,6 +171,7 @@ portable() {
     if (snapshot.recent[0]?.captures?.[0]?.captureOffset !== 144) failures.push("capture correlation");
     if (!snapshot.capture?.enabled || snapshot.capture?.provider !== "pcapng") failures.push("capture capability");
     if (!snapshot.capture?.files?.some(file => file.name === "generator.pcapng")) failures.push("capture listing");
+    if (!snapshot.control?.available || snapshot.control?.connectedNodes < 1) failures.push("control capability");
     if (failures.length) throw new Error(`bad telemetry: ${failures.join(", ")}`);
   ' "$TMP_DIR/topology.json"
   grep -q '"networkNodes"' "$TMP_DIR/topology.json"
@@ -178,11 +192,52 @@ portable() {
   curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/captures/generator.pcapng" \
     >"$TMP_DIR/downloaded.pcapng"
   cmp "$TMP_DIR/captures/generator.pcapng" "$TMP_DIR/downloaded.pcapng"
+  test "$(curl -sS -o "$TMP_DIR/pause-unauthorized.json" -w '%{http_code}' -X POST "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/control/pause")" = 401
+  grep -q '"accepted":false' "$TMP_DIR/pause-unauthorized.json"
+  test "$(curl -sS -o "$TMP_DIR/pause.json" -w '%{http_code}' -X POST -H 'Authorization: Bearer feature-test-token' "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/control/pause")" = 202
+  grep -q '"accepted":true' "$TMP_DIR/pause.json"
+  sleep 0.1
+  curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/topology" | grep -q '"action":"pause","accepted":true'
+  curl -fsS -X POST "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/control/reset" | grep -q '"paused":true'
+  test "$(curl -sS -o "$TMP_DIR/resume.json" -w '%{http_code}' -X POST -H 'Authorization: Bearer feature-test-token' "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/control/resume")" = 202
+  grep -q '"accepted":true' "$TMP_DIR/resume.json"
+
+  step "Verify authenticated pause and resume against the real TCP runtime"
+  export GRAPHX_CONFIG="$ROOT/graphx.yaml"
+  export GRAPHX_OVERRIDES='transport.tcp.samples.host=127.0.0.1;transport.tcp.transformed.host=127.0.0.1'
+  export GRAPHX_TELEMETRY_HOST=127.0.0.1
+  export GRAPHX_TELEMETRY_PORT=${GRAPHX_TEST_UDP_PORT:-19000}
+  export GRAPHX_MAX_MESSAGES=0 GRAPHX_INTERVAL_MS=25
+  "$BUILD_DIR/graphx-sink" >"$TMP_DIR/control-sink.log" 2>&1 & PIDS+=("$!")
+  "$BUILD_DIR/graphx-transform" >"$TMP_DIR/control-transform.log" 2>&1 & PIDS+=("$!")
+  "$BUILD_DIR/graphx-generator" >"$TMP_DIR/control-generator.log" 2>&1 & PIDS+=("$!")
+  sent_count() {
+    curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/topology" | \
+      node -e 'let value=""; process.stdin.on("data", chunk => value += chunk).on("end", () => console.log(JSON.parse(value).edges.samples.sent))'
+  }
+  for _ in {1..40}; do test "$(sent_count)" -ge 3 && break; sleep 0.05; done
+  test "$(curl -sS -o "$TMP_DIR/runtime-pause.json" -w '%{http_code}' -X POST -H 'Authorization: Bearer feature-test-token' "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/control/pause")" = 202
+  sleep 0.15
+  paused_count=$(sent_count)
+  sleep 0.25
+  test "$(sent_count)" = "$paused_count"
+  test "$(curl -sS -o "$TMP_DIR/runtime-resume.json" -w '%{http_code}' -X POST -H 'Authorization: Bearer feature-test-token' "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/control/resume")" = 202
+  resumed=false
+  for _ in {1..40}; do
+    if test "$(sent_count)" -gt "$paused_count"; then resumed=true; break; fi
+    sleep 0.05
+  done
+  test "$resumed" = true
+  kill -TERM "${PIDS[4]}" "${PIDS[3]}" "${PIDS[2]}"
+  wait_for_exit "${PIDS[4]}" generator
+  wait_for_exit "${PIDS[3]}" transform
+  wait_for_exit "${PIDS[2]}" sink
+  PIDS=("${PIDS[0]}" "${PIDS[1]}")
+  unset GRAPHX_TELEMETRY_HOST GRAPHX_TELEMETRY_PORT
+
   curl -fsS -X POST "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/control/reset" | grep -q '"accepted":true'
-  curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/metrics" | grep -q 'graphx_edge_connected{edge="samples"} 1'
-  test "$(curl -sS -o "$TMP_DIR/pause.json" -w '%{http_code}' -X POST "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/control/pause")" = 501
-  grep -q '"accepted":false' "$TMP_DIR/pause.json"
-  sleep 0.6
+  curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/metrics" | grep -q 'graphx_edge_messages_total{edge="samples",direction="sent"} 0'
+  sleep 1.1
   curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/topology" | grep -q '"status":"offline"'
 
   step "Portable feature suite passed"

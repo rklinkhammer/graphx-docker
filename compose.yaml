@@ -51,6 +51,7 @@ services:
       GRAPHX_CAPTURE_ENABLED: ${GRAPHX_CAPTURE_ENABLED:-false}
       GRAPHX_CAPTURE_PROVIDER: pcapng
       GRAPHX_CAPTURE_DIR: /captures
+      GRAPHX_CONTROL_TOKEN: ${GRAPHX_CONTROL_TOKEN:-}
     volumes: [captures:/captures]
     networks: [graphx]
 

@@ -41,18 +41,26 @@ case $mode in
   interfaces)
     echo 'extcap {version=0.1.0}{display=GraphX PCAPNG capture}'
     echo 'interface {value=graphx}{display=GraphX framed envelopes}'
+    echo 'interface {value=graphx-ethernet}{display=GraphX Ethernet mirror capture}'
     ;;
   dlts)
-    test "$interface" = graphx || { echo "unknown extcap interface: $interface" >&2; exit 2; }
-    echo 'dlt {number=147}{name=USER0}{display=GraphX framed envelope (USER0)}'
+    case "$interface" in
+      graphx) echo 'dlt {number=147}{name=USER0}{display=GraphX framed envelope (USER0)}' ;;
+      graphx-ethernet) echo 'dlt {number=1}{name=EN10MB}{display=Ethernet}' ;;
+      *) echo "unknown extcap interface: $interface" >&2; exit 2 ;;
+    esac
     ;;
   config)
-    test "$interface" = graphx || { echo "unknown extcap interface: $interface" >&2; exit 2; }
-    echo 'arg {number=0}{call=--capture-file}{display=GraphX PCAPNG file}{type=fileselect}{required=true}{group=Capture}'
+    [[ "$interface" == graphx || "$interface" == graphx-ethernet ]] || {
+      echo "unknown extcap interface: $interface" >&2; exit 2;
+    }
+    echo 'arg {number=0}{call=--capture-file}{display=PCAPNG file}{type=fileselect}{required=true}{group=Capture}'
     echo 'arg {number=1}{call=--follow}{display=Follow live file}{type=boolean}{default=true}{group=Capture}'
     ;;
   capture)
-    test "$interface" = graphx || { echo "unknown extcap interface: $interface" >&2; exit 2; }
+    [[ "$interface" == graphx || "$interface" == graphx-ethernet ]] || {
+      echo "unknown extcap interface: $interface" >&2; exit 2;
+    }
     test -n "$capture_file" && test -f "$capture_file" || {
       echo "--capture-file must identify an existing PCAPNG file" >&2; exit 2;
     }

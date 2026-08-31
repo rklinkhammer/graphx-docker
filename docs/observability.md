@@ -72,9 +72,30 @@ the current connection state. Collector restart also resets these in-memory
 counters. UDP delivery is intentionally best effort, so the values describe
 events observed by this collector; they are not durable accounting records.
 
+## Authenticated runtime control
+
+Set `GRAPHX_CONTROL_TOKEN` on the telemetry service to enable pause/resume. Calls
+must use `Authorization: Bearer <token>`:
+
+```sh
+curl -i -X POST -H 'Authorization: Bearer choose-a-local-demo-token' \
+  http://localhost:8080/api/control/pause
+curl -i -X POST -H 'Authorization: Bearer choose-a-local-demo-token' \
+  http://localhost:8080/api/control/resume
+```
+
+HTTP 202 means the command was sent to at least one recently active runtime;
+the snapshot's `control.acknowledgements` records replies. HTTP 401 means the
+credential is absent or wrong, 409 means no runtime endpoint is live, and 503
+means server-side control is disabled. The runtime UDP socket is connected to
+the collector, so it accepts commands only from that peer. Pause currently acts
+at source nodes: it prevents new envelopes while downstream nodes drain. It is
+not a process suspension, durable queue, or distributed transaction.
+
 ## Packet capture boundary
 
-OVS SPAN ports and the example `tcpdump`/`dumpcap` hooks can collect packets now.
+OVS SPAN ports and the example `tcpdump`/`dumpcap` hooks collect standard
+Ethernet packets now.
 The Phase 6 PCAPNG sink now records canonical application frames and reports
 packet indexes/offsets through telemetry. The console can download available
 files, and the extcap adapter can follow one in Wireshark. See
