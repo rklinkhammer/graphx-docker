@@ -13,8 +13,12 @@ int main() {
     std::uint64_t processed{};
     while (!demo::stopping() && (maximum == 0 || processed < maximum)) {
       trace.heartbeat();
-      auto envelope = input->receive(std::chrono::milliseconds(200));
-      if (!envelope) continue;
+      auto received = input->receive_result(std::chrono::milliseconds(200));
+      if (received.status == graphx::ReceiveStatus::timeout) continue;
+      if (received.status == graphx::ReceiveStatus::end_of_stream ||
+          received.status == graphx::ReceiveStatus::cancelled)
+        break;
+      auto& envelope = received.envelope;
       const auto processing_start = std::chrono::steady_clock::now();
       std::cout << "sink seq=" << envelope->sequence << " value=" << envelope->payload
                 << " trace=" << envelope->trace_id << std::endl;

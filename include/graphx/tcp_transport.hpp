@@ -36,8 +36,12 @@ class TcpTransport final : public Transport {
   ~TcpTransport() override;
 
   void send(const Envelope& envelope) override;
-  std::optional<Envelope> receive(
-      std::chrono::milliseconds timeout = std::chrono::milliseconds{-1}) override;
+  std::optional<Envelope> receive(std::chrono::milliseconds timeout = std::chrono::milliseconds{
+                                      -1}) override {
+    return std::move(receive_result(timeout).envelope);
+  }
+  ReceiveResult receive_result(std::chrono::milliseconds timeout = std::chrono::milliseconds{
+                                   -1}) override;
   void close() override;
 
  private:

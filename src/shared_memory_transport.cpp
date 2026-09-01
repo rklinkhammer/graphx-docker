@@ -63,7 +63,8 @@ std::size_t mapping_size(const SharedMemoryOptions& options) {
   if (options.capacity == 0 || options.capacity > 65536)
     throw std::invalid_argument("shared-memory capacity must be between 1 and 65536");
   if (options.max_message_bytes < 64 || options.max_message_bytes > kMaxFrameBytes + 4)
-    throw std::invalid_argument("shared-memory maximum message size must be between 64 and 16777220");
+    throw std::invalid_argument(
+        "shared-memory maximum message size must be between 64 and 16777220");
   const auto stride = slot_stride(options.max_message_bytes);
   if (options.capacity > (kMaximumMappingBytes - sizeof(SharedHeader)) / stride)
     throw std::invalid_argument("shared-memory mapping exceeds 256 MiB");
@@ -83,22 +84,20 @@ void remove_stale_segment(const std::string& name) {
     throw posix_error("inspect existing shared-memory segment");
   }
   bool live_consumer{};
-  struct stat status {};
+  struct stat status{};
   if (::fstat(descriptor, &status) == 0 &&
       status.st_size >= static_cast<off_t>(sizeof(SharedHeader))) {
     void* mapping =
         ::mmap(nullptr, sizeof(SharedHeader), PROT_READ | PROT_WRITE, MAP_SHARED, descriptor, 0);
     if (mapping != MAP_FAILED) {
       auto* header = static_cast<SharedHeader*>(mapping);
-      live_consumer =
-          std::atomic_ref(header->magic).load(std::memory_order_acquire) == kMagic &&
-          process_alive(header->consumer_pid);
+      live_consumer = std::atomic_ref(header->magic).load(std::memory_order_acquire) == kMagic &&
+                      process_alive(header->consumer_pid);
       ::munmap(mapping, sizeof(SharedHeader));
     }
   }
   ::close(descriptor);
-  if (live_consumer)
-    throw std::runtime_error("shared-memory segment already has a live consumer");
+  if (live_consumer) throw std::runtime_error("shared-memory segment already has a live consumer");
   if (::shm_unlink(name.c_str()) != 0 && errno != ENOENT)
     throw posix_error("remove stale shared-memory segment");
 }
@@ -106,8 +105,7 @@ void remove_stale_segment(const std::string& name) {
 timespec realtime_after(std::chrono::steady_clock::duration duration) {
   const auto deadline = std::chrono::system_clock::now() + duration;
   const auto seconds = std::chrono::time_point_cast<std::chrono::seconds>(deadline);
-  const auto nanoseconds =
-      std::chrono::duration_cast<std::chrono::nanoseconds>(deadline - seconds);
+  const auto nanoseconds = std::chrono::duration_cast<std::chrono::nanoseconds>(deadline - seconds);
   return {static_cast<time_t>(seconds.time_since_epoch().count()),
           static_cast<long>(nanoseconds.count())};
 }
@@ -127,8 +125,7 @@ bool lock_header(SharedHeader& header) {
   return false;
 }
 
-int wait_condition(pthread_cond_t& condition, SharedHeader& header,
-                   const timespec& absolute) {
+int wait_condition(pthread_cond_t& condition, SharedHeader& header, const timespec& absolute) {
   const int status = ::pthread_cond_timedwait(&condition, &header.mutex, &absolute);
 #if defined(__linux__)
   if (status == EOWNERDEAD) {
@@ -163,8 +160,7 @@ void initialize_sync(SharedHeader& header) {
   if (status != 0) throw posix_error("initialize shared mutex attributes", status);
   status = ::pthread_mutexattr_setpshared(&mutex_attributes, PTHREAD_PROCESS_SHARED);
 #if defined(__linux__)
-  if (status == 0)
-    status = ::pthread_mutexattr_setrobust(&mutex_attributes, PTHREAD_MUTEX_ROBUST);
+  if (status == 0) status = ::pthread_mutexattr_setrobust(&mutex_attributes, PTHREAD_MUTEX_ROBUST);
 #endif
   if (status == 0) status = ::pthread_mutex_init(&header.mutex, &mutex_attributes);
   ::pthread_mutexattr_destroy(&mutex_attributes);
@@ -192,13 +188,13 @@ struct SharedMemoryTransport::Impl {
   bool owner{};
   bool owns_name{};
   bool producer{};
-  bool locally_closed{};
+  std::atomic<bool> locally_closed{};
   bool sync_ready{};
   bool role_claimed{};
   TraceSink* trace_sink{};
   NullTraceSink null_trace_sink;
 
-  ~Impl() { close(); }
+  ~Impl() { release(); }
 
   [[nodiscard]] std::string context(std::string_view action) const {
     std::string result = "shared memory";
@@ -218,9 +214,8 @@ struct SharedMemoryTransport::Impl {
     throw std::runtime_error(std::move(message));
   }
 
-  void close() noexcept {
-    if (locally_closed) return;
-    locally_closed = true;
+  bool request_close() noexcept {
+    if (locally_closed.exchange(true)) return false;
     if (sync_ready && role_claimed && header && mapping != MAP_FAILED) {
       const int status = ::pthread_mutex_lock(&header->mutex);
       if (status == 0
@@ -239,6 +234,15 @@ struct SharedMemoryTransport::Impl {
         ::pthread_mutex_unlock(&header->mutex);
       }
     }
+    if (owns_name) {
+      ::shm_unlink(segment.c_str());
+      owns_name = false;
+    }
+    return true;
+  }
+
+  void release() noexcept {
+    request_close();
     if (mapping != MAP_FAILED) {
       ::munmap(mapping, mapping_bytes);
       mapping = MAP_FAILED;
@@ -253,8 +257,8 @@ struct SharedMemoryTransport::Impl {
 };
 
 std::unique_ptr<SharedMemoryTransport::Impl> SharedMemoryTransport::create_impl(
-    std::string segment, std::string edge_id, TraceSink* trace_sink,
-    SharedMemoryOptions options, bool owner) {
+    std::string segment, std::string edge_id, TraceSink* trace_sink, SharedMemoryOptions options,
+    bool owner) {
   auto impl = std::make_unique<SharedMemoryTransport::Impl>();
   impl->segment = normalize_name(segment);
   impl->edge_id = std::move(edge_id);
@@ -279,7 +283,7 @@ std::unique_ptr<SharedMemoryTransport::Impl> SharedMemoryTransport::create_impl(
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     } while (std::chrono::steady_clock::now() < connect_deadline);
     if (impl->descriptor < 0) throw posix_error("open shared-memory segment");
-    struct stat status {};
+    struct stat status{};
     if (::fstat(impl->descriptor, &status) != 0) throw posix_error("inspect shared-memory segment");
     if (status.st_size < static_cast<off_t>(sizeof(SharedHeader)) ||
         status.st_size > static_cast<off_t>(kMaximumMappingBytes))
@@ -356,7 +360,8 @@ SharedMemoryTransport& SharedMemoryTransport::operator=(SharedMemoryTransport&&)
 SharedMemoryTransport::~SharedMemoryTransport() = default;
 
 void SharedMemoryTransport::send(const Envelope& envelope) {
-  if (!impl_ || impl_->locally_closed) throw std::runtime_error("send on closed shared memory");
+  if (!impl_ || impl_->locally_closed.load())
+    throw std::runtime_error("send on closed shared memory");
   const auto serialized = serialize(envelope);
   const auto framed = frame(serialized);
   if (framed.size() > impl_->options.max_message_bytes)
@@ -407,12 +412,12 @@ void SharedMemoryTransport::send(const Envelope& envelope) {
   unlock.release();
   if (pressured)
     impl_->trace_sink->on_backpressure(impl_->edge_id,
-                                      std::chrono::steady_clock::now() - pressure_start, false);
+                                       std::chrono::steady_clock::now() - pressure_start, false);
   impl_->trace_sink->on_send(impl_->edge_id, envelope, framed.size());
 }
 
-std::optional<Envelope> SharedMemoryTransport::receive(std::chrono::milliseconds timeout) {
-  if (!impl_ || impl_->locally_closed) throw std::runtime_error("receive on closed shared memory");
+ReceiveResult SharedMemoryTransport::receive_result(std::chrono::milliseconds timeout) {
+  if (!impl_ || impl_->locally_closed.load()) return {ReceiveStatus::cancelled, std::nullopt};
   const bool finite = timeout.count() >= 0;
   const auto deadline = finite ? std::chrono::steady_clock::now() + timeout
                                : std::chrono::steady_clock::time_point::max();
@@ -421,14 +426,15 @@ std::optional<Envelope> SharedMemoryTransport::receive(std::chrono::milliseconds
   if (recovered) impl_->fail("recovered an abandoned mutex; recreate the segment");
 
   while (impl_->header->head == impl_->header->tail) {
-    if (impl_->header->closed) return std::nullopt;
+    if (impl_->locally_closed.load()) return {ReceiveStatus::cancelled, std::nullopt};
+    if (impl_->header->closed) return {ReceiveStatus::end_of_stream, std::nullopt};
     if (impl_->header->producer_pid != 0 && !process_alive(impl_->header->producer_pid)) {
       impl_->header->closed = true;
       ::pthread_cond_broadcast(&impl_->header->not_full);
-      return std::nullopt;
+      return {ReceiveStatus::end_of_stream, std::nullopt};
     }
     const auto now = std::chrono::steady_clock::now();
-    if (finite && now >= deadline) return std::nullopt;
+    if (finite && now >= deadline) return {ReceiveStatus::timeout, std::nullopt};
     const auto peer_check =
         std::chrono::duration_cast<std::chrono::steady_clock::duration>(kPeerCheckInterval);
     const auto wait = finite ? std::min(deadline - now, peer_check)
@@ -474,13 +480,16 @@ std::optional<Envelope> SharedMemoryTransport::receive(std::chrono::milliseconds
   impl_->trace_sink->on_receive(
       impl_->edge_id, envelope, framed.size(),
       std::chrono::nanoseconds(std::max<std::int64_t>(0, now_ns - envelope.timestamp_ns)));
-  return envelope;
+  return {ReceiveStatus::message, std::move(envelope)};
 }
 
 void SharedMemoryTransport::close() {
-  if (impl_ && !impl_->locally_closed) {
-    impl_->trace_sink->on_connection(impl_->edge_id, ConnectionState::closed);
-    impl_->close();
+  if (impl_ && impl_->request_close()) {
+    try {
+      impl_->trace_sink->on_connection(impl_->edge_id, ConnectionState::closed);
+    } catch (...) {
+      // Cancellation and destruction must not depend on a best-effort observer.
+    }
   }
 }
 

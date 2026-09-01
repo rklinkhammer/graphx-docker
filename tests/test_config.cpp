@@ -429,6 +429,115 @@ void in_process_factory_shares_named_channel() {
   sender->send(graphx::Envelope::make(4, "Test", "factory"));
   const auto message = receiver->receive(20ms);
   expect(message && message->payload == "factory", "factory in-process delivery");
+  edge.transport.capacity = 2;
+  try {
+    [[maybe_unused]] auto inconsistent = factory.create(edge, graphx::ConnectionMode::listen);
+    throw std::runtime_error("inconsistent named channel settings were accepted");
+  } catch (const std::invalid_argument& error) {
+    expect(std::string_view(error.what()).find("inconsistent") != std::string_view::npos,
+           "factory rejects inconsistent in-process settings");
+  }
+}
+
+void in_process_queue_config_loads_and_validates() {
+  TemporaryConfig valid(R"yaml(
+version: 1
+graph:
+  id: bounded-local
+  nodes:
+    - id: source
+      kind: source
+      ports: [{ name: out, direction: output, schema: S }]
+    - id: target
+      kind: sink
+      ports: [{ name: in, direction: input, schema: S }]
+  edges:
+    - { id: local, from: source.out, to: target.in, transport: in_process }
+transport:
+  in_process:
+    local: { channel: bounded, capacity: 7, backpressure: reject, send_timeout_ms: 25 }
+)yaml");
+  const auto config = graphx::load_config(valid.path());
+  const auto& settings = config.edge("local").transport;
+  expect(
+      settings.capacity == 7 && settings.backpressure == "reject" && settings.send_timeout_ms == 25,
+      "bounded in-process settings load");
+
+  TemporaryConfig invalid(R"yaml(
+version: 1
+graph:
+  id: invalid-local
+  nodes:
+    - id: source
+      kind: source
+      ports: [{ name: out, direction: output, schema: S }]
+    - id: target
+      kind: sink
+      ports: [{ name: in, direction: input, schema: S }]
+  edges:
+    - { id: local, from: source.out, to: target.in, transport: in_process }
+transport:
+  in_process:
+    local: { channel: bounded, capacity: 0, backpressure: drop, send_timeout_ms: 0 }
+)yaml");
+  try {
+    [[maybe_unused]] const auto ignored = graphx::load_config(invalid.path());
+    throw std::runtime_error("invalid in-process queue settings were accepted");
+  } catch (const graphx::ConfigError& error) {
+    expect(diagnostic_contains(error, "between 1 and 65536") &&
+               diagnostic_contains(error, "must be 'block' or 'reject'") &&
+               diagnostic_contains(error, "between 1 and 600000"),
+           "invalid in-process queue diagnostics");
+  }
+}
+
+void unix_socket_deadline_config_loads_and_validates() {
+  TemporaryConfig valid(R"yaml(
+version: 1
+graph:
+  id: bounded-unix
+  nodes:
+    - id: source
+      kind: source
+      ports: [{ name: out, direction: output, schema: S }]
+    - id: target
+      kind: sink
+      ports: [{ name: in, direction: input, schema: S }]
+  edges:
+    - { id: local, from: source.out, to: target.in, transport: unix }
+transport:
+  unix:
+    local: { path: /tmp/graphx-bounded.sock, connect_timeout_ms: 30, send_timeout_ms: 40 }
+)yaml");
+  const auto config = graphx::load_config(valid.path());
+  const auto& settings = config.edge("local").transport;
+  expect(settings.connect_timeout_ms == 30 && settings.send_timeout_ms == 40,
+         "Unix-domain deadlines load");
+
+  TemporaryConfig invalid(R"yaml(
+version: 1
+graph:
+  id: invalid-unix
+  nodes:
+    - id: source
+      kind: source
+      ports: [{ name: out, direction: output, schema: S }]
+    - id: target
+      kind: sink
+      ports: [{ name: in, direction: input, schema: S }]
+  edges:
+    - { id: local, from: source.out, to: target.in, transport: unix }
+transport:
+  unix:
+    local: { path: /tmp/graphx-invalid.sock, connect_timeout_ms: 0, send_timeout_ms: 0 }
+)yaml");
+  try {
+    [[maybe_unused]] const auto ignored = graphx::load_config(invalid.path());
+    throw std::runtime_error("invalid Unix-domain deadlines were accepted");
+  } catch (const graphx::ConfigError& error) {
+    expect(error.diagnostics().size() >= 2 && diagnostic_contains(error, "between 1 and 600000"),
+           "invalid Unix-domain deadline diagnostics");
+  }
 }
 
 void factory_rejects_unvalidated_settings() {
@@ -548,6 +657,8 @@ int main() {
       {"cycle", cycle_is_rejected},
       {"invalid deployment", invalid_deployment_is_rejected},
       {"malformed and oversized", malformed_and_oversized_files_are_rejected},
+      {"in-process queue config", in_process_queue_config_loads_and_validates},
+      {"Unix socket deadline config", unix_socket_deadline_config_loads_and_validates},
       {"in-process factory", in_process_factory_shares_named_channel},
       {"factory validation", factory_rejects_unvalidated_settings},
       {"TCP factory", tcp_factory_round_trip},

@@ -34,11 +34,16 @@ TransportPtr TransportFactory::create(const EdgeConfig& edge, ConnectionMode mod
     case TransportKind::unix_socket:
       if (transport.path.empty())
         throw std::invalid_argument("Unix-domain transport requires a path");
-      if (mode == ConnectionMode::connect)
+      {
+        UnixDomainSocketOptions options;
+        options.connect_timeout = std::chrono::milliseconds(transport.connect_timeout_ms);
+        options.send_timeout = std::chrono::milliseconds(transport.send_timeout_ms);
+        if (mode == ConnectionMode::connect)
+          return std::make_unique<UnixDomainSocketTransport>(UnixDomainSocketTransport::connect(
+              transport.path, edge.edge.id, trace_sink, options));
         return std::make_unique<UnixDomainSocketTransport>(
-            UnixDomainSocketTransport::connect(transport.path, edge.edge.id, trace_sink));
-      return std::make_unique<UnixDomainSocketTransport>(
-          UnixDomainSocketTransport::listen(transport.path, edge.edge.id, trace_sink));
+            UnixDomainSocketTransport::listen(transport.path, edge.edge.id, trace_sink, options));
+      }
     case TransportKind::shared_memory: {
       if (transport.segment.empty())
         throw std::invalid_argument("shared-memory transport requires a segment name");
@@ -59,13 +64,23 @@ TransportPtr TransportFactory::create(const EdgeConfig& edge, ConnectionMode mod
     case TransportKind::in_process: {
       if (transport.channel.empty())
         throw std::invalid_argument("in-process transport requires a channel name");
+      InProcessOptions options;
+      options.capacity = transport.capacity;
+      options.send_timeout = std::chrono::milliseconds(transport.send_timeout_ms);
+      options.backpressure = transport.backpressure == "reject" ? InProcessBackpressure::reject
+                                                                : InProcessBackpressure::block;
       std::shared_ptr<InProcessChannel> channel;
       {
         std::scoped_lock lock(mutex_);
         channel = channels_[transport.channel].lock();
         if (!channel) {
-          channel = std::make_shared<InProcessChannel>();
+          channel = std::make_shared<InProcessChannel>(options);
           channels_[transport.channel] = channel;
+        } else if (channel->options().capacity != options.capacity ||
+                   channel->options().backpressure != options.backpressure ||
+                   channel->options().send_timeout != options.send_timeout) {
+          throw std::invalid_argument("in-process channel '" + transport.channel +
+                                      "' has inconsistent queue settings");
         }
       }
       return std::make_unique<InProcessTransport>(std::move(channel), edge.edge.id, trace_sink);

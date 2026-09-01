@@ -31,9 +31,11 @@ whose recorded consumer process is still alive. An abandoned segment is unlinked
 and recreated. `connect` claims the sole producer role and waits up to
 `connect_timeout_ms` for the owner to create and initialize the segment.
 
-An orderly close marks the channel closed, wakes both sides, unmaps it, and lets
-the owner unlink the POSIX name. The consumer drains already committed messages
-before reporting closure.
+An orderly close marks the channel closed, wakes both sides, and lets the owner
+unlink the POSIX name. Mapping cleanup is deferred until object destruction so a
+control thread can safely cancel a blocked receive. The consumer drains already
+committed messages before reporting peer end-of-stream. A local close reports
+`cancelled`; an empty live ring reports `timeout` at its receive deadline.
 
 Segments are created with mode `0600`. GraphX does not provide authorization or
 encryption above operating-system ownership; do not use a shared segment across

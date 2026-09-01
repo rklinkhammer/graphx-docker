@@ -19,8 +19,18 @@ links:
     reconnect: true
     retry: { max_attempts: 60, initial_backoff_ms: 100, max_backoff_ms: 2000 }
 local_profiles:
-  in_process: { type: in_process, channel: sample-pipeline }
-  unix_socket: { type: unix, path: /tmp/graphx-samples.sock, framing: u32be }
+  in_process:
+    type: in_process
+    channel: sample-pipeline
+    capacity: 64
+    backpressure: block
+    send_timeout_ms: 5000
+  unix_socket:
+    type: unix
+    path: /tmp/graphx-samples.sock
+    framing: u32be
+    connect_timeout_ms: 5000
+    send_timeout_ms: 5000
   shared_memory:
     type: shared_memory
     segment: gx-shm-samples

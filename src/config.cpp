@@ -375,14 +375,37 @@ class ConfigParser {
           }
         }
       } else if (edge.transport.kind == TransportKind::unix_socket) {
-        strict_keys(settings, path, {"path", "framing"});
+        strict_keys(settings, path, {"path", "framing", "connect_timeout_ms", "send_timeout_ms"});
         edge.transport.path = text(settings["path"], path + ".path", 103);
         if (settings["framing"])
           edge.transport.framing = text(settings["framing"], path + ".framing", 16);
+        if (settings["connect_timeout_ms"])
+          edge.transport.connect_timeout_ms =
+              unsigned_value(settings["connect_timeout_ms"], path + ".connect_timeout_ms");
+        if (edge.transport.connect_timeout_ms == 0 || edge.transport.connect_timeout_ms > 600000)
+          error(path + ".connect_timeout_ms", "must be between 1 and 600000");
+        if (settings["send_timeout_ms"])
+          edge.transport.send_timeout_ms =
+              unsigned_value(settings["send_timeout_ms"], path + ".send_timeout_ms");
+        if (edge.transport.send_timeout_ms == 0 || edge.transport.send_timeout_ms > 600000)
+          error(path + ".send_timeout_ms", "must be between 1 and 600000");
       } else if (edge.transport.kind == TransportKind::in_process) {
-        strict_keys(settings, path, {"channel"});
+        strict_keys(settings, path, {"channel", "capacity", "backpressure", "send_timeout_ms"});
         edge.transport.channel = text(settings["channel"], path + ".channel", 64);
         identifier(edge.transport.channel, path + ".channel");
+        if (settings["capacity"])
+          edge.transport.capacity = unsigned_value(settings["capacity"], path + ".capacity");
+        if (edge.transport.capacity == 0 || edge.transport.capacity > 65536)
+          error(path + ".capacity", "must be between 1 and 65536");
+        if (settings["backpressure"])
+          edge.transport.backpressure = text(settings["backpressure"], path + ".backpressure", 16);
+        if (edge.transport.backpressure != "block" && edge.transport.backpressure != "reject")
+          error(path + ".backpressure", "must be 'block' or 'reject'");
+        if (settings["send_timeout_ms"])
+          edge.transport.send_timeout_ms =
+              unsigned_value(settings["send_timeout_ms"], path + ".send_timeout_ms");
+        if (edge.transport.send_timeout_ms == 0 || edge.transport.send_timeout_ms > 600000)
+          error(path + ".send_timeout_ms", "must be between 1 and 600000");
       } else {
         strict_keys(settings, path,
                     {"segment", "capacity", "max_message_bytes", "backpressure",

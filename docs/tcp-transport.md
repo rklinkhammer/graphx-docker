@@ -6,11 +6,12 @@ write operations. They intentionally avoid an async runtime.
 ## Framing and receive deadlines
 
 Every frame is a four-byte unsigned big-endian length followed by one serialized
-GraphX envelope. The maximum accepted payload is 16 MiB. `receive(timeout)` uses
-one deadline for the whole frame:
+GraphX envelope. The maximum accepted payload is 16 MiB.
+`receive_result(timeout)` uses one deadline for the whole frame:
 
-- no bytes before the deadline returns `std::nullopt`;
-- closure before a new header returns `std::nullopt` when reconnect is disabled;
+- no bytes before the deadline reports `timeout`;
+- closure before a new header reports `end_of_stream` when reconnect is disabled;
+- local close reports `cancelled`;
 - closure or timeout during a header/payload throws a contextual error and closes
   that connection;
 - malformed and oversized frames throw with edge and endpoint context.
@@ -18,6 +19,9 @@ one deadline for the whole frame:
 Closing a transport shuts down both its active connection and retained listener,
 which interrupts blocked polling/reads. Linux sends use `MSG_NOSIGNAL`; macOS
 sockets enable `SO_NOSIGPIPE`.
+
+The legacy `receive(timeout)` facade maps every non-message outcome to
+`std::nullopt`; new lifecycle-aware code should use `receive_result`.
 
 ## Retry and reconnect
 

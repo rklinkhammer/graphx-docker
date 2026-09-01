@@ -20,6 +20,7 @@ namespace graphx {
 namespace {
 
 using Clock = std::chrono::steady_clock;
+constexpr auto kAcceptCancellationPoll = std::chrono::milliseconds(25);
 
 std::runtime_error system_error(std::string_view action, int error = errno) {
   return std::runtime_error(std::string(action) + ": " + std::strerror(error));
@@ -299,7 +300,14 @@ bool TcpTransport::accept_inbound(Clock::time_point deadline, bool has_deadline)
   if (socket_.load() >= 0) return true;
   const int listener = listener_.load();
   if (listener < 0 || closed_.load()) return false;
-  if (!wait_ready(listener, POLLIN, deadline, has_deadline)) return false;
+  for (;;) {
+    const auto cancellation_deadline = Clock::now() + kAcceptCancellationPoll;
+    const auto poll_deadline =
+        has_deadline ? std::min(deadline, cancellation_deadline) : cancellation_deadline;
+    if (wait_ready(listener, POLLIN, poll_deadline, true)) break;
+    if (closed_.load()) return false;
+    if (has_deadline && Clock::now() >= deadline) return false;
+  }
   int accepted;
   do accepted = ::accept(listener, nullptr, nullptr);
   while (accepted < 0 && errno == EINTR);
@@ -353,7 +361,7 @@ void TcpTransport::send(const Envelope& envelope) {
   }
 }
 
-std::optional<Envelope> TcpTransport::receive(std::chrono::milliseconds timeout) {
+ReceiveResult TcpTransport::receive_result(std::chrono::milliseconds timeout) {
   const bool has_deadline = timeout.count() >= 0;
   const auto deadline = has_deadline ? Clock::now() + timeout : Clock::time_point{};
   const auto failure = [&](std::string detail) {
@@ -362,8 +370,16 @@ std::optional<Envelope> TcpTransport::receive(std::chrono::milliseconds timeout)
     return std::runtime_error(std::move(message));
   };
   for (;;) {
-    if (closed_.load()) throw failure("receive on closed transport");
-    if (socket_.load() < 0 && !accept_inbound(deadline, has_deadline)) return std::nullopt;
+    if (closed_.load()) return {ReceiveStatus::cancelled, std::nullopt};
+    if (socket_.load() < 0) {
+      try {
+        if (!accept_inbound(deadline, has_deadline))
+          return {closed_.load() ? ReceiveStatus::cancelled : ReceiveStatus::timeout, std::nullopt};
+      } catch (const std::exception&) {
+        if (closed_.load()) return {ReceiveStatus::cancelled, std::nullopt};
+        throw;
+      }
+    }
 
     std::array<std::byte, 4> prefix{};
     ReadResult header;
@@ -371,10 +387,12 @@ std::optional<Envelope> TcpTransport::receive(std::chrono::milliseconds timeout)
       header = read_all(socket_.load(), prefix, deadline, has_deadline);
     } catch (const std::exception& error) {
       close_connection();
+      if (closed_.load()) return {ReceiveStatus::cancelled, std::nullopt};
       throw failure("receive header failed: " + std::string(error.what()));
     }
+    if (closed_.load()) return {ReceiveStatus::cancelled, std::nullopt};
     if (header.status == ReadStatus::timed_out) {
-      if (header.transferred == 0) return std::nullopt;
+      if (header.transferred == 0) return {ReceiveStatus::timeout, std::nullopt};
       close_connection();
       throw failure("receive timed out during frame header");
     }
@@ -387,7 +405,7 @@ std::optional<Envelope> TcpTransport::receive(std::chrono::milliseconds timeout)
         const int listener = listener_.exchange(-1);
         if (listener >= 0) ::close(listener);
       }
-      return std::nullopt;
+      return {ReceiveStatus::end_of_stream, std::nullopt};
     }
 
     std::uint32_t size{};
@@ -403,8 +421,10 @@ std::optional<Envelope> TcpTransport::receive(std::chrono::milliseconds timeout)
       body = read_all(socket_.load(), payload, deadline, has_deadline);
     } catch (const std::exception& error) {
       close_connection();
+      if (closed_.load()) return {ReceiveStatus::cancelled, std::nullopt};
       throw failure("receive payload failed: " + std::string(error.what()));
     }
+    if (closed_.load()) return {ReceiveStatus::cancelled, std::nullopt};
     if (body.status == ReadStatus::timed_out) {
       close_connection();
       throw failure("receive timed out during frame payload");
@@ -425,7 +445,7 @@ std::optional<Envelope> TcpTransport::receive(std::chrono::milliseconds timeout)
     trace_sink_->on_receive(edge_id_, envelope, size + 4,
                             std::chrono::nanoseconds(std::max<std::int64_t>(
                                 0, now_ns - envelope.timestamp_ns)));
-    return envelope;
+    return {ReceiveStatus::message, std::move(envelope)};
   }
 }
 

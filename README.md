@@ -181,8 +181,11 @@ The core contracts stay deliberately small:
   mirrors, VLAN metadata, routers, routes/policies, and the ordered infrastructure
   path for each logical edge. `graphx infra` projects that model onto Linux and Docker.
 - **Envelope** carries sequence, wall-clock timestamp, type, trace ID, string attributes, and opaque payload. Its versioned binary encoding is deterministic.
-- **Transport** has `send`, timed `receive`, and `close`. `InProcessTransport`
-  uses a synchronized queue; `TcpTransport` handles DNS; Unix-domain sockets use
+- **Transport** has `send`, typed timed `receive_result`, a compatibility
+  `receive`, and idempotent `close`. Typed receive distinguishes a message,
+  timeout, peer end-of-stream, and local cancellation. `InProcessTransport`
+  uses a bounded synchronized queue with block/reject backpressure;
+  `TcpTransport` handles DNS; Unix-domain sockets use
   the same stream framing; and `SharedMemoryTransport` provides a bounded,
   process-shared ring for local IPC.
 - **TraceSink** receives send/receive, connection/reconnect, backpressure,

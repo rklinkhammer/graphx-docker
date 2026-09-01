@@ -9,6 +9,7 @@
 
 #include <array>
 #include <chrono>
+#include <cstring>
 #include <exception>
 #include <filesystem>
 #include <fcntl.h>
@@ -19,6 +20,7 @@
 #include <netinet/in.h>
 #include <stdexcept>
 #include <sys/socket.h>
+#include <sys/un.h>
 #include <sys/mman.h>
 #include <sys/wait.h>
 #include <thread>
@@ -32,6 +34,18 @@ using namespace std::chrono_literals;
 void expect(bool condition, const char* message) {
   if (!condition) throw std::runtime_error(message);
 }
+
+class ThrowOnCloseTraceSink final : public graphx::TraceSink {
+ public:
+  void on_send(std::string_view, const graphx::Envelope&, std::size_t) override {}
+  void on_receive(std::string_view, const graphx::Envelope&, std::size_t,
+                  std::chrono::nanoseconds) override {}
+  void on_error(std::string_view, std::string_view) override {}
+  void on_connection(std::string_view, graphx::ConnectionState state) override {
+    if (state == graphx::ConnectionState::closed)
+      throw std::runtime_error("deliberate close observer failure");
+  }
+};
 
 void framing() {
   const std::array payload{std::byte{0x11}, std::byte{0x22}, std::byte{0x33}};
@@ -52,6 +66,27 @@ void envelope_round_trip() {
   expect(output.timestamp_ns == input.timestamp_ns, "envelope timestamp");
   expect(output.type == input.type && output.payload == input.payload, "envelope body");
   expect(output.attributes == input.attributes, "envelope attributes");
+}
+
+void legacy_transport_adapter() {
+  class LegacyTransport final : public graphx::Transport {
+   public:
+    void send(const graphx::Envelope&) override {}
+    std::optional<graphx::Envelope> receive(std::chrono::milliseconds) override {
+      if (delivered_) return std::nullopt;
+      delivered_ = true;
+      return graphx::Envelope::make(1, "Legacy", "compatible");
+    }
+    void close() override {}
+
+   private:
+    bool delivered_{};
+  } transport;
+
+  expect(transport.receive_result(1ms).status == graphx::ReceiveStatus::message,
+         "legacy transport message adapter");
+  expect(transport.receive_result(1ms).status == graphx::ReceiveStatus::timeout,
+         "legacy empty optional adapter");
 }
 
 std::uint16_t little_u16(std::span<const std::byte> bytes, std::size_t offset) {
@@ -83,9 +118,9 @@ void pcapng_capture() {
                           .sequence = envelope.sequence,
                           .trace_id = envelope.trace_id,
                           .type = envelope.type});
-    expect(capture.packet_count() == 1 && capture.path() == path &&
-               capture.last_packet_offset() > 0,
-           "PCAPNG capture state");
+    expect(
+        capture.packet_count() == 1 && capture.path() == path && capture.last_packet_offset() > 0,
+        "PCAPNG capture state");
   }
 
   std::ifstream stream(path, std::ios::binary);
@@ -116,23 +151,23 @@ void ethernet_pcapng_capture() {
   const auto path = std::filesystem::temp_directory_path() /
                     ("graphx-ethernet-" + std::to_string(::getpid()) + ".pcapng");
   std::filesystem::remove(path);
-  const std::array frame{
-      std::byte{0x02}, std::byte{0x00}, std::byte{0x00}, std::byte{0x00},
-      std::byte{0x00}, std::byte{0x02}, std::byte{0x02}, std::byte{0x00},
-      std::byte{0x00}, std::byte{0x00}, std::byte{0x00}, std::byte{0x01},
-      std::byte{0x08}, std::byte{0x00}, std::byte{0x45}, std::byte{0x00},
-      std::byte{0x00}, std::byte{0x14}, std::byte{0x00}, std::byte{0x00}};
+  const std::array frame{std::byte{0x02}, std::byte{0x00}, std::byte{0x00}, std::byte{0x00},
+                         std::byte{0x00}, std::byte{0x02}, std::byte{0x02}, std::byte{0x00},
+                         std::byte{0x00}, std::byte{0x00}, std::byte{0x00}, std::byte{0x01},
+                         std::byte{0x08}, std::byte{0x00}, std::byte{0x45}, std::byte{0x00},
+                         std::byte{0x00}, std::byte{0x14}, std::byte{0x00}, std::byte{0x00}};
   {
     graphx::EthernetPcapngCaptureSink capture(path, "br-gx-mac");
-    capture.record_packet(frame, std::chrono::system_clock::now(),
-                          "OVS mirror br-gx-mac");
+    capture.record_packet(frame, std::chrono::system_clock::now(), "OVS mirror br-gx-mac");
     expect(capture.packet_count() == 1 && capture.last_packet_offset() > 0,
            "Ethernet PCAPNG capture state");
     bool rejected{};
     try {
       capture.record_packet(std::span<const std::byte>(frame).first(13),
                             std::chrono::system_clock::now());
-    } catch (const std::invalid_argument&) { rejected = true; }
+    } catch (const std::invalid_argument&) {
+      rejected = true;
+    }
     expect(rejected, "Ethernet capture rejects headerless data");
   }
 
@@ -145,8 +180,7 @@ void ethernet_pcapng_capture() {
   const auto interface_length = little_u32(bytes, section_length + 4);
   const auto packet_offset = section_length + interface_length;
   expect(little_u32(bytes, packet_offset) == 6, "Ethernet enhanced packet block");
-  expect(little_u32(bytes, packet_offset + 20) == frame.size(),
-         "Ethernet PCAPNG captured length");
+  expect(little_u32(bytes, packet_offset + 20) == frame.size(), "Ethernet PCAPNG captured length");
   expect(std::equal(frame.begin(), frame.end(), bytes.begin() + packet_offset + 28),
          "Ethernet PCAPNG exact frame bytes");
   const std::string file_text(characters.begin(), characters.end());
@@ -159,7 +193,8 @@ void ethernet_pcapng_capture() {
 void in_process() {
   auto channel = std::make_shared<graphx::InProcessChannel>();
   graphx::MetricsTraceSink metrics;
-  graphx::InProcessTransport sender(channel, "local", &metrics), receiver(channel, "local", &metrics);
+  graphx::InProcessTransport sender(channel, "local", &metrics),
+      receiver(channel, "local", &metrics);
   sender.send(graphx::Envelope::make(7, "Ping", "hello"));
   const auto message = receiver.receive(std::chrono::milliseconds(10));
   expect(message && message->payload == "hello", "in-process delivery");
@@ -168,6 +203,58 @@ void in_process() {
              measured.received_wire_bytes > 0 &&
              measured.connection == graphx::ConnectionState::connected,
          "in-process tracing parity");
+}
+
+void in_process_typed_outcomes_and_backpressure() {
+  graphx::InProcessOptions options;
+  options.capacity = 1;
+  options.backpressure = graphx::InProcessBackpressure::reject;
+  auto channel = std::make_shared<graphx::InProcessChannel>(options);
+  graphx::InProcessTransport sender(channel, "bounded"), receiver(channel, "bounded");
+
+  expect(receiver.receive_result(5ms).status == graphx::ReceiveStatus::timeout,
+         "in-process timeout is distinct");
+  sender.send(graphx::Envelope::make(1, "Bounded", "first"));
+  try {
+    sender.send(graphx::Envelope::make(2, "Bounded", "second"));
+    throw std::runtime_error("bounded in-process queue accepted overflow");
+  } catch (const std::exception& error) {
+    expect(std::string_view(error.what()).find("backpressure=reject") != std::string_view::npos,
+           "in-process reject policy");
+  }
+  const auto message = receiver.receive_result(20ms);
+  expect(message.status == graphx::ReceiveStatus::message && message.envelope->sequence == 1,
+         "typed in-process message outcome");
+  sender.close();
+  expect(receiver.receive_result(20ms).status == graphx::ReceiveStatus::end_of_stream,
+         "in-process peer closure is end-of-stream");
+  receiver.close();
+  expect(receiver.receive_result(20ms).status == graphx::ReceiveStatus::cancelled,
+         "in-process local closure is cancellation");
+
+  options.backpressure = graphx::InProcessBackpressure::block;
+  options.send_timeout = 1s;
+  auto blocking_channel = std::make_shared<graphx::InProcessChannel>(options);
+  graphx::InProcessTransport blocking_sender(blocking_channel, "blocking"),
+      blocking_receiver(blocking_channel, "blocking");
+  blocking_sender.send(graphx::Envelope::make(3, "Bounded", "queued"));
+  auto blocked = std::async(std::launch::async, [&] {
+    try {
+      blocking_sender.send(graphx::Envelope::make(4, "Bounded", "blocked"));
+    } catch (const std::exception&) {
+      return true;
+    }
+    return false;
+  });
+  expect(blocked.wait_for(20ms) == std::future_status::timeout,
+         "in-process block policy waits for capacity");
+  blocking_sender.close();
+  expect(blocked.wait_for(1s) == std::future_status::ready && blocked.get(),
+         "in-process close cancels a blocked sender");
+  expect(blocking_receiver.receive_result(20ms).status == graphx::ReceiveStatus::message,
+         "in-process close drains committed messages");
+  expect(blocking_receiver.receive_result(20ms).status == graphx::ReceiveStatus::end_of_stream,
+         "in-process close ends stream after drain");
 }
 
 void metrics_sink() {
@@ -218,10 +305,10 @@ void udp_runtime_control() {
                       reinterpret_cast<sockaddr*>(&runtime), &runtime_size) > 0,
            "UDP control endpoint registration");
     const auto command = [&](std::string_view action) {
-      const auto json = std::string{"{\"kind\":\"control\",\"action\":\""} +
-                        std::string(action) + "\"}";
-      expect(::sendto(collector, json.data(), json.size(), 0,
-                      reinterpret_cast<sockaddr*>(&runtime), runtime_size) > 0,
+      const auto json =
+          std::string{"{\"kind\":\"control\",\"action\":\""} + std::string(action) + "\"}";
+      expect(::sendto(collector, json.data(), json.size(), 0, reinterpret_cast<sockaddr*>(&runtime),
+                      runtime_size) > 0,
              "UDP runtime command delivery");
     };
     const auto await = [&](bool paused) {
@@ -315,8 +402,7 @@ void otlp_http_json_export() {
     exporter.on_processing("test-node", envelope, std::chrono::microseconds(12), true);
   }
   const auto request = received.get();
-  expect(request.find("POST /v1/traces HTTP/1.1") != std::string::npos,
-         "OTLP HTTP endpoint");
+  expect(request.find("POST /v1/traces HTTP/1.1") != std::string::npos, "OTLP HTTP endpoint");
   expect(request.find("\"resourceSpans\"") != std::string::npos &&
              request.find("graphx.process test-node") != std::string::npos &&
              request.find("\"graphx.sequence\"") != std::string::npos,
@@ -472,8 +558,8 @@ void shared_memory_cross_process_and_crash_detection() {
   if (stale_child < 0) throw std::runtime_error("fork stale shared-memory listener");
   if (stale_child == 0) {
     try {
-      [[maybe_unused]] auto stale = graphx::SharedMemoryTransport::listen(
-          stale_segment, "shm-stale", nullptr, options);
+      [[maybe_unused]] auto stale =
+          graphx::SharedMemoryTransport::listen(stale_segment, "shm-stale", nullptr, options);
       ::_exit(0);
     } catch (...) {
       ::_exit(2);
@@ -545,13 +631,11 @@ void tcp_truncated_and_oversized_frames() {
 
   run({std::byte{0}, std::byte{0}}, "header");
   run({std::byte{0}, std::byte{0}, std::byte{0}, std::byte{8}, std::byte{1}}, "payload");
-  run({std::byte{0}, std::byte{0}, std::byte{0}, std::byte{1}, std::byte{0}},
-      "malformed envelope");
+  run({std::byte{0}, std::byte{0}, std::byte{0}, std::byte{1}, std::byte{0}}, "malformed envelope");
   const auto too_large = graphx::kMaxFrameBytes + 1;
   run({static_cast<std::byte>((too_large >> 24) & 0xff),
        static_cast<std::byte>((too_large >> 16) & 0xff),
-       static_cast<std::byte>((too_large >> 8) & 0xff),
-       static_cast<std::byte>(too_large & 0xff)},
+       static_cast<std::byte>((too_large >> 8) & 0xff), static_cast<std::byte>(too_large & 0xff)},
       "exceeds configured maximum");
 }
 
@@ -675,16 +759,34 @@ void tcp_listener_reaccepts_and_close_cancels() {
   expect(received.get(), "listener accepts a replacement connection");
 
   auto cancelled = std::async(std::launch::async, [&] {
-    try {
-      [[maybe_unused]] auto ignored = listener.receive();
-    } catch (const std::exception&) {
-      return true;
-    }
-    return false;
+    return listener.receive_result().status == graphx::ReceiveStatus::cancelled;
   });
   listener.close();
   expect(cancelled.wait_for(1s) == std::future_status::ready && cancelled.get(),
          "close cancels a blocked listener receive");
+}
+
+void tcp_peer_close_respects_reconnect_policy() {
+  const auto run = [](bool reconnect) {
+    std::uint16_t port;
+    {
+      RawListener reservation;
+      port = reservation.port;
+    }
+    graphx::TcpOptions options;
+    options.reconnect = reconnect;
+    auto listener =
+        graphx::TcpTransport::listen({"127.0.0.1", port}, "reconnect-policy", nullptr, options);
+    {
+      auto client = graphx::TcpTransport::connect({"127.0.0.1", port}, "reconnect-policy-client");
+    }
+    return listener.receive_result(50ms).status;
+  };
+
+  expect(run(false) == graphx::ReceiveStatus::end_of_stream,
+         "TCP peer close is terminal when reconnect is disabled");
+  expect(run(true) == graphx::ReceiveStatus::timeout,
+         "TCP peer close is transient when reconnect is enabled");
 }
 
 void tcp_end_to_end() {
@@ -706,8 +808,12 @@ void tcp_end_to_end() {
     std::optional<graphx::TcpTransport> sender;
     std::string connect_error;
     for (int attempt = 0; attempt < 20 && !sender; ++attempt) {
-      try { sender.emplace(graphx::TcpTransport::connect({"127.0.0.1", port}, "test")); }
-      catch (const std::exception& error) { connect_error = error.what(); std::this_thread::sleep_for(std::chrono::milliseconds(25)); }
+      try {
+        sender.emplace(graphx::TcpTransport::connect({"127.0.0.1", port}, "test"));
+      } catch (const std::exception& error) {
+        connect_error = error.what();
+        std::this_thread::sleep_for(std::chrono::milliseconds(25));
+      }
     }
     if (!sender) throw std::runtime_error("tcp server did not become ready: " + connect_error);
     sender->send(graphx::Envelope::make(9, "Ping", "over tcp"));
@@ -732,14 +838,17 @@ void unix_socket_end_to_end() {
       expect(envelope && envelope->payload == "over uds", "Unix socket delivery");
       envelope->payload = "ack";
       receiver.send(*envelope);
-    } catch (...) { server_error = std::current_exception(); }
+    } catch (...) {
+      server_error = std::current_exception();
+    }
   });
   try {
     std::optional<graphx::UnixDomainSocketTransport> sender;
     std::string connect_error;
     for (int attempt = 0; attempt < 20 && !sender; ++attempt) {
-      try { sender.emplace(graphx::UnixDomainSocketTransport::connect(path, "test-uds", &metrics)); }
-      catch (const std::exception& error) {
+      try {
+        sender.emplace(graphx::UnixDomainSocketTransport::connect(path, "test-uds", &metrics));
+      } catch (const std::exception& error) {
         connect_error = error.what();
         std::this_thread::sleep_for(std::chrono::milliseconds(25));
       }
@@ -755,18 +864,187 @@ void unix_socket_end_to_end() {
   server.join();
   if (server_error) std::rethrow_exception(server_error);
   const auto measured = metrics.edge("test-uds");
-  expect(measured.sent == 2 && measured.received == 2,
-         "Unix socket tracing parity");
+  expect(measured.sent == 2 && measured.received == 2, "Unix socket tracing parity");
+}
+
+void unix_socket_listener_is_interruptible_before_accept() {
+  const auto path = "/tmp/graphx-cancel-" + std::to_string(::getpid()) + ".sock";
+  graphx::UnixDomainSocketOptions invalid;
+  invalid.send_timeout = 0ms;
+  try {
+    [[maybe_unused]] auto rejected =
+        graphx::UnixDomainSocketTransport::listen(path, "invalid-uds", nullptr, invalid);
+    throw std::runtime_error("invalid Unix-domain timeout was accepted");
+  } catch (const std::invalid_argument&) {
+  }
+  auto listener = graphx::UnixDomainSocketTransport::listen(path, "cancel-uds");
+  expect(listener.receive_result(5ms).status == graphx::ReceiveStatus::timeout,
+         "Unix listener startup receive has a deadline");
+  auto cancelled = std::async(std::launch::async, [&] { return listener.receive_result(); });
+  listener.close();
+  expect(cancelled.wait_for(1s) == std::future_status::ready &&
+             cancelled.get().status == graphx::ReceiveStatus::cancelled,
+         "Unix listener close cancels receive before first accept");
+  expect(!std::filesystem::exists(path), "Unix listener removes owned socket path");
+}
+
+void unix_socket_invalidates_failed_frames() {
+  static unsigned counter{};
+  const auto run = [&](std::string_view suffix, std::span<const std::byte> bytes, bool close_peer,
+                       std::string_view expected) {
+    const auto path = "/tmp/graphx-invalid-" + std::to_string(::getpid()) + "-" +
+                      std::to_string(counter++) + "-" + std::string(suffix) + ".sock";
+    auto receiver = graphx::UnixDomainSocketTransport::listen(path, "invalid-uds");
+    const int peer = ::socket(AF_UNIX, SOCK_STREAM, 0);
+    expect(peer >= 0, "create raw Unix peer");
+    sockaddr_un address{};
+    address.sun_family = AF_UNIX;
+    std::memcpy(address.sun_path, path.c_str(), path.size() + 1);
+    expect(::connect(peer, reinterpret_cast<const sockaddr*>(&address), sizeof(address)) == 0,
+           "connect raw Unix peer");
+    raw_write_all(peer, bytes);
+    if (close_peer) ::shutdown(peer, SHUT_RDWR);
+    bool rejected{};
+    try {
+      [[maybe_unused]] const auto result = receiver.receive_result(20ms);
+    } catch (const std::exception& error) {
+      rejected = std::string_view(error.what()).find(expected) != std::string_view::npos;
+    }
+    expect(rejected, "Unix invalid frame has contextual failure");
+    expect(receiver.receive_result(5ms).status == graphx::ReceiveStatus::end_of_stream,
+           "Unix framing failure leaves transport terminal");
+    ::close(peer);
+    receiver.close();
+    expect(!std::filesystem::exists(path), "Unix invalid-frame listener removes socket path");
+  };
+
+  const std::array partial_header{std::byte{0x00}, std::byte{0x00}};
+  run("header-timeout", partial_header, false, "frame header");
+
+  const auto framed = framed_envelope(41, "partial payload");
+  run("payload-close", std::span(framed).first(7), true, "frame payload");
+
+  const std::array oversized_prefix{std::byte{0x01}, std::byte{0x00}, std::byte{0x00},
+                                    std::byte{0x01}};
+  run("oversized", oversized_prefix, false, "maximum");
+
+  const std::array malformed{std::byte{0x00}, std::byte{0x00}, std::byte{0x00}, std::byte{0x01},
+                             std::byte{0xff}};
+  run("malformed", malformed, false, "envelope");
+}
+
+void observer_failure_does_not_break_close() {
+  ThrowOnCloseTraceSink trace;
+
+  auto channel = std::make_shared<graphx::InProcessChannel>();
+  graphx::InProcessTransport in_process(channel, "observer-in-process", &trace);
+  auto in_process_receive =
+      std::async(std::launch::async, [&] { return in_process.receive_result(); });
+  expect(in_process_receive.wait_for(20ms) == std::future_status::timeout,
+         "in-process receive is blocked before close");
+  in_process.close();
+  expect(in_process_receive.wait_for(1s) == std::future_status::ready &&
+             in_process_receive.get().status == graphx::ReceiveStatus::cancelled,
+         "in-process close ignores observer failure and cancels receive");
+
+  const auto segment = shared_segment("observer");
+  auto shared = graphx::SharedMemoryTransport::listen(segment, "observer-shared", &trace);
+  auto shared_receive = std::async(std::launch::async, [&] { return shared.receive_result(); });
+  expect(shared_receive.wait_for(20ms) == std::future_status::timeout,
+         "shared-memory receive is blocked before close");
+  shared.close();
+  expect(shared_receive.wait_for(1s) == std::future_status::ready &&
+             shared_receive.get().status == graphx::ReceiveStatus::cancelled,
+         "shared-memory close ignores observer failure and cancels receive");
+
+  std::uint16_t port;
+  {
+    RawListener reservation;
+    port = reservation.port;
+  }
+  auto tcp = graphx::TcpTransport::listen({"127.0.0.1", port}, "observer-tcp", &trace);
+  auto tcp_receive = std::async(std::launch::async, [&] { return tcp.receive_result(); });
+  expect(tcp_receive.wait_for(20ms) == std::future_status::timeout,
+         "TCP receive is blocked before close");
+  tcp.close();
+  expect(tcp_receive.wait_for(1s) == std::future_status::ready &&
+             tcp_receive.get().status == graphx::ReceiveStatus::cancelled,
+         "TCP close ignores observer failure and cancels receive");
+
+  const auto path = "/tmp/graphx-observer-" + std::to_string(::getpid()) + ".sock";
+  auto unix = graphx::UnixDomainSocketTransport::listen(path, "observer-unix", &trace);
+  auto unix_receive = std::async(std::launch::async, [&] { return unix.receive_result(); });
+  expect(unix_receive.wait_for(20ms) == std::future_status::timeout,
+         "Unix receive is blocked before close");
+  unix.close();
+  expect(unix_receive.wait_for(1s) == std::future_status::ready &&
+             unix_receive.get().status == graphx::ReceiveStatus::cancelled,
+         "Unix close ignores observer failure and cancels receive");
+}
+
+void unix_socket_send_has_deadline() {
+  const auto path = "/tmp/graphx-pressure-" + std::to_string(::getpid()) + ".sock";
+  ::unlink(path.c_str());
+  const int server = ::socket(AF_UNIX, SOCK_STREAM, 0);
+  if (server < 0) throw std::runtime_error("create raw Unix listener");
+  sockaddr_un address{};
+  address.sun_family = AF_UNIX;
+  std::memcpy(address.sun_path, path.c_str(), path.size() + 1);
+  if (::bind(server, reinterpret_cast<const sockaddr*>(&address), sizeof(address)) != 0 ||
+      ::listen(server, 1) != 0) {
+    ::close(server);
+    ::unlink(path.c_str());
+    throw std::runtime_error("bind raw Unix listener");
+  }
+  std::promise<void> accepted;
+  std::promise<void> release;
+  auto released = release.get_future();
+  std::thread peer([&] {
+    const int socket = ::accept(server, nullptr, nullptr);
+    int receive_buffer = 1024;
+    ::setsockopt(socket, SOL_SOCKET, SO_RCVBUF, &receive_buffer, sizeof(receive_buffer));
+    accepted.set_value();
+    released.wait();
+    ::close(socket);
+  });
+  graphx::UnixDomainSocketOptions options;
+  options.send_timeout = 30ms;
+  auto client = graphx::UnixDomainSocketTransport::connect(path, "uds-pressure", nullptr, options);
+  accepted.get_future().wait();
+  bool timed_out{};
+  try {
+    client.send(graphx::Envelope::make(1, "Large", std::string(15 * 1024 * 1024, 'x')));
+  } catch (const std::exception& error) {
+    timed_out = std::string_view(error.what()).find("timed out") != std::string_view::npos;
+  }
+  release.set_value();
+  peer.join();
+  ::close(server);
+  ::unlink(path.c_str());
+  expect(timed_out, "Unix-domain blocked send respects configured deadline");
+  expect(client.receive_result(5ms).status == graphx::ReceiveStatus::end_of_stream,
+         "Unix-domain send failure leaves transport terminal");
+  try {
+    client.send(graphx::Envelope::make(2, "AfterFailure", "must fail"));
+    throw std::runtime_error("Unix-domain send succeeded after terminal failure");
+  } catch (const std::exception& error) {
+    expect(std::string_view(error.what()).find("no accepted peer") != std::string_view::npos,
+           "Unix-domain second send reports terminal peer state");
+  }
 }
 
 }  // namespace
 
 int main() {
   const std::pair<const char*, std::function<void()>> tests[] = {
-      {"framing", framing}, {"envelope", envelope_round_trip},
+      {"framing", framing},
+      {"envelope", envelope_round_trip},
+      {"legacy transport adapter", legacy_transport_adapter},
       {"PCAPNG capture", pcapng_capture},
       {"Ethernet PCAPNG capture", ethernet_pcapng_capture},
-      {"in-process", in_process}, {"metrics", metrics_sink},
+      {"in-process", in_process},
+      {"in-process typed outcomes", in_process_typed_outcomes_and_backpressure},
+      {"metrics", metrics_sink},
       {"UDP runtime control", udp_runtime_control},
       {"OTLP HTTP JSON", otlp_http_json_export},
       {"shared-memory wraparound", shared_memory_wraparound_and_cleanup},
@@ -780,8 +1058,13 @@ int main() {
       {"TCP send backpressure", tcp_send_backpressure_has_deadline},
       {"TCP reconnect and SIGPIPE", tcp_reconnects_without_sigpipe},
       {"TCP listener lifecycle", tcp_listener_reaccepts_and_close_cancels},
+      {"TCP peer-close reconnect policy", tcp_peer_close_respects_reconnect_policy},
       {"tcp end-to-end", tcp_end_to_end},
-      {"Unix socket end-to-end", unix_socket_end_to_end}};
+      {"Unix socket end-to-end", unix_socket_end_to_end},
+      {"Unix socket cancellation", unix_socket_listener_is_interruptible_before_accept},
+      {"Unix socket failed-frame invalidation", unix_socket_invalidates_failed_frames},
+      {"observer-independent close", observer_failure_does_not_break_close},
+      {"Unix socket send deadline", unix_socket_send_has_deadline}};
   int failures{};
   for (const auto& [name, test] : tests) {
     try {
