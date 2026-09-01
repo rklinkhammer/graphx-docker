@@ -48,7 +48,8 @@ Expected results:
 - CTest passes for both C++23 and C++20. This includes envelope/framing, TCP
   fragmentation, deadlines, reconnect and `SIGPIPE` handling; Unix sockets;
   shared-memory wraparound, ownership, process death and backpressure; config
-  validation; and infrastructure-plan generation.
+  validation; infrastructure-plan generation; exact v1/v2 golden vectors;
+  identity lineage; and malformed-envelope rejection.
 - Every `graphx.yaml` validates. Infrastructure create/status/destroy and a
   netem fault are rendered with `--dry-run` without changing the host.
 - The TCP and shared-memory pipelines each deliver sequence 8 with value 16.
@@ -137,8 +138,14 @@ GraphX emits bounded asynchronous send, receive and processing spans using the
 envelope trace ID as the trace identity. Collector failure does not stop graph
 processing; when the bounded queue is full, new export records are dropped.
 Verify that one envelope produces correlated `graphx.send`, `graphx.receive`,
-and `graphx.process` spans and that `graphx.sequence`, `graphx.subject`, status,
-and wire-byte attributes are present.
+and `graphx.process` spans; that every operation has a distinct, valid non-zero
+span ID even across node processes; and that `graphx.sequence`,
+`graphx.subject`, status, and wire-byte attributes are present.
+
+The native test suite also initializes GraphX identity state before `fork()`,
+exports one parent and one child span for the same trace, and requires distinct
+span IDs. This guards prefork worker lifecycles that same-process exporter tests
+cannot exercise.
 
 ## 4. Docker bridge deployment
 
@@ -220,7 +227,8 @@ must remove the netem qdisc. Capture hooks should receive traffic mirrored from
 both bridge domains; stop the capture explicitly after collecting a short sample.
 
 OVS capture remains real network-packet capture. Separately, the application
-PCAPNG sink correlates GraphX frames by trace ID, packet index, and byte offset.
+PCAPNG sink correlates GraphX frames by message ID (or the documented v1
+fallback), packet index, and byte offset.
 The current acceptance criterion does not require automatic matching between
 those two independent capture files.
 

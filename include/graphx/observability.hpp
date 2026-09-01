@@ -24,14 +24,12 @@ class TraceSink {
   virtual void on_send(std::string_view edge_id, const Envelope& envelope,
                        std::size_t wire_bytes) = 0;
   virtual void on_receive(std::string_view edge_id, const Envelope& envelope,
-                          std::size_t wire_bytes,
-                          std::chrono::nanoseconds latency) = 0;
+                          std::size_t wire_bytes, std::chrono::nanoseconds latency) = 0;
   virtual void on_error(std::string_view edge_id, std::string_view message) = 0;
   virtual void on_connection(std::string_view, ConnectionState) {}
   virtual void on_reconnect(std::string_view) {}
   virtual void on_backpressure(std::string_view, std::chrono::nanoseconds, bool) {}
-  virtual void on_processing(std::string_view, const Envelope&,
-                             std::chrono::nanoseconds, bool) {}
+  virtual void on_processing(std::string_view, const Envelope&, std::chrono::nanoseconds, bool) {}
   virtual void on_heartbeat(std::string_view, double) {}
 };
 
@@ -78,10 +76,9 @@ class MetricsTraceSink final : public TraceSink {
 class CompositeTraceSink final : public TraceSink {
  public:
   void add(TraceSink& sink) { sinks_.push_back(&sink); }
-  void on_send(std::string_view edge_id, const Envelope& envelope,
-               std::size_t wire_bytes) override;
-  void on_receive(std::string_view edge_id, const Envelope& envelope,
-                  std::size_t wire_bytes, std::chrono::nanoseconds latency) override;
+  void on_send(std::string_view edge_id, const Envelope& envelope, std::size_t wire_bytes) override;
+  void on_receive(std::string_view edge_id, const Envelope& envelope, std::size_t wire_bytes,
+                  std::chrono::nanoseconds latency) override;
   void on_error(std::string_view edge_id, std::string_view message) override;
   void on_connection(std::string_view edge_id, ConnectionState state) override;
   void on_reconnect(std::string_view edge_id) override;
@@ -104,10 +101,9 @@ class UdpJsonTraceSink final : public TraceSink {
   UdpJsonTraceSink(const UdpJsonTraceSink&) = delete;
   UdpJsonTraceSink& operator=(const UdpJsonTraceSink&) = delete;
 
-  void on_send(std::string_view edge_id, const Envelope& envelope,
-               std::size_t wire_bytes) override;
-  void on_receive(std::string_view edge_id, const Envelope& envelope,
-                  std::size_t wire_bytes, std::chrono::nanoseconds latency) override;
+  void on_send(std::string_view edge_id, const Envelope& envelope, std::size_t wire_bytes) override;
+  void on_receive(std::string_view edge_id, const Envelope& envelope, std::size_t wire_bytes,
+                  std::chrono::nanoseconds latency) override;
   void on_error(std::string_view edge_id, std::string_view message) override;
   void on_connection(std::string_view edge_id, ConnectionState state) override;
   void on_reconnect(std::string_view edge_id) override;
@@ -116,9 +112,8 @@ class UdpJsonTraceSink final : public TraceSink {
   void on_processing(std::string_view node_id, const Envelope& envelope,
                      std::chrono::nanoseconds duration, bool success) override;
   void on_heartbeat(std::string_view node_id, double cpu_percent) override;
-  void on_capture(std::string_view edge_id, const Envelope& envelope,
-                  std::string_view direction, std::string_view file,
-                  std::uint64_t packet_index, std::uint64_t file_offset);
+  void on_capture(std::string_view edge_id, const Envelope& envelope, std::string_view direction,
+                  std::string_view file, std::uint64_t packet_index, std::uint64_t file_offset);
   // Runtime commands are accepted only from the connected telemetry peer.
   // Pause is advisory: source nodes stop producing new envelopes while
   // in-flight work is allowed to drain.
@@ -126,8 +121,8 @@ class UdpJsonTraceSink final : public TraceSink {
 
  private:
   void emit(std::string_view event, std::string_view edge_id, const Envelope* envelope,
-            std::size_t wire_bytes, std::chrono::nanoseconds latency,
-            std::string_view message = {}, double cpu_percent = -1.0);
+            std::size_t wire_bytes, std::chrono::nanoseconds latency, std::string_view message = {},
+            double cpu_percent = -1.0);
   struct Impl;
   std::unique_ptr<Impl> impl_;
 };
@@ -142,18 +137,17 @@ class OtlpHttpTraceSink final : public TraceSink {
   OtlpHttpTraceSink(const OtlpHttpTraceSink&) = delete;
   OtlpHttpTraceSink& operator=(const OtlpHttpTraceSink&) = delete;
 
-  void on_send(std::string_view edge_id, const Envelope& envelope,
-               std::size_t wire_bytes) override;
-  void on_receive(std::string_view edge_id, const Envelope& envelope,
-                  std::size_t wire_bytes, std::chrono::nanoseconds latency) override;
+  void on_send(std::string_view edge_id, const Envelope& envelope, std::size_t wire_bytes) override;
+  void on_receive(std::string_view edge_id, const Envelope& envelope, std::size_t wire_bytes,
+                  std::chrono::nanoseconds latency) override;
   void on_error(std::string_view edge_id, std::string_view message) override;
   void on_processing(std::string_view node_id, const Envelope& envelope,
                      std::chrono::nanoseconds duration, bool success) override;
 
  private:
-  void enqueue_span(std::string_view name, std::string_view subject,
-                    const Envelope* envelope, std::chrono::nanoseconds duration,
-                    std::string_view status, std::size_t wire_bytes = 0);
+  void enqueue_span(std::string_view name, std::string_view subject, const Envelope* envelope,
+                    std::chrono::nanoseconds duration, std::string_view status,
+                    std::size_t wire_bytes = 0);
   struct Impl;
   std::unique_ptr<Impl> impl_;
 };
@@ -165,13 +159,15 @@ class CaptureSink {
   struct Metadata {
     Direction direction{Direction::sent};
     std::uint64_t sequence{};
+    std::uint8_t wire_version{};
+    std::string_view message_id;
+    std::string_view parent_message_id;
     std::string_view trace_id;
     std::string_view type;
   };
 
   virtual ~CaptureSink() = default;
-  virtual void record_frame(std::string_view edge_id,
-                            std::span<const std::byte> frame,
+  virtual void record_frame(std::string_view edge_id, std::span<const std::byte> frame,
                             std::chrono::system_clock::time_point timestamp,
                             const Metadata& metadata) = 0;
 };

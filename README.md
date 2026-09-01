@@ -145,7 +145,7 @@ The collector keeps sent and received message/byte counters separately, derives
 rates over a five-second window, and publishes receive-latency histograms,
 errors, drops, rejections, reconnects, backpressure, and process CPU. See
 [`docs/observability.md`](docs/observability.md) for exact semantics and the
-boundary between Phase 5 telemetry and Phase 6 Wireshark integration.
+boundary between current capabilities and later production hardening.
 
 ## Demo data path
 
@@ -180,7 +180,10 @@ The core contracts stay deliberately small:
 - **Network infrastructure** models address domains, node interfaces, OVS switches,
   mirrors, VLAN metadata, routers, routes/policies, and the ordered infrastructure
   path for each logical edge. `graphx infra` projects that model onto Linux and Docker.
-- **Envelope** carries sequence, wall-clock timestamp, type, trace ID, string attributes, and opaque payload. Its versioned binary encoding is deterministic.
+- **Envelope** carries sequence, wall-clock timestamp, type, logical-message
+  identity, trace/parent lineage, string attributes, and opaque payload. Its
+  deterministic v2 encoding and v1 compatibility contract are specified in
+  [`docs/protocol.md`](docs/protocol.md).
 - **Transport** has `send`, typed timed `receive_result`, a compatibility
   `receive`, and idempotent `close`. Typed receive distinguishes a message,
   timeout, peer end-of-stream, and local cancellation. `InProcessTransport`
@@ -203,15 +206,19 @@ covers both header and payload, and a timeout or closure during a partial frame
 closes that connection to prevent stream desynchronization. Writes have a bounded
 deadline, providing explicit blocking backpressure. Linux uses `MSG_NOSIGNAL` and
 macOS uses `SO_NOSIGPIPE`, so a peer closure becomes an exception instead of
-terminating the process. The envelope begins with `GXE` plus a version byte, so
-future decoders can reject incompatible payloads cleanly.
+terminating the process. The envelope begins with `GXE` plus a version byte.
+Current readers accept legacy v1 and fixed-identity v2, reject unknown versions,
+and enforce exact consumption and resource bounds. New factory-created messages
+use v2; mixed deployments must upgrade consumers before producers.
 
 When `reconnect` is enabled, an outbound send that detects a broken connection
 reconnects and retries the complete frame once. This is intentionally
 **at-least-once** behavior: if the connection failed after the peer accepted the
 frame but before the sender could observe success, a duplicate is possible.
-Consumers that require exactly-once effects must deduplicate by envelope sequence
-or trace ID.
+Consumers that require idempotent effects must deduplicate v2 traffic by
+`message_id` within an application-defined retention window. Sequence is an
+ordering value and trace ID is a causal-group value; neither is a unique-message
+key. Version-1 traffic has no protocol-level message identity.
 
 ### Three related topologies
 
@@ -365,7 +372,8 @@ baseline contract prematurely.
 
 To add observability, implement `TraceSink` and add its exporter name to the
 typed `observability.metrics` or `observability.tracing` configuration. The
-included OTLP/HTTP adapter turns envelope trace IDs into spans. The PCAPNG
+included OTLP/HTTP adapter turns canonical envelope trace IDs into spans and
+exports message/parent identities as attributes. The PCAPNG
 capture sink writes exact canonical framed bytes and correlation comments;
 `ExtcapProvider` remains the C++ boundary for alternate live sources.
 
@@ -395,27 +403,25 @@ capture sink writes exact canonical framed bytes and correlation comments;
 
 The tests use no third-party framework so a fresh scaffold remains easy to build and study.
 
-## Roadmap
+## Production-readiness roadmap
 
-1. **Runtime lifecycle follow-up** — coordinated SIGINT/SIGTERM shutdown, typed
-   observability configuration, configuration-driven topology, heartbeat expiry,
-   and richer transport events are implemented. Remaining hardening includes TLS
-   and interruptible Unix-listener creation before its first peer connects.
-2. **Real observability** — directional message/byte counters, stable rolling
-   rates, Prometheus latency histograms, errors/drops/rejections, connection and
-   backpressure events, process CPU, processing spans, and trace-ID presentation
-   are implemented. Follow-ups include W3C trace-context fields, OTLP
-   batching/retry, and collector conformance coverage.
-3. **Wireshark integration** — PCAPNG USER0 application-frame output, standard
-   correlation comments, packet indexes/offsets in the edge inspector, download
-   API, Ethernet PCAPNG output (`LINKTYPE_ETHERNET`), OVS mirror capture helpers,
-   and USER0/Ethernet extcap file-follow interfaces are implemented. Remaining
-   work includes a registered GraphX link type or native dissector, rotation,
-   multi-file merge, and automated correlation across the two capture layers.
-4. **Control plane (Phase 7)** — authenticated pause/resume delivery, runtime
-   acknowledgement, honest rejection states, and an end-to-end pause test are
-   implemented. Remaining work includes authenticated fault commands, generated
-   deployment topology, durable command auditing, and real Docker health events.
+The authoritative sequence is below. The repository contains educational seams
+and prototypes for some later capabilities, but those do not move their scheduled
+production-hardening phase forward.
+
+1. **Configuration** — schema, loader, validation, and transport factory (implemented).
+2. **Runtime lifecycle** — bounded queues, cancellation, reconnect, and graceful shutdown
+   (implemented, with continued stress testing scheduled for Phase 4).
+3. **Protocol** — specification, compatibility rules, and message/trace identities
+   (implemented).
+4. **Quality automation** — CI, sanitizers, fuzzing, static analysis, and expanded
+   transport tests.
+5. **Security** — authentication, TLS, API validation, and container hardening.
+6. **Operations** — OpenTelemetry integration, health checks, SLOs, and dashboards.
+7. **History** — durable or backend-driven telemetry history.
+8. **Control plane** — authorized control and real runtime controls.
+9. **Wireshark** — production PCAPNG, dissector, and extcap implementation.
+10. **Release engineering** — compatibility policy, packaging, and support processes.
 
 ## Design boundaries
 

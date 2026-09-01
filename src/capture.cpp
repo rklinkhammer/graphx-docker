@@ -57,12 +57,32 @@ std::string escape_json(std::string_view value) {
   escaped.reserve(value.size());
   for (const char character : value) {
     switch (character) {
-      case '\\': escaped += "\\\\"; break;
-      case '"': escaped += "\\\""; break;
-      case '\n': escaped += "\\n"; break;
-      case '\r': escaped += "\\r"; break;
-      case '\t': escaped += "\\t"; break;
-      default: escaped += character;
+      case '\\':
+        escaped += "\\\\";
+        break;
+      case '"':
+        escaped += "\\\"";
+        break;
+      case '\n':
+        escaped += "\\n";
+        break;
+      case '\r':
+        escaped += "\\r";
+        break;
+      case '\t':
+        escaped += "\\t";
+        break;
+      default: {
+        const auto byte = static_cast<unsigned char>(character);
+        if (byte < 0x20 || byte >= 0x7f) {
+          constexpr std::string_view digits = "0123456789abcdef";
+          escaped += "\\u00";
+          escaped += digits[byte >> 4];
+          escaped += digits[byte & 0x0f];
+        } else {
+          escaped += character;
+        }
+      }
     }
   }
   return escaped;
@@ -89,9 +109,9 @@ void write_all(std::ofstream& stream, std::span<const std::byte> bytes) {
 
 class WriterState {
  public:
-  WriterState(std::filesystem::path output, std::uint32_t maximum,
-              std::uint16_t linktype, std::string_view interface_name,
-              std::string_view interface_description, std::string_view section_comment)
+  WriterState(std::filesystem::path output, std::uint32_t maximum, std::uint16_t linktype,
+              std::string_view interface_name, std::string_view interface_description,
+              std::string_view section_comment)
       : path_(std::move(output)), snaplen_(maximum) {
     if (snaplen_ == 0) throw std::invalid_argument("PCAPNG snaplen must be positive");
     if (path_.has_parent_path()) std::filesystem::create_directories(path_.parent_path());
@@ -122,16 +142,14 @@ class WriterState {
     stream_.flush();
   }
 
-  void record(std::span<const std::byte> bytes,
-              std::chrono::system_clock::time_point timestamp,
+  void record(std::span<const std::byte> bytes, std::chrono::system_clock::time_point timestamp,
               std::string_view comment) {
     std::scoped_lock lock(mutex_);
-    const auto captured = static_cast<std::uint32_t>(
-        std::min<std::size_t>(bytes.size(), snaplen_));
-    const auto original = static_cast<std::uint32_t>(
-        std::min<std::size_t>(bytes.size(), UINT32_MAX));
-    const auto nanoseconds = std::chrono::duration_cast<std::chrono::nanoseconds>(
-        timestamp.time_since_epoch()).count();
+    const auto captured = static_cast<std::uint32_t>(std::min<std::size_t>(bytes.size(), snaplen_));
+    const auto original =
+        static_cast<std::uint32_t>(std::min<std::size_t>(bytes.size(), UINT32_MAX));
+    const auto nanoseconds =
+        std::chrono::duration_cast<std::chrono::nanoseconds>(timestamp.time_since_epoch()).count();
     const auto tick = static_cast<std::uint64_t>(std::max<std::int64_t>(0, nanoseconds));
 
     std::vector<std::byte> packet;
@@ -173,10 +191,10 @@ class WriterState {
 
 struct PcapngCaptureSink::Impl {
   explicit Impl(std::filesystem::path output, std::uint32_t maximum)
-      : writer(std::move(output), maximum, kLinktypeUser0,
-               "graphx-framed-envelope",
+      : writer(std::move(output), maximum, kLinktypeUser0, "graphx-framed-envelope",
                "GraphX application frame, not an Ethernet or IP network packet",
-               "GraphX canonical application frames: u32be length + GXE envelope; LINKTYPE_USER0") {}
+               "GraphX canonical application frames: u32be length + GXE envelope; LINKTYPE_USER0") {
+  }
   WriterState writer;
 };
 
@@ -185,14 +203,16 @@ PcapngCaptureSink::PcapngCaptureSink(std::filesystem::path path, std::uint32_t s
 
 PcapngCaptureSink::~PcapngCaptureSink() = default;
 
-void PcapngCaptureSink::record_frame(std::string_view edge_id,
-                                     std::span<const std::byte> frame,
+void PcapngCaptureSink::record_frame(std::string_view edge_id, std::span<const std::byte> frame,
                                      std::chrono::system_clock::time_point timestamp,
                                      const Metadata& metadata) {
   const auto direction = metadata.direction == Direction::sent ? "sent" : "received";
-  const auto comment = std::string{"{\"graphx\":{\"edge\":\""} + escape_json(edge_id) +
-      "\",\"direction\":\"" + direction + "\",\"sequence\":" +
-      std::to_string(metadata.sequence) + ",\"trace_id\":\"" +
+  const auto comment =
+      std::string{"{\"graphx\":{\"edge\":\""} + escape_json(edge_id) + "\",\"direction\":\"" +
+      direction + "\",\"sequence\":" + std::to_string(metadata.sequence) +
+      ",\"wire_version\":" + std::to_string(metadata.wire_version) + ",\"message_id\":\"" +
+      escape_json(metadata.message_id) + "\",\"parent_message_id\":\"" +
+      escape_json(metadata.parent_message_id) + "\",\"trace_id\":\"" +
       escape_json(metadata.trace_id) + "\",\"type\":\"" + escape_json(metadata.type) + "\"}}";
   impl_->writer.record(frame, timestamp, comment);
 }
@@ -224,9 +244,9 @@ EthernetPcapngCaptureSink::EthernetPcapngCaptureSink(std::filesystem::path path,
 
 EthernetPcapngCaptureSink::~EthernetPcapngCaptureSink() = default;
 
-void EthernetPcapngCaptureSink::record_packet(
-    std::span<const std::byte> ethernet_frame,
-    std::chrono::system_clock::time_point timestamp, std::string_view comment) {
+void EthernetPcapngCaptureSink::record_packet(std::span<const std::byte> ethernet_frame,
+                                              std::chrono::system_clock::time_point timestamp,
+                                              std::string_view comment) {
   if (ethernet_frame.size() < 14)
     throw std::invalid_argument("Ethernet frame must include a 14-byte header");
   impl_->writer.record(ethernet_frame, timestamp, comment);

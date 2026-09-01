@@ -60,6 +60,9 @@ void InProcessChannel::close() {
 
 void InProcessTransport::send(const Envelope& envelope) {
   if (closed_) throw std::runtime_error("send on closed in-process transport");
+  // Validate the complete wire representation before publishing the envelope.
+  // A failed send must never leave an unreadable item in the shared queue.
+  const auto wire_bytes = serialize(envelope).size();
   const auto result = channel_->push(envelope);
   if (result.status != ChannelPushStatus::accepted) {
     const bool rejected = result.status == ChannelPushStatus::rejected;
@@ -77,7 +80,7 @@ void InProcessTransport::send(const Envelope& envelope) {
     }
   }
   if (result.wait.count() > 0) trace_sink_->on_backpressure(edge_id_, result.wait, false);
-  trace_sink_->on_send(edge_id_, envelope, serialize(envelope).size());
+  trace_sink_->on_send(edge_id_, envelope, wire_bytes);
 }
 ReceiveResult InProcessTransport::receive_result(std::chrono::milliseconds timeout) {
   if (closed_) return {ReceiveStatus::cancelled, std::nullopt};

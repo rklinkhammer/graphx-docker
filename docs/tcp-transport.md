@@ -33,8 +33,9 @@ transport interrupts a retry backoff.
 A reconnecting listener retains its listening socket and accepts a replacement
 peer after a clean between-frame disconnect. A reconnecting client retries one
 complete frame after a failed send. This provides at-least-once delivery, not
-exactly-once delivery; applications can deduplicate using envelope sequence and
-trace identifiers.
+exactly-once delivery. Version-2 applications can deduplicate retries by the
+stable envelope `message_id`; sequence and trace identifiers are not unique
+logical-message keys. See [`protocol.md`](protocol.md).
 
 ## Backpressure
 

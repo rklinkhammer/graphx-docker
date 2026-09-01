@@ -29,10 +29,10 @@ export function EdgeInspector({ edge, networkPath }) {
     <div className="messages">
       {d.recent?.length ? d.recent.slice(0, 6).map(message => {
         const capture = message.captures?.[0]
-        return <div key={`${message.nodeId}-${message.sequence}-${message.timestamp}`}><span><Search size={13}/> {message.sequence}</span><span>{message.type || 'unknown'}</span><span>{message.latencyUs} µs</span><span title={message.traceId || 'Trace ID unavailable'}>{message.traceId ? message.traceId.slice(0, 8) : '—'}</span><span title={capture ? `${capture.captureFile} byte ${capture.captureOffset}` : 'Capture unavailable'}>{capture ? `#${capture.capturePacket}` : '—'}</span></div>
+        return <div key={message.messageId || `${message.nodeId}-${message.sequence}-${message.timestamp}`}><span><Search size={13}/> {message.sequence}</span><span>{message.type || 'unknown'}</span><span>{message.latencyUs} µs</span><span title={`Message: ${message.messageId || 'unavailable'}\nTrace: ${message.traceId || 'unavailable'}`}>{message.messageId ? message.messageId.slice(0, 8) : message.traceId ? message.traceId.slice(0, 8) : '—'}</span><span title={capture ? `${capture.captureFile} byte ${capture.captureOffset}` : 'Capture unavailable'}>{capture ? `#${capture.capturePacket}` : '—'}</span></div>
       }) : <div><span>—</span><span>Waiting for traffic</span><span>—</span><span>—</span><span>—</span></div>}
     </div>
-    <div className="placeholder"><strong>Trace + capture correlation</strong><p>Trace IDs join telemetry to PCAPNG packet numbers and byte offsets. GraphX frames use LINKTYPE_USER0 and are not labeled as Ethernet packets.</p></div>
+    <div className="placeholder"><strong>Identity + capture correlation</strong><p>Message IDs correlate telemetry with exact PCAPNG records; trace IDs group causal work. GraphX frames use LINKTYPE_USER0 and are not labeled as Ethernet packets.</p></div>
     <h3>Network path</h3>
     <div className="network-path">{networkPath?.map((hop, index) => <span key={hop}>{index > 0 && <i>→</i>}{hop}</span>)}</div>
     <div className="actions"><button>Inspect messages</button>{d.captureFiles?.length ? d.captureFiles.slice(0, 2).map(file => <a key={file.name} href={file.url} download title={file.name}>Download {file.format === 'ethernet' ? 'Ethernet' : 'GraphX'}</a>) : <button disabled>Capture unavailable</button>}</div>

@@ -173,7 +173,9 @@ function captureFiles() {
 
 function recentWithCapture() {
   return recent.slice(0, 30).map(event => ({ ...event,
-    captures: captureReferences.filter(reference => reference.traceId === event.traceId &&
+    captures: captureReferences.filter(reference =>
+      (event.messageId ? reference.messageId === event.messageId :
+        reference.traceId === event.traceId && reference.sequence === event.sequence) &&
       reference.edgeId === event.edgeId).slice(0, 4),
   }))
 }

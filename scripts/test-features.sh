@@ -78,7 +78,10 @@ portable() {
     const fs = require("node:fs");
     for (const path of process.argv.slice(1)) {
       const capture = fs.readFileSync(path);
-      if (capture.readUInt32LE(0) !== 0x0a0d0d0a || !capture.includes(Buffer.from("trace-8")))
+      if (capture.readUInt32LE(0) !== 0x0a0d0d0a ||
+          !capture.includes(Buffer.from(`"wire_version":2`)) ||
+          !capture.includes(Buffer.from(`"message_id":"`)) ||
+          !capture.includes(Buffer.from(`"trace_id":"`)))
         throw new Error(`invalid correlated PCAPNG capture: ${path}`);
     }
   ' "$TMP_DIR"/captures/*.pcapng
@@ -132,7 +135,8 @@ portable() {
   for _ in {1..40}; do curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/health" >/dev/null 2>&1 && break; sleep 0.1; done
   GRAPHX_TEST_UDP_PORT=${GRAPHX_TEST_UDP_PORT:-19000} node -e '
     const d = require("node:dgram").createSocket("udp4");
-    const base = {kind:"trace", nodeId:"generator", edgeId:"samples", timestamp:Date.now(), traceId:"0123456789abcdef0123456789abcdef"};
+    const base = {kind:"trace", nodeId:"generator", edgeId:"samples", timestamp:Date.now(), wireVersion:2,
+      messageId:"00112233445566778899aabbccddeeff", parentMessageId:"", traceId:"0123456789abcdef0123456789abcdef"};
     const events = [
       {...base,event:"connection",message:"connected"},
       {...base,event:"send",sequence:1,wireBytes:64},
@@ -167,7 +171,8 @@ portable() {
     if (edge.rejected !== 1 || edge.drops !== 1) failures.push("rejection/drop counters");
     if (edge.metricSources?.counters !== "measured" || edge.metricSources?.throughput !== "derived-5s") failures.push("metric provenance");
     if (snapshot.nodes.generator.cpuPercent !== 12.5) failures.push("node CPU");
-    if (snapshot.recent[0]?.traceId !== "0123456789abcdef0123456789abcdef") failures.push("trace correlation");
+    if (snapshot.recent[0]?.messageId !== "00112233445566778899aabbccddeeff" ||
+        snapshot.recent[0]?.traceId !== "0123456789abcdef0123456789abcdef") failures.push("identity correlation");
     if (snapshot.recent[0]?.captures?.[0]?.captureOffset !== 144) failures.push("capture correlation");
     if (!snapshot.capture?.enabled || snapshot.capture?.provider !== "pcapng") failures.push("capture capability");
     if (!snapshot.capture?.files?.some(file => file.name === "generator.pcapng")) failures.push("capture listing");
@@ -237,8 +242,16 @@ portable() {
 
   curl -fsS -X POST "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/control/reset" | grep -q '"accepted":true'
   curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/metrics" | grep -q 'graphx_edge_messages_total{edge="samples",direction="sent"} 0'
-  sleep 1.1
-  curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/topology" | grep -q '"status":"offline"'
+  offline=false
+  for _ in {1..30}; do
+    if curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/topology" | \
+        grep -q '"status":"offline"'; then
+      offline=true
+      break
+    fi
+    sleep 0.1
+  done
+  test "$offline" = true
 
   step "Portable feature suite passed"
 }

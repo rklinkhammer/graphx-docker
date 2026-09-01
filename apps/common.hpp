@@ -66,16 +66,16 @@ class ConsoleTraceSink final : public graphx::TraceSink {
     std::cerr << "metric edge=" << edge << " event=error message=\"" << message << "\"\n";
   }
   void on_connection(std::string_view edge, graphx::ConnectionState state) override {
-    std::cout << "metric edge=" << edge << " event=connection state="
-              << graphx::to_string(state) << std::endl;
+    std::cout << "metric edge=" << edge << " event=connection state=" << graphx::to_string(state)
+              << std::endl;
   }
   void on_reconnect(std::string_view edge) override {
     std::cout << "metric edge=" << edge << " event=reconnect" << std::endl;
   }
   void on_backpressure(std::string_view edge, std::chrono::nanoseconds duration,
                        bool rejected) override {
-    std::cout << "metric edge=" << edge << " event=backpressure mode="
-              << (rejected ? "rejected" : "blocked")
+    std::cout << "metric edge=" << edge
+              << " event=backpressure mode=" << (rejected ? "rejected" : "blocked")
               << " duration_us=" << duration.count() / 1000.0 << std::endl;
   }
   void on_processing(std::string_view node, const graphx::Envelope& envelope,
@@ -92,7 +92,8 @@ class RuntimeTraceSink final : public graphx::TraceSink {
       : node_id_(std::move(node_id)),
         heartbeat_interval_(config.observability.telemetry.heartbeat_interval_ms) {
     const auto contains = [](const auto& signal, std::string_view exporter) {
-      return signal.enabled && std::ranges::find(signal.exporters, exporter) != signal.exporters.end();
+      return signal.enabled &&
+             std::ranges::find(signal.exporters, exporter) != signal.exporters.end();
     };
     if (contains(config.observability.metrics, "console") ||
         contains(config.observability.tracing, "console"))
@@ -108,8 +109,7 @@ class RuntimeTraceSink final : public graphx::TraceSink {
     const auto otlp_host = env("GRAPHX_OTLP_HOST", "");
     if (!otlp_host.empty() || contains(config.observability.tracing, "otlp-http")) {
       otlp_ = std::make_unique<graphx::OtlpHttpTraceSink>(
-          node_id_, otlp_host.empty() ? "127.0.0.1" : otlp_host,
-          port("GRAPHX_OTLP_PORT", 4318),
+          node_id_, otlp_host.empty() ? "127.0.0.1" : otlp_host, port("GRAPHX_OTLP_PORT", 4318),
           env("GRAPHX_OTLP_PATH", "/v1/traces"));
       composite_.add(*otlp_);
     }
@@ -119,10 +119,10 @@ class RuntimeTraceSink final : public graphx::TraceSink {
         env("GRAPHX_CAPTURE_PROVIDER", config.observability.capture.provider);
     if (capture_enabled && capture_provider == "pcapng") {
       const auto directory = env("GRAPHX_CAPTURE_DIR", config.observability.capture.directory);
-      capture_ = std::make_unique<graphx::PcapngCaptureSink>(
-          std::filesystem::path(directory) / (node_id_ + ".pcapng"));
-      std::cout << "capture node=" << node_id_ << " provider=pcapng path="
-                << capture_->path() << std::endl;
+      capture_ = std::make_unique<graphx::PcapngCaptureSink>(std::filesystem::path(directory) /
+                                                             (node_id_ + ".pcapng"));
+      std::cout << "capture node=" << node_id_ << " provider=pcapng path=" << capture_->path()
+                << std::endl;
     }
     heartbeat(true);
   }
@@ -145,9 +145,7 @@ class RuntimeTraceSink final : public graphx::TraceSink {
     composite_.on_heartbeat(node_id_, cpu_percent);
   }
 
-  [[nodiscard]] bool paused() const noexcept {
-    return telemetry_ && telemetry_->paused();
-  }
+  [[nodiscard]] bool paused() const noexcept { return telemetry_ && telemetry_->paused(); }
 
   void on_send(std::string_view edge, const graphx::Envelope& envelope,
                std::size_t bytes) override {
@@ -187,18 +185,20 @@ class RuntimeTraceSink final : public graphx::TraceSink {
       capture_->record_frame(edge, framed, std::chrono::system_clock::now(),
                              {.direction = direction,
                               .sequence = envelope.sequence,
+                              .wire_version = envelope.wire_version,
+                              .message_id = envelope.message_id,
+                              .parent_message_id = envelope.parent_message_id,
                               .trace_id = envelope.trace_id,
                               .type = envelope.type});
       if (telemetry_) {
         const auto direction_name =
             direction == graphx::CaptureSink::Direction::sent ? "sent" : "received";
-        telemetry_->on_capture(edge, envelope, direction_name,
-                               capture_->path().filename().string(),
+        telemetry_->on_capture(edge, envelope, direction_name, capture_->path().filename().string(),
                                capture_->packet_count(), capture_->last_packet_offset());
       }
     } catch (const std::exception& error) {
-      std::cerr << "capture node=" << node_id_ << " event=error message=\""
-                << error.what() << "\"\n";
+      std::cerr << "capture node=" << node_id_ << " event=error message=\"" << error.what()
+                << "\"\n";
       capture_.reset();
     }
   }

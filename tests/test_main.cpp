@@ -7,6 +7,7 @@
 #include "graphx/tcp_transport.hpp"
 #include "graphx/unix_domain_socket_transport.hpp"
 
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cstring>
@@ -18,12 +19,14 @@
 #include <functional>
 #include <iostream>
 #include <netinet/in.h>
+#include <poll.h>
 #include <stdexcept>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <sys/mman.h>
 #include <sys/wait.h>
 #include <thread>
+#include <unordered_set>
 #include <unistd.h>
 #include <vector>
 
@@ -59,13 +62,158 @@ void framing() {
 void envelope_round_trip() {
   auto input = graphx::Envelope::make(42, "Sample", "payload");
   input.timestamp_ns = 123456789;
-  input.trace_id = "trace-abc";
+  input.trace_id = "0123456789abcdef0123456789abcdef";
+  input.message_id = "fedcba9876543210fedcba9876543210";
   input.attributes = {{"unit", "volts"}, {"sensor", "a"}};
   const auto output = graphx::deserialize(graphx::serialize(input));
   expect(output.sequence == input.sequence, "envelope sequence");
   expect(output.timestamp_ns == input.timestamp_ns, "envelope timestamp");
   expect(output.type == input.type && output.payload == input.payload, "envelope body");
   expect(output.attributes == input.attributes, "envelope attributes");
+  expect(output.wire_version == graphx::kEnvelopeWireVersion2 &&
+             output.message_id == input.message_id && output.trace_id == input.trace_id,
+         "version-2 envelope identities");
+}
+
+std::vector<std::byte> golden_bytes(std::string_view filename) {
+  const auto path = std::filesystem::path(GRAPHX_SOURCE_DIR) / "tests" / "fixtures" / filename;
+  std::ifstream stream(path);
+  std::string hex;
+  stream >> hex;
+  expect(stream.good() || stream.eof(), "read protocol golden fixture");
+  expect(hex.size() % 2 == 0, "golden fixture has complete bytes");
+  const auto nibble = [](char value) -> std::uint8_t {
+    if (value >= '0' && value <= '9') return static_cast<std::uint8_t>(value - '0');
+    if (value >= 'a' && value <= 'f') return static_cast<std::uint8_t>(value - 'a' + 10);
+    throw std::runtime_error("invalid golden fixture hexadecimal character");
+  };
+  std::vector<std::byte> bytes;
+  bytes.reserve(hex.size() / 2);
+  for (std::size_t index = 0; index < hex.size(); index += 2)
+    bytes.push_back(static_cast<std::byte>((nibble(hex[index]) << 4) | nibble(hex[index + 1])));
+  return bytes;
+}
+
+void envelope_protocol_golden_vectors() {
+  const auto version1 = golden_bytes("envelope-v1.hex");
+  const auto legacy = graphx::deserialize(version1);
+  expect(legacy.wire_version == graphx::kEnvelopeWireVersion1 && legacy.sequence == 1 &&
+             legacy.timestamp_ns == 2 && legacy.type == "T" && legacy.trace_id == "legacy" &&
+             legacy.message_id.empty() && legacy.parent_message_id.empty() &&
+             legacy.attributes.at("a") == "b" && legacy.payload == "p",
+         "decode canonical version-1 golden vector");
+  expect(graphx::serialize(legacy) == version1, "version-1 golden vector is byte-stable");
+
+  const auto version2 = golden_bytes("envelope-v2.hex");
+  const auto current = graphx::deserialize(version2);
+  expect(current.wire_version == graphx::kEnvelopeWireVersion2 && current.sequence == 1 &&
+             current.timestamp_ns == 2 && current.type == "T" &&
+             current.message_id == "00112233445566778899aabbccddeeff" &&
+             current.trace_id == "102132435465768798a9babcbddcedfe" &&
+             current.parent_message_id.empty() && current.attributes.at("a") == "b" &&
+             current.payload == "p",
+         "decode canonical version-2 golden vector");
+  expect(graphx::serialize(current) == version2, "version-2 golden vector is byte-stable");
+}
+
+void envelope_identity_semantics() {
+  auto root = graphx::Envelope::make(1, "Root", "value");
+  expect(root.wire_version == graphx::kCurrentEnvelopeWireVersion &&
+             graphx::is_canonical_identity(root.message_id) &&
+             graphx::is_canonical_identity(root.trace_id) && root.parent_message_id.empty(),
+         "new envelope has canonical root identities");
+  auto transformed = root;
+  transformed.type = "Transformed";
+  expect(transformed.message_id == root.message_id && transformed.trace_id == root.trace_id,
+         "ordinary transformation preserves logical identity");
+  auto child = graphx::Envelope::derive(root, 2, "Child", "derived");
+  expect(child.message_id != root.message_id && child.trace_id == root.trace_id &&
+             child.parent_message_id == root.message_id,
+         "derived envelope records causal lineage");
+
+  std::vector<std::future<std::vector<std::string>>> workers;
+  for (int worker = 0; worker < 8; ++worker) {
+    workers.push_back(std::async(std::launch::async, [] {
+      std::vector<std::string> identities;
+      for (int index = 0; index < 250; ++index) identities.push_back(graphx::generate_identity());
+      return identities;
+    }));
+  }
+  std::unordered_set<std::string> unique;
+  for (auto& worker : workers) {
+    for (auto& identity : worker.get()) {
+      expect(graphx::is_canonical_identity(identity), "generated identity is canonical");
+      unique.insert(std::move(identity));
+    }
+  }
+  expect(unique.size() == 2000, "generated identities are unique in concurrent sample");
+}
+
+void envelope_protocol_rejects_invalid_input() {
+  const auto expect_failure = [](const auto& operation, std::string_view expected) {
+    try {
+      operation();
+      throw std::runtime_error("invalid envelope operation succeeded");
+    } catch (const std::exception& error) {
+      expect(std::string_view(error.what()).find(expected) != std::string_view::npos,
+             "protocol failure has actionable context");
+    }
+  };
+
+  const auto version2 = golden_bytes("envelope-v2.hex");
+  const std::array<std::size_t, 6> truncated_lengths{0, 3, 4, 19, 35, version2.size() - 1};
+  for (const std::size_t length : truncated_lengths) {
+    expect_failure([&] { graphx::deserialize(std::span(version2).first(length)); }, "truncated");
+  }
+  auto unknown = version2;
+  unknown[3] = std::byte{3};
+  expect_failure([&] { graphx::deserialize(unknown); }, "unsupported envelope wire version 3");
+  auto trailing = version2;
+  trailing.push_back(std::byte{});
+  expect_failure([&] { graphx::deserialize(trailing); }, "trailing envelope bytes");
+  auto zero_message = version2;
+  std::fill(zero_message.begin() + 20, zero_message.begin() + 36, std::byte{});
+  expect_failure([&] { graphx::deserialize(zero_message); }, "zero envelope identity");
+
+  const auto append_u32 = [](std::vector<std::byte>& bytes, std::uint32_t value) {
+    for (int shift = 24; shift >= 0; shift -= 8)
+      bytes.push_back(static_cast<std::byte>((value >> shift) & 0xff));
+  };
+  const auto append_string = [&](std::vector<std::byte>& bytes, std::string_view value) {
+    append_u32(bytes, static_cast<std::uint32_t>(value.size()));
+    for (const char character : value) bytes.push_back(static_cast<std::byte>(character));
+  };
+  auto duplicate = golden_bytes("envelope-v1.hex");
+  duplicate.resize(35);
+  append_u32(duplicate, 2);
+  append_string(duplicate, "a");
+  append_string(duplicate, "b");
+  append_string(duplicate, "a");
+  append_string(duplicate, "c");
+  append_string(duplicate, "p");
+  expect_failure([&] { graphx::deserialize(duplicate); }, "duplicate envelope attribute key");
+
+  auto excessive = duplicate;
+  excessive.resize(35);
+  append_u32(excessive, graphx::kMaxEnvelopeAttributes + 1);
+  expect_failure([&] { graphx::deserialize(excessive); }, "too many envelope attributes");
+
+  auto invalid_identity = graphx::Envelope::make(3, "Invalid", "value");
+  invalid_identity.message_id = std::string(graphx::kIdentityHexLength, '0');
+  expect_failure([&] { graphx::serialize(invalid_identity); }, "message_id");
+  invalid_identity.message_id = "ABCDEF0123456789ABCDEF0123456789";
+  expect_failure([&] { graphx::serialize(invalid_identity); }, "message_id");
+  invalid_identity.message_id = graphx::generate_identity();
+  invalid_identity.wire_version = 3;
+  expect_failure([&] { graphx::serialize(invalid_identity); },
+                 "unsupported envelope wire version 3");
+
+  auto lossy_legacy = graphx::deserialize(golden_bytes("envelope-v1.hex"));
+  lossy_legacy.message_id = graphx::generate_identity();
+  expect_failure([&] { graphx::serialize(lossy_legacy); }, "version 1 cannot encode");
+
+  auto oversized = graphx::Envelope::make(4, "Large", std::string(graphx::kMaxFrameBytes, 'x'));
+  expect_failure([&] { graphx::serialize(oversized); }, "protocol maximum");
 }
 
 void legacy_transport_adapter() {
@@ -106,7 +254,8 @@ void pcapng_capture() {
                     ("graphx-capture-" + std::to_string(::getpid()) + ".pcapng");
   std::filesystem::remove(path);
   auto envelope = graphx::Envelope::make(42, "Sample", "payload");
-  envelope.trace_id = "trace-capture-42";
+  envelope.trace_id = "0123456789abcdef0123456789abcdef";
+  envelope.message_id = "fedcba9876543210fedcba9876543210";
   const auto framed = graphx::frame(graphx::serialize(envelope));
   const auto timestamp = std::chrono::system_clock::time_point{
       std::chrono::duration_cast<std::chrono::system_clock::duration>(
@@ -116,6 +265,9 @@ void pcapng_capture() {
     capture.record_frame("samples", framed, timestamp,
                          {.direction = graphx::CaptureSink::Direction::sent,
                           .sequence = envelope.sequence,
+                          .wire_version = envelope.wire_version,
+                          .message_id = envelope.message_id,
+                          .parent_message_id = envelope.parent_message_id,
                           .trace_id = envelope.trace_id,
                           .type = envelope.type});
     expect(
@@ -139,11 +291,14 @@ void pcapng_capture() {
   expect(std::equal(framed.begin(), framed.end(), bytes.begin() + packet_offset + 28),
          "PCAPNG exact framed bytes");
   const std::string file_text(characters.begin(), characters.end());
-  expect(file_text.find("\"edge\":\"samples\"") != std::string::npos &&
-             file_text.find("\"direction\":\"sent\"") != std::string::npos &&
-             file_text.find("\"sequence\":42") != std::string::npos &&
-             file_text.find("\"trace_id\":\"trace-capture-42\"") != std::string::npos,
-         "PCAPNG correlation metadata");
+  expect(
+      file_text.find("\"edge\":\"samples\"") != std::string::npos &&
+          file_text.find("\"direction\":\"sent\"") != std::string::npos &&
+          file_text.find("\"sequence\":42") != std::string::npos &&
+          file_text.find("\"message_id\":\"fedcba9876543210fedcba9876543210\"") !=
+              std::string::npos &&
+          file_text.find("\"trace_id\":\"0123456789abcdef0123456789abcdef\"") != std::string::npos,
+      "PCAPNG correlation metadata");
   std::filesystem::remove(path);
 }
 
@@ -257,6 +412,51 @@ void in_process_typed_outcomes_and_backpressure() {
          "in-process close ends stream after drain");
 }
 
+void in_process_validation_is_atomic() {
+  graphx::InProcessOptions options;
+  options.capacity = 1;
+  options.backpressure = graphx::InProcessBackpressure::reject;
+  auto channel = std::make_shared<graphx::InProcessChannel>(options);
+  graphx::MetricsTraceSink metrics;
+  graphx::InProcessTransport sender(channel, "validated", &metrics),
+      receiver(channel, "validated", &metrics);
+
+  const auto reject_without_publishing = [&](const graphx::Envelope& invalid,
+                                             std::string_view expected_error) {
+    try {
+      sender.send(invalid);
+      throw std::runtime_error("invalid in-process envelope was accepted");
+    } catch (const std::exception& error) {
+      expect(std::string_view(error.what()).find(expected_error) != std::string_view::npos,
+             "in-process validation diagnostic");
+    }
+    expect(receiver.receive_result(2ms).status == graphx::ReceiveStatus::timeout,
+           "failed in-process send leaves queue empty");
+    expect(metrics.edge("validated").sent == 0,
+           "failed in-process send does not emit send telemetry");
+  };
+
+  auto invalid_identity = graphx::Envelope::make(1, "Invalid", "identity");
+  invalid_identity.message_id = std::string(graphx::kIdentityHexLength, '0');
+  reject_without_publishing(invalid_identity, "message_id");
+
+  auto lossy_v1 = graphx::Envelope::make(2, "Invalid", "lineage");
+  lossy_v1.wire_version = graphx::kEnvelopeWireVersion1;
+  reject_without_publishing(lossy_v1, "cannot encode message lineage");
+
+  auto oversized = graphx::Envelope::make(3, "Invalid", "oversized");
+  oversized.payload.resize(graphx::kMaxFrameBytes, 'x');
+  reject_without_publishing(oversized, "protocol maximum");
+
+  const auto valid = graphx::Envelope::make(4, "Valid", "published");
+  sender.send(valid);
+  const auto received = receiver.receive_result(20ms);
+  expect(received.status == graphx::ReceiveStatus::message &&
+             received.envelope->message_id == valid.message_id,
+         "valid send succeeds after validation failures");
+  expect(metrics.edge("validated").sent == 1, "only committed in-process send emits telemetry");
+}
+
 void metrics_sink() {
   graphx::MetricsTraceSink metrics;
   const auto envelope = graphx::Envelope::make(8, "Metric", "value");
@@ -304,6 +504,21 @@ void udp_runtime_control() {
     expect(::recvfrom(collector, event.data(), event.size(), 0,
                       reinterpret_cast<sockaddr*>(&runtime), &runtime_size) > 0,
            "UDP control endpoint registration");
+    auto envelope = graphx::Envelope::make(12, std::string{"Observed"} + char{1}, "value");
+    envelope.message_id = "00112233445566778899aabbccddeeff";
+    envelope.trace_id = "102132435465768798a9babcbddcedfe";
+    sink.on_send("samples", envelope, 123);
+    const auto event_size = ::recv(collector, event.data(), event.size(), 0);
+    expect(event_size > 0, "UDP envelope event delivery");
+    const std::string_view event_json(event.data(), static_cast<std::size_t>(event_size));
+    expect(event_json.find("\"wireVersion\":2") != std::string_view::npos &&
+               event_json.find("\"messageId\":\"00112233445566778899aabbccddeeff\"") !=
+                   std::string_view::npos &&
+               event_json.find("\"parentMessageId\":\"\"") != std::string_view::npos &&
+               event_json.find("\"traceId\":\"102132435465768798a9babcbddcedfe\"") !=
+                   std::string_view::npos &&
+               event_json.find("\"type\":\"Observed\\u0001\"") != std::string_view::npos,
+           "UDP event carries canonical protocol identities");
     const auto command = [&](std::string_view action) {
       const auto json =
           std::string{"{\"kind\":\"control\",\"action\":\""} + std::string(action) + "\"}";
@@ -353,6 +568,39 @@ struct RawListener {
   }
 };
 
+std::string receive_http_request(int listener) {
+  pollfd descriptor{listener, POLLIN, 0};
+  expect(::poll(&descriptor, 1, 2000) > 0 && (descriptor.revents & POLLIN),
+         "HTTP request accept deadline");
+  const int client = ::accept(listener, nullptr, nullptr);
+  if (client < 0) throw std::runtime_error("HTTP accept");
+  std::string request;
+  std::array<char, 4096> buffer{};
+  for (;;) {
+    const auto count = ::recv(client, buffer.data(), buffer.size(), 0);
+    if (count <= 0) break;
+    request.append(buffer.data(), static_cast<std::size_t>(count));
+  }
+  ::close(client);
+  return request;
+}
+
+std::string http_json_value(const std::string& request, std::string_view name) {
+  const auto marker = std::string{"\""} + std::string(name) + "\":\"";
+  const auto begin = request.find(marker);
+  if (begin == std::string::npos) return {};
+  const auto value_begin = begin + marker.size();
+  const auto end = request.find('"', value_begin);
+  return request.substr(value_begin, end - value_begin);
+}
+
+bool valid_otlp_span_id(std::string_view value) {
+  return value.size() == 16 && value.find_first_not_of('0') != std::string_view::npos &&
+         std::all_of(value.begin(), value.end(), [](char character) {
+           return (character >= '0' && character <= '9') || (character >= 'a' && character <= 'f');
+         });
+}
+
 void raw_write_all(int socket, std::span<const std::byte> bytes) {
   while (!bytes.empty()) {
     const auto sent = ::send(socket, bytes.data(), bytes.size(), 0);
@@ -384,29 +632,96 @@ std::vector<std::byte> framed_envelope(std::uint64_t sequence, std::string paylo
 void otlp_http_json_export() {
   RawListener listener;
   auto received = std::async(std::launch::async, [&] {
-    const int client = ::accept(listener.socket, nullptr, nullptr);
-    if (client < 0) throw std::runtime_error("OTLP accept");
-    std::string request;
-    std::array<char, 4096> buffer{};
-    for (;;) {
-      const auto count = ::recv(client, buffer.data(), buffer.size(), 0);
-      if (count <= 0) break;
-      request.append(buffer.data(), static_cast<std::size_t>(count));
-    }
-    ::close(client);
-    return request;
+    std::array<std::string, 4> requests;
+    for (auto& request : requests) request = receive_http_request(listener.socket);
+    return requests;
   });
+  auto envelope = graphx::Envelope::make(91, "Observed", "value");
+  envelope.message_id = "00112233445566778899aabbccddeeff";
+  envelope.trace_id = "102132435465768798a9babcbddcedfe";
   {
-    graphx::OtlpHttpTraceSink exporter("test-node", "127.0.0.1", listener.port);
-    const auto envelope = graphx::Envelope::make(91, "Observed", "value");
-    exporter.on_processing("test-node", envelope, std::chrono::microseconds(12), true);
+    graphx::OtlpHttpTraceSink producer("producer", "127.0.0.1", listener.port);
+    producer.on_send("samples", envelope, 123);
   }
-  const auto request = received.get();
-  expect(request.find("POST /v1/traces HTTP/1.1") != std::string::npos, "OTLP HTTP endpoint");
-  expect(request.find("\"resourceSpans\"") != std::string::npos &&
-             request.find("graphx.process test-node") != std::string::npos &&
-             request.find("\"graphx.sequence\"") != std::string::npos,
-         "OTLP JSON span payload");
+  {
+    graphx::OtlpHttpTraceSink consumer("consumer", "127.0.0.1", listener.port);
+    consumer.on_receive("samples", envelope, 123, std::chrono::microseconds(12));
+  }
+  {
+    graphx::OtlpHttpTraceSink processor("processor", "127.0.0.1", listener.port);
+    processor.on_processing("processor", envelope, std::chrono::microseconds(10), true);
+    processor.on_processing("processor", envelope, std::chrono::microseconds(11), true);
+  }
+  const auto requests = received.get();
+  std::unordered_set<std::string> span_ids;
+  for (const auto& request : requests) {
+    expect(request.find("POST /v1/traces HTTP/1.1") != std::string::npos, "OTLP HTTP endpoint");
+    expect(request.find("\"resourceSpans\"") != std::string::npos &&
+               request.find("\"graphx.sequence\"") != std::string::npos &&
+               http_json_value(request, "traceId") == envelope.trace_id &&
+               request.find("\"graphx.message_id\"") != std::string::npos &&
+               request.find(envelope.message_id) != std::string::npos,
+           "OTLP JSON span payload");
+    const auto span_id = http_json_value(request, "spanId");
+    expect(valid_otlp_span_id(span_id), "OTLP span identity is valid and non-zero");
+    span_ids.insert(span_id);
+  }
+  expect(requests[0].find("graphx.send samples") != std::string::npos &&
+             requests[1].find("graphx.receive samples") != std::string::npos,
+         "OTLP producer and consumer spans");
+  expect(span_ids.size() == requests.size(),
+         "OTLP spans have distinct identities across exporters and repeated callbacks");
+}
+
+void otlp_span_ids_are_fork_safe() {
+  RawListener listener;
+  graphx::Envelope envelope{.sequence = 92,
+                            .timestamp_ns = 1,
+                            .type = "Forked",
+                            .trace_id = "102132435465768798a9babcbddcedfe",
+                            .attributes = {},
+                            .payload = "value",
+                            .message_id = "00112233445566778899aabbccddeeff",
+                            .parent_message_id = {},
+                            .wire_version = graphx::kEnvelopeWireVersion2};
+
+  // Reproduce a prefork runtime that has already initialized the message-ID
+  // generator. Span identity must not depend on that inherited process state.
+  static_cast<void>(graphx::generate_identity());
+  const auto child = ::fork();
+  expect(child >= 0, "OTLP fork");
+  if (child == 0) {
+    ::close(listener.socket);
+    listener.socket = -1;
+    try {
+      {
+        graphx::OtlpHttpTraceSink exporter("child", "127.0.0.1", listener.port);
+        exporter.on_send("samples", envelope, 123);
+      }
+      ::_exit(0);
+    } catch (...) {
+      ::_exit(1);
+    }
+  }
+
+  {
+    graphx::OtlpHttpTraceSink exporter("parent", "127.0.0.1", listener.port);
+    exporter.on_receive("samples", envelope, 123, std::chrono::microseconds(12));
+  }
+  const std::array requests{receive_http_request(listener.socket),
+                            receive_http_request(listener.socket)};
+  int child_status{};
+  expect(::waitpid(child, &child_status, 0) == child && WIFEXITED(child_status) &&
+             WEXITSTATUS(child_status) == 0,
+         "forked OTLP exporter exit");
+  const auto first_span = http_json_value(requests[0], "spanId");
+  const auto second_span = http_json_value(requests[1], "spanId");
+  expect(http_json_value(requests[0], "traceId") == envelope.trace_id &&
+             http_json_value(requests[1], "traceId") == envelope.trace_id,
+         "forked OTLP exporters preserve canonical trace identity");
+  expect(valid_otlp_span_id(first_span) && valid_otlp_span_id(second_span) &&
+             first_span != second_span,
+         "forked OTLP exporters generate distinct valid span identities");
 }
 
 std::string shared_segment(std::string_view suffix) {
@@ -1039,14 +1354,19 @@ int main() {
   const std::pair<const char*, std::function<void()>> tests[] = {
       {"framing", framing},
       {"envelope", envelope_round_trip},
+      {"envelope protocol golden vectors", envelope_protocol_golden_vectors},
+      {"envelope identity semantics", envelope_identity_semantics},
+      {"envelope protocol invalid input", envelope_protocol_rejects_invalid_input},
       {"legacy transport adapter", legacy_transport_adapter},
       {"PCAPNG capture", pcapng_capture},
       {"Ethernet PCAPNG capture", ethernet_pcapng_capture},
       {"in-process", in_process},
       {"in-process typed outcomes", in_process_typed_outcomes_and_backpressure},
+      {"in-process validation atomicity", in_process_validation_is_atomic},
       {"metrics", metrics_sink},
       {"UDP runtime control", udp_runtime_control},
       {"OTLP HTTP JSON", otlp_http_json_export},
+      {"OTLP fork-safe span identities", otlp_span_ids_are_fork_safe},
       {"shared-memory wraparound", shared_memory_wraparound_and_cleanup},
       {"shared-memory pressure", shared_memory_backpressure_and_limits},
       {"shared-memory timeout", shared_memory_receive_timeout_and_settings},

@@ -15,14 +15,17 @@ Each node writes its own PCAPNG file. The file contains:
 - the exact canonical `u32` big-endian length prefix followed by the serialized
   `GXE` envelope as packet data;
 - a standard UTF-8 packet comment containing JSON fields for edge, direction,
-  envelope sequence, trace ID, and type.
+  envelope wire version, sequence, message ID, parent-message ID, trace ID, and
+  type.
 
 The timestamp is the system-clock time at which GraphX records the callback.
 The telemetry event for the same record includes the capture filename, packet
-index, and PCAPNG block byte offset. The browser joins it to recent messages by
-edge and trace ID.
+index, and PCAPNG block byte offset. The browser joins v2 records by edge and
+message ID. Version-1 records fall back to edge, trace ID, and sequence.
 
-GraphX deliberately does not label these records as Ethernet, IP, or TCP.
+The packet bytes retain their original envelope wire version and can be decoded
+according to [`protocol.md`](protocol.md). GraphX deliberately does not label
+these records as Ethernet, IP, or TCP.
 `LINKTYPE_USER0` is a private-use libpcap value, so this representation is meant
 for local educational captures. It must not be treated as a stable interchange
 format for unrelated products. A future registered link type or Wireshark

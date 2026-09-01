@@ -33,11 +33,15 @@ bound of the bucket containing the percentile, not a raw percentile sample.
 
 ## Trace correlation
 
-An envelope owns a trace ID, sequence, subject and timestamp. Send, receive and
-processing callbacks retain that identity. The recent-message table displays a
-short trace ID and exposes the full value as a tooltip. When an OTLP destination
-is configured, GraphX asynchronously exports `graphx.send`, `graphx.receive`,
-`graphx.process`, and error spans without blocking the data path.
+An envelope owns a message ID, trace ID, optional parent-message ID, sequence,
+subject and timestamp. Send, receive, retry and ordinary transformation retain
+the message identity. Explicit derivation creates a new message in the same
+trace and records the parent. The recent-message table keys exact records by
+message ID and exposes message and trace values as a tooltip. Version-1 events
+fall back to trace ID plus sequence because v1 has no message ID. When an OTLP
+destination is configured, GraphX asynchronously exports `graphx.send`,
+`graphx.receive`, `graphx.process`, and error spans without blocking the data
+path.
 
 ```sh
 export GRAPHX_OTLP_HOST=127.0.0.1
@@ -45,8 +49,14 @@ export GRAPHX_OTLP_PORT=4318
 export GRAPHX_OTLP_PATH=/v1/traces
 ```
 
-W3C trace-context propagation, exporter retry/batching conformance, and richer
-span relationships remain Phase 5 follow-ups.
+For v2, the canonical GraphX trace ID is the OTLP trace ID and message/parent IDs
+are span attributes. Every exported operation receives a fresh, non-zero 64-bit
+span ID; span IDs are not derived from an edge name, sequence number, or message
+identity. Span IDs come directly from operating-system entropy and remain fresh
+when a process forks after initializing GraphX identity state. Legacy free-form
+trace strings are deterministically hashed for export. W3C trace-context
+propagation, exporter retry/batching conformance, sampling, and span-parent
+relationships remain Phase 6 work.
 
 ## Inspecting the live service
 
@@ -96,7 +106,7 @@ not a process suspension, durable queue, or distributed transaction.
 
 OVS SPAN ports and the example `tcpdump`/`dumpcap` hooks collect standard
 Ethernet packets now.
-The Phase 6 PCAPNG sink now records canonical application frames and reports
+The existing PCAPNG sink records canonical application frames and reports
 packet indexes/offsets through telemetry. The console can download available
 files, and the extcap adapter can follow one in Wireshark. See
 [`capture.md`](capture.md). Automated matching to separate OVS packet captures

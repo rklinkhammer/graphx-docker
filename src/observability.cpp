@@ -4,6 +4,7 @@
 #include <fcntl.h>
 #include <poll.h>
 #include <sys/socket.h>
+#include <sys/random.h>
 #include <sys/time.h>
 #include <unistd.h>
 
@@ -12,6 +13,7 @@
 #include <cerrno>
 #include <deque>
 #include <iomanip>
+#include <random>
 #include <sstream>
 #include <thread>
 
@@ -19,8 +21,8 @@ namespace graphx {
 namespace {
 
 constexpr std::array<std::chrono::microseconds, 7> kLatencyBounds{
-    std::chrono::microseconds{10}, std::chrono::microseconds{50},
-    std::chrono::microseconds{100}, std::chrono::microseconds{500},
+    std::chrono::microseconds{10},   std::chrono::microseconds{50},
+    std::chrono::microseconds{100},  std::chrono::microseconds{500},
     std::chrono::microseconds{1000}, std::chrono::microseconds{5000},
     std::chrono::microseconds{10000}};
 
@@ -28,12 +30,32 @@ std::string escape_json(std::string_view value) {
   std::string result;
   for (const char character : value) {
     switch (character) {
-      case '\\': result += "\\\\"; break;
-      case '"': result += "\\\""; break;
-      case '\n': result += "\\n"; break;
-      case '\r': result += "\\r"; break;
-      case '\t': result += "\\t"; break;
-      default: result += character;
+      case '\\':
+        result += "\\\\";
+        break;
+      case '"':
+        result += "\\\"";
+        break;
+      case '\n':
+        result += "\\n";
+        break;
+      case '\r':
+        result += "\\r";
+        break;
+      case '\t':
+        result += "\\t";
+        break;
+      default: {
+        const auto byte = static_cast<unsigned char>(character);
+        if (byte < 0x20 || byte >= 0x7f) {
+          constexpr std::string_view digits = "0123456789abcdef";
+          result += "\\u00";
+          result += digits[byte >> 4];
+          result += digits[byte & 0x0f];
+        } else {
+          result += character;
+        }
+      }
     }
   }
   return result;
@@ -54,6 +76,26 @@ std::string hex_id(std::string_view value, std::size_t digits, std::uint64_t sal
   out << std::hex << std::setfill('0') << std::setw(16) << first;
   if (digits > 16) out << std::setw(16) << second;
   return out.str().substr(0, digits);
+}
+
+std::string generate_span_id() {
+  // Span identity must remain fresh across process boundaries, including when a
+  // prefork parent has already initialized GraphX's message identity state.
+  for (;;) {
+    std::uint64_t value{};
+    if (::getentropy(&value, sizeof(value)) != 0) {
+      // getentropy is available on supported macOS/Linux systems. Keep a
+      // standard-library entropy fallback so telemetry remains best effort if a
+      // constrained runtime denies the system call.
+      std::random_device random;
+      for (int index = 0; index < 4; ++index)
+        value = (value << 16) ^ (static_cast<std::uint64_t>(random()) & 0xffffU);
+    }
+    if (value == 0) continue;
+    std::ostringstream span_id;
+    span_id << std::hex << std::setfill('0') << std::setw(16) << value;
+    return span_id.str();
+  }
 }
 
 void post_json(std::string_view host, std::uint16_t port, std::string_view path,
@@ -99,7 +141,8 @@ void post_json(std::string_view host, std::uint16_t port, std::string_view path,
   std::ostringstream request;
   request << "POST " << path << " HTTP/1.1\r\nHost: " << host << ':' << port
           << "\r\nContent-Type: application/json\r\nContent-Length: " << body.size()
-          << "\r\nConnection: close\r\n\r\n" << body;
+          << "\r\nConnection: close\r\n\r\n"
+          << body;
   const auto data = request.str();
   std::size_t offset{};
   while (offset < data.size()) {
@@ -120,26 +163,30 @@ void post_json(std::string_view host, std::uint16_t port, std::string_view path,
 
 std::string_view to_string(ConnectionState state) noexcept {
   switch (state) {
-    case ConnectionState::disconnected: return "disconnected";
-    case ConnectionState::connecting: return "connecting";
-    case ConnectionState::listening: return "listening";
-    case ConnectionState::connected: return "connected";
-    case ConnectionState::closed: return "closed";
-    case ConnectionState::error: return "error";
+    case ConnectionState::disconnected:
+      return "disconnected";
+    case ConnectionState::connecting:
+      return "connecting";
+    case ConnectionState::listening:
+      return "listening";
+    case ConnectionState::connected:
+      return "connected";
+    case ConnectionState::closed:
+      return "closed";
+    case ConnectionState::error:
+      return "error";
   }
   return "unknown";
 }
 
-void MetricsTraceSink::on_send(std::string_view edge_id, const Envelope&,
-                               std::size_t wire_bytes) {
+void MetricsTraceSink::on_send(std::string_view edge_id, const Envelope&, std::size_t wire_bytes) {
   std::scoped_lock lock(mutex_);
   auto& value = edges_[std::string(edge_id)];
   ++value.sent;
   value.sent_wire_bytes += wire_bytes;
 }
 
-void MetricsTraceSink::on_receive(std::string_view edge_id, const Envelope&,
-                                  std::size_t wire_bytes,
+void MetricsTraceSink::on_receive(std::string_view edge_id, const Envelope&, std::size_t wire_bytes,
                                   std::chrono::nanoseconds latency) {
   std::scoped_lock lock(mutex_);
   auto& value = edges_[std::string(edge_id)];
@@ -168,8 +215,8 @@ void MetricsTraceSink::on_reconnect(std::string_view edge_id) {
   ++edges_[std::string(edge_id)].reconnects;
 }
 
-void MetricsTraceSink::on_backpressure(std::string_view edge_id,
-                                       std::chrono::nanoseconds duration, bool rejected) {
+void MetricsTraceSink::on_backpressure(std::string_view edge_id, std::chrono::nanoseconds duration,
+                                       bool rejected) {
   std::scoped_lock lock(mutex_);
   auto& value = edges_[std::string(edge_id)];
   ++value.backpressure_events;
@@ -190,8 +237,7 @@ void CompositeTraceSink::on_send(std::string_view edge_id, const Envelope& envel
 }
 
 void CompositeTraceSink::on_receive(std::string_view edge_id, const Envelope& envelope,
-                                    std::size_t wire_bytes,
-                                    std::chrono::nanoseconds latency) {
+                                    std::size_t wire_bytes, std::chrono::nanoseconds latency) {
   for (auto* sink : sinks_) sink->on_receive(edge_id, envelope, wire_bytes, latency);
 }
 
@@ -229,8 +275,7 @@ struct UdpJsonTraceSink::Impl {
   std::thread control_thread;
 };
 
-UdpJsonTraceSink::UdpJsonTraceSink(std::string node_id, std::string host,
-                                   std::uint16_t port)
+UdpJsonTraceSink::UdpJsonTraceSink(std::string node_id, std::string host, std::uint16_t port)
     : impl_(std::make_unique<Impl>()) {
   impl_->node_id = std::move(node_id);
   addrinfo hints{};
@@ -240,10 +285,8 @@ UdpJsonTraceSink::UdpJsonTraceSink(std::string node_id, std::string host,
   const auto service = std::to_string(port);
   if (::getaddrinfo(host.c_str(), service.c_str(), &hints, &addresses) != 0) return;
   for (auto* address = addresses; address; address = address->ai_next) {
-    const int candidate = ::socket(address->ai_family, address->ai_socktype,
-                                   address->ai_protocol);
-    if (candidate >= 0 && ::connect(candidate, address->ai_addr,
-                                    address->ai_addrlen) == 0) {
+    const int candidate = ::socket(address->ai_family, address->ai_socktype, address->ai_protocol);
+    if (candidate >= 0 && ::connect(candidate, address->ai_addr, address->ai_addrlen) == 0) {
       impl_->socket = candidate;
       break;
     }
@@ -271,8 +314,8 @@ UdpJsonTraceSink::UdpJsonTraceSink(std::string node_id, std::string host,
         }
         if (!action.empty()) {
           const auto acknowledgement = std::string{"{\"kind\":\"control_ack\",\"nodeId\":\""} +
-              escape_json(state->node_id) + "\",\"action\":\"" +
-              std::string(action) + "\",\"accepted\":true}";
+                                       escape_json(state->node_id) + "\",\"action\":\"" +
+                                       std::string(action) + "\",\"accepted\":true}";
           ::send(state->socket, acknowledgement.data(), acknowledgement.size(), 0);
         }
       }
@@ -296,15 +339,12 @@ void UdpJsonTraceSink::on_send(std::string_view edge_id, const Envelope& envelop
   emit("send", edge_id, &envelope, wire_bytes, {});
 }
 
-void UdpJsonTraceSink::on_receive(std::string_view edge_id,
-                                  const Envelope& envelope,
-                                  std::size_t wire_bytes,
-                                  std::chrono::nanoseconds latency) {
+void UdpJsonTraceSink::on_receive(std::string_view edge_id, const Envelope& envelope,
+                                  std::size_t wire_bytes, std::chrono::nanoseconds latency) {
   emit("receive", edge_id, &envelope, wire_bytes, latency);
 }
 
-void UdpJsonTraceSink::on_error(std::string_view edge_id,
-                                std::string_view message) {
+void UdpJsonTraceSink::on_error(std::string_view edge_id, std::string_view message) {
   emit("error", edge_id, nullptr, 0, {}, message);
 }
 
@@ -316,8 +356,8 @@ void UdpJsonTraceSink::on_reconnect(std::string_view edge_id) {
   emit("reconnect", edge_id, nullptr, 0, {});
 }
 
-void UdpJsonTraceSink::on_backpressure(std::string_view edge_id,
-                                       std::chrono::nanoseconds duration, bool rejected) {
+void UdpJsonTraceSink::on_backpressure(std::string_view edge_id, std::chrono::nanoseconds duration,
+                                       bool rejected) {
   emit("backpressure", edge_id, nullptr, 0, duration, rejected ? "rejected" : "blocked");
 }
 
@@ -335,39 +375,42 @@ void UdpJsonTraceSink::on_capture(std::string_view edge_id, const Envelope& enve
                                   std::uint64_t packet_index, std::uint64_t file_offset) {
   if (!impl_ || impl_->socket < 0) return;
   const auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
-      std::chrono::system_clock::now().time_since_epoch()).count();
+                       std::chrono::system_clock::now().time_since_epoch())
+                       .count();
   std::ostringstream json;
-  json << "{\"kind\":\"capture\",\"event\":\"frame\",\"nodeId\":\""
-       << escape_json(impl_->node_id) << "\",\"edgeId\":\"" << escape_json(edge_id)
-       << "\",\"timestamp\":" << now << ",\"sequence\":" << envelope.sequence
-       << ",\"type\":\"" << escape_json(envelope.type) << "\",\"traceId\":\""
-       << escape_json(envelope.trace_id) << "\",\"direction\":\""
+  json << "{\"kind\":\"capture\",\"event\":\"frame\",\"nodeId\":\"" << escape_json(impl_->node_id)
+       << "\",\"edgeId\":\"" << escape_json(edge_id) << "\",\"timestamp\":" << now
+       << ",\"sequence\":" << envelope.sequence
+       << ",\"wireVersion\":" << static_cast<unsigned>(envelope.wire_version) << ",\"type\":\""
+       << escape_json(envelope.type) << "\",\"messageId\":\"" << escape_json(envelope.message_id)
+       << "\",\"parentMessageId\":\"" << escape_json(envelope.parent_message_id)
+       << "\",\"traceId\":\"" << escape_json(envelope.trace_id) << "\",\"direction\":\""
        << escape_json(direction) << "\",\"captureFile\":\"" << escape_json(file)
-       << "\",\"capturePacket\":" << packet_index << ",\"captureOffset\":"
-       << file_offset << '}';
+       << "\",\"capturePacket\":" << packet_index << ",\"captureOffset\":" << file_offset << '}';
   const auto value = json.str();
   ::send(impl_->socket, value.data(), value.size(), 0);
 }
 
 void UdpJsonTraceSink::emit(std::string_view event, std::string_view edge_id,
                             const Envelope* envelope, std::size_t wire_bytes,
-                            std::chrono::nanoseconds latency,
-                            std::string_view message, double cpu_percent) {
+                            std::chrono::nanoseconds latency, std::string_view message,
+                            double cpu_percent) {
   if (!impl_ || impl_->socket < 0) return;
   const auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
-      std::chrono::system_clock::now().time_since_epoch()).count();
+                       std::chrono::system_clock::now().time_since_epoch())
+                       .count();
   std::ostringstream json;
-  json << "{\"kind\":\"trace\",\"event\":\"" << event
-       << "\",\"nodeId\":\"" << escape_json(impl_->node_id)
-       << "\",\"edgeId\":\"" << escape_json(edge_id)
-       << "\",\"timestamp\":" << now << ",\"wireBytes\":" << wire_bytes
-       << ",\"latencyUs\":"
+  json << "{\"kind\":\"trace\",\"event\":\"" << event << "\",\"nodeId\":\""
+       << escape_json(impl_->node_id) << "\",\"edgeId\":\"" << escape_json(edge_id)
+       << "\",\"timestamp\":" << now << ",\"wireBytes\":" << wire_bytes << ",\"latencyUs\":"
        << std::chrono::duration_cast<std::chrono::microseconds>(latency).count();
   if (envelope) {
     json << ",\"sequence\":" << envelope->sequence
-         << ",\"type\":\"" << escape_json(envelope->type)
-         << "\",\"payloadBytes\":" << envelope->payload.size()
-         << ",\"traceId\":\"" << escape_json(envelope->trace_id) << '"';
+         << ",\"wireVersion\":" << static_cast<unsigned>(envelope->wire_version) << ",\"type\":\""
+         << escape_json(envelope->type) << "\",\"payloadBytes\":" << envelope->payload.size()
+         << ",\"messageId\":\"" << escape_json(envelope->message_id) << "\",\"parentMessageId\":\""
+         << escape_json(envelope->parent_message_id) << "\",\"traceId\":\""
+         << escape_json(envelope->trace_id) << '"';
   }
   if (!message.empty()) json << ",\"message\":\"" << escape_json(message) << '"';
   if (cpu_percent >= 0.0)
@@ -412,9 +455,8 @@ struct OtlpHttpTraceSink::Impl {
   }
 };
 
-OtlpHttpTraceSink::OtlpHttpTraceSink(std::string node_id, std::string host,
-                                     std::uint16_t port, std::string path,
-                                     std::size_t queue_capacity)
+OtlpHttpTraceSink::OtlpHttpTraceSink(std::string node_id, std::string host, std::uint16_t port,
+                                     std::string path, std::size_t queue_capacity)
     : impl_(std::make_unique<Impl>()) {
   impl_->node_id = std::move(node_id);
   impl_->host = std::move(host);
@@ -443,8 +485,7 @@ void OtlpHttpTraceSink::on_send(std::string_view edge_id, const Envelope& envelo
 }
 
 void OtlpHttpTraceSink::on_receive(std::string_view edge_id, const Envelope& envelope,
-                                   std::size_t wire_bytes,
-                                   std::chrono::nanoseconds latency) {
+                                   std::size_t wire_bytes, std::chrono::nanoseconds latency) {
   enqueue_span("graphx.receive", edge_id, &envelope, latency, "ok", wire_bytes);
 }
 
@@ -458,30 +499,39 @@ void OtlpHttpTraceSink::on_processing(std::string_view node_id, const Envelope& 
 }
 
 void OtlpHttpTraceSink::enqueue_span(std::string_view name, std::string_view subject,
-                                     const Envelope* envelope,
-                                     std::chrono::nanoseconds duration,
+                                     const Envelope* envelope, std::chrono::nanoseconds duration,
                                      std::string_view status, std::size_t wire_bytes) {
   if (!impl_) return;
   const auto end = std::chrono::duration_cast<std::chrono::nanoseconds>(
-      std::chrono::system_clock::now().time_since_epoch()).count();
+                       std::chrono::system_clock::now().time_since_epoch())
+                       .count();
   const auto start = end - std::max<std::int64_t>(0, duration.count());
   const auto trace_source = envelope ? std::string_view(envelope->trace_id) : subject;
-  const auto salt = envelope ? envelope->sequence : static_cast<std::uint64_t>(end);
+  const auto trace_id =
+      is_canonical_identity(trace_source) ? std::string(trace_source) : hex_id(trace_source, 32);
+  const auto span_id = generate_span_id();
   std::ostringstream json;
   json << "{\"resourceSpans\":[{\"resource\":{\"attributes\":[{\"key\":\"service.name\","
-          "\"value\":{\"stringValue\":\"graphx-" << escape_json(impl_->node_id)
+          "\"value\":{\"stringValue\":\"graphx-"
+       << escape_json(impl_->node_id)
        << "\"}}]},\"scopeSpans\":[{\"scope\":{\"name\":\"graphx.runtime\"},\"spans\":[{"
-          "\"traceId\":\"" << hex_id(trace_source, 32)
-       << "\",\"spanId\":\"" << hex_id(subject, 16, salt)
-       << "\",\"name\":\"" << name << ' ' << escape_json(subject)
-       << "\",\"startTimeUnixNano\":\"" << start << "\",\"endTimeUnixNano\":\""
-       << end << "\",\"attributes\":[{\"key\":\"graphx.subject\",\"value\":{\"stringValue\":\""
+          "\"traceId\":\""
+       << trace_id << "\",\"spanId\":\"" << span_id << "\",\"name\":\"" << name << ' '
+       << escape_json(subject) << "\",\"startTimeUnixNano\":\"" << start
+       << "\",\"endTimeUnixNano\":\"" << end
+       << "\",\"attributes\":[{\"key\":\"graphx.subject\",\"value\":{\"stringValue\":\""
        << escape_json(subject) << "\"}},{\"key\":\"graphx.status\",\"value\":{\"stringValue\":\""
        << escape_json(status) << "\"}},{\"key\":\"graphx.wire_bytes\",\"value\":{\"intValue\":\""
        << wire_bytes << "\"}}";
-  if (envelope)
-    json << ",{\"key\":\"graphx.sequence\",\"value\":{\"intValue\":\""
-         << envelope->sequence << "\"}}";
+  if (envelope) {
+    json << ",{\"key\":\"graphx.sequence\",\"value\":{\"intValue\":\"" << envelope->sequence
+         << "\"}},{\"key\":\"graphx.message_id\",\"value\":{"
+            "\"stringValue\":\""
+         << escape_json(envelope->message_id)
+         << "\"}},{\"key\":\"graphx.parent_message_id\","
+            "\"value\":{\"stringValue\":\""
+         << escape_json(envelope->parent_message_id) << "\"}}";
+  }
   json << "]}]}]}]}";
   {
     std::scoped_lock lock(impl_->mutex);
