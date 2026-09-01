@@ -230,7 +230,7 @@ std::uint64_t PcapngCaptureSink::last_packet_offset() const noexcept {
 }
 
 struct EthernetPcapngCaptureSink::Impl {
-  Impl(std::filesystem::path output, std::string interface_name, std::uint32_t maximum)
+  Impl(std::filesystem::path output, const std::string& interface_name, std::uint32_t maximum)
       : writer(std::move(output), maximum, kLinktypeEthernet, interface_name,
                "IEEE 802.3/Ethernet frames captured from " + interface_name,
                "GraphX standard Ethernet packet capture; LINKTYPE_ETHERNET") {}

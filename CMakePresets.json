@@ -6,9 +6,78 @@
       "displayName": "GraphX development",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/dev",
-      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug", "GRAPHX_BUILD_TESTS": "ON" }
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "GRAPHX_BUILD_TESTS": "ON"
+      }
+    },
+    {
+      "name": "ci-cxx20",
+      "inherits": "dev",
+      "displayName": "CI C++20",
+      "binaryDir": "${sourceDir}/build/ci-cxx20",
+      "cacheVariables": { "CMAKE_CXX_STANDARD": "20" }
+    },
+    {
+      "name": "ci-cxx23",
+      "inherits": "dev",
+      "displayName": "CI C++23",
+      "binaryDir": "${sourceDir}/build/ci-cxx23",
+      "cacheVariables": { "CMAKE_CXX_STANDARD": "23" }
+    },
+    {
+      "name": "sanitizers",
+      "inherits": "ci-cxx23",
+      "displayName": "Address and undefined behavior sanitizers",
+      "binaryDir": "${sourceDir}/build/sanitizers",
+      "cacheVariables": { "GRAPHX_ENABLE_SANITIZERS": "ON" }
+    },
+    {
+      "name": "quality",
+      "inherits": "ci-cxx20",
+      "displayName": "clang-tidy and cppcheck",
+      "binaryDir": "${sourceDir}/build/quality",
+      "cacheVariables": {
+        "GRAPHX_ENABLE_CLANG_TIDY": "ON",
+        "GRAPHX_ENABLE_CPPCHECK": "ON"
+      }
+    },
+    {
+      "name": "fuzz",
+      "inherits": "sanitizers",
+      "displayName": "libFuzzer targets",
+      "binaryDir": "${sourceDir}/build/fuzz",
+      "cacheVariables": {
+        "GRAPHX_BUILD_FUZZERS": "ON",
+        "GRAPHX_BUILD_TESTS": "OFF"
+      }
     }
   ],
-  "buildPresets": [{ "name": "dev", "configurePreset": "dev" }],
-  "testPresets": [{ "name": "dev", "configurePreset": "dev", "output": { "outputOnFailure": true } }]
+  "buildPresets": [
+    { "name": "dev", "configurePreset": "dev" },
+    { "name": "ci-cxx20", "configurePreset": "ci-cxx20" },
+    { "name": "ci-cxx23", "configurePreset": "ci-cxx23" },
+    { "name": "sanitizers", "configurePreset": "sanitizers" },
+    { "name": "quality", "configurePreset": "quality" },
+    { "name": "fuzz", "configurePreset": "fuzz" }
+  ],
+  "testPresets": [
+    { "name": "dev", "configurePreset": "dev", "output": { "outputOnFailure": true } },
+    {
+      "name": "ci-cxx20",
+      "configurePreset": "ci-cxx20",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "ci-cxx23",
+      "configurePreset": "ci-cxx23",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "sanitizers",
+      "configurePreset": "sanitizers",
+      "output": { "outputOnFailure": true }
+    }
+  ]
 }

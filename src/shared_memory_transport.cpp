@@ -84,7 +84,7 @@ void remove_stale_segment(const std::string& name) {
     throw posix_error("inspect existing shared-memory segment");
   }
   bool live_consumer{};
-  struct stat status{};
+  struct stat status {};
   if (::fstat(descriptor, &status) == 0 &&
       status.st_size >= static_cast<off_t>(sizeof(SharedHeader))) {
     void* mapping =
@@ -283,7 +283,7 @@ std::unique_ptr<SharedMemoryTransport::Impl> SharedMemoryTransport::create_impl(
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     } while (std::chrono::steady_clock::now() < connect_deadline);
     if (impl->descriptor < 0) throw posix_error("open shared-memory segment");
-    struct stat status{};
+    struct stat status {};
     if (::fstat(impl->descriptor, &status) != 0) throw posix_error("inspect shared-memory segment");
     if (status.st_size < static_cast<off_t>(sizeof(SharedHeader)) ||
         status.st_size > static_cast<off_t>(kMaximumMappingBytes))

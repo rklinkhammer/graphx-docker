@@ -49,8 +49,8 @@ class InProcessChannel {
 
 class InProcessTransport final : public Transport {
  public:
-  explicit InProcessTransport(std::shared_ptr<InProcessChannel> channel,
-                              std::string edge_id = {}, TraceSink* trace_sink = nullptr)
+  explicit InProcessTransport(std::shared_ptr<InProcessChannel> channel, std::string edge_id = {},
+                              TraceSink* trace_sink = nullptr)
       : channel_(std::move(channel)), edge_id_(std::move(edge_id)), trace_sink_(trace_sink) {
     if (!trace_sink_) trace_sink_ = &null_trace_sink_;
     trace_sink_->on_connection(edge_id_, ConnectionState::connected);

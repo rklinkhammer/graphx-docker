@@ -1,5 +1,7 @@
 # GraphX
 
+[![CI](https://github.com/rklinkhammer/graphx-docker/actions/workflows/ci.yml/badge.svg)](https://github.com/rklinkhammer/graphx-docker/actions/workflows/ci.yml)
+
 GraphX is a small, educational framework for describing a processing graph once, running its nodes in separate processes or containers, and inspecting what crosses each edge. This scaffold starts with a C++23 runtime, framed TCP and in-process transports, a three-stage demo, and a React Flow development console.
 
 > Status: framework scaffold. The demo path, live telemetry, four baseline
@@ -53,6 +55,20 @@ and shared-memory pipelines, the browser build, telemetry API, Prometheus output
 and infrastructure dry-runs), run `scripts/test-features.sh portable`. Docker and
 privileged native-Linux tiers are documented in
 [`docs/test-procedure.md`](docs/test-procedure.md).
+
+Phase 4 quality gates are available as ordinary repository commands:
+
+```sh
+scripts/check-format.sh
+scripts/run-static-analysis.sh
+GRAPHX_FUZZ_SECONDS=30 scripts/run-fuzz.sh
+cmake --preset sanitizers && cmake --build --preset sanitizers && ctest --preset sanitizers
+```
+
+The GitHub Actions workflow runs C++20 and C++23 on Linux and macOS, ASan/UBSan
+on both hosts, repository-wide formatting, clang-tidy, cppcheck, bounded
+libFuzzer smoke runs, portable integration, JavaScript audits, and Compose image
+builds. It never opts into privileged macvlan/ipvlan/OVS host mutation.
 
 The library uses C++23 by default but only relies on broadly available C++20-era facilities. Set `CMAKE_CXX_STANDARD=20` if your toolchain needs it.
 
@@ -383,15 +399,21 @@ capture sink writes exact canonical framed bytes and correlation comments;
 
 - framing prefix and payload preservation;
 - deterministic envelope serialization/deserialization;
+- exact 16 MiB envelope/frame acceptance, maximum-plus-one rejection, every
+  proper v2 truncated prefix, and byte-stable v1/v2 golden vectors;
 - in-process delivery;
 - shared-memory wraparound, bounded blocking and rejection policies, size and
   layout validation, cleanup, live-owner protection, stale-owner recovery, and
   cross-process delivery/crash detection;
-- TCP request/reply across a loopback socket, including framing and envelope decoding;
+- TCP request/reply across a loopback socket, including framing, envelope
+  decoding, and v1 followed by v2 on one live connection;
 - fragmented headers/payloads, consecutive frames, closure boundaries, maximum
   frame rejection, full-frame deadlines, reconnect, listener replacement, and
   cancellation without `SIGPIPE`;
-- Unix-domain socket request/reply with the same envelope and framing contract.
+- Unix-domain socket request/reply with the same envelope and framing contract;
+- repeated connected delivery, blocked-receive cancellation, cleanup and
+  resource reuse for in-process, shared-memory, TCP, and Unix-domain transports,
+  including TCP peer replacement;
 - authoritative configuration loading and lookup;
 - override precedence and typo rejection;
 - aggregated semantic validation diagnostics;
@@ -401,7 +423,9 @@ capture sink writes exact canonical framed bytes and correlation comments;
 - network-model parsing, reference validation, infrastructure planning, OVS mirrors,
   forwarding, Docker macvlan/ipvlan creation, and netem command generation.
 
-The tests use no third-party framework so a fresh scaffold remains easy to build and study.
+The unit/integration tests use no third-party framework so a fresh scaffold
+remains easy to build and study. Separate libFuzzer entry points continuously
+exercise untrusted envelope and frame bytes under ASan/UBSan.
 
 ## Production-readiness roadmap
 
@@ -411,11 +435,11 @@ production-hardening phase forward.
 
 1. **Configuration** — schema, loader, validation, and transport factory (implemented).
 2. **Runtime lifecycle** — bounded queues, cancellation, reconnect, and graceful shutdown
-   (implemented, with continued stress testing scheduled for Phase 4).
+   (implemented, with repeated cross-transport stress coverage).
 3. **Protocol** — specification, compatibility rules, and message/trace identities
    (implemented).
 4. **Quality automation** — CI, sanitizers, fuzzing, static analysis, and expanded
-   transport tests.
+   transport tests (implemented).
 5. **Security** — authentication, TLS, API validation, and container hardening.
 6. **Operations** — OpenTelemetry integration, health checks, SLOs, and dashboards.
 7. **History** — durable or backend-driven telemetry history.

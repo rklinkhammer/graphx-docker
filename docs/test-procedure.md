@@ -15,6 +15,9 @@ tier. The privileged tier is deliberately never selected automatically.
 
 | Tier | Host | Coverage | Command |
 |---|---|---|---|
+| Quality | macOS or Linux | Repository formatting, clang-tidy, cppcheck | `scripts/check-format.sh && scripts/run-static-analysis.sh` |
+| Sanitizers | macOS or Linux | Complete CTest under ASan and UBSan | `cmake --preset sanitizers && cmake --build --preset sanitizers && ctest --preset sanitizers` |
+| Fuzz | Clang host | Envelope and frame libFuzzer targets under ASan/UBSan | `GRAPHX_FUZZ_SECONDS=30 scripts/run-fuzz.sh` |
 | Portable | macOS or Linux | C++20/23, unit/integration tests, config/infra dry-runs, TCP and shared-memory process pipelines, graceful SIGTERM, web build, configuration-driven telemetry, heartbeat expiry, API and Prometheus output | `scripts/test-features.sh portable` |
 | Docker | macOS or Linux with Docker | Portable tier plus the standard bridge-network Compose deployment | `scripts/test-features.sh docker` |
 | Native network | Linux only | Portable tier plus real macvlan, IPvlan L2/L3, OVS, namespace routing, nftables and netem | `GRAPHX_ALLOW_PRIVILEGED_TESTS=1 scripts/test-features.sh linux-network` |
@@ -31,11 +34,61 @@ curl. Docker tests need Docker Engine/Desktop with Compose. Native network tests
 also need a Linux host, Open vSwitch, iproute2, nftables and root/sudo access.
 tcpdump or dumpcap is optional for capture checks.
 
+Quality checks additionally need clang-format, clang-tidy, and cppcheck. Fuzzing
+needs Clang with libFuzzer and `xxd`. Override tool names with `CLANG_FORMAT`,
+`CLANG_TIDY`, and `CPPCHECK`; override build directories with
+`GRAPHX_QUALITY_BUILD_DIR` and `GRAPHX_FUZZ_BUILD_DIR`.
+
 Docker Desktop does not expose native macvlan/ipvlan semantics. On macOS, use the
 mixed-network macOS profile to test the containerized userspace OVS simulation;
 use native Linux for driver-accurate results.
 
-## 1. Portable automated acceptance
+## 1. Quality automation
+
+The checked-in workflow at `.github/workflows/ci.yml` runs on pushes to `main`,
+pull requests, a weekly schedule, and manual dispatch. Its external actions are pinned to immutable
+commit SHAs. The matrix covers C++20 and C++23 on Ubuntu and macOS. Separate jobs
+run ASan/UBSan, clang-format 18, clang-tidy 18, cppcheck, bounded libFuzzer smoke
+runs, the portable feature suite, npm production audits, and Compose image
+builds. Workflow permissions are read-only and duplicate branch runs are
+cancelled.
+
+Run the same focused gates locally:
+
+```sh
+scripts/check-format.sh
+scripts/run-static-analysis.sh
+cmake --preset sanitizers
+cmake --build --preset sanitizers
+ASAN_OPTIONS=detect_leaks=1 UBSAN_OPTIONS=halt_on_error=1 ctest --preset sanitizers
+GRAPHX_FUZZ_SECONDS=30 scripts/run-fuzz.sh
+```
+
+Apple's sanitizer runtime may not provide LeakSanitizer in every toolchain. The
+CI macOS job disables leak detection explicitly while retaining ASan/UBSan; the
+Ubuntu job requires leak detection. Sanitized binaries are test artifacts and
+must not be shipped as production executables.
+
+The sanitizer configuration compiles every GraphX-owned library, application,
+test, and enabled fuzzer translation unit with ASan/UBSan and frame pointers.
+The `graphx-sanitizer-coverage` CTest audits `compile_commands.json` and fails if
+any GraphX-owned source is linked to the sanitizer runtime without also being
+compiled with instrumentation. Fetched yaml-cpp remains deliberately outside
+that project-owned instrumentation policy. The fuzz runner invokes the same
+audit after configuring its fuzzer targets, so the enabled fuzzer translation
+units are covered as well.
+
+The fuzz script converts the exact v1/v2 golden fixtures into a temporary seed
+corpus. `graphx-envelope-fuzz` exercises parsing, canonical reserialization, and
+round-trip invariants. `graphx-frame-fuzz` exercises length-prefix validation,
+framing invariants, and framed envelope decoding. Routine CI uses a bounded
+30-second smoke run for each target; the weekly run uses 300 seconds per target,
+and local campaigns can set `GRAPHX_FUZZ_SECONDS` without changing the harness.
+
+Privileged Linux network laboratories remain manual opt-in tests. CI validates
+their configuration and dry-run plans but never mutates runner networking.
+
+## 2. Portable automated acceptance
 
 Run:
 
@@ -80,7 +133,7 @@ ctest --test-dir build/dev --output-on-failure
 examples/shared-memory/run.sh
 ```
 
-## 2. Observe the live TCP pipeline
+## 3. Observe the live TCP pipeline
 
 Start the telemetry service and the three nodes in separate terminals:
 
@@ -123,7 +176,7 @@ unset GRAPHX_CONFIG GRAPHX_OVERRIDES GRAPHX_MAX_MESSAGES GRAPHX_INTERVAL_MS
 CTest and `scripts/test-features.sh` isolate themselves from these variables,
 but a direct `graphx validate` command intentionally honors exported overrides.
 
-## 3. OTLP/HTTP trace export
+## 4. OTLP/HTTP trace export
 
 Run any OTLP/HTTP collector that accepts JSON on port 4318, then add these
 variables to each node:
@@ -147,7 +200,7 @@ exports one parent and one child span for the same trace, and requires distinct
 span IDs. This guards prefork worker lifecycles that same-process exporter tests
 cannot exercise.
 
-## 4. Docker bridge deployment
+## 5. Docker bridge deployment
 
 The user-level smoke test is:
 
@@ -176,7 +229,7 @@ All services should be running while the generator is active, sink logs should
 show doubled values, and the telemetry snapshot should mark all three nodes as
 running.
 
-## 5. Native Linux network drivers
+## 6. Native Linux network drivers
 
 Review each generated plan before opting in:
 
@@ -209,7 +262,7 @@ node Compose projects have different project names. Do not interpret failed
 host-to-macvlan-container pings as a routing failure: parent-host reachability is
 blocked by macvlan design unless a host macvlan shim is added.
 
-## 6. OVS mirrors, capture and fault behavior
+## 7. OVS mirrors, capture and fault behavior
 
 With the mixed network running:
 
@@ -232,7 +285,7 @@ fallback), packet index, and byte offset.
 The current acceptance criterion does not require automatic matching between
 those two independent capture files.
 
-## 7. macOS userspace-OVS simulation
+## 8. macOS userspace-OVS simulation
 
 On Docker Desktop:
 

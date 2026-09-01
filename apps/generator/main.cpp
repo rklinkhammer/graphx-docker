@@ -9,7 +9,8 @@ int main() {
     demo::RuntimeTraceSink trace("generator", config);
     [[maybe_unused]] const auto& node = config.node("generator");
     graphx::TransportFactory transports;
-    auto output = transports.create(config.edge("samples"), graphx::ConnectionMode::connect, &trace);
+    auto output =
+        transports.create(config.edge("samples"), graphx::ConnectionMode::connect, &trace);
     const auto interval =
         std::chrono::milliseconds(std::stoi(demo::env("GRAPHX_INTERVAL_MS", "500")));
     const auto maximum = std::stoull(demo::env("GRAPHX_MAX_MESSAGES", "0"));

@@ -1,0 +1,8 @@
+magic="GXE"
+version1="\x01"
+version2="\x02"
+version_unknown="\xff"
+zero_u32="\x00\x00\x00\x00"
+max_frame="\x01\x00\x00\x00"
+max_attributes="\x00\x00\x10\x00"
+

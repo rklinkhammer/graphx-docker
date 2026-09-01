@@ -183,7 +183,7 @@ class ConfigParser {
       error(path, "must be a scalar string");
       return {};
     }
-    const auto value = node.Scalar();
+    const auto& value = node.Scalar();
     if (value.empty()) error(path, "must not be empty");
     if (value.size() > maximum) error(path, "exceeds maximum length " + std::to_string(maximum));
     return value;
@@ -326,8 +326,8 @@ class ConfigParser {
       consumed.insert(name + "." + edge.edge.id);
       if (edge.transport.kind == TransportKind::tcp) {
         strict_keys(settings, path,
-                    {"host", "bind", "port", "framing", "connect_timeout_ms", "send_timeout_ms", "reconnect",
-                     "retry"});
+                    {"host", "bind", "port", "framing", "connect_timeout_ms", "send_timeout_ms",
+                     "reconnect", "retry"});
         edge.transport.host = text(settings["host"], path + ".host", 253);
         edge.transport.bind = text(settings["bind"], path + ".bind", 253);
         const auto port = unsigned_value(settings["port"], path + ".port");
@@ -358,8 +358,8 @@ class ConfigParser {
               edge.transport.retry_attempts =
                   unsigned_value(retry["max_attempts"], path + ".retry.max_attempts");
             if (retry["initial_backoff_ms"])
-              edge.transport.retry_initial_backoff_ms = unsigned_value(
-                  retry["initial_backoff_ms"], path + ".retry.initial_backoff_ms");
+              edge.transport.retry_initial_backoff_ms =
+                  unsigned_value(retry["initial_backoff_ms"], path + ".retry.initial_backoff_ms");
             if (retry["max_backoff_ms"])
               edge.transport.retry_max_backoff_ms =
                   unsigned_value(retry["max_backoff_ms"], path + ".retry.max_backoff_ms");
@@ -430,8 +430,7 @@ class ConfigParser {
             256ULL * 1024 * 1024)
           error(path, "shared-memory payload capacity must not exceed 256 MiB");
         if (settings["backpressure"])
-          edge.transport.backpressure =
-              text(settings["backpressure"], path + ".backpressure", 16);
+          edge.transport.backpressure = text(settings["backpressure"], path + ".backpressure", 16);
         if (edge.transport.backpressure != "block" && edge.transport.backpressure != "reject")
           error(path + ".backpressure", "must be 'block' or 'reject'");
         if (settings["send_timeout_ms"])
@@ -514,8 +513,7 @@ class ConfigParser {
       const auto value = values[index];
       if (!require_map(value, path)) continue;
       strict_keys(value, path,
-                  {"id", "driver", "subnet", "subnets", "gateway", "parent", "mode",
-                   "external"});
+                  {"id", "driver", "subnet", "subnets", "gateway", "parent", "mode", "external"});
       NetworkDefinition network;
       network.id = text(value["id"], path + ".id", 64);
       identifier(network.id, path + ".id");
@@ -834,8 +832,7 @@ class ConfigParser {
     if (const auto telemetry = value["telemetry"]) {
       if (require_map(telemetry, "observability.telemetry")) {
         strict_keys(telemetry, "observability.telemetry",
-                    {"host", "port", "websocket", "heartbeat_interval_ms",
-                     "heartbeat_timeout_ms"});
+                    {"host", "port", "websocket", "heartbeat_interval_ms", "heartbeat_timeout_ms"});
         if (telemetry["host"])
           config.observability.telemetry.host =
               text(telemetry["host"], "observability.telemetry.host", 253);
@@ -854,15 +851,13 @@ class ConfigParser {
         }
         if (telemetry["heartbeat_interval_ms"])
           config.observability.telemetry.heartbeat_interval_ms = unsigned_value(
-              telemetry["heartbeat_interval_ms"],
-              "observability.telemetry.heartbeat_interval_ms");
+              telemetry["heartbeat_interval_ms"], "observability.telemetry.heartbeat_interval_ms");
         if (telemetry["heartbeat_timeout_ms"])
           config.observability.telemetry.heartbeat_timeout_ms = unsigned_value(
               telemetry["heartbeat_timeout_ms"], "observability.telemetry.heartbeat_timeout_ms");
         if (config.observability.telemetry.heartbeat_interval_ms == 0 ||
             config.observability.telemetry.heartbeat_interval_ms > 600000)
-          error("observability.telemetry.heartbeat_interval_ms",
-                "must be between 1 and 600000");
+          error("observability.telemetry.heartbeat_interval_ms", "must be between 1 and 600000");
         if (config.observability.telemetry.heartbeat_timeout_ms <
                 config.observability.telemetry.heartbeat_interval_ms * 2ULL ||
             config.observability.telemetry.heartbeat_timeout_ms > 3600000)

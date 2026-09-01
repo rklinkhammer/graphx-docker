@@ -2,6 +2,10 @@ cmake_minimum_required(VERSION 3.25)
 project(graphx VERSION 0.1.0 LANGUAGES CXX)
 
 option(GRAPHX_BUILD_TESTS "Build GraphX tests" ON)
+option(GRAPHX_BUILD_FUZZERS "Build libFuzzer targets" OFF)
+option(GRAPHX_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
+option(GRAPHX_ENABLE_CLANG_TIDY "Run clang-tidy while compiling GraphX targets" OFF)
+option(GRAPHX_ENABLE_CPPCHECK "Run cppcheck while compiling GraphX targets" OFF)
 set(CMAKE_CXX_STANDARD 23 CACHE STRING "C++ language standard (20 or 23)")
 set_property(CACHE CMAKE_CXX_STANDARD PROPERTY STRINGS 20 23)
 if(NOT CMAKE_CXX_STANDARD STREQUAL "20" AND NOT CMAKE_CXX_STANDARD STREQUAL "23")
@@ -9,6 +13,50 @@ if(NOT CMAKE_CXX_STANDARD STREQUAL "20" AND NOT CMAKE_CXX_STANDARD STREQUAL "23"
 endif()
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+
+if(GRAPHX_ENABLE_SANITIZERS AND NOT CMAKE_CXX_COMPILER_ID MATCHES "AppleClang|Clang|GNU")
+  message(FATAL_ERROR "GRAPHX_ENABLE_SANITIZERS requires Clang, AppleClang, or GCC")
+endif()
+if(GRAPHX_BUILD_FUZZERS AND NOT CMAKE_CXX_COMPILER_ID MATCHES "AppleClang|Clang")
+  message(FATAL_ERROR "GRAPHX_BUILD_FUZZERS requires Clang or AppleClang libFuzzer support")
+endif()
+if(GRAPHX_BUILD_FUZZERS AND NOT GRAPHX_ENABLE_SANITIZERS)
+  message(FATAL_ERROR "GRAPHX_BUILD_FUZZERS requires GRAPHX_ENABLE_SANITIZERS=ON")
+endif()
+
+if(GRAPHX_ENABLE_CLANG_TIDY)
+  find_program(GRAPHX_CLANG_TIDY_EXECUTABLE NAMES clang-tidy REQUIRED)
+endif()
+if(GRAPHX_ENABLE_CPPCHECK)
+  find_program(GRAPHX_CPPCHECK_EXECUTABLE NAMES cppcheck REQUIRED)
+endif()
+
+if(GRAPHX_ENABLE_SANITIZERS)
+  # The sanitizer coverage CTest audits the generated commands for every
+  # GraphX-owned translation unit. Keep the database available even when a
+  # caller did not explicitly request it.
+  set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+endif()
+
+function(graphx_enable_analysis target)
+  if(GRAPHX_ENABLE_CLANG_TIDY)
+    set_property(TARGET ${target} PROPERTY CXX_CLANG_TIDY
+      "${GRAPHX_CLANG_TIDY_EXECUTABLE};--config-file=${CMAKE_SOURCE_DIR}/.clang-tidy;--header-filter=^${CMAKE_SOURCE_DIR}/(include|src|apps|tests|fuzz)/")
+  endif()
+  if(GRAPHX_ENABLE_CPPCHECK)
+    set_property(TARGET ${target} PROPERTY CXX_CPPCHECK
+      "${GRAPHX_CPPCHECK_EXECUTABLE};--enable=warning,portability;--inline-suppr;--suppress=missingIncludeSystem;--suppress=*:*_deps/*;--error-exitcode=1")
+  endif()
+endfunction()
+
+function(graphx_enable_sanitizers target)
+  if(GRAPHX_ENABLE_SANITIZERS)
+    target_compile_options(${target} PRIVATE
+      -fno-omit-frame-pointer -fsanitize=address,undefined)
+    target_link_options(${target} PRIVATE
+      -fno-omit-frame-pointer -fsanitize=address,undefined)
+  endif()
+endfunction()
 
 find_package(Threads REQUIRED)
 find_package(yaml-cpp 0.9 QUIET CONFIG)
@@ -41,17 +89,26 @@ add_library(graphx
 )
 target_include_directories(graphx PUBLIC include)
 target_link_libraries(graphx PUBLIC Threads::Threads yaml-cpp::yaml-cpp)
+graphx_enable_analysis(graphx)
+graphx_enable_sanitizers(graphx)
 target_compile_options(graphx PRIVATE
   $<$<CXX_COMPILER_ID:AppleClang,Clang,GNU>:-Wall;-Wextra;-Wpedantic>)
+if(GRAPHX_BUILD_FUZZERS)
+  target_compile_options(graphx PRIVATE -fsanitize=fuzzer-no-link)
+endif()
 
 foreach(app generator transform sink)
   add_executable(graphx-${app} apps/${app}/main.cpp)
   target_link_libraries(graphx-${app} PRIVATE graphx)
+  graphx_enable_analysis(graphx-${app})
+  graphx_enable_sanitizers(graphx-${app})
 endforeach()
 
 add_executable(graphx-cli apps/cli/main.cpp)
 set_target_properties(graphx-cli PROPERTIES OUTPUT_NAME graphx)
 target_link_libraries(graphx-cli PRIVATE graphx)
+graphx_enable_analysis(graphx-cli)
+graphx_enable_sanitizers(graphx-cli)
 
 install(TARGETS graphx graphx-cli graphx-generator graphx-transform graphx-sink)
 install(FILES config/schema/graphx.schema.json DESTINATION share/graphx/schema)
@@ -60,10 +117,14 @@ if(GRAPHX_BUILD_TESTS)
   enable_testing()
   add_executable(graphx-tests tests/test_main.cpp)
   target_link_libraries(graphx-tests PRIVATE graphx)
+  graphx_enable_analysis(graphx-tests)
+  graphx_enable_sanitizers(graphx-tests)
   target_compile_definitions(graphx-tests PRIVATE GRAPHX_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
   add_test(NAME graphx-tests COMMAND graphx-tests)
   add_executable(graphx-config-tests tests/test_config.cpp)
   target_link_libraries(graphx-config-tests PRIVATE graphx)
+  graphx_enable_analysis(graphx-config-tests)
+  graphx_enable_sanitizers(graphx-config-tests)
   target_compile_definitions(graphx-config-tests PRIVATE GRAPHX_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
   add_test(NAME graphx-config-tests COMMAND graphx-config-tests)
   add_test(NAME graphx-config-cli
@@ -79,4 +140,30 @@ if(GRAPHX_BUILD_TESTS)
   # CTest and invalidate topologies that intentionally use another transport.
   set_tests_properties(${graphx_config_cli_tests}
     PROPERTIES ENVIRONMENT "GRAPHX_OVERRIDES=")
+
+  add_test(NAME graphx-protocol-boundaries
+    COMMAND graphx-tests --filter "protocol exhaustive boundaries")
+  add_test(NAME graphx-mixed-version-transport
+    COMMAND graphx-tests --filter "TCP mixed-version interoperability")
+  add_test(NAME graphx-transport-lifecycle-stress
+    COMMAND graphx-tests --filter "transport lifecycle stress")
+  set_tests_properties(graphx-transport-lifecycle-stress PROPERTIES TIMEOUT 30)
+  if(GRAPHX_ENABLE_SANITIZERS)
+    add_test(NAME graphx-sanitizer-coverage
+      COMMAND ${CMAKE_COMMAND}
+        -DGRAPHX_COMPILE_COMMANDS=${CMAKE_BINARY_DIR}/compile_commands.json
+        -DGRAPHX_SOURCE_ROOT=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_SOURCE_DIR}/cmake/verify-sanitizer-coverage.cmake)
+  endif()
+endif()
+
+if(GRAPHX_BUILD_FUZZERS)
+  foreach(fuzzer envelope frame)
+    add_executable(graphx-${fuzzer}-fuzz fuzz/${fuzzer}_fuzz.cpp)
+    target_link_libraries(graphx-${fuzzer}-fuzz PRIVATE graphx)
+    graphx_enable_analysis(graphx-${fuzzer}-fuzz)
+    graphx_enable_sanitizers(graphx-${fuzzer}-fuzz)
+    target_compile_options(graphx-${fuzzer}-fuzz PRIVATE -fsanitize=fuzzer)
+    target_link_options(graphx-${fuzzer}-fuzz PRIVATE -fsanitize=fuzzer)
+  endforeach()
 endif()

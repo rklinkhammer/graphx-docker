@@ -71,13 +71,12 @@ int topology_command(const std::string& command, int argc, char** argv) {
                 << " send-timeout-ms=" << edge.transport.send_timeout_ms
                 << " retry=" << edge.transport.retry_attempts << '/'
                 << edge.transport.retry_initial_backoff_ms << '-'
-                << edge.transport.retry_max_backoff_ms << "ms reconnect="
-                << (edge.transport.reconnect ? "true" : "false");
+                << edge.transport.retry_max_backoff_ms
+                << "ms reconnect=" << (edge.transport.reconnect ? "true" : "false");
     else if (edge.transport.kind == graphx::TransportKind::unix_socket)
       std::cout << " path=" << edge.transport.path;
     else if (edge.transport.kind == graphx::TransportKind::shared_memory)
-      std::cout << " segment=" << edge.transport.segment
-                << " capacity=" << edge.transport.capacity
+      std::cout << " segment=" << edge.transport.segment << " capacity=" << edge.transport.capacity
                 << " max-message=" << edge.transport.max_message_bytes
                 << " backpressure=" << edge.transport.backpressure
                 << " connect-timeout-ms=" << edge.transport.connect_timeout_ms
@@ -87,8 +86,7 @@ int topology_command(const std::string& command, int argc, char** argv) {
     std::cout << '\n';
   }
   for (const auto& network : config.network_infrastructure.networks) {
-    std::cout << "network " << network.id << " driver=" << to_string(network.driver)
-              << " subnets=";
+    std::cout << "network " << network.id << " driver=" << to_string(network.driver) << " subnets=";
     for (std::size_t index = 0; index < network.subnets.size(); ++index)
       std::cout << (index == 0 ? "" : ",") << network.subnets[index];
     std::cout << (network.gateway.empty() ? "" : " gateway=" + network.gateway)
@@ -119,10 +117,11 @@ int topology_command(const std::string& command, int argc, char** argv) {
             << " heartbeat=" << config.observability.telemetry.heartbeat_interval_ms << '/'
             << config.observability.telemetry.heartbeat_timeout_ms << "ms"
             << " capture=" << (config.observability.capture.enabled ? "enabled" : "disabled")
-            << " provider=" << (config.observability.capture.provider.empty()
-                                      ? "none" : config.observability.capture.provider)
-            << " directory=" << config.observability.capture.directory
-            << '\n';
+            << " provider="
+            << (config.observability.capture.provider.empty()
+                    ? "none"
+                    : config.observability.capture.provider)
+            << " directory=" << config.observability.capture.directory << '\n';
   return 0;
 }
 

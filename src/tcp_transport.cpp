@@ -69,11 +69,10 @@ int poll_timeout(Clock::time_point deadline, bool has_deadline) {
   if (!has_deadline) return -1;
   const auto remaining = deadline - Clock::now();
   if (remaining <= Clock::duration::zero()) return 0;
-  const auto milliseconds =
-      std::chrono::duration_cast<std::chrono::milliseconds>(remaining +
-                                                            std::chrono::milliseconds(1));
-  return static_cast<int>(std::min<std::int64_t>(milliseconds.count(),
-                                                 std::numeric_limits<int>::max()));
+  const auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(
+      remaining + std::chrono::milliseconds(1));
+  return static_cast<int>(
+      std::min<std::int64_t>(milliseconds.count(), std::numeric_limits<int>::max()));
 }
 
 bool wait_ready(int socket, short events, Clock::time_point deadline, bool has_deadline) {
@@ -195,8 +194,12 @@ std::chrono::nanoseconds write_all(int socket, std::span<const std::byte> bytes,
 
 TcpTransport::TcpTransport(int socket, int listener, Endpoint endpoint, std::string edge_id,
                            TraceSink* trace_sink, TcpOptions options, bool outbound)
-    : socket_(socket), listener_(listener), endpoint_(std::move(endpoint)),
-      edge_id_(std::move(edge_id)), trace_sink_(trace_sink), options_(options),
+    : socket_(socket),
+      listener_(listener),
+      endpoint_(std::move(endpoint)),
+      edge_id_(std::move(edge_id)),
+      trace_sink_(trace_sink),
+      options_(options),
       outbound_(outbound) {
   if (!trace_sink_) trace_sink_ = &null_trace_sink_;
 }
@@ -238,32 +241,37 @@ void TcpTransport::connect_outbound() {
       backoff = std::min(options_.retry.max_backoff, backoff * 2);
     }
   }
-  throw std::runtime_error(context("connect failed after " + std::to_string(attempts) +
-                                   " attempt(s): " + last_error));
+  throw std::runtime_error(
+      context("connect failed after " + std::to_string(attempts) + " attempt(s): " + last_error));
 }
 
-TcpTransport TcpTransport::connect(Endpoint endpoint, std::string edge_id,
-                                   TraceSink* trace_sink, TcpOptions options) {
+TcpTransport TcpTransport::connect(Endpoint endpoint, std::string edge_id, TraceSink* trace_sink,
+                                   TcpOptions options) {
   TcpTransport transport(-1, -1, std::move(endpoint), std::move(edge_id), trace_sink, options,
                          true);
   transport.connect_outbound();
   return transport;
 }
 
-TcpTransport TcpTransport::listen(Endpoint endpoint, std::string edge_id,
-                                  TraceSink* trace_sink, TcpOptions options) {
+TcpTransport TcpTransport::listen(Endpoint endpoint, std::string edge_id, TraceSink* trace_sink,
+                                  TcpOptions options) {
   const int listener = create_listener(endpoint);
-  TcpTransport transport(-1, listener, std::move(endpoint), std::move(edge_id), trace_sink,
-                         options, false);
+  TcpTransport transport(-1, listener, std::move(endpoint), std::move(edge_id), trace_sink, options,
+                         false);
   transport.trace_sink_->on_connection(transport.edge_id_, ConnectionState::listening);
   return transport;
 }
 
 TcpTransport::TcpTransport(TcpTransport&& other) noexcept
-    : socket_(other.socket_.exchange(-1)), listener_(other.listener_.exchange(-1)),
-      closed_(other.closed_.load()), endpoint_(std::move(other.endpoint_)),
-      edge_id_(std::move(other.edge_id_)), trace_sink_(other.trace_sink_), options_(other.options_),
-      outbound_(other.outbound_), ever_connected_(other.ever_connected_) {
+    : socket_(other.socket_.exchange(-1)),
+      listener_(other.listener_.exchange(-1)),
+      closed_(other.closed_.load()),
+      endpoint_(std::move(other.endpoint_)),
+      edge_id_(std::move(other.edge_id_)),
+      trace_sink_(other.trace_sink_),
+      options_(other.options_),
+      outbound_(other.outbound_),
+      ever_connected_(other.ever_connected_) {
   other.closed_.store(true);
   if (other.trace_sink_ == &other.null_trace_sink_) trace_sink_ = &null_trace_sink_;
 }
@@ -276,7 +284,8 @@ TcpTransport& TcpTransport::operator=(TcpTransport&& other) noexcept {
   closed_.store(other.closed_.load());
   endpoint_ = std::move(other.endpoint_);
   edge_id_ = std::move(other.edge_id_);
-  trace_sink_ = other.trace_sink_ == &other.null_trace_sink_ ? &null_trace_sink_ : other.trace_sink_;
+  trace_sink_ =
+      other.trace_sink_ == &other.null_trace_sink_ ? &null_trace_sink_ : other.trace_sink_;
   options_ = other.options_;
   outbound_ = other.outbound_;
   ever_connected_ = other.ever_connected_;
@@ -291,8 +300,10 @@ void TcpTransport::close_connection() noexcept {
   if (socket >= 0) {
     ::shutdown(socket, SHUT_RDWR);
     ::close(socket);
-    try { trace_sink_->on_connection(edge_id_, ConnectionState::disconnected); }
-    catch (...) { /* Closing a socket must remain noexcept. */ }
+    try {
+      trace_sink_->on_connection(edge_id_, ConnectionState::disconnected);
+    } catch (...) { /* Closing a socket must remain noexcept. */
+    }
   }
 }
 
@@ -347,8 +358,7 @@ void TcpTransport::send(const Envelope& envelope) {
         if (!outbound_) throw std::runtime_error("no accepted peer");
         connect_outbound();
       }
-      const auto pressure = write_all(socket_.load(), framed,
-                                      Clock::now() + options_.send_timeout);
+      const auto pressure = write_all(socket_.load(), framed, Clock::now() + options_.send_timeout);
       if (pressure.count() > 0) trace_sink_->on_backpressure(edge_id_, pressure, false);
       trace_sink_->on_send(edge_id_, envelope, framed.size());
       return;
@@ -398,8 +408,7 @@ ReceiveResult TcpTransport::receive_result(std::chrono::milliseconds timeout) {
     }
     if (header.status == ReadStatus::closed) {
       close_connection();
-      if (header.transferred != 0)
-        throw failure("peer closed during frame header");
+      if (header.transferred != 0) throw failure("peer closed during frame header");
       if (!outbound_ && options_.reconnect) continue;
       if (!outbound_) {
         const int listener = listener_.exchange(-1);
@@ -442,9 +451,9 @@ ReceiveResult TcpTransport::receive_result(std::chrono::milliseconds timeout) {
     }
     const auto now = std::chrono::system_clock::now().time_since_epoch();
     const auto now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(now).count();
-    trace_sink_->on_receive(edge_id_, envelope, size + 4,
-                            std::chrono::nanoseconds(std::max<std::int64_t>(
-                                0, now_ns - envelope.timestamp_ns)));
+    trace_sink_->on_receive(
+        edge_id_, envelope, size + 4,
+        std::chrono::nanoseconds(std::max<std::int64_t>(0, now_ns - envelope.timestamp_ns)));
     return {ReceiveStatus::message, std::move(envelope)};
   }
 }
@@ -458,8 +467,10 @@ void TcpTransport::close() {
     ::shutdown(listener, SHUT_RDWR);
     ::close(listener);
   }
-  try { trace_sink_->on_connection(edge_id_, ConnectionState::closed); }
-  catch (...) { /* Destruction must not fail because an observer failed. */ }
+  try {
+    trace_sink_->on_connection(edge_id_, ConnectionState::closed);
+  } catch (...) { /* Destruction must not fail because an observer failed. */
+  }
 }
 
 }  // namespace graphx

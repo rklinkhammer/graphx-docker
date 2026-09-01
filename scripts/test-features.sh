@@ -38,7 +38,12 @@ portable() {
   unset GRAPHX_CONFIG GRAPHX_OVERRIDES GRAPHX_MAX_MESSAGES GRAPHX_INTERVAL_MS
 
   step "Configure, build, and run the C++23 suite"
-  cmake --preset dev -S "$ROOT"
+  if test "$BUILD_DIR" = "$ROOT/build/dev"; then
+    cmake --preset dev -S "$ROOT"
+  else
+    cmake -S "$ROOT" -B "$BUILD_DIR" -G Ninja \
+      -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_STANDARD=23 -DGRAPHX_BUILD_TESTS=ON
+  fi
   cmake --build "$BUILD_DIR" -j "${GRAPHX_BUILD_JOBS:-4}"
   ctest --test-dir "$BUILD_DIR" --output-on-failure
 

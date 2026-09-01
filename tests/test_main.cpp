@@ -27,6 +27,7 @@
 #include <sys/wait.h>
 #include <thread>
 #include <unordered_set>
+#include <utility>
 #include <unistd.h>
 #include <vector>
 
@@ -36,6 +37,19 @@ using namespace std::chrono_literals;
 
 void expect(bool condition, const char* message) {
   if (!condition) throw std::runtime_error(message);
+}
+
+template <typename Operation>
+void expect_failure(Operation&& operation, std::string_view expected) {
+  bool failed{};
+  try {
+    std::forward<Operation>(operation)();
+  } catch (const std::exception& error) {
+    failed = true;
+    expect(std::string_view(error.what()).find(expected) != std::string_view::npos,
+           "failure has actionable context");
+  }
+  expect(failed, "operation expected to fail returned successfully");
 }
 
 class ThrowOnCloseTraceSink final : public graphx::TraceSink {
@@ -150,16 +164,6 @@ void envelope_identity_semantics() {
 }
 
 void envelope_protocol_rejects_invalid_input() {
-  const auto expect_failure = [](const auto& operation, std::string_view expected) {
-    try {
-      operation();
-      throw std::runtime_error("invalid envelope operation succeeded");
-    } catch (const std::exception& error) {
-      expect(std::string_view(error.what()).find(expected) != std::string_view::npos,
-             "protocol failure has actionable context");
-    }
-  };
-
   const auto version2 = golden_bytes("envelope-v2.hex");
   const std::array<std::size_t, 6> truncated_lengths{0, 3, 4, 19, 35, version2.size() - 1};
   for (const std::size_t length : truncated_lengths) {
@@ -214,6 +218,44 @@ void envelope_protocol_rejects_invalid_input() {
 
   auto oversized = graphx::Envelope::make(4, "Large", std::string(graphx::kMaxFrameBytes, 'x'));
   expect_failure([&] { graphx::serialize(oversized); }, "protocol maximum");
+}
+
+void envelope_protocol_exhaustive_boundaries() {
+  bool helper_rejected_normal_return{};
+  try {
+    expect_failure([] {}, "not applicable");
+  } catch (const std::exception& error) {
+    helper_rejected_normal_return =
+        std::string_view(error.what()).find("expected to fail") != std::string_view::npos;
+  }
+  expect(helper_rejected_normal_return,
+         "failure assertion rejects a callable that returns successfully");
+
+  const auto version2 = golden_bytes("envelope-v2.hex");
+  for (std::size_t length = 0; length < version2.size(); ++length) {
+    expect_failure([&] { graphx::deserialize(std::span(version2).first(length)); }, "truncated");
+  }
+
+  auto exact = graphx::Envelope::make(5, "Boundary", "");
+  const auto overhead = graphx::serialize(exact).size();
+  expect(overhead < graphx::kMaxFrameBytes, "envelope boundary has payload capacity");
+  exact.payload.resize(graphx::kMaxFrameBytes - overhead, 'x');
+  const auto encoded = graphx::serialize(exact);
+  expect(encoded.size() == graphx::kMaxFrameBytes, "exact maximum envelope size is accepted");
+  expect(graphx::deserialize(encoded).payload == exact.payload,
+         "exact maximum envelope round trip");
+  exact.payload.push_back('x');
+  expect_failure([&] { graphx::serialize(exact); }, "protocol maximum");
+
+  const std::vector<std::byte> maximum_frame(graphx::kMaxFrameBytes, std::byte{0x5a});
+  const auto framed = graphx::frame(maximum_frame);
+  expect(framed.size() == graphx::kMaxFrameBytes + 4 &&
+             graphx::decode_frame_size(std::span<const std::byte, 4>(framed.data(), 4)) ==
+                 graphx::kMaxFrameBytes,
+         "exact maximum frame size is accepted");
+  auto oversized_frame = maximum_frame;
+  oversized_frame.push_back(std::byte{});
+  expect_failure([&] { graphx::frame(oversized_frame); }, "too large");
 }
 
 void legacy_transport_adapter() {
@@ -1092,9 +1134,7 @@ void tcp_peer_close_respects_reconnect_policy() {
     options.reconnect = reconnect;
     auto listener =
         graphx::TcpTransport::listen({"127.0.0.1", port}, "reconnect-policy", nullptr, options);
-    {
-      auto client = graphx::TcpTransport::connect({"127.0.0.1", port}, "reconnect-policy-client");
-    }
+    { auto client = graphx::TcpTransport::connect({"127.0.0.1", port}, "reconnect-policy-client"); }
     return listener.receive_result(50ms).status;
   };
 
@@ -1140,6 +1180,35 @@ void tcp_end_to_end() {
   }
   server.join();
   if (server_error) std::rethrow_exception(server_error);
+}
+
+void tcp_mixed_version_interoperability() {
+  std::uint16_t port;
+  {
+    RawListener reservation;
+    port = reservation.port;
+  }
+  auto legacy = graphx::deserialize(golden_bytes("envelope-v1.hex"));
+  auto current = graphx::deserialize(golden_bytes("envelope-v2.hex"));
+  auto receiver = graphx::TcpTransport::listen({"127.0.0.1", port}, "mixed-version");
+  auto received = std::async(std::launch::async, [&] {
+    return std::array{receiver.receive_result(2s), receiver.receive_result(2s)};
+  });
+  auto sender = graphx::TcpTransport::connect({"127.0.0.1", port}, "mixed-version");
+  sender.send(legacy);
+  sender.send(current);
+  const auto messages = received.get();
+  expect(messages[0].status == graphx::ReceiveStatus::message &&
+             messages[0].envelope->wire_version == graphx::kEnvelopeWireVersion1 &&
+             graphx::serialize(*messages[0].envelope) == golden_bytes("envelope-v1.hex"),
+         "TCP reader preserves exact version-1 envelope");
+  expect(messages[1].status == graphx::ReceiveStatus::message &&
+             messages[1].envelope->wire_version == graphx::kEnvelopeWireVersion2 &&
+             messages[1].envelope->message_id == current.message_id &&
+             messages[1].envelope->trace_id == current.trace_id,
+         "TCP reader accepts version 2 after version 1 on one connection");
+  sender.close();
+  receiver.close();
 }
 
 void unix_socket_end_to_end() {
@@ -1348,15 +1417,96 @@ void unix_socket_send_has_deadline() {
   }
 }
 
+void transport_lifecycle_stress() {
+  constexpr int iterations = 12;
+  const auto segment = shared_segment("stress-reuse");
+  const auto unix_path = "/tmp/graphx-stress-" + std::to_string(::getpid()) + ".sock";
+  for (int iteration = 0; iteration < iterations; ++iteration) {
+    {
+      auto channel = std::make_shared<graphx::InProcessChannel>();
+      graphx::InProcessTransport sender(channel, "stress-in-process"),
+          receiver(channel, "stress-in-process");
+      sender.send(graphx::Envelope::make(iteration + 1, "Stress", "in-process"));
+      expect(receiver.receive_result(1s).status == graphx::ReceiveStatus::message,
+             "repeated in-process delivery");
+      auto blocked = std::async(std::launch::async, [&] { return receiver.receive_result(); });
+      receiver.close();
+      expect(blocked.wait_for(1s) == std::future_status::ready &&
+                 blocked.get().status == graphx::ReceiveStatus::cancelled,
+             "repeated in-process close cancels receive");
+      sender.close();
+    }
+    {
+      auto receiver = graphx::SharedMemoryTransport::listen(segment, "stress-shared");
+      auto sender = graphx::SharedMemoryTransport::connect(segment, "stress-shared");
+      sender.send(graphx::Envelope::make(iteration + 1, "Stress", "shared-memory"));
+      expect(receiver.receive_result(1s).status == graphx::ReceiveStatus::message,
+             "repeated shared-memory delivery");
+      auto blocked = std::async(std::launch::async, [&] { return receiver.receive_result(); });
+      receiver.close();
+      expect(blocked.wait_for(1s) == std::future_status::ready &&
+                 blocked.get().status == graphx::ReceiveStatus::cancelled,
+             "repeated shared-memory close cancels receive");
+      sender.close();
+      const int stale = ::shm_open(segment.c_str(), O_RDWR, 0600);
+      expect(stale < 0 && errno == ENOENT, "repeated shared-memory close unlinks segment");
+      if (stale >= 0) ::close(stale);
+    }
+    {
+      std::uint16_t port;
+      {
+        RawListener reservation;
+        port = reservation.port;
+      }
+      graphx::TcpOptions options;
+      options.reconnect = true;
+      auto receiver =
+          graphx::TcpTransport::listen({"127.0.0.1", port}, "stress-tcp", nullptr, options);
+      for (int peer = 0; peer < 2; ++peer) {
+        auto sender = graphx::TcpTransport::connect({"127.0.0.1", port}, "stress-tcp-client");
+        sender.send(graphx::Envelope::make(iteration * 2 + peer + 1, "Stress", "tcp"));
+        expect(receiver.receive_result(1s).status == graphx::ReceiveStatus::message,
+               "repeated TCP connected delivery");
+        sender.close();
+        expect(receiver.receive_result(20ms).status == graphx::ReceiveStatus::timeout,
+               "repeated TCP listener remains available after peer close");
+      }
+      auto blocked = std::async(std::launch::async, [&] { return receiver.receive_result(); });
+      receiver.close();
+      expect(blocked.wait_for(1s) == std::future_status::ready &&
+                 blocked.get().status == graphx::ReceiveStatus::cancelled,
+             "repeated TCP close cancels receive");
+    }
+    {
+      auto receiver =
+          graphx::UnixDomainSocketTransport::listen(unix_path, "stress-unix-domain-socket");
+      auto sender =
+          graphx::UnixDomainSocketTransport::connect(unix_path, "stress-unix-domain-socket");
+      sender.send(graphx::Envelope::make(iteration + 1, "Stress", "unix-domain-socket"));
+      expect(receiver.receive_result(1s).status == graphx::ReceiveStatus::message,
+             "repeated Unix-domain connected delivery");
+      auto blocked = std::async(std::launch::async, [&] { return receiver.receive_result(); });
+      receiver.close();
+      expect(blocked.wait_for(1s) == std::future_status::ready &&
+                 blocked.get().status == graphx::ReceiveStatus::cancelled,
+             "repeated Unix-domain close cancels receive");
+      sender.close();
+      expect(!std::filesystem::exists(unix_path),
+             "repeated Unix-domain close removes reusable socket path");
+    }
+  }
+}
+
 }  // namespace
 
-int main() {
+int main(int argc, char** argv) {
   const std::pair<const char*, std::function<void()>> tests[] = {
       {"framing", framing},
       {"envelope", envelope_round_trip},
       {"envelope protocol golden vectors", envelope_protocol_golden_vectors},
       {"envelope identity semantics", envelope_identity_semantics},
       {"envelope protocol invalid input", envelope_protocol_rejects_invalid_input},
+      {"protocol exhaustive boundaries", envelope_protocol_exhaustive_boundaries},
       {"legacy transport adapter", legacy_transport_adapter},
       {"PCAPNG capture", pcapng_capture},
       {"Ethernet PCAPNG capture", ethernet_pcapng_capture},
@@ -1380,20 +1530,56 @@ int main() {
       {"TCP listener lifecycle", tcp_listener_reaccepts_and_close_cancels},
       {"TCP peer-close reconnect policy", tcp_peer_close_respects_reconnect_policy},
       {"tcp end-to-end", tcp_end_to_end},
+      {"TCP mixed-version interoperability", tcp_mixed_version_interoperability},
       {"Unix socket end-to-end", unix_socket_end_to_end},
       {"Unix socket cancellation", unix_socket_listener_is_interruptible_before_accept},
       {"Unix socket failed-frame invalidation", unix_socket_invalidates_failed_frames},
       {"observer-independent close", observer_failure_does_not_break_close},
-      {"Unix socket send deadline", unix_socket_send_has_deadline}};
-  int failures{};
-  for (const auto& [name, test] : tests) {
-    try {
-      test();
-      std::cout << "[pass] " << name << '\n';
-    } catch (const std::exception& error) {
-      ++failures;
-      std::cerr << "[fail] " << name << ": " << error.what() << '\n';
+      {"Unix socket send deadline", unix_socket_send_has_deadline},
+      {"transport lifecycle stress", transport_lifecycle_stress}};
+  std::string_view filter;
+  std::size_t repetitions = 1;
+  for (int index = 1; index < argc; ++index) {
+    const std::string_view argument = argv[index];
+    if (argument == "--filter" && index + 1 < argc) {
+      filter = argv[++index];
+    } else if (argument == "--repeat" && index + 1 < argc) {
+      try {
+        repetitions = std::stoul(argv[++index]);
+      } catch (const std::exception&) {
+        std::cerr << "--repeat must be a positive integer\n";
+        return 2;
+      }
+      if (repetitions == 0) {
+        std::cerr << "--repeat must be positive\n";
+        return 2;
+      }
+    } else {
+      std::cerr << "usage: graphx-tests [--filter substring] [--repeat count]\n";
+      return 2;
     }
+  }
+  int failures{};
+  std::size_t selected{};
+  for (std::size_t repetition = 0; repetition < repetitions; ++repetition) {
+    for (const auto& [name, test] : tests) {
+      if (!filter.empty() && std::string_view(name).find(filter) == std::string_view::npos)
+        continue;
+      ++selected;
+      try {
+        test();
+        std::cout << "[pass] " << name;
+        if (repetitions > 1) std::cout << " (iteration " << repetition + 1 << ')';
+        std::cout << '\n';
+      } catch (const std::exception& error) {
+        ++failures;
+        std::cerr << "[fail] " << name << ": " << error.what() << '\n';
+      }
+    }
+  }
+  if (selected == 0) {
+    std::cerr << "no tests matched filter: " << filter << '\n';
+    return 2;
   }
   return failures == 0 ? 0 : 1;
 }

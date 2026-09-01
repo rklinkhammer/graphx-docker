@@ -49,8 +49,8 @@ class SharedMemoryTransport final : public Transport {
  private:
   struct Impl;
   static std::unique_ptr<Impl> create_impl(std::string segment, std::string edge_id,
-                                           TraceSink* trace_sink,
-                                           SharedMemoryOptions options, bool owner);
+                                           TraceSink* trace_sink, SharedMemoryOptions options,
+                                           bool owner);
   explicit SharedMemoryTransport(std::unique_ptr<Impl> impl);
   std::unique_ptr<Impl> impl_;
 };

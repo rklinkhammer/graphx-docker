@@ -13,6 +13,7 @@
 #include <cerrno>
 #include <deque>
 #include <iomanip>
+#include <memory>
 #include <random>
 #include <sstream>
 #include <thread>
@@ -100,63 +101,78 @@ std::string generate_span_id() {
 
 void post_json(std::string_view host, std::uint16_t port, std::string_view path,
                std::string_view body) noexcept {
-  addrinfo hints{};
-  hints.ai_family = AF_UNSPEC;
-  hints.ai_socktype = SOCK_STREAM;
-  addrinfo* addresses{};
-  const auto service = std::to_string(port);
-  if (::getaddrinfo(std::string(host).c_str(), service.c_str(), &hints, &addresses) != 0) return;
-  int socket = -1;
-  for (auto* address = addresses; address; address = address->ai_next) {
-    socket = ::socket(address->ai_family, address->ai_socktype, address->ai_protocol);
-    if (socket < 0) continue;
+  struct SocketGuard {
+    ~SocketGuard() {
+      if (descriptor >= 0) ::close(descriptor);
+    }
+    void reset(int next = -1) noexcept {
+      if (descriptor >= 0) ::close(descriptor);
+      descriptor = next;
+    }
+    int descriptor{-1};
+  } socket;
+
+  try {
+    addrinfo hints{};
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    addrinfo* raw_addresses{};
+    const auto service = std::to_string(port);
+    const auto host_name = std::string(host);
+    if (::getaddrinfo(host_name.c_str(), service.c_str(), &hints, &raw_addresses) != 0) return;
+    const std::unique_ptr<addrinfo, decltype(&::freeaddrinfo)> addresses(raw_addresses,
+                                                                         &::freeaddrinfo);
+    for (auto* address = addresses.get(); address; address = address->ai_next) {
+      socket.reset(::socket(address->ai_family, address->ai_socktype, address->ai_protocol));
+      if (socket.descriptor < 0) continue;
 #ifdef SO_NOSIGPIPE
-    int no_sigpipe = 1;
-    ::setsockopt(socket, SOL_SOCKET, SO_NOSIGPIPE, &no_sigpipe, sizeof(no_sigpipe));
+      int no_sigpipe = 1;
+      ::setsockopt(socket.descriptor, SOL_SOCKET, SO_NOSIGPIPE, &no_sigpipe, sizeof(no_sigpipe));
 #endif
-    timeval timeout{0, 500000};
-    ::setsockopt(socket, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
-    ::setsockopt(socket, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
-    const int flags = ::fcntl(socket, F_GETFL, 0);
-    if (flags >= 0) ::fcntl(socket, F_SETFL, flags | O_NONBLOCK);
-    int connected = ::connect(socket, address->ai_addr, address->ai_addrlen);
-    if (connected != 0 && errno == EINPROGRESS) {
-      pollfd descriptor{socket, POLLOUT, 0};
-      if (::poll(&descriptor, 1, 500) > 0) {
-        int error{};
-        socklen_t size = sizeof(error);
-        if (::getsockopt(socket, SOL_SOCKET, SO_ERROR, &error, &size) == 0 && error == 0)
-          connected = 0;
+      timeval timeout{0, 500000};
+      ::setsockopt(socket.descriptor, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
+      ::setsockopt(socket.descriptor, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+      const int flags = ::fcntl(socket.descriptor, F_GETFL, 0);
+      if (flags >= 0) ::fcntl(socket.descriptor, F_SETFL, flags | O_NONBLOCK);
+      int connected = ::connect(socket.descriptor, address->ai_addr, address->ai_addrlen);
+      if (connected != 0 && errno == EINPROGRESS) {
+        pollfd descriptor{socket.descriptor, POLLOUT, 0};
+        if (::poll(&descriptor, 1, 500) > 0) {
+          int error{};
+          socklen_t size = sizeof(error);
+          if (::getsockopt(socket.descriptor, SOL_SOCKET, SO_ERROR, &error, &size) == 0 &&
+              error == 0)
+            connected = 0;
+        }
       }
+      if (connected == 0) {
+        if (flags >= 0) ::fcntl(socket.descriptor, F_SETFL, flags);
+        break;
+      }
+      socket.reset();
     }
-    if (connected == 0) {
-      if (flags >= 0) ::fcntl(socket, F_SETFL, flags);
-      break;
-    }
-    ::close(socket);
-    socket = -1;
-  }
-  ::freeaddrinfo(addresses);
-  if (socket < 0) return;
-  std::ostringstream request;
-  request << "POST " << path << " HTTP/1.1\r\nHost: " << host << ':' << port
-          << "\r\nContent-Type: application/json\r\nContent-Length: " << body.size()
-          << "\r\nConnection: close\r\n\r\n"
-          << body;
-  const auto data = request.str();
-  std::size_t offset{};
-  while (offset < data.size()) {
-    const auto sent = ::send(socket, data.data() + offset, data.size() - offset,
+    if (socket.descriptor < 0) return;
+    std::ostringstream request;
+    request << "POST " << path << " HTTP/1.1\r\nHost: " << host << ':' << port
+            << "\r\nContent-Type: application/json\r\nContent-Length: " << body.size()
+            << "\r\nConnection: close\r\n\r\n"
+            << body;
+    const auto data = request.str();
+    std::size_t offset{};
+    while (offset < data.size()) {
+      const auto sent = ::send(socket.descriptor, data.data() + offset, data.size() - offset,
 #ifdef MSG_NOSIGNAL
-                             MSG_NOSIGNAL
+                               MSG_NOSIGNAL
 #else
-                             0
+                               0
 #endif
-    );
-    if (sent <= 0) break;
-    offset += static_cast<std::size_t>(sent);
+      );
+      if (sent <= 0) break;
+      offset += static_cast<std::size_t>(sent);
+    }
+  } catch (...) {
+    // OTLP export is best effort and must not terminate or block graph processing.
   }
-  ::close(socket);
 }
 
 }  // namespace

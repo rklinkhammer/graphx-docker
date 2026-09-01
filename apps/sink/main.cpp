@@ -22,8 +22,8 @@ int main() {
       const auto processing_start = std::chrono::steady_clock::now();
       std::cout << "sink seq=" << envelope->sequence << " value=" << envelope->payload
                 << " trace=" << envelope->trace_id << std::endl;
-      trace.on_processing("sink", *envelope,
-                          std::chrono::steady_clock::now() - processing_start, true);
+      trace.on_processing("sink", *envelope, std::chrono::steady_clock::now() - processing_start,
+                          true);
       ++processed;
     }
     input->close();

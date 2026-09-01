@@ -1,0 +1,13 @@
+Checks: >
+  -*,
+  bugprone-assert-side-effect,
+  bugprone-dangling-handle,
+  bugprone-exception-escape,
+  bugprone-infinite-loop,
+  bugprone-use-after-move,
+  performance-for-range-copy,
+  performance-implicit-conversion-in-loop,
+  performance-unnecessary-copy-initialization,
+  portability-simd-intrinsics
+WarningsAsErrors: '*'
+FormatStyle: file

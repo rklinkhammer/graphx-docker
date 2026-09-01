@@ -1,0 +1,163 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '23 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native:
+    name: ${{ matrix.os }} / C++${{ matrix.standard }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15]
+        standard: [20, 23]
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Install Ninja on Linux
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+      - name: Install Ninja on macOS
+        if: runner.os == 'macOS'
+        run: brew install ninja
+      - name: Configure
+        run: >-
+          cmake -S . -B build/ci -G Ninja
+          -DCMAKE_BUILD_TYPE=Debug
+          -DCMAKE_CXX_STANDARD=${{ matrix.standard }}
+          -DGRAPHX_BUILD_TESTS=ON
+      - name: Build
+        run: cmake --build build/ci -j 4
+      - name: Test
+        run: ctest --test-dir build/ci --output-on-failure
+
+  sanitizers:
+    name: ${{ matrix.os }} / ASan+UBSan
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            asan_options: detect_leaks=1:strict_string_checks=1
+            cc: clang-18
+            cxx: clang++-18
+          - os: macos-15
+            asan_options: detect_leaks=0:strict_string_checks=1
+            cc: clang
+            cxx: clang++
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Install Ninja on Linux
+        if: runner.os == 'Linux'
+        run: >-
+          sudo apt-get update &&
+          sudo apt-get install -y clang-18 clang-tools-18 ninja-build
+      - name: Install Ninja on macOS
+        if: runner.os == 'macOS'
+        run: brew install ninja
+      - name: Configure and build
+        env:
+          CC: ${{ matrix.cc }}
+          CXX: ${{ matrix.cxx }}
+        run: |
+          cmake --preset sanitizers
+          cmake --build --preset sanitizers -j 4
+      - name: Test
+        env:
+          ASAN_OPTIONS: ${{ matrix.asan_options }}
+          UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+        run: ctest --preset sanitizers
+
+  quality:
+    name: Format and static analysis
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Install pinned analysis toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-format-18 clang-tidy-18 cppcheck ninja-build
+      - name: Check formatting
+        env:
+          CLANG_FORMAT: clang-format-18
+        run: scripts/check-format.sh
+      - name: Run clang-tidy and cppcheck
+        env:
+          CLANG_TIDY: clang-tidy-18
+          CPPCHECK: cppcheck
+        run: scripts/run-static-analysis.sh
+
+  fuzz:
+    name: Bounded libFuzzer smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Install Clang and corpus tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-18 clang-tools-18 ninja-build xxd
+      - name: Fuzz envelope and frame decoders
+        env:
+          CC: clang-18
+          CXX: clang++-18
+          GRAPHX_FUZZ_SECONDS: ${{ github.event_name == 'schedule' && '300' || '30' }}
+        run: scripts/run-fuzz.sh
+
+  portable:
+    name: Portable integration
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - name: Install build tools
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+      - name: Run portable acceptance
+        run: scripts/test-features.sh portable
+      - name: Audit production JavaScript dependencies
+        run: |
+          npm audit --prefix apps/telemetry --omit=dev
+          npm audit --prefix web --omit=dev
+
+  containers:
+    name: Compose model and images
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Validate Compose model
+        run: docker compose -f compose.yaml config --quiet
+      - name: Build affected images
+        run: docker compose -f compose.yaml build

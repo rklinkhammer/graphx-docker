@@ -43,10 +43,7 @@ void append_veth(std::vector<InfraCommand>& commands, const std::string& first,
 void append_docker_network(std::vector<InfraCommand>& commands, const NetworkDefinition& network) {
   if (!network.external) return;
   InfraCommand result;
-  result.arguments = {"docker",
-                      "network",
-                      "create",
-                      "--driver",
+  result.arguments = {"docker", "network", "create", "--driver",
                       std::string(to_string(network.driver))};
   for (const auto& subnet : network.subnets)
     result.arguments.insert(result.arguments.end(), {"--subnet", subnet});

@@ -90,8 +90,7 @@ void authoritative_config_loads() {
          "bridge network model");
   expect(config.network_infrastructure.edge_path("samples").hops.size() == 3,
          "simple network path");
-  expect(config.observability.metrics.enabled &&
-             config.observability.metrics.exporters.size() == 2,
+  expect(config.observability.metrics.enabled && config.observability.metrics.exporters.size() == 2,
          "typed metrics configuration");
   expect(config.observability.telemetry.host == "telemetry" &&
              config.observability.telemetry.heartbeat_timeout_ms == 5000,
@@ -101,8 +100,7 @@ void authoritative_config_loads() {
 void tcp_policy_loads() {
   TemporaryConfig file(valid_config);
   const auto transport = graphx::load_config(file.path()).edge("sample-edge").transport;
-  expect(transport.connect_timeout_ms == 1200 && transport.send_timeout_ms == 900,
-         "TCP timeouts");
+  expect(transport.connect_timeout_ms == 1200 && transport.send_timeout_ms == 900, "TCP timeouts");
   expect(transport.retry_attempts == 7 && transport.retry_initial_backoff_ms == 10 &&
              transport.retry_max_backoff_ms == 80,
          "TCP retry policy");
@@ -180,8 +178,7 @@ observability:
   capture: { enabled: true, provider: pcapng, directory: test-captures }
 )yaml");
   const auto capture = graphx::load_config(file.path()).observability.capture;
-  expect(capture.enabled && capture.provider == "pcapng" &&
-             capture.directory == "test-captures",
+  expect(capture.enabled && capture.provider == "pcapng" && capture.directory == "test-captures",
          "PCAPNG capture configuration");
 }
 
@@ -247,8 +244,7 @@ void standalone_network_examples_load() {
          "standalone macvlan explicit MAC");
 
   const auto layer_two = graphx::load_config(root / "ipvlan-l2/graphx.yaml");
-  expect(layer_two.network_infrastructure.networks.size() == 3,
-         "one IPvlan L2 domain per node");
+  expect(layer_two.network_infrastructure.networks.size() == 3, "one IPvlan L2 domain per node");
   expect(layer_two.network_infrastructure.routers.size() == 1 &&
              layer_two.network_infrastructure.switches.size() == 3,
          "IPvlan L2 routed domains");
@@ -258,8 +254,7 @@ void standalone_network_examples_load() {
              layer_three.network_infrastructure.networks.front().subnets.size() == 3,
          "one supported multi-subnet IPvlan L3 network");
   std::string plan;
-  for (const auto& command :
-       graphx::infrastructure_plan(layer_three, graphx::InfraAction::create))
+  for (const auto& command : graphx::infrastructure_plan(layer_three, graphx::InfraAction::create))
     plan += graphx::format_command(command) + '\n';
   expect(plan.find("ipvlan_mode=l3") != std::string::npos, "IPvlan L3 plan");
   expect(plan.find("--subnet 10.42.1.0/24 --subnet 10.42.2.0/24 --subnet 10.42.3.0/24") !=
@@ -605,8 +600,7 @@ void shared_memory_factory_round_trip() {
   graphx::EdgeConfig edge;
   edge.edge.id = "factory-shared";
   edge.transport.kind = graphx::TransportKind::shared_memory;
-  edge.transport.segment =
-      "/gx-factory-shared-" + std::to_string(::getpid());
+  edge.transport.segment = "/gx-factory-shared-" + std::to_string(::getpid());
   edge.transport.capacity = 2;
   edge.transport.max_message_bytes = 4096;
   auto receiver = factory.create(edge, graphx::ConnectionMode::listen);
