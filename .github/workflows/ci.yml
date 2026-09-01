@@ -31,10 +31,10 @@ jobs:
           persist-credentials: false
       - name: Install Ninja on Linux
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y ninja-build
+        run: sudo apt-get update && sudo apt-get install -y ninja-build libssl-dev
       - name: Install Ninja on macOS
         if: runner.os == 'macOS'
-        run: brew install ninja
+        run: brew install ninja openssl@3
       - name: Configure
         run: >-
           cmake -S . -B build/ci -G Ninja
@@ -70,10 +70,10 @@ jobs:
         if: runner.os == 'Linux'
         run: >-
           sudo apt-get update &&
-          sudo apt-get install -y clang-18 clang-tools-18 ninja-build
+          sudo apt-get install -y clang-18 clang-tools-18 ninja-build libssl-dev
       - name: Install Ninja on macOS
         if: runner.os == 'macOS'
-        run: brew install ninja
+        run: brew install ninja openssl@3
       - name: Configure and build
         env:
           CC: ${{ matrix.cc }}
@@ -98,7 +98,7 @@ jobs:
       - name: Install pinned analysis toolchain
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang-format-18 clang-tidy-18 cppcheck ninja-build
+          sudo apt-get install -y clang-format-18 clang-tidy-18 cppcheck ninja-build libssl-dev
       - name: Check formatting
         env:
           CLANG_FORMAT: clang-format-18
@@ -120,7 +120,7 @@ jobs:
       - name: Install Clang and corpus tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang-18 clang-tools-18 ninja-build xxd
+          sudo apt-get install -y clang-18 clang-tools-18 ninja-build xxd libssl-dev
       - name: Fuzz envelope and frame decoders
         env:
           CC: clang-18
@@ -141,7 +141,7 @@ jobs:
           node-version: 24
           package-manager-cache: false
       - name: Install build tools
-        run: sudo apt-get update && sudo apt-get install -y ninja-build
+        run: sudo apt-get update && sudo apt-get install -y ninja-build libssl-dev
       - name: Run portable acceptance
         run: scripts/test-features.sh portable
       - name: Audit production JavaScript dependencies
@@ -161,3 +161,5 @@ jobs:
         run: docker compose -f compose.yaml config --quiet
       - name: Build affected images
         run: docker compose -f compose.yaml build
+      - name: Verify capture-volume identity and collector read-only access
+        run: bash scripts/test-container-hardening.sh

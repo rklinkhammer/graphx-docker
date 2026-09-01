@@ -327,7 +327,7 @@ class ConfigParser {
       if (edge.transport.kind == TransportKind::tcp) {
         strict_keys(settings, path,
                     {"host", "bind", "port", "framing", "connect_timeout_ms", "send_timeout_ms",
-                     "reconnect", "retry"});
+                     "reconnect", "retry", "tls"});
         edge.transport.host = text(settings["host"], path + ".host", 253);
         edge.transport.bind = text(settings["bind"], path + ".bind", 253);
         const auto port = unsigned_value(settings["port"], path + ".port");
@@ -372,6 +372,39 @@ class ConfigParser {
             if (edge.transport.retry_max_backoff_ms < edge.transport.retry_initial_backoff_ms)
               error(path + ".retry.max_backoff_ms",
                     "must be greater than or equal to initial_backoff_ms");
+          }
+        }
+        if (const auto tls = settings["tls"]) {
+          const auto tls_path = path + ".tls";
+          if (require_map(tls, tls_path)) {
+            strict_keys(tls, tls_path,
+                        {"enabled", "verify_peer", "require_client_certificate", "ca_file",
+                         "certificate_file", "private_key_file", "server_name"});
+            edge.transport.tls_enabled = bool_value(tls["enabled"], tls_path + ".enabled", true);
+            edge.transport.tls_verify_peer =
+                bool_value(tls["verify_peer"], tls_path + ".verify_peer", true);
+            edge.transport.tls_require_client_certificate = bool_value(
+                tls["require_client_certificate"], tls_path + ".require_client_certificate", false);
+            if (tls["ca_file"])
+              edge.transport.tls_ca_file = text(tls["ca_file"], tls_path + ".ca_file", 4096);
+            if (tls["certificate_file"])
+              edge.transport.tls_certificate_file =
+                  text(tls["certificate_file"], tls_path + ".certificate_file", 4096);
+            if (tls["private_key_file"])
+              edge.transport.tls_private_key_file =
+                  text(tls["private_key_file"], tls_path + ".private_key_file", 4096);
+            if (tls["server_name"])
+              edge.transport.tls_server_name =
+                  text(tls["server_name"], tls_path + ".server_name", 253);
+            if (edge.transport.tls_enabled && (edge.transport.tls_certificate_file.empty() !=
+                                               edge.transport.tls_private_key_file.empty()))
+              error(tls_path, "certificate_file and private_key_file must be provided together");
+            if (edge.transport.tls_enabled && edge.transport.tls_certificate_file.empty())
+              error(tls_path + ".certificate_file",
+                    "certificate_file and private_key_file are required when TLS is enabled");
+            if (edge.transport.tls_enabled && edge.transport.tls_require_client_certificate &&
+                edge.transport.tls_ca_file.empty())
+              error(tls_path + ".ca_file", "is required when client certificates are required");
           }
         }
       } else if (edge.transport.kind == TransportKind::unix_socket) {

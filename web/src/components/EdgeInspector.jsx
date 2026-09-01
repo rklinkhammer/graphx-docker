@@ -1,6 +1,7 @@
 import { Activity, Clock3, Database, Radio, Search, Waves } from 'lucide-react'
+import { bearerHeaders } from '../auth'
 
-export function EdgeInspector({ edge, networkPath }) {
+export function EdgeInspector({ edge, networkPath, observationToken }) {
   if (!edge) return <aside className="inspector empty"><Radio size={28}/><h2>Select an edge</h2><p>Choose a live connection to inspect its framing, metrics, and recent messages.</p></aside>
   const d = edge.data
   return <aside className="inspector">
@@ -35,6 +36,13 @@ export function EdgeInspector({ edge, networkPath }) {
     <div className="placeholder"><strong>Identity + capture correlation</strong><p>Message IDs correlate telemetry with exact PCAPNG records; trace IDs group causal work. GraphX frames use LINKTYPE_USER0 and are not labeled as Ethernet packets.</p></div>
     <h3>Network path</h3>
     <div className="network-path">{networkPath?.map((hop, index) => <span key={hop}>{index > 0 && <i>→</i>}{hop}</span>)}</div>
-    <div className="actions"><button>Inspect messages</button>{d.captureFiles?.length ? d.captureFiles.slice(0, 2).map(file => <a key={file.name} href={file.url} download title={file.name}>Download {file.format === 'ethernet' ? 'Ethernet' : 'GraphX'}</a>) : <button disabled>Capture unavailable</button>}</div>
+    <div className="actions"><button>Inspect messages</button>{d.captureFiles?.length ? d.captureFiles.slice(0, 2).map(file => <button key={file.name} title={file.name} onClick={async () => {
+      const headers = bearerHeaders(observationToken)
+      const response = await fetch(file.url, { headers })
+      if (!response.ok) return
+      const url = URL.createObjectURL(await response.blob())
+      const link = document.createElement('a')
+      link.href = url; link.download = file.name; link.click(); URL.revokeObjectURL(url)
+    }}>Download {file.format === 'ethernet' ? 'Ethernet' : 'GraphX'}</button>) : <button disabled>Capture unavailable</button>}</div>
   </aside>
 }

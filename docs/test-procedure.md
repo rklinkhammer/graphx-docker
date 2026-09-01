@@ -29,8 +29,8 @@ inspection. Override ports with `GRAPHX_TEST_HTTP_PORT` and
 
 ## Prerequisites
 
-Portable tests need CMake 3.25+, Ninja, a C++20/23 compiler, Node.js/npm and
-curl. Docker tests need Docker Engine/Desktop with Compose. Native network tests
+Portable tests need CMake 3.25+, Ninja, OpenSSL 3 and its development headers, a
+C++20/23 compiler, Node.js/npm and curl. Docker tests need Docker Engine/Desktop with Compose. Native network tests
 also need a Linux host, Open vSwitch, iproute2, nftables and root/sudo access.
 tcpdump or dumpcap is optional for capture checks.
 
@@ -103,14 +103,20 @@ Expected results:
   shared-memory wraparound, ownership, process death and backpressure; config
   validation; infrastructure-plan generation; exact v1/v2 golden vectors;
   identity lineage; and malformed-envelope rejection.
+- An ephemeral-credential TLS test proves TLS 1.3 mutual-authentication and
+  reconnect round trips, and rejects a peer-name mismatch, an untrusted CA, and a
+  missing client certificate. Telemetry tests reject bad HMACs, stale timestamps,
+  replay, unknown identities, unbounded values, rate-state overflow, and malformed
+  HTTP/WebSocket targets while proving that the server remains healthy.
 - Every `graphx.yaml` validates. Infrastructure create/status/destroy and a
   netem fault are rendered with `--dry-run` without changing the host.
 - The TCP and shared-memory pipelines each deliver sequence 8 with value 16.
 - Generator, transform, and sink exit cleanly after finite runs and SIGTERM.
 - Runtime output contains structured connection and processing events.
-- The web production bundle builds.
+- Browser credential/control helpers pass their tests and the web production
+  bundle builds.
 - `/api/health`, `/api/topology`, and `/metrics` respond. An unauthenticated
-  pause is rejected; authenticated pause/resume is delivered and acknowledged.
+  pause is rejected; bearer- and HMAC-authenticated pause/resume is delivered and acknowledged.
   The real TCP generator's sent counter stops while paused and advances again
   after resume.
 - `/api/topology` reflects the nodes, edges, transport details, and network paths
@@ -125,6 +131,9 @@ Expected results:
   nodes, retains trace IDs in capture metadata, and passes a byte-for-byte
   extcap and HTTP-download check. Binary unit tests verify USER0 (147) for
   GraphX frames and Ethernet (1) for actual Ethernet-frame capture.
+- The container job runs `scripts/test-container-hardening.sh` after image builds
+  to prove both fresh-volume initialization orders allow native capture writes,
+  while the collector can read but cannot write the mounted volume.
 
 For a focused rerun:
 

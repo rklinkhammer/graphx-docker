@@ -5,7 +5,9 @@
 #include <atomic>
 #include <cstddef>
 #include <condition_variable>
+#include <memory>
 #include <mutex>
+#include <string>
 
 namespace graphx {
 
@@ -15,12 +17,25 @@ struct TcpRetryPolicy {
   std::chrono::milliseconds max_backoff{2000};
 };
 
+struct TcpTlsOptions {
+  bool enabled{};
+  bool verify_peer{true};
+  bool require_client_certificate{};
+  std::string ca_file;
+  std::string certificate_file;
+  std::string private_key_file;
+  std::string server_name;
+};
+
 struct TcpOptions {
   std::chrono::milliseconds connect_timeout{5000};
   std::chrono::milliseconds send_timeout{5000};
   TcpRetryPolicy retry;
   bool reconnect{false};
+  TcpTlsOptions tls;
 };
+
+struct TcpTlsState;
 
 class TcpTransport final : public Transport {
  public:
@@ -51,6 +66,7 @@ class TcpTransport final : public Transport {
   bool accept_inbound(std::chrono::steady_clock::time_point deadline, bool has_deadline);
   void close_connection() noexcept;
   [[nodiscard]] std::string context(std::string_view action) const;
+  void secure_connection(int socket, bool server);
 
   std::atomic<int> socket_{-1};
   std::atomic<int> listener_{-1};
@@ -62,6 +78,7 @@ class TcpTransport final : public Transport {
   TcpOptions options_;
   bool outbound_{};
   bool ever_connected_{};
+  std::unique_ptr<TcpTlsState> tls_;
   std::mutex send_mutex_;
   std::mutex retry_mutex_;
   std::condition_variable retry_ready_;

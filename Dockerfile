@@ -1,5 +1,5 @@
 FROM debian:bookworm-slim AS build
-RUN apt-get update && apt-get install -y --no-install-recommends cmake ninja-build g++ && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends cmake ninja-build g++ libssl-dev && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
 COPY CMakeLists.txt ./
 COPY include include
@@ -10,8 +10,8 @@ RUN cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DGRAPHX_BUILD_TESTS
  && cmake --build build
 
 FROM debian:bookworm-slim
-RUN apt-get update && apt-get install -y --no-install-recommends iproute2 && rm -rf /var/lib/apt/lists/*
-RUN mkdir /captures && chown 65532:65532 /captures
+RUN apt-get update && apt-get install -y --no-install-recommends iproute2 libssl3 && rm -rf /var/lib/apt/lists/*
+RUN mkdir /captures && chown 65532:65532 /captures && chmod 0770 /captures
 COPY --from=build /src/build/graphx-generator /usr/local/bin/
 COPY --from=build /src/build/graphx-transform /usr/local/bin/
 COPY --from=build /src/build/graphx-sink /usr/local/bin/

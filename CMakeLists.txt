@@ -59,6 +59,7 @@ function(graphx_enable_sanitizers target)
 endfunction()
 
 find_package(Threads REQUIRED)
+find_package(OpenSSL 3 REQUIRED)
 find_package(yaml-cpp 0.9 QUIET CONFIG)
 if(NOT yaml-cpp_FOUND)
   include(FetchContent)
@@ -88,7 +89,7 @@ add_library(graphx
   src/transport_factory.cpp
 )
 target_include_directories(graphx PUBLIC include)
-target_link_libraries(graphx PUBLIC Threads::Threads yaml-cpp::yaml-cpp)
+target_link_libraries(graphx PUBLIC Threads::Threads yaml-cpp::yaml-cpp OpenSSL::SSL OpenSSL::Crypto)
 graphx_enable_analysis(graphx)
 graphx_enable_sanitizers(graphx)
 target_compile_options(graphx PRIVATE
@@ -127,6 +128,13 @@ if(GRAPHX_BUILD_TESTS)
   graphx_enable_sanitizers(graphx-config-tests)
   target_compile_definitions(graphx-config-tests PRIVATE GRAPHX_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
   add_test(NAME graphx-config-tests COMMAND graphx-config-tests)
+  add_executable(graphx-tls-smoke tests/tls_smoke.cpp)
+  target_link_libraries(graphx-tls-smoke PRIVATE graphx)
+  graphx_enable_analysis(graphx-tls-smoke)
+  graphx_enable_sanitizers(graphx-tls-smoke)
+  add_test(NAME graphx-tls-security
+    COMMAND bash ${CMAKE_SOURCE_DIR}/scripts/test-tls.sh $<TARGET_FILE:graphx-tls-smoke>)
+  set_tests_properties(graphx-tls-security PROPERTIES TIMEOUT 15)
   add_test(NAME graphx-config-cli
     COMMAND graphx-cli validate ${CMAKE_SOURCE_DIR}/graphx.yaml)
   set(graphx_config_cli_tests graphx-config-cli)

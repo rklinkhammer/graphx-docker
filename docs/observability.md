@@ -6,6 +6,10 @@ UDP JSON events to the telemetry service. The service exposes the current model
 through `/api/topology`, WebSocket snapshots, the browser console, and Prometheus
 text at `/metrics`.
 
+When `GRAPHX_TELEMETRY_SHARED_SECRET` is configured on nodes and collector, UDP
+events and control messages are HMAC-authenticated with clock and replay checks.
+See [`security.md`](security.md) for the trust boundary and resource limits.
+
 ## Metric semantics
 
 | Signal | Meaning | Source |
@@ -77,28 +81,30 @@ Useful Prometheus series include:
   `graphx_edge_backpressure_seconds_total`;
 - `graphx_edge_connected` and `graphx_node_cpu_percent`.
 
-`POST /api/control/reset` resets collector-side edge aggregation while retaining
+Authenticated `POST /api/control/reset` resets collector-side edge aggregation while retaining
 the current connection state. Collector restart also resets these in-memory
 counters. UDP delivery is intentionally best effort, so the values describe
 events observed by this collector; they are not durable accounting records.
 
 ## Authenticated runtime control
 
-Set `GRAPHX_CONTROL_TOKEN` on the telemetry service to enable pause/resume. Calls
-must use `Authorization: Bearer <token>`:
+Set both `GRAPHX_CONTROL_TOKEN` and `GRAPHX_TELEMETRY_SHARED_SECRET` on the
+telemetry service, and the shared secret on every runtime, to enable
+pause/resume/reset. Each credential must contain at least 32 bytes. Calls must
+use `Authorization: Bearer <token>`:
 
 ```sh
-curl -i -X POST -H 'Authorization: Bearer choose-a-local-demo-token' \
+curl -i -X POST -H 'Authorization: Bearer choose-a-control-token-at-least-32-bytes' \
   http://localhost:8080/api/control/pause
-curl -i -X POST -H 'Authorization: Bearer choose-a-local-demo-token' \
+curl -i -X POST -H 'Authorization: Bearer choose-a-control-token-at-least-32-bytes' \
   http://localhost:8080/api/control/resume
 ```
 
 HTTP 202 means the command was sent to at least one recently active runtime;
-the snapshot's `control.acknowledgements` records replies. HTTP 401 means the
+the snapshot's `control.acknowledgements` records authenticated replies. HTTP 401 means the
 credential is absent or wrong, 409 means no runtime endpoint is live, and 503
-means server-side control is disabled. The runtime UDP socket is connected to
-the collector, so it accepts commands only from that peer. Pause currently acts
+means server-side control is disabled. HMAC authentication, timestamp freshness,
+and nonce replay rejection protect the datagram exchange. Pause currently acts
 at source nodes: it prevents new envelopes while downstream nodes drain. It is
 not a process suspension, durable queue, or distributed transaction.
 

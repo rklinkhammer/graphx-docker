@@ -4,6 +4,10 @@ set -euo pipefail
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 MODE=${1:-portable}
 BUILD_DIR=${GRAPHX_BUILD_DIR:-"$ROOT/build/dev"}
+CXX20_BUILD_DIR=${GRAPHX_CXX20_BUILD_DIR:-"$ROOT/build/cxx20-features"}
+if test -n "${GRAPHX_BUILD_DIR:-}" && test -z "${GRAPHX_CXX20_BUILD_DIR:-}"; then
+  CXX20_BUILD_DIR="${BUILD_DIR}-cxx20"
+fi
 TMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/graphx-feature-test.XXXXXX")
 PIDS=()
 
@@ -32,6 +36,7 @@ portable() {
   require node
   require npm
   require curl
+  require openssl
 
   # The suite supplies its own topology and overrides. Isolate it from values a
   # user may have exported while manually running the TCP demo.
@@ -48,10 +53,10 @@ portable() {
   ctest --test-dir "$BUILD_DIR" --output-on-failure
 
   step "Build and test the supported C++20 configuration"
-  cmake -S "$ROOT" -B "$ROOT/build/cxx20-features" -G Ninja \
+  cmake -S "$ROOT" -B "$CXX20_BUILD_DIR" -G Ninja \
     -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_STANDARD=20 -DGRAPHX_BUILD_TESTS=ON
-  cmake --build "$ROOT/build/cxx20-features" -j "${GRAPHX_BUILD_JOBS:-4}"
-  ctest --test-dir "$ROOT/build/cxx20-features" --output-on-failure
+  cmake --build "$CXX20_BUILD_DIR" -j "${GRAPHX_BUILD_JOBS:-4}"
+  ctest --test-dir "$CXX20_BUILD_DIR" --output-on-failure
 
   step "Validate and inspect every checked-in topology"
   "$BUILD_DIR/graphx" validate "$ROOT/graphx.yaml"
@@ -126,20 +131,32 @@ portable() {
 
   step "Build the web console and exercise telemetry HTTP semantics"
   npm ci --prefix "$ROOT/apps/telemetry" --no-audit --no-fund
+  npm test --prefix "$ROOT/apps/telemetry"
   npm ci --prefix "$ROOT/web" --no-audit --no-fund
+  npm test --prefix "$ROOT/web"
   npm run build --prefix "$ROOT/web"
   sed 's/provider: ovs-span/provider: pcapng/' \
     "$ROOT/examples/ipvlan-l2/graphx.yaml" >"$TMP_DIR/telemetry-graphx.yaml"
+  export GRAPHX_TELEMETRY_SHARED_SECRET=telemetry-feature-secret-0123456789
+  control_token=control-feature-token-012345678901
   PORT=${GRAPHX_TEST_HTTP_PORT:-18080} GRAPHX_TELEMETRY_PORT=${GRAPHX_TEST_UDP_PORT:-19000} \
     GRAPHX_HEARTBEAT_TIMEOUT_MS=1000 GRAPHX_CONFIG="$TMP_DIR/telemetry-graphx.yaml" \
     GRAPHX_CAPTURE_DIR="$TMP_DIR/captures" \
-    GRAPHX_CONTROL_TOKEN=feature-test-token \
+    GRAPHX_CONTROL_TOKEN="$control_token" \
     GRAPHX_WEB_ROOT="$ROOT/web/dist" node "$ROOT/apps/telemetry/server.mjs" \
     >"$TMP_DIR/telemetry.log" 2>&1 &
   PIDS+=("$!")
   for _ in {1..40}; do curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/health" >/dev/null 2>&1 && break; sleep 0.1; done
   GRAPHX_TEST_UDP_PORT=${GRAPHX_TEST_UDP_PORT:-19000} node -e '
+    const {createHmac, randomBytes} = require("node:crypto");
     const d = require("node:dgram").createSocket("udp4");
+    const secret = process.env.GRAPHX_TELEMETRY_SHARED_SECRET;
+    const sign = payload => {
+      const timestamp = Date.now(), nonce = randomBytes(16).toString("hex");
+      const signature = createHmac("sha256", secret)
+        .update(`${timestamp}.${nonce}.${JSON.stringify(payload)}`).digest("hex");
+      return {payload, auth:{timestamp, nonce, signature}};
+    };
     const base = {kind:"trace", nodeId:"generator", edgeId:"samples", timestamp:Date.now(), wireVersion:2,
       messageId:"00112233445566778899aabbccddeeff", parentMessageId:"", traceId:"0123456789abcdef0123456789abcdef"};
     const events = [
@@ -153,11 +170,11 @@ portable() {
       {...base,event:"heartbeat",cpuPercent:12.5}
     ];
     d.on("message", data => {
-      const command = JSON.parse(data);
-      if (command.kind === "control") d.send(JSON.stringify({kind:"control_ack", nodeId:"generator",
-        action:command.action, accepted:true}), Number(process.env.GRAPHX_TEST_UDP_PORT), "127.0.0.1");
+      const command = JSON.parse(data).payload;
+      if (command?.kind === "control") d.send(JSON.stringify(sign({kind:"control_ack", nodeId:"generator",
+        action:command.action, accepted:true})), Number(process.env.GRAPHX_TEST_UDP_PORT), "127.0.0.1");
     });
-    for (const event of events) d.send(JSON.stringify(event), Number(process.env.GRAPHX_TEST_UDP_PORT), "127.0.0.1");
+    for (const event of events) d.send(JSON.stringify(sign(event)), Number(process.env.GRAPHX_TEST_UDP_PORT), "127.0.0.1");
     setTimeout(() => d.close(), 5000);
   ' &
   PIDS+=("$!")
@@ -204,12 +221,12 @@ portable() {
   cmp "$TMP_DIR/captures/generator.pcapng" "$TMP_DIR/downloaded.pcapng"
   test "$(curl -sS -o "$TMP_DIR/pause-unauthorized.json" -w '%{http_code}' -X POST "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/control/pause")" = 401
   grep -q '"accepted":false' "$TMP_DIR/pause-unauthorized.json"
-  test "$(curl -sS -o "$TMP_DIR/pause.json" -w '%{http_code}' -X POST -H 'Authorization: Bearer feature-test-token' "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/control/pause")" = 202
+  test "$(curl -sS -o "$TMP_DIR/pause.json" -w '%{http_code}' -X POST -H "Authorization: Bearer $control_token" "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/control/pause")" = 202
   grep -q '"accepted":true' "$TMP_DIR/pause.json"
   sleep 0.1
   curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/topology" | grep -q '"action":"pause","accepted":true'
-  curl -fsS -X POST "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/control/reset" | grep -q '"paused":true'
-  test "$(curl -sS -o "$TMP_DIR/resume.json" -w '%{http_code}' -X POST -H 'Authorization: Bearer feature-test-token' "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/control/resume")" = 202
+  curl -fsS -X POST -H "Authorization: Bearer $control_token" "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/control/reset" | grep -q '"paused":true'
+  test "$(curl -sS -o "$TMP_DIR/resume.json" -w '%{http_code}' -X POST -H "Authorization: Bearer $control_token" "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/control/resume")" = 202
   grep -q '"accepted":true' "$TMP_DIR/resume.json"
 
   step "Verify authenticated pause and resume against the real TCP runtime"
@@ -226,12 +243,12 @@ portable() {
       node -e 'let value=""; process.stdin.on("data", chunk => value += chunk).on("end", () => console.log(JSON.parse(value).edges.samples.sent))'
   }
   for _ in {1..40}; do test "$(sent_count)" -ge 3 && break; sleep 0.05; done
-  test "$(curl -sS -o "$TMP_DIR/runtime-pause.json" -w '%{http_code}' -X POST -H 'Authorization: Bearer feature-test-token' "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/control/pause")" = 202
+  test "$(curl -sS -o "$TMP_DIR/runtime-pause.json" -w '%{http_code}' -X POST -H "Authorization: Bearer $control_token" "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/control/pause")" = 202
   sleep 0.15
   paused_count=$(sent_count)
   sleep 0.25
   test "$(sent_count)" = "$paused_count"
-  test "$(curl -sS -o "$TMP_DIR/runtime-resume.json" -w '%{http_code}' -X POST -H 'Authorization: Bearer feature-test-token' "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/control/resume")" = 202
+  test "$(curl -sS -o "$TMP_DIR/runtime-resume.json" -w '%{http_code}' -X POST -H "Authorization: Bearer $control_token" "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/control/resume")" = 202
   resumed=false
   for _ in {1..40}; do
     if test "$(sent_count)" -gt "$paused_count"; then resumed=true; break; fi
@@ -245,7 +262,7 @@ portable() {
   PIDS=("${PIDS[0]}" "${PIDS[1]}")
   unset GRAPHX_TELEMETRY_HOST GRAPHX_TELEMETRY_PORT
 
-  curl -fsS -X POST "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/control/reset" | grep -q '"accepted":true'
+  curl -fsS -X POST -H "Authorization: Bearer $control_token" "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/control/reset" | grep -q '"accepted":true'
   curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/metrics" | grep -q 'graphx_edge_messages_total{edge="samples",direction="sent"} 0'
   offline=false
   for _ in {1..30}; do
@@ -257,6 +274,42 @@ portable() {
     sleep 0.1
   done
   test "$offline" = true
+
+  step "Verify HTTPS, observation authentication, API methods, and secure bind defaults"
+  kill -TERM "${PIDS[0]}" 2>/dev/null || true
+  # Node uses the default SIGTERM disposition, so an intentional collector stop
+  # reports 143 rather than the native demo processes' graceful zero exit.
+  wait "${PIDS[0]}" 2>/dev/null || true
+  wait "${PIDS[1]}" 2>/dev/null || true
+  PIDS=()
+  openssl req -x509 -newkey rsa:2048 -nodes -days 1 -sha256 -subj '/CN=127.0.0.1' \
+    -addext 'subjectAltName=IP:127.0.0.1' -keyout "$TMP_DIR/http.key" -out "$TMP_DIR/http.pem" \
+    >/dev/null 2>&1
+  secure_http_port=$(( ${GRAPHX_TEST_HTTP_PORT:-18080} + 1 ))
+  secure_udp_port=$(( ${GRAPHX_TEST_UDP_PORT:-19000} + 1 ))
+  observation_token=observation-feature-token-012345678
+  PORT=$secure_http_port GRAPHX_TELEMETRY_PORT=$secure_udp_port \
+    GRAPHX_CONFIG="$TMP_DIR/telemetry-graphx.yaml" GRAPHX_WEB_ROOT="$ROOT/web/dist" \
+    GRAPHX_TLS_CERT_FILE="$TMP_DIR/http.pem" GRAPHX_TLS_KEY_FILE="$TMP_DIR/http.key" \
+    GRAPHX_OBSERVATION_TOKEN="$observation_token" node "$ROOT/apps/telemetry/server.mjs" \
+    >"$TMP_DIR/secure-telemetry.log" 2>&1 &
+  PIDS+=("$!")
+  for _ in {1..40}; do curl -kfsS "https://127.0.0.1:$secure_http_port/api/health" >/dev/null 2>&1 && break; sleep 0.1; done
+  test "$(curl -ksS -o /dev/null -w '%{http_code}' "https://127.0.0.1:$secure_http_port/api/topology")" = 401
+  curl -kfsS -H "Authorization: Bearer $observation_token" \
+    "https://127.0.0.1:$secure_http_port/api/topology" | grep -q 'ipvlan-l2-pipeline'
+  test "$(curl -ksS -o /dev/null -w '%{http_code}' -X POST \
+    -H "Authorization: Bearer $observation_token" \
+    "https://127.0.0.1:$secure_http_port/api/topology")" = 405
+  curl -kisS "https://127.0.0.1:$secure_http_port/api/health" | \
+    grep -qi '^x-content-type-options: nosniff'
+  if PORT=$((secure_http_port + 1)) GRAPHX_TELEMETRY_PORT=$((secure_udp_port + 1)) \
+    GRAPHX_HTTP_BIND=0.0.0.0 GRAPHX_CONFIG="$TMP_DIR/telemetry-graphx.yaml" \
+    node "$ROOT/apps/telemetry/server.mjs" >"$TMP_DIR/insecure-bind.log" 2>&1; then
+    echo "plaintext non-loopback telemetry bind was accepted" >&2
+    return 1
+  fi
+  grep -q 'plaintext telemetry may bind only to loopback' "$TMP_DIR/insecure-bind.log"
 
   step "Portable feature suite passed"
 }

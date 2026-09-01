@@ -24,6 +24,13 @@ TransportPtr TransportFactory::create(const EdgeConfig& edge, ConnectionMode mod
       options.retry.initial_backoff = std::chrono::milliseconds(transport.retry_initial_backoff_ms);
       options.retry.max_backoff = std::chrono::milliseconds(transport.retry_max_backoff_ms);
       options.reconnect = transport.reconnect;
+      options.tls.enabled = transport.tls_enabled;
+      options.tls.verify_peer = transport.tls_verify_peer;
+      options.tls.require_client_certificate = transport.tls_require_client_certificate;
+      options.tls.ca_file = transport.tls_ca_file;
+      options.tls.certificate_file = transport.tls_certificate_file;
+      options.tls.private_key_file = transport.tls_private_key_file;
+      options.tls.server_name = transport.tls_server_name;
       if (mode == ConnectionMode::connect)
         return std::make_unique<TcpTransport>(
             TcpTransport::connect(endpoint, edge.edge.id, trace_sink, options));

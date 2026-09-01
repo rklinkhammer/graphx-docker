@@ -40,7 +40,7 @@ test suite.
 
 ## Build and test locally
 
-Requirements: CMake 3.25+, Ninja, a C++20/23 compiler, and network access on the
+Requirements: CMake 3.25+, Ninja, OpenSSL 3 development files, a C++20/23 compiler, and network access on the
 first configure when yaml-cpp 0.9.0 is not already installed. The fallback
 download is version-pinned and SHA-256 verified; see `THIRD_PARTY.md`.
 
@@ -71,6 +71,20 @@ libFuzzer smoke runs, portable integration, JavaScript audits, and Compose image
 builds. It never opts into privileged macvlan/ipvlan/OVS host mutation.
 
 The library uses C++23 by default but only relies on broadly available C++20-era facilities. Set `CMAKE_CXX_STANDARD=20` if your toolchain needs it.
+
+## Secure deployment boundary
+
+Phase 5 adds optional TLS 1.3/mTLS to TCP graph edges, HTTPS/mTLS for telemetry,
+separate observation and control bearer credentials, HMAC-authenticated
+anti-replay UDP telemetry/control, strict API limits, and least-privilege Compose
+defaults. Telemetry binds to loopback by default and runtime controls remain
+disabled unless both a control credential and telemetry shared secret are
+configured. Secrets may be supplied inline or through `*_FILE` variables for
+mounted files; they do not belong in `graphx.yaml`.
+
+See [`docs/security.md`](docs/security.md) for configuration examples, API
+authentication, limits, container policy, and the explicit Phase 8 authorization
+boundary.
 
 ## Run the container demo manually
 

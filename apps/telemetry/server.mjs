@@ -1,15 +1,20 @@
 import dgram from 'node:dgram'
-import { timingSafeEqual } from 'node:crypto'
 import { closeSync, createReadStream, existsSync, openSync, readFileSync, readSync, readdirSync, statSync } from 'node:fs'
 import { createServer } from 'node:http'
+import { createServer as createSecureServer } from 'node:https'
 import { extname, join, normalize, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { WebSocketServer } from 'ws'
 import { parse } from 'yaml'
+import { MAX_DATAGRAM_BYTES, RateLimiter, ReplayCache, isLoopback, originAllowed,
+  parseRequestUrl, readSecret, signEnvelope, tokenMatches, validateTelemetryEvent,
+  verifyEnvelope, webSocketBearer } from './security.mjs'
 
 const root = normalize(process.env.GRAPHX_WEB_ROOT || join(fileURLToPath(new URL('.', import.meta.url)), '../../web/dist'))
 const port = Number(process.env.PORT || 8080)
 const udpPort = Number(process.env.GRAPHX_TELEMETRY_PORT || 9000)
+const httpBind = process.env.GRAPHX_HTTP_BIND || '127.0.0.1'
+const udpBind = process.env.GRAPHX_TELEMETRY_BIND || '127.0.0.1'
 const configPath = process.env.GRAPHX_CONFIG || normalize(join(fileURLToPath(new URL('.', import.meta.url)), '../../graphx.yaml'))
 const config = parse(readFileSync(configPath, 'utf8'))
 const graph = config.graph || { id: 'graphx', nodes: [], edges: [] }
@@ -24,7 +29,19 @@ const captureConfig = { ...configuredCapture,
   provider: process.env.GRAPHX_CAPTURE_PROVIDER || configuredCapture.provider || '',
 }
 const captureDirectory = resolve(process.env.GRAPHX_CAPTURE_DIR || captureConfig.directory || 'captures')
-const controlToken = process.env.GRAPHX_CONTROL_TOKEN || ''
+const controlToken = readSecret('GRAPHX_CONTROL_TOKEN')
+const observationToken = readSecret('GRAPHX_OBSERVATION_TOKEN')
+const telemetrySecret = readSecret('GRAPHX_TELEMETRY_SHARED_SECRET')
+const tlsCertificateFile = process.env.GRAPHX_TLS_CERT_FILE || ''
+const tlsPrivateKeyFile = process.env.GRAPHX_TLS_KEY_FILE || ''
+const tlsClientCaFile = process.env.GRAPHX_TLS_CLIENT_CA_FILE || ''
+if (Boolean(tlsCertificateFile) !== Boolean(tlsPrivateKeyFile))
+  throw new Error('GRAPHX_TLS_CERT_FILE and GRAPHX_TLS_KEY_FILE must be provided together')
+if (controlToken && !telemetrySecret)
+  throw new Error('GRAPHX_TELEMETRY_SHARED_SECRET is required when runtime control is enabled')
+if (!tlsCertificateFile && !isLoopback(httpBind) && process.env.GRAPHX_ALLOW_INSECURE_REMOTE !== 'true')
+  throw new Error('plaintext telemetry may bind only to loopback; use TLS or explicitly set GRAPHX_ALLOW_INSECURE_REMOTE=true')
+const allowedOrigins = new Set((process.env.GRAPHX_ALLOWED_ORIGINS || '').split(',').map(v => v.trim()).filter(Boolean))
 const rateWindowSeconds = 5
 const latencyBoundsUs = [10, 50, 100, 500, 1000, 5000, 10000]
 
@@ -190,26 +207,47 @@ function snapshot() {
   return { kind: 'snapshot', graph: graph.id, topology,
     telemetry: { websocket: websocketPath, heartbeatTimeoutMs: heartbeatTimeout,
       rateWindowSeconds, latencyBoundsUs }, state,
-    control: { available: controlToken.length > 0, connectedNodes: liveEndpoints.length,
+    control: { available: controlToken.length > 0 && telemetrySecret.length > 0,
+      authenticatedTelemetry: telemetrySecret.length > 0, connectedNodes: liveEndpoints.length,
       acknowledgements: Object.fromEntries(controlAcks) }, nodes, edges: edgeViews,
     capture: { enabled: Boolean(captureConfig.enabled), provider: captureConfig.provider || null,
       format: files.length ? 'pcapng' : null,
       files }, recent: recentWithCapture(), timestamp }
 }
 
-function json(response, status, value) {
-  response.writeHead(status, { 'content-type': 'application/json', 'access-control-allow-origin': '*' })
+const securityHeaders = {
+  'content-security-policy': "default-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'",
+  'cross-origin-resource-policy': 'same-origin',
+  'referrer-policy': 'no-referrer',
+  'x-content-type-options': 'nosniff',
+  'x-frame-options': 'DENY',
+}
+
+function json(response, status, value, extra = {}) {
+  response.writeHead(status, { ...securityHeaders, 'cache-control': 'no-store',
+    'content-type': 'application/json; charset=utf-8', ...extra })
   response.end(JSON.stringify(value))
 }
 
-function authorized(request) {
-  if (!controlToken) return false
-  const supplied = request.headers.authorization?.startsWith('Bearer ')
-    ? request.headers.authorization.slice(7) : ''
-  const expectedBytes = Buffer.from(controlToken)
-  const suppliedBytes = Buffer.from(supplied)
-  return expectedBytes.length === suppliedBytes.length &&
-    timingSafeEqual(expectedBytes, suppliedBytes)
+function authorized(request, token) {
+  return tokenMatches(token, request.headers.authorization || '')
+}
+
+function requestOriginAllowed(request) {
+  const origin = request.headers.origin
+  if (!origin) return true
+  if (allowedOrigins.size) return originAllowed(origin, allowedOrigins)
+  const scheme = tlsCertificateFile ? 'https' : 'http'
+  return origin === `${scheme}://${request.headers.host}`
+}
+
+const rateLimits = {
+  general: new RateLimiter(2048),
+  control: new RateLimiter(2048),
+}
+function withinRateLimit(request, maximum, windowMs = 60000, scope = 'general') {
+  const limiter = rateLimits[scope] || rateLimits.general
+  return limiter.allow(request.socket.remoteAddress || 'unknown', maximum, windowMs)
 }
 
 function liveControlEndpoints(timestamp = Date.now()) {
@@ -278,17 +316,44 @@ function prometheus() {
   return `${lines.join('\n')}\n`
 }
 
-const server = createServer((request, response) => {
-  const url = new URL(request.url, `http://${request.headers.host || 'localhost'}`)
-  if (url.pathname === '/api/health') return json(response, 200, { status: 'ok', service: 'graphx-telemetry' })
-  if (url.pathname === '/api/topology') return json(response, 200, snapshot())
-  if (url.pathname === '/api/captures') return json(response, 200, snapshot().capture)
+const handleRequest = (request, response) => {
+  if (!withinRateLimit(request, 120)) return json(response, 429, { error: 'rate limit exceeded' }, { 'retry-after': '60' })
+  if (!request.url || request.url.length > 2048) return json(response, 414, { error: 'request target too long' })
+  const url = parseRequestUrl(request.url)
+  if (!url) return json(response, 400, { error: 'invalid request target' })
+  if (url.pathname === '/api/health') {
+    if (request.method !== 'GET') return json(response, 405, { error: 'method not allowed' }, { allow: 'GET' })
+    return json(response, 200, { status: 'ok', service: 'graphx-telemetry', tls: Boolean(tlsCertificateFile) })
+  }
+  const observed = ['/api/topology', '/api/captures', '/metrics'].includes(url.pathname) ||
+    url.pathname.startsWith('/captures/')
+  if (observed && observationToken && !authorized(request, observationToken))
+    return json(response, 401, { error: 'invalid observation token' }, { 'www-authenticate': 'Bearer realm="graphx-observation"' })
+  if (url.pathname === '/api/topology') {
+    if (request.method !== 'GET') return json(response, 405, { error: 'method not allowed' }, { allow: 'GET' })
+    return json(response, 200, snapshot())
+  }
+  if (url.pathname === '/api/captures') {
+    if (request.method !== 'GET') return json(response, 405, { error: 'method not allowed' }, { allow: 'GET' })
+    return json(response, 200, snapshot().capture)
+  }
   if (url.pathname === '/metrics') {
-    response.writeHead(200, { 'content-type': 'text/plain; version=0.0.4; charset=utf-8' })
+    if (request.method !== 'GET') return json(response, 405, { error: 'method not allowed' }, { allow: 'GET' })
+    response.writeHead(200, { ...securityHeaders, 'cache-control': 'no-store',
+      'content-type': 'text/plain; version=0.0.4; charset=utf-8' })
     return response.end(prometheus())
   }
   if (url.pathname.startsWith('/api/control/') && request.method === 'POST') {
     const action = url.pathname.split('/').pop()
+    if (!requestOriginAllowed(request)) return json(response, 403, { accepted: false, action, error: 'origin not allowed' })
+    if (!withinRateLimit(request, 10, 60000, 'control')) return json(response, 429, { accepted: false, action, error: 'control rate limit exceeded' })
+    if (Number(request.headers['content-length'] || 0) > 0 || request.headers['transfer-encoding'])
+      return json(response, 413, { accepted: false, action, error: 'request body not accepted' })
+    if (!controlToken)
+      return json(response, 503, { accepted: false, action, error: 'runtime control is disabled' })
+    if (!authorized(request, controlToken))
+      return json(response, 401, { accepted: false, action, error: 'invalid control token' },
+        { 'www-authenticate': 'Bearer realm="graphx-control"' })
     if (action === 'reset') {
       recent.length = 0
       captureReferences.length = 0
@@ -302,21 +367,20 @@ const server = createServer((request, response) => {
     }
     if (action !== 'pause' && action !== 'resume')
       return json(response, 404, { accepted: false, action, error: 'unknown control action' })
-    if (!controlToken)
-      return json(response, 503, { accepted: false, action,
-        error: 'runtime control is disabled; set GRAPHX_CONTROL_TOKEN' })
-    if (!authorized(request))
-      return json(response, 401, { accepted: false, action, error: 'invalid control token' })
     const endpoints = liveControlEndpoints()
     if (!endpoints.length)
       return json(response, 409, { accepted: false, action, error: 'no live runtime nodes' })
-    const command = Buffer.from(JSON.stringify({ kind: 'control', action, timestamp: Date.now() }))
+    const command = Buffer.from(JSON.stringify(signEnvelope(
+      { kind: 'control', action, timestamp: Date.now() }, telemetrySecret)))
     for (const [, endpoint] of endpoints) udp.send(command, endpoint.port, endpoint.address)
     state = { ...state, paused: action === 'pause', updatedAt: new Date().toISOString() }
     broadcast()
     return json(response, 202, { accepted: true, action, delivered: endpoints.length, state })
   }
+  if (url.pathname.startsWith('/api/control/'))
+    return json(response, 405, { error: 'method not allowed' }, { allow: 'POST' })
   if (url.pathname.startsWith('/captures/')) {
+    if (request.method !== 'GET') return json(response, 405, { error: 'method not allowed' }, { allow: 'GET' })
     let name
     try { name = decodeURIComponent(url.pathname.slice('/captures/'.length)) }
     catch { return json(response, 400, { error: 'invalid capture name' }) }
@@ -325,20 +389,54 @@ const server = createServer((request, response) => {
     const available = captureFiles().some(file => file.name === name)
     const capturePath = join(captureDirectory, name)
     if (!available || !existsSync(capturePath)) return json(response, 404, { error: 'capture not found' })
-    response.writeHead(200, { 'content-type': 'application/vnd.tcpdump.pcap',
+    response.writeHead(200, { ...securityHeaders, 'cache-control': 'no-store', 'content-type': 'application/vnd.tcpdump.pcap',
       'content-disposition': `attachment; filename="${name}"` })
     return createReadStream(capturePath).pipe(response)
   }
   let requested = url.pathname === '/' ? 'index.html' : url.pathname.slice(1)
-  const file = normalize(join(root, requested))
-  if (!file.startsWith(root) || !existsSync(file)) requested = 'index.html'
+  const file = resolve(root, requested)
+  if ((file !== root && !file.startsWith(`${root}/`)) || !existsSync(file)) requested = 'index.html'
   const fallback = normalize(join(root, requested))
   if (!existsSync(fallback)) return json(response, 404, { error: 'web assets not built' })
-  response.writeHead(200, { 'content-type': types[extname(fallback)] || 'application/octet-stream' })
+  response.writeHead(200, { ...securityHeaders, 'cache-control': fallback.endsWith('index.html') ? 'no-cache' : 'public, max-age=3600',
+    'content-type': types[extname(fallback)] || 'application/octet-stream' })
   createReadStream(fallback).pipe(response)
+}
+
+const requestHandler = (request, response) => {
+  try { return handleRequest(request, response) }
+  catch (error) {
+    console.error(`telemetry request failed: ${error instanceof Error ? error.message : 'unknown error'}`)
+    if (!response.headersSent) return json(response, 500, { error: 'internal server error' })
+    response.destroy()
+  }
+}
+
+const serverOptions = { maxHeaderSize: 16 * 1024, requestTimeout: 10000,
+  headersTimeout: 10000, keepAliveTimeout: 5000 }
+const server = tlsCertificateFile ? createSecureServer({ ...serverOptions,
+  cert: readFileSync(tlsCertificateFile), key: readFileSync(tlsPrivateKeyFile), minVersion: 'TLSv1.3',
+  ...(tlsClientCaFile ? { ca: readFileSync(tlsClientCaFile), requestCert: true, rejectUnauthorized: true } : {}),
+}, requestHandler) : createServer(serverOptions, requestHandler)
+server.maxHeadersCount = 64
+server.maxRequestsPerSocket = 100
+server.on('clientError', (_error, socket) => {
+  if (socket.writable) socket.end('HTTP/1.1 400 Bad Request\r\nConnection: close\r\nContent-Length: 0\r\n\r\n')
 })
 
-const webSockets = new WebSocketServer({ server, path: websocketPath })
+const webSockets = new WebSocketServer({ noServer: true, maxPayload: 4096,
+  handleProtocols: protocols => protocols.has('graphx') ? 'graphx' : false })
+server.on('upgrade', (request, socket, head) => {
+  try {
+    const url = parseRequestUrl(request.url || '/')
+    if (!url) return socket.destroy()
+    const protocols = (request.headers['sec-websocket-protocol'] || '').split(',').map(value => value.trim()).filter(Boolean)
+    const supplied = webSocketBearer(protocols, observationToken)
+    if (url.pathname !== websocketPath || !requestOriginAllowed(request) || !withinRateLimit(request, 120) ||
+        (observationToken && !tokenMatches(observationToken, `Bearer ${supplied}`))) return socket.destroy()
+    webSockets.handleUpgrade(request, socket, head, websocket => webSockets.emit('connection', websocket, request))
+  } catch { socket.destroy() }
+})
 webSockets.on('connection', socket => socket.send(JSON.stringify(snapshot())))
 function broadcast() {
   const message = JSON.stringify(snapshot())
@@ -346,9 +444,14 @@ function broadcast() {
 }
 
 const udp = dgram.createSocket('udp4')
+const replayCache = new ReplayCache()
+const nodeIds = new Set(Object.keys(nodes))
+const edgeIds = new Set(Object.keys(edges))
 udp.on('message', (data, remote) => {
   try {
-    const event = JSON.parse(data.toString('utf8'))
+    if (data.length > MAX_DATAGRAM_BYTES) return
+    const event = verifyEnvelope(JSON.parse(data.toString('utf8')), telemetrySecret, replayCache)
+    if (!validateTelemetryEvent(event, nodeIds, edgeIds)) return
     const receivedAt = Date.now()
     if (event.kind === 'control_ack' && nodes[event.nodeId] &&
         (event.action === 'pause' || event.action === 'resume')) {
@@ -415,7 +518,7 @@ udp.on('message', (data, remote) => {
   } catch { /* Telemetry is best-effort; malformed datagrams are ignored. */ }
 })
 
-udp.bind(udpPort, '0.0.0.0')
+udp.bind(udpPort, udpBind)
 setInterval(() => {
   const now = Date.now()
   let changed = false
@@ -427,4 +530,5 @@ setInterval(() => {
   }
   if (changed) broadcast()
 }, Math.max(250, Math.min(heartbeatTimeout / 2, 1000))).unref()
-server.listen(port, '0.0.0.0', () => console.log(`GraphX telemetry HTTP/WebSocket :${port}, UDP :${udpPort}`))
+server.listen(port, httpBind, () => console.log(
+  `GraphX telemetry ${tlsCertificateFile ? 'HTTPS/WSS' : 'HTTP/WS'} ${httpBind}:${port}, UDP ${udpBind}:${udpPort}`))

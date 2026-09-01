@@ -89,7 +89,20 @@
         "connect_timeout_ms": { "type": "integer", "minimum": 1, "maximum": 600000 },
         "send_timeout_ms": { "type": "integer", "minimum": 1, "maximum": 600000 },
         "reconnect": { "type": "boolean" },
-        "retry": { "$ref": "#/$defs/tcpRetry" }
+        "retry": { "$ref": "#/$defs/tcpRetry" },
+        "tls": { "$ref": "#/$defs/tcpTls" }
+      }
+    },
+    "tcpTls": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "verify_peer": { "type": "boolean" },
+        "require_client_certificate": { "type": "boolean" },
+        "ca_file": { "type": "string", "minLength": 1, "maxLength": 4096 },
+        "certificate_file": { "type": "string", "minLength": 1, "maxLength": 4096 },
+        "private_key_file": { "type": "string", "minLength": 1, "maxLength": 4096 },
+        "server_name": { "type": "string", "minLength": 1, "maxLength": 253 }
       }
     },
     "tcpRetry": {

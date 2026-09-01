@@ -535,6 +535,65 @@ transport:
   }
 }
 
+void tcp_tls_config_loads_and_validates() {
+  TemporaryConfig valid(R"yaml(
+version: 1
+graph:
+  id: secure-tcp
+  nodes:
+    - { id: source, kind: source, ports: [{ name: out, direction: output, schema: S }] }
+    - { id: target, kind: sink, ports: [{ name: in, direction: input, schema: S }] }
+  edges:
+    - { id: secure, from: source.out, to: target.in, transport: tcp }
+transport:
+  tcp:
+    secure:
+      host: target
+      bind: 0.0.0.0
+      port: 7443
+      tls:
+        enabled: true
+        verify_peer: true
+        require_client_certificate: true
+        ca_file: /run/secrets/graphx-ca.pem
+        certificate_file: /run/secrets/graphx-peer.pem
+        private_key_file: /run/secrets/graphx-peer.key
+        server_name: target.internal
+)yaml");
+  const auto config = graphx::load_config(valid.path());
+  const auto& tls = config.edge("secure").transport;
+  expect(tls.tls_enabled && tls.tls_verify_peer && tls.tls_require_client_certificate &&
+             tls.tls_ca_file == "/run/secrets/graphx-ca.pem" &&
+             tls.tls_server_name == "target.internal",
+         "TLS settings load");
+
+  TemporaryConfig invalid(R"yaml(
+version: 1
+graph:
+  id: invalid-tls
+  nodes:
+    - { id: source, kind: source, ports: [{ name: out, direction: output, schema: S }] }
+    - { id: target, kind: sink, ports: [{ name: in, direction: input, schema: S }] }
+  edges:
+    - { id: secure, from: source.out, to: target.in, transport: tcp }
+transport:
+  tcp:
+    secure:
+      host: target
+      bind: 0.0.0.0
+      port: 7443
+      tls: { enabled: true, require_client_certificate: true }
+)yaml");
+  try {
+    [[maybe_unused]] const auto ignored = graphx::load_config(invalid.path());
+    throw std::runtime_error("incomplete TLS configuration was accepted");
+  } catch (const graphx::ConfigError& error) {
+    expect(diagnostic_contains(error, "certificate_file and private_key_file are required") &&
+               diagnostic_contains(error, "client certificates are required"),
+           "incomplete TLS diagnostics");
+  }
+}
+
 void factory_rejects_unvalidated_settings() {
   graphx::TransportFactory factory;
   graphx::EdgeConfig edge;
@@ -653,6 +712,7 @@ int main() {
       {"malformed and oversized", malformed_and_oversized_files_are_rejected},
       {"in-process queue config", in_process_queue_config_loads_and_validates},
       {"Unix socket deadline config", unix_socket_deadline_config_loads_and_validates},
+      {"TCP TLS config", tcp_tls_config_loads_and_validates},
       {"in-process factory", in_process_factory_shares_named_channel},
       {"factory validation", factory_rejects_unvalidated_settings},
       {"TCP factory", tcp_factory_round_trip},

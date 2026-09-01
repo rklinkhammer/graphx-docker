@@ -12,6 +12,7 @@
 #include <ctime>
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -48,6 +49,27 @@ inline std::uint16_t port(const char* name, std::uint16_t fallback) {
 inline bool boolean_env(const char* name, bool fallback) {
   const auto value = env(name, fallback ? "true" : "false");
   return value == "1" || value == "true" || value == "yes" || value == "on";
+}
+
+inline std::string secret_env(const char* name) {
+  const auto file_name = std::string(name) + "_FILE";
+  const char* inline_value = std::getenv(name);
+  const char* file_value = std::getenv(file_name.c_str());
+  if (inline_value && file_value)
+    throw std::runtime_error(std::string(name) + " and " + file_name + " are mutually exclusive");
+  std::string value;
+  if (inline_value) value = inline_value;
+  if (file_value) {
+    std::ifstream input(file_value, std::ios::binary);
+    if (!input) throw std::runtime_error("cannot read secret file for " + std::string(name));
+    value.assign(std::istreambuf_iterator<char>(input), {});
+    if (!value.empty() && value.back() == '\n') value.pop_back();
+    if (!value.empty() && value.back() == '\r') value.pop_back();
+  }
+  if (value.size() > 4096) throw std::runtime_error(std::string(name) + " exceeds 4096 bytes");
+  if (!value.empty() && value.size() < 32)
+    throw std::runtime_error(std::string(name) + " must contain at least 32 bytes");
+  return value;
 }
 
 class ConsoleTraceSink final : public graphx::TraceSink {
@@ -103,7 +125,8 @@ class RuntimeTraceSink final : public graphx::TraceSink {
         contains(config.observability.tracing, "udp-json")) {
       telemetry_ = std::make_unique<graphx::UdpJsonTraceSink>(
           node_id_, env("GRAPHX_TELEMETRY_HOST", config.observability.telemetry.host),
-          port("GRAPHX_TELEMETRY_PORT", config.observability.telemetry.port));
+          port("GRAPHX_TELEMETRY_PORT", config.observability.telemetry.port),
+          secret_env("GRAPHX_TELEMETRY_SHARED_SECRET"));
       composite_.add(*telemetry_);
     }
     const auto otlp_host = env("GRAPHX_OTLP_HOST", "");

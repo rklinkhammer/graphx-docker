@@ -10,6 +10,8 @@
 #include <limits>
 #include <memory>
 #include <netdb.h>
+#include <openssl/err.h>
+#include <openssl/ssl.h>
 #include <poll.h>
 #include <stdexcept>
 #include <sys/socket.h>
@@ -17,6 +19,19 @@
 #include <unistd.h>
 
 namespace graphx {
+
+struct TcpTlsState {
+  struct ContextDeleter {
+    void operator()(SSL_CTX* value) const noexcept { SSL_CTX_free(value); }
+  };
+  struct SessionDeleter {
+    void operator()(SSL* value) const noexcept { SSL_free(value); }
+  };
+  std::unique_ptr<SSL_CTX, ContextDeleter> context;
+  std::unique_ptr<SSL, SessionDeleter> session;
+  std::mutex mutex;
+};
+
 namespace {
 
 using Clock = std::chrono::steady_clock;
@@ -24,6 +39,13 @@ constexpr auto kAcceptCancellationPoll = std::chrono::milliseconds(25);
 
 std::runtime_error system_error(std::string_view action, int error = errno) {
   return std::runtime_error(std::string(action) + ": " + std::strerror(error));
+}
+
+std::runtime_error tls_error(std::string_view action) {
+  const auto code = ERR_get_error();
+  std::array<char, 256> message{};
+  if (code != 0) ERR_error_string_n(code, message.data(), message.size());
+  return std::runtime_error(std::string(action) + (code ? ": " + std::string(message.data()) : ""));
 }
 
 struct AddrinfoDeleter {
@@ -157,12 +179,41 @@ struct ReadResult {
   std::size_t transferred;
 };
 
-ReadResult read_all(int socket, std::span<std::byte> bytes, Clock::time_point deadline,
-                    bool has_deadline) {
+ReadResult read_all(int socket, TcpTlsState* tls, std::span<std::byte> bytes,
+                    Clock::time_point deadline, bool has_deadline) {
   std::size_t transferred{};
+  short ready_event = POLLIN;
   while (!bytes.empty()) {
-    if (!wait_ready(socket, POLLIN, deadline, has_deadline))
+    bool buffered{};
+    if (tls) {
+      std::scoped_lock lock(tls->mutex);
+      buffered = tls->session && SSL_pending(tls->session.get()) > 0;
+    }
+    if (!buffered && !wait_ready(socket, ready_event, deadline, has_deadline))
       return {ReadStatus::timed_out, transferred};
+    if (tls) {
+      std::size_t count{};
+      int status{};
+      int ssl_error{};
+      {
+        std::scoped_lock lock(tls->mutex);
+        if (!tls->session) return {ReadStatus::closed, transferred};
+        status = SSL_read_ex(tls->session.get(), bytes.data(), bytes.size(), &count);
+        if (status != 1) ssl_error = SSL_get_error(tls->session.get(), status);
+      }
+      if (status == 1) {
+        ready_event = POLLIN;
+        transferred += count;
+        bytes = bytes.subspan(count);
+        continue;
+      }
+      if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE) {
+        ready_event = ssl_error == SSL_ERROR_WANT_READ ? POLLIN : POLLOUT;
+        continue;
+      }
+      if (ssl_error == SSL_ERROR_ZERO_RETURN) return {ReadStatus::closed, transferred};
+      throw tls_error("TLS receive");
+    }
     const auto count = ::recv(socket, bytes.data(), bytes.size(), 0);
     if (count < 0 && (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK)) continue;
     if (count < 0) throw system_error("receive");
@@ -174,14 +225,36 @@ ReadResult read_all(int socket, std::span<std::byte> bytes, Clock::time_point de
   return {ReadStatus::complete, transferred};
 }
 
-std::chrono::nanoseconds write_all(int socket, std::span<const std::byte> bytes,
+std::chrono::nanoseconds write_all(int socket, TcpTlsState* tls, std::span<const std::byte> bytes,
                                    Clock::time_point deadline) {
   pollfd probe{socket, POLLOUT, 0};
   const auto pressure_start = Clock::now();
   const bool pressured = ::poll(&probe, 1, 0) == 0;
+  short ready_event = POLLOUT;
   while (!bytes.empty()) {
-    if (!wait_ready(socket, POLLOUT, deadline, true))
+    if (!wait_ready(socket, ready_event, deadline, true))
       throw system_error("send timed out", ETIMEDOUT);
+    if (tls) {
+      std::size_t sent{};
+      int status{};
+      int ssl_error{};
+      {
+        std::scoped_lock lock(tls->mutex);
+        if (!tls->session) throw std::runtime_error("TLS connection is closed");
+        status = SSL_write_ex(tls->session.get(), bytes.data(), bytes.size(), &sent);
+        if (status != 1) ssl_error = SSL_get_error(tls->session.get(), status);
+      }
+      if (status == 1) {
+        ready_event = POLLOUT;
+        bytes = bytes.subspan(sent);
+        continue;
+      }
+      if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE) {
+        ready_event = ssl_error == SSL_ERROR_WANT_READ ? POLLIN : POLLOUT;
+        continue;
+      }
+      throw tls_error("TLS send");
+    }
     const auto sent = ::send(socket, bytes.data(), bytes.size(), send_flags());
     if (sent < 0 && (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK)) continue;
     if (sent <= 0) throw system_error("send", sent == 0 ? EPIPE : errno);
@@ -200,8 +273,73 @@ TcpTransport::TcpTransport(int socket, int listener, Endpoint endpoint, std::str
       edge_id_(std::move(edge_id)),
       trace_sink_(trace_sink),
       options_(options),
-      outbound_(outbound) {
+      outbound_(outbound),
+      tls_(options.tls.enabled ? std::make_unique<TcpTlsState>() : nullptr) {
   if (!trace_sink_) trace_sink_ = &null_trace_sink_;
+}
+
+void TcpTransport::secure_connection(int socket, bool server) {
+  if (!tls_) return;
+  if (!tls_->context) {
+    auto* raw = SSL_CTX_new(server ? TLS_server_method() : TLS_client_method());
+    if (!raw) throw tls_error("create TLS context");
+    tls_->context.reset(raw);
+    if (SSL_CTX_set_min_proto_version(raw, TLS1_3_VERSION) != 1)
+      throw tls_error("set TLS 1.3 minimum");
+    SSL_CTX_set_options(raw, SSL_OP_NO_COMPRESSION);
+    if (!options_.tls.ca_file.empty()) {
+      if (SSL_CTX_load_verify_locations(raw, options_.tls.ca_file.c_str(), nullptr) != 1)
+        throw tls_error("load TLS CA file");
+    } else if ((options_.tls.verify_peer || options_.tls.require_client_certificate) &&
+               SSL_CTX_set_default_verify_paths(raw) != 1) {
+      throw tls_error("load default TLS trust store");
+    }
+    if (!options_.tls.certificate_file.empty()) {
+      if (SSL_CTX_use_certificate_chain_file(raw, options_.tls.certificate_file.c_str()) != 1)
+        throw tls_error("load TLS certificate");
+      if (SSL_CTX_use_PrivateKey_file(raw, options_.tls.private_key_file.c_str(),
+                                      SSL_FILETYPE_PEM) != 1 ||
+          SSL_CTX_check_private_key(raw) != 1)
+        throw tls_error("load TLS private key");
+    }
+    int verify = SSL_VERIFY_NONE;
+    if ((!server && options_.tls.verify_peer) ||
+        (server && options_.tls.require_client_certificate))
+      verify = SSL_VERIFY_PEER;
+    if (server && options_.tls.require_client_certificate)
+      verify |= SSL_VERIFY_FAIL_IF_NO_PEER_CERT;
+    SSL_CTX_set_verify(raw, verify, nullptr);
+  }
+
+  auto* raw_session = SSL_new(tls_->context.get());
+  if (!raw_session) throw tls_error("create TLS session");
+  std::unique_ptr<SSL, TcpTlsState::SessionDeleter> session(raw_session);
+  if (SSL_set_fd(raw_session, socket) != 1) throw tls_error("attach TLS socket");
+  if (!server && options_.tls.verify_peer) {
+    const auto& peer_name =
+        options_.tls.server_name.empty() ? endpoint_.host : options_.tls.server_name;
+    if (SSL_set1_host(raw_session, peer_name.c_str()) != 1)
+      throw tls_error("configure TLS peer name");
+    if (SSL_set_tlsext_host_name(raw_session, peer_name.c_str()) != 1)
+      throw tls_error("configure TLS SNI");
+  }
+  const auto deadline = Clock::now() + options_.connect_timeout;
+  for (;;) {
+    const int status = server ? SSL_accept(raw_session) : SSL_connect(raw_session);
+    if (status == 1) break;
+    const int error = SSL_get_error(raw_session, status);
+    if (error != SSL_ERROR_WANT_READ && error != SSL_ERROR_WANT_WRITE)
+      throw tls_error(server ? "TLS accept" : "TLS connect");
+    const auto poll_deadline = std::min(deadline, Clock::now() + kAcceptCancellationPoll);
+    if (!wait_ready(socket, error == SSL_ERROR_WANT_READ ? POLLIN : POLLOUT, poll_deadline, true)) {
+      if (closed_.load()) throw std::runtime_error(context("TLS handshake cancelled"));
+      if (Clock::now() >= deadline) throw system_error("TLS handshake timed out", ETIMEDOUT);
+      continue;
+    }
+    if (closed_.load()) throw std::runtime_error(context("TLS handshake cancelled"));
+  }
+  std::scoped_lock lock(tls_->mutex);
+  tls_->session = std::move(session);
 }
 
 std::string TcpTransport::context(std::string_view action) const {
@@ -226,6 +364,16 @@ void TcpTransport::connect_outbound() {
         throw std::runtime_error(context("connection cancelled"));
       }
       socket_.store(connected);
+      try {
+        secure_connection(connected, false);
+      } catch (...) {
+        close_connection();
+        throw;
+      }
+      if (closed_.load()) {
+        close_connection();
+        throw std::runtime_error(context("connection cancelled"));
+      }
       if (ever_connected_) trace_sink_->on_reconnect(edge_id_);
       ever_connected_ = true;
       trace_sink_->on_connection(edge_id_, ConnectionState::connected);
@@ -272,6 +420,7 @@ TcpTransport::TcpTransport(TcpTransport&& other) noexcept
       options_(other.options_),
       outbound_(other.outbound_),
       ever_connected_(other.ever_connected_) {
+  tls_ = std::move(other.tls_);
   other.closed_.store(true);
   if (other.trace_sink_ == &other.null_trace_sink_) trace_sink_ = &null_trace_sink_;
 }
@@ -289,6 +438,7 @@ TcpTransport& TcpTransport::operator=(TcpTransport&& other) noexcept {
   options_ = other.options_;
   outbound_ = other.outbound_;
   ever_connected_ = other.ever_connected_;
+  tls_ = std::move(other.tls_);
   other.closed_.store(true);
   return *this;
 }
@@ -296,6 +446,10 @@ TcpTransport& TcpTransport::operator=(TcpTransport&& other) noexcept {
 TcpTransport::~TcpTransport() { close(); }
 
 void TcpTransport::close_connection() noexcept {
+  if (tls_) {
+    std::scoped_lock lock(tls_->mutex);
+    tls_->session.reset();
+  }
   const int socket = socket_.exchange(-1);
   if (socket >= 0) {
     ::shutdown(socket, SHUT_RDWR);
@@ -340,6 +494,19 @@ bool TcpTransport::accept_inbound(Clock::time_point deadline, bool has_deadline)
     return false;
   }
   socket_.store(accepted);
+  try {
+    secure_connection(accepted, true);
+  } catch (const std::exception& error) {
+    close_connection();
+    if (closed_.load()) return false;
+    const auto message = context("TLS accept failed: " + std::string(error.what()));
+    trace_sink_->on_error(edge_id_, message);
+    throw std::runtime_error(message);
+  }
+  if (closed_.load()) {
+    close_connection();
+    return false;
+  }
   if (ever_connected_) trace_sink_->on_reconnect(edge_id_);
   ever_connected_ = true;
   trace_sink_->on_connection(edge_id_, ConnectionState::connected);
@@ -358,7 +525,8 @@ void TcpTransport::send(const Envelope& envelope) {
         if (!outbound_) throw std::runtime_error("no accepted peer");
         connect_outbound();
       }
-      const auto pressure = write_all(socket_.load(), framed, Clock::now() + options_.send_timeout);
+      const auto pressure =
+          write_all(socket_.load(), tls_.get(), framed, Clock::now() + options_.send_timeout);
       if (pressure.count() > 0) trace_sink_->on_backpressure(edge_id_, pressure, false);
       trace_sink_->on_send(edge_id_, envelope, framed.size());
       return;
@@ -394,7 +562,7 @@ ReceiveResult TcpTransport::receive_result(std::chrono::milliseconds timeout) {
     std::array<std::byte, 4> prefix{};
     ReadResult header;
     try {
-      header = read_all(socket_.load(), prefix, deadline, has_deadline);
+      header = read_all(socket_.load(), tls_.get(), prefix, deadline, has_deadline);
     } catch (const std::exception& error) {
       close_connection();
       if (closed_.load()) return {ReceiveStatus::cancelled, std::nullopt};
@@ -427,7 +595,7 @@ ReceiveResult TcpTransport::receive_result(std::chrono::milliseconds timeout) {
     std::vector<std::byte> payload(size);
     ReadResult body;
     try {
-      body = read_all(socket_.load(), payload, deadline, has_deadline);
+      body = read_all(socket_.load(), tls_.get(), payload, deadline, has_deadline);
     } catch (const std::exception& error) {
       close_connection();
       if (closed_.load()) return {ReceiveStatus::cancelled, std::nullopt};
@@ -461,6 +629,10 @@ ReceiveResult TcpTransport::receive_result(std::chrono::milliseconds timeout) {
 void TcpTransport::close() {
   if (closed_.exchange(true)) return;
   retry_ready_.notify_all();
+  if (tls_) {
+    std::scoped_lock lock(tls_->mutex);
+    if (tls_->session) (void)SSL_shutdown(tls_->session.get());
+  }
   close_connection();
   const int listener = listener_.exchange(-1);
   if (listener >= 0) {

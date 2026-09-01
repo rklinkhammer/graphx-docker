@@ -96,7 +96,8 @@ class CompositeTraceSink final : public TraceSink {
 // processing; a production adapter can replace this behind TraceSink.
 class UdpJsonTraceSink final : public TraceSink {
  public:
-  UdpJsonTraceSink(std::string node_id, std::string host, std::uint16_t port);
+  UdpJsonTraceSink(std::string node_id, std::string host, std::uint16_t port,
+                   std::string shared_secret = {});
   ~UdpJsonTraceSink() override;
   UdpJsonTraceSink(const UdpJsonTraceSink&) = delete;
   UdpJsonTraceSink& operator=(const UdpJsonTraceSink&) = delete;

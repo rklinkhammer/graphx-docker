@@ -35,6 +35,13 @@ struct TransportConfig {
   std::uint32_t retry_initial_backoff_ms{100};
   std::uint32_t retry_max_backoff_ms{2000};
   bool reconnect{true};
+  bool tls_enabled{};
+  bool tls_verify_peer{true};
+  bool tls_require_client_certificate{};
+  std::string tls_ca_file;
+  std::string tls_certificate_file;
+  std::string tls_private_key_file;
+  std::string tls_server_name;
   std::string segment;
   std::uint32_t capacity{64};
   std::uint32_t max_message_bytes{1024 * 1024};

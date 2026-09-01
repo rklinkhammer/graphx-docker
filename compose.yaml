@@ -10,9 +10,16 @@ services:
       GRAPHX_CAPTURE_ENABLED: ${GRAPHX_CAPTURE_ENABLED:-false}
       GRAPHX_CAPTURE_PROVIDER: pcapng
       GRAPHX_CAPTURE_DIR: /captures
+      GRAPHX_TELEMETRY_SHARED_SECRET: ${GRAPHX_TELEMETRY_SHARED_SECRET:-}
     depends_on: [telemetry]
     volumes: [captures:/captures]
     networks: [graphx]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    init: true
   transform:
     build: .
     image: graphx-demo:latest
@@ -23,9 +30,16 @@ services:
       GRAPHX_CAPTURE_ENABLED: ${GRAPHX_CAPTURE_ENABLED:-false}
       GRAPHX_CAPTURE_PROVIDER: pcapng
       GRAPHX_CAPTURE_DIR: /captures
+      GRAPHX_TELEMETRY_SHARED_SECRET: ${GRAPHX_TELEMETRY_SHARED_SECRET:-}
     depends_on: [sink, telemetry]
     volumes: [captures:/captures]
     networks: [graphx]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    init: true
   generator:
     build: .
     image: graphx-demo:latest
@@ -37,23 +51,42 @@ services:
       GRAPHX_CAPTURE_ENABLED: ${GRAPHX_CAPTURE_ENABLED:-false}
       GRAPHX_CAPTURE_PROVIDER: pcapng
       GRAPHX_CAPTURE_DIR: /captures
+      GRAPHX_TELEMETRY_SHARED_SECRET: ${GRAPHX_TELEMETRY_SHARED_SECRET:-}
     depends_on: [transform, telemetry]
     volumes: [captures:/captures]
     networks: [graphx]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    init: true
   telemetry:
     build:
       context: .
       dockerfile: docker/telemetry.Dockerfile
     image: graphx-telemetry:latest
-    ports: ["8080:8080"]
+    ports: ["127.0.0.1:8080:8080"]
     expose: ["9000/udp"]
     environment:
       GRAPHX_CAPTURE_ENABLED: ${GRAPHX_CAPTURE_ENABLED:-false}
       GRAPHX_CAPTURE_PROVIDER: pcapng
       GRAPHX_CAPTURE_DIR: /captures
       GRAPHX_CONTROL_TOKEN: ${GRAPHX_CONTROL_TOKEN:-}
-    volumes: [captures:/captures]
+      GRAPHX_OBSERVATION_TOKEN: ${GRAPHX_OBSERVATION_TOKEN:-}
+      GRAPHX_TELEMETRY_SHARED_SECRET: ${GRAPHX_TELEMETRY_SHARED_SECRET:-}
+      GRAPHX_HTTP_BIND: 0.0.0.0
+      GRAPHX_TELEMETRY_BIND: 0.0.0.0
+      GRAPHX_ALLOW_INSECURE_REMOTE: "true"
+      GRAPHX_ALLOWED_ORIGINS: ${GRAPHX_ALLOWED_ORIGINS:-http://127.0.0.1:8080}
+    volumes: [captures:/captures:ro]
     networks: [graphx]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    init: true
 
 networks:
   graphx:

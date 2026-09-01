@@ -7,6 +7,8 @@
 #include <sys/random.h>
 #include <sys/time.h>
 #include <unistd.h>
+#include <openssl/crypto.h>
+#include <openssl/hmac.h>
 
 #include <condition_variable>
 #include <atomic>
@@ -17,6 +19,7 @@
 #include <random>
 #include <sstream>
 #include <thread>
+#include <unordered_set>
 
 namespace graphx {
 namespace {
@@ -97,6 +100,100 @@ std::string generate_span_id() {
     span_id << std::hex << std::setfill('0') << std::setw(16) << value;
     return span_id.str();
   }
+}
+
+std::string random_hex_nonce() {
+  std::array<unsigned char, 16> bytes{};
+  if (::getentropy(bytes.data(), bytes.size()) != 0) throw std::runtime_error("getentropy failed");
+  constexpr std::string_view digits = "0123456789abcdef";
+  std::string result;
+  result.reserve(bytes.size() * 2);
+  for (const auto byte : bytes) {
+    result += digits[byte >> 4];
+    result += digits[byte & 0x0f];
+  }
+  return result;
+}
+
+std::string hmac_hex(std::string_view secret, std::string_view value) {
+  std::array<unsigned char, EVP_MAX_MD_SIZE> digest{};
+  unsigned int size{};
+  if (!HMAC(EVP_sha256(), secret.data(), static_cast<int>(secret.size()),
+            reinterpret_cast<const unsigned char*>(value.data()), value.size(), digest.data(),
+            &size))
+    throw std::runtime_error("HMAC-SHA256 failed");
+  constexpr std::string_view digits = "0123456789abcdef";
+  std::string result;
+  result.reserve(size * 2);
+  for (unsigned int index = 0; index < size; ++index) {
+    result += digits[digest[index] >> 4];
+    result += digits[digest[index] & 0x0f];
+  }
+  return result;
+}
+
+std::string signed_datagram(std::string_view payload, std::string_view secret) {
+  if (secret.empty()) return std::string(payload);
+  const auto timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
+                             std::chrono::system_clock::now().time_since_epoch())
+                             .count();
+  const auto nonce = random_hex_nonce();
+  const auto signed_value = std::to_string(timestamp) + "." + nonce + "." + std::string(payload);
+  return "{\"payload\":" + std::string(payload) +
+         ",\"auth\":{\"timestamp\":" + std::to_string(timestamp) + ",\"nonce\":\"" + nonce +
+         "\",\"signature\":\"" + hmac_hex(secret, signed_value) + "\"}}";
+}
+
+std::string_view json_auth_field(std::string_view input, std::string_view name,
+                                 std::size_t length) {
+  std::string marker;
+  marker.reserve(name.size() + 4);
+  marker += '"';
+  marker += name;
+  marker += "\":\"";
+  const auto start = input.find(marker);
+  if (start == std::string_view::npos) return {};
+  const auto value = start + marker.size();
+  if (value + length >= input.size() || input[value + length] != '"') return {};
+  return input.substr(value, length);
+}
+
+bool authenticate_command(std::string_view input, std::string_view secret,
+                          std::unordered_set<std::string>& nonces) {
+  if (secret.empty()) return input.find("\"auth\"") == std::string_view::npos;
+  constexpr std::string_view payload_marker = "{\"payload\":";
+  const auto auth = input.rfind(",\"auth\":{");
+  if (!input.starts_with(payload_marker) || auth == std::string_view::npos ||
+      !input.ends_with("}}"))
+    return false;
+  const auto payload = input.substr(payload_marker.size(), auth - payload_marker.size());
+  const auto timestamp_marker = input.find("\"timestamp\":", auth);
+  if (timestamp_marker == std::string_view::npos) return false;
+  const auto timestamp_start = timestamp_marker + 12;
+  const auto timestamp_end = input.find(',', timestamp_start);
+  if (timestamp_end == std::string_view::npos) return false;
+  std::int64_t timestamp{};
+  try {
+    timestamp =
+        std::stoll(std::string(input.substr(timestamp_start, timestamp_end - timestamp_start)));
+  } catch (...) {
+    return false;
+  }
+  const auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
+                       std::chrono::system_clock::now().time_since_epoch())
+                       .count();
+  if (timestamp < now - 30000 || timestamp > now + 30000) return false;
+  const auto nonce = json_auth_field(input.substr(auth), "nonce", 32);
+  const auto signature = json_auth_field(input.substr(auth), "signature", 64);
+  if (nonce.empty() || signature.empty() || nonces.contains(std::string(nonce))) return false;
+  const auto expected = hmac_hex(
+      secret, std::to_string(timestamp) + "." + std::string(nonce) + "." + std::string(payload));
+  if (signature.size() != expected.size() ||
+      CRYPTO_memcmp(signature.data(), expected.data(), expected.size()) != 0)
+    return false;
+  if (nonces.size() >= 4096) nonces.clear();
+  nonces.insert(std::string(nonce));
+  return true;
 }
 
 void post_json(std::string_view host, std::uint16_t port, std::string_view path,
@@ -285,15 +382,18 @@ void CompositeTraceSink::on_heartbeat(std::string_view node_id, double cpu_perce
 
 struct UdpJsonTraceSink::Impl {
   std::string node_id;
+  std::string shared_secret;
   int socket{-1};
   std::atomic_bool paused{};
   std::atomic_bool stopping{};
   std::thread control_thread;
 };
 
-UdpJsonTraceSink::UdpJsonTraceSink(std::string node_id, std::string host, std::uint16_t port)
+UdpJsonTraceSink::UdpJsonTraceSink(std::string node_id, std::string host, std::uint16_t port,
+                                   std::string shared_secret)
     : impl_(std::make_unique<Impl>()) {
   impl_->node_id = std::move(node_id);
+  impl_->shared_secret = std::move(shared_secret);
   addrinfo hints{};
   hints.ai_family = AF_UNSPEC;
   hints.ai_socktype = SOCK_DGRAM;
@@ -313,6 +413,7 @@ UdpJsonTraceSink::UdpJsonTraceSink(std::string node_id, std::string host, std::u
     impl_->control_thread = std::thread([state = impl_.get()] {
       pollfd descriptor{state->socket, POLLIN, 0};
       std::array<char, 2048> buffer{};
+      std::unordered_set<std::string> nonces;
       while (!state->stopping.load(std::memory_order_relaxed)) {
         descriptor.revents = 0;
         const auto ready = ::poll(&descriptor, 1, 100);
@@ -320,6 +421,7 @@ UdpJsonTraceSink::UdpJsonTraceSink(std::string node_id, std::string host, std::u
         const auto count = ::recv(state->socket, buffer.data(), buffer.size(), 0);
         if (count <= 0) continue;
         const std::string_view command(buffer.data(), static_cast<std::size_t>(count));
+        if (!authenticate_command(command, state->shared_secret, nonces)) continue;
         std::string_view action;
         if (command.find("\"action\":\"pause\"") != std::string_view::npos) {
           state->paused.store(true, std::memory_order_relaxed);
@@ -329,9 +431,11 @@ UdpJsonTraceSink::UdpJsonTraceSink(std::string node_id, std::string host, std::u
           action = "resume";
         }
         if (!action.empty()) {
-          const auto acknowledgement = std::string{"{\"kind\":\"control_ack\",\"nodeId\":\""} +
-                                       escape_json(state->node_id) + "\",\"action\":\"" +
-                                       std::string(action) + "\",\"accepted\":true}";
+          const auto acknowledgement_payload =
+              std::string{"{\"kind\":\"control_ack\",\"nodeId\":\""} + escape_json(state->node_id) +
+              "\",\"action\":\"" + std::string(action) + "\",\"accepted\":true}";
+          const auto acknowledgement =
+              signed_datagram(acknowledgement_payload, state->shared_secret);
           ::send(state->socket, acknowledgement.data(), acknowledgement.size(), 0);
         }
       }
@@ -403,7 +507,7 @@ void UdpJsonTraceSink::on_capture(std::string_view edge_id, const Envelope& enve
        << "\",\"traceId\":\"" << escape_json(envelope.trace_id) << "\",\"direction\":\""
        << escape_json(direction) << "\",\"captureFile\":\"" << escape_json(file)
        << "\",\"capturePacket\":" << packet_index << ",\"captureOffset\":" << file_offset << '}';
-  const auto value = json.str();
+  const auto value = signed_datagram(json.str(), impl_->shared_secret);
   ::send(impl_->socket, value.data(), value.size(), 0);
 }
 
@@ -429,10 +533,9 @@ void UdpJsonTraceSink::emit(std::string_view event, std::string_view edge_id,
          << escape_json(envelope->trace_id) << '"';
   }
   if (!message.empty()) json << ",\"message\":\"" << escape_json(message) << '"';
-  if (cpu_percent >= 0.0)
-    json << ",\"cpuPercent\":" << std::fixed << std::setprecision(3) << cpu_percent;
+  if (cpu_percent >= 0.0) json << ",\"cpuPercent\":" << std::setprecision(15) << cpu_percent;
   json << '}';
-  const auto value = json.str();
+  const auto value = signed_datagram(json.str(), impl_->shared_secret);
   ::send(impl_->socket, value.data(), value.size(), 0);
 }
 
