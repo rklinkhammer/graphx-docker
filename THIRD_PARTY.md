@@ -26,3 +26,13 @@ These images are deployment tooling rather than linked GraphX libraries. Their
 upstream images contain the corresponding license and notices. Operators remain
 responsible for reviewing image provenance and license obligations for their
 distribution model.
+
+## SQLite in the telemetry runtime
+
+Durable history uses `node:sqlite` from the official Node.js 22 Alpine runtime,
+pinned in both telemetry image stages as Node.js 22.23.2 image digest
+`sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32`.
+It adds no npm package or native extension. SQLite is in the public domain.
+Node.js remains governed by its upstream license and bundled third-party
+notices. `node:sqlite` is experimental in this selected Node 22 runtime; ADR
+0008 records the containment and release-certification requirement.

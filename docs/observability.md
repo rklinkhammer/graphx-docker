@@ -129,6 +129,8 @@ The endpoints intentionally answer different questions:
 | `/api/graph/ready` | 200/503 | every configured node has a fresh running heartbeat and every edge is connected | observation token when configured |
 | `/api/health` | always 200 while live | compatibility summary; includes service and graph readiness booleans | none |
 | `/api/slo` | 200 | current bounded rolling SLO evaluation | observation token when configured |
+| `/api/history/status` | 200 | optional durable backend state and bounded resource counters | observation token when configured |
+| `/api/history` | 200/400/429/503 | bounded, filtered, newest-first durable records | observation token when configured |
 
 Docker health checking uses service readiness, not graph readiness, so an
 application outage does not cause the collector to restart and erase its
@@ -141,8 +143,9 @@ receive-latency target in the example. The evaluator samples once per second,
 retains at most `window_seconds + 2` samples, derives counter/histogram deltas,
 and reports `warming`, `met`, or `violated`. Prometheus exports this state as
 the one-hot `graphx_slo_status` gauge so alerts never treat warm-up as a
-violation. No samples are persisted; restart
-begins a new window. Error and drop ratios divide observed errors/drops by sent
+violation. The evaluator itself always begins a new live window after restart;
+when Phase 7 history is enabled, prior evaluations remain available as read-only
+evidence but are not replayed into the new window. Error and drop ratios divide observed errors/drops by sent
 plus received events. A quiet graph has zero error/drop ratios and no latency
 violation, while availability continues to be evaluated.
 
@@ -153,6 +156,8 @@ curl http://localhost:8080/api/topology
 curl http://localhost:8080/metrics
 curl http://localhost:8080/api/graph/ready
 curl http://localhost:8080/api/slo
+curl http://localhost:8080/api/history/status
+curl 'http://localhost:8080/api/history?limit=100&node=generator'
 ```
 
 Useful Prometheus series include:
@@ -171,6 +176,10 @@ Useful Prometheus series include:
   `graphx_slo_ratio`, and `graphx_slo_latency_seconds`;
 - `graphx_otlp_exports_total{outcome="exported|failed|retried|dropped|rejected"}` and
   `graphx_otlp_queue_depth`.
+- `graphx_history_enabled`, `graphx_history_backend_up`,
+  `graphx_history_records_total{outcome="written|failed|dropped|pruned"}`,
+  `graphx_history_queue_depth`, `graphx_history_queue_bytes`, and
+  `graphx_history_database_bytes`.
 
 ## Provisioned operations stack
 
@@ -184,9 +193,10 @@ docker compose -f compose.yaml -f compose.observability.yaml up -d --build
 Grafana is at `http://127.0.0.1:3000` and Prometheus at
 `http://127.0.0.1:9090`. Set a strong `GRAPHX_GRAFANA_ADMIN_PASSWORD` outside a
 local lab. The dashboard covers graph readiness, SLO state and targets,
-throughput, p95 latency, errors/drops, node CPU, and OTLP exporter health.
+throughput, p95 latency, errors/drops, node CPU, OTLP exporter health, and
+durable-history health, outcomes, queue bytes, and storage bytes.
 Alerts cover sustained graph unavailability, SLO violation, export failure,
-and export queue loss. If observation authentication protects `/metrics`, add a
+export queue loss, and an enabled but unavailable history backend. If observation authentication protects `/metrics`, add a
 Prometheus bearer-token file through a deployment-specific secret projection;
 do not put the token in `prometheus.yml`.
 
@@ -199,7 +209,9 @@ syntax, and Grafana's [provisioning model](https://grafana.com/docs/grafana/late
 Authenticated `POST /api/control/reset` resets collector-side edge aggregation while retaining
 the current connection state. Collector restart also resets these in-memory
 counters. UDP delivery is intentionally best effort, so the values describe
-events observed by this collector; they are not durable accounting records.
+events observed by this collector; Phase 7 can retain those observations, but
+does not turn best-effort delivery into durable end-to-end accounting. See
+[`history.md`](history.md).
 
 ## Authenticated runtime control
 

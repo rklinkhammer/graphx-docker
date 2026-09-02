@@ -102,6 +102,23 @@ See [`docs/observability.md`](docs/observability.md) for signal semantics,
 absolute request deadlines, bounded retry policy, endpoints, SLO formulas, and
 deployment guidance.
 
+## Durable telemetry history
+
+Phase 7 adds optional SQLite-backed, metadata-only telemetry and SLO history.
+Storage runs in a dedicated worker behind bounded queues, remains independent of
+graph and service readiness, and exposes authenticated read-only status and
+cursor APIs. Enable the persistent Compose volume with:
+
+```sh
+docker compose -f compose.yaml -f compose.history.yaml up -d --build
+```
+
+The console's **History** view reads the same observation-protected API.
+`scripts/test-phase7-history.sh` proves authentication denial/success plus a
+write and authenticated retrieval across a telemetry container restart. See
+[`docs/history.md`](docs/history.md) for data scope,
+limits, failure semantics, query filters, backup/restore, and schema rules.
+
 ## Run the container demo manually
 
 Requirements: Docker with Compose.
@@ -488,7 +505,8 @@ production-hardening phase forward.
    (implemented).
 6. **Operations** — OpenTelemetry integration, health checks, SLOs, and dashboards
    (implemented).
-7. **History** — durable or backend-driven telemetry history.
+7. **History** — durable or backend-driven telemetry history (implemented with
+   an optional isolated SQLite backend and read-only API).
 8. **Control plane** — authorized control and real runtime controls.
 9. **Wireshark** — production PCAPNG, dissector, and extcap implementation.
 10. **Release engineering** — compatibility policy, packaging, and support processes.

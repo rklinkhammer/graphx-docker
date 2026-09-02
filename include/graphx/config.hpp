@@ -115,6 +115,23 @@ struct SloConfig {
   std::uint64_t max_p95_latency_us{10000};
 };
 
+struct HistoryConfig {
+  bool enabled{};
+  std::string backend{"sqlite"};
+  std::string database_file{".graphx/history.sqlite"};
+  std::uint32_t retention_seconds{604800};
+  std::uint64_t max_records{100000};
+  std::uint64_t max_database_bytes{256ULL * 1024 * 1024};
+  std::uint32_t queue_capacity{4096};
+  std::uint32_t max_queue_bytes{8 * 1024 * 1024};
+  std::uint32_t batch_size{100};
+  std::uint32_t flush_interval_ms{250};
+  std::uint32_t query_limit{200};
+  std::uint32_t query_timeout_ms{2000};
+  std::uint32_t max_pending_queries{16};
+  std::uint32_t shutdown_timeout_ms{2000};
+};
+
 struct ObservabilityConfig {
   ObservabilitySignalConfig metrics;
   ObservabilitySignalConfig tracing;
@@ -122,6 +139,7 @@ struct ObservabilityConfig {
   CaptureConfig capture;
   OtlpConfig otlp;
   SloConfig slos;
+  HistoryConfig history;
 };
 
 struct GraphConfig {

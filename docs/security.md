@@ -87,7 +87,7 @@ required together and TLS 1.3 is the minimum. Setting
 | Surface | Method | Credential |
 |---|---|---|
 | `/api/health` | GET | public liveness only |
-| `/api/topology`, `/api/captures`, `/metrics`, capture download | GET | `GRAPHX_OBSERVATION_TOKEN` when configured |
+| `/api/topology`, `/api/captures`, `/api/history`, `/api/history/status`, `/metrics`, capture download | GET | `GRAPHX_OBSERVATION_TOKEN` when configured |
 | configured WebSocket path | upgrade | observation token in `graphx-auth.<base64url>` subprotocol when configured |
 | `/api/control/reset`, `/pause`, `/resume` | POST with no body | `GRAPHX_CONTROL_TOKEN`; same-origin/allowlisted Origin |
 
@@ -130,5 +130,7 @@ requirements and are not represented as hardened by these portable defaults.
   denial-of-service control.
 - HMAC replay checks require clocks within 30 seconds.
 - TLS protects TCP graph edges only when each edge explicitly enables it.
-- OTLP hardening, readiness, SLOs, and dashboards are Phase 6. Durable telemetry
-  is Phase 7. Fine-grained control authorization and audit are Phase 8.
+- OTLP hardening, readiness, SLOs, and dashboards are Phase 6. Phase 7 durable
+  metadata history reuses the observation boundary; protect its volume and
+  backups as sensitive operational data. Fine-grained control authorization and
+  audit remain Phase 8.

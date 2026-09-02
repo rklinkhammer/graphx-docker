@@ -204,6 +204,48 @@ class ConfigParser {
     }
   }
 
+  std::uint64_t unsigned_64_value(const YAML::Node& node, const std::string& path) {
+    if (!node) {
+      error(path, "is required");
+      return 0;
+    }
+    try {
+      return node.as<std::uint64_t>();
+    } catch (const YAML::Exception&) {
+      error(path, "must be an unsigned integer");
+      return 0;
+    }
+  }
+
+  bool history_bool_value(const YAML::Node& node, const std::string& path, bool fallback) {
+    if (!node) return fallback;
+    if (!node.IsScalar() || node.Tag() == "!" || node.Tag() == "tag:yaml.org,2002:str") {
+      error(path, "must be a boolean, not a string");
+      return fallback;
+    }
+    const auto& value = node.Scalar();
+    if (value == "true" || value == "True" || value == "TRUE") return true;
+    if (value == "false" || value == "False" || value == "FALSE") return false;
+    error(path, "must be a boolean");
+    return fallback;
+  }
+
+  std::uint32_t history_unsigned_value(const YAML::Node& node, const std::string& path) {
+    if (node && (node.Tag() == "!" || node.Tag() == "tag:yaml.org,2002:str")) {
+      error(path, "must be an unsigned integer, not a string");
+      return 0;
+    }
+    return unsigned_value(node, path);
+  }
+
+  std::uint64_t history_unsigned_64_value(const YAML::Node& node, const std::string& path) {
+    if (node && (node.Tag() == "!" || node.Tag() == "tag:yaml.org,2002:str")) {
+      error(path, "must be an unsigned integer, not a string");
+      return 0;
+    }
+    return unsigned_64_value(node, path);
+  }
+
   bool bool_value(const YAML::Node& node, const std::string& path, bool fallback) {
     if (!node) return fallback;
     try {
@@ -877,7 +919,7 @@ class ConfigParser {
     if (!value) return;
     if (!require_map(value, "observability")) return;
     strict_keys(value, "observability",
-                {"metrics", "tracing", "telemetry", "capture", "otlp", "slos"});
+                {"metrics", "tracing", "telemetry", "capture", "otlp", "slos", "history"});
     parse_signal(value["metrics"], "observability.metrics", config.observability.metrics, false);
     parse_signal(value["tracing"], "observability.tracing", config.observability.tracing, true);
     if (const auto telemetry = value["telemetry"]) {
@@ -1051,6 +1093,84 @@ class ConfigParser {
           error("observability.slos.max_drop_ratio", "must be between 0 and 1");
         if (result.max_p95_latency_us == 0 || result.max_p95_latency_us > 3600000000ULL)
           error("observability.slos.max_p95_latency_us", "must be between 1 and 3600000000");
+      }
+    }
+    if (const auto history = value["history"]) {
+      if (require_map(history, "observability.history")) {
+        strict_keys(history, "observability.history",
+                    {"enabled", "backend", "database_file", "retention_seconds", "max_records",
+                     "max_database_bytes", "queue_capacity", "max_queue_bytes", "batch_size",
+                     "flush_interval_ms", "query_limit", "query_timeout_ms", "max_pending_queries",
+                     "shutdown_timeout_ms"});
+        auto& result = config.observability.history;
+        result.enabled =
+            history_bool_value(history["enabled"], "observability.history.enabled", false);
+        if (history["backend"])
+          result.backend = text(history["backend"], "observability.history.backend", 32);
+        if (history["database_file"])
+          result.database_file =
+              text(history["database_file"], "observability.history.database_file", 1024);
+        if (history["retention_seconds"])
+          result.retention_seconds = history_unsigned_value(
+              history["retention_seconds"], "observability.history.retention_seconds");
+        if (history["max_records"])
+          result.max_records = history_unsigned_64_value(history["max_records"],
+                                                         "observability.history.max_records");
+        if (history["max_database_bytes"])
+          result.max_database_bytes = history_unsigned_64_value(
+              history["max_database_bytes"], "observability.history.max_database_bytes");
+        if (history["queue_capacity"])
+          result.queue_capacity = history_unsigned_value(history["queue_capacity"],
+                                                         "observability.history.queue_capacity");
+        if (history["max_queue_bytes"])
+          result.max_queue_bytes = history_unsigned_value(history["max_queue_bytes"],
+                                                          "observability.history.max_queue_bytes");
+        if (history["batch_size"])
+          result.batch_size =
+              history_unsigned_value(history["batch_size"], "observability.history.batch_size");
+        if (history["flush_interval_ms"])
+          result.flush_interval_ms = history_unsigned_value(
+              history["flush_interval_ms"], "observability.history.flush_interval_ms");
+        if (history["query_limit"])
+          result.query_limit =
+              history_unsigned_value(history["query_limit"], "observability.history.query_limit");
+        if (history["query_timeout_ms"])
+          result.query_timeout_ms = history_unsigned_value(
+              history["query_timeout_ms"], "observability.history.query_timeout_ms");
+        if (history["max_pending_queries"])
+          result.max_pending_queries = history_unsigned_value(
+              history["max_pending_queries"], "observability.history.max_pending_queries");
+        if (history["shutdown_timeout_ms"])
+          result.shutdown_timeout_ms = history_unsigned_value(
+              history["shutdown_timeout_ms"], "observability.history.shutdown_timeout_ms");
+
+        if (result.backend != "sqlite") error("observability.history.backend", "must be 'sqlite'");
+        if (result.retention_seconds < 60 || result.retention_seconds > 31536000)
+          error("observability.history.retention_seconds", "must be between 60 and 31536000");
+        if (result.max_records < 10 || result.max_records > 10000000)
+          error("observability.history.max_records", "must be between 10 and 10000000");
+        if (result.max_database_bytes < 1024 * 1024 ||
+            result.max_database_bytes > 4ULL * 1024 * 1024 * 1024)
+          error("observability.history.max_database_bytes",
+                "must be between 1048576 and 4294967296");
+        if (result.queue_capacity == 0 || result.queue_capacity > 65536)
+          error("observability.history.queue_capacity", "must be between 1 and 65536");
+        if (result.max_queue_bytes < 65536 || result.max_queue_bytes > 64 * 1024 * 1024)
+          error("observability.history.max_queue_bytes", "must be between 65536 and 67108864");
+        if (result.batch_size == 0 || result.batch_size > 1000)
+          error("observability.history.batch_size", "must be between 1 and 1000");
+        if (result.batch_size > result.queue_capacity)
+          error("observability.history.batch_size", "must not exceed queue_capacity");
+        if (result.flush_interval_ms < 10 || result.flush_interval_ms > 60000)
+          error("observability.history.flush_interval_ms", "must be between 10 and 60000");
+        if (result.query_limit == 0 || result.query_limit > 1000)
+          error("observability.history.query_limit", "must be between 1 and 1000");
+        if (result.query_timeout_ms < 100 || result.query_timeout_ms > 10000)
+          error("observability.history.query_timeout_ms", "must be between 100 and 10000");
+        if (result.max_pending_queries == 0 || result.max_pending_queries > 128)
+          error("observability.history.max_pending_queries", "must be between 1 and 128");
+        if (result.shutdown_timeout_ms < 100 || result.shutdown_timeout_ms > 10000)
+          error("observability.history.shutdown_timeout_ms", "must be between 100 and 10000");
       }
     }
   }

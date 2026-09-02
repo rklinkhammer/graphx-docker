@@ -77,3 +77,4 @@ observability:
   capture: { enabled: false, provider: pcapng, directory: captures }
   otlp: { enabled: false, endpoint: http://127.0.0.1:4318, traces_path: /v1/traces, metrics_path: /v1/metrics, export_interval_ms: 5000, timeout_ms: 2000, queue_capacity: 1024, max_queue_bytes: 8388608, max_response_bytes: 65536, retry_max_attempts: 3, retry_initial_backoff_ms: 200, retry_max_backoff_ms: 5000 }
   slos: { window_seconds: 300, minimum_window_seconds: 10, availability_target: 0.99, max_error_ratio: 0.01, max_drop_ratio: 0.01, max_p95_latency_us: 10000 }
+  history: { enabled: false, backend: sqlite, database_file: .graphx/history.sqlite, retention_seconds: 604800, max_records: 100000, max_database_bytes: 268435456, queue_capacity: 4096, max_queue_bytes: 8388608, batch_size: 100, flush_interval_ms: 250, query_limit: 200, query_timeout_ms: 2000, max_pending_queries: 16, shutdown_timeout_ms: 2000 }

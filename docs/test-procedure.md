@@ -280,6 +280,40 @@ scripts/test-phase6-operations.sh
 scripts/test-phase6-secure-otlp.sh
 ```
 
+## Phase 7 durable history acceptance
+
+The telemetry test suite covers strict history configuration and query parsing,
+bounded queues, count retention, stable pagination, reduced database-cap
+startup, a shutdown deadline under a real SQLite writer lock, schema and graph-
+ownership rejection, observation authentication, degraded-backend isolation,
+abrupt process restart, and record persistence:
+
+```sh
+npm test --prefix apps/telemetry
+```
+
+Validate both the default-disabled projection and the persistent-volume overlay:
+
+```sh
+docker compose config --quiet
+docker compose -f compose.yaml -f compose.history.yaml config --quiet
+```
+
+Then run the isolated live test:
+
+```sh
+scripts/test-phase7-history.sh
+```
+
+It builds and starts only an isolated telemetry service with an observation
+token, waits for service and history readiness, requires an unauthenticated 401,
+injects a valid UDP event, retrieves it through the authenticated bounded
+history API, restarts that container, and requires an authenticated reread from
+the named volume. Its cleanup is scoped to the generated Compose project and
+volume.
+This proves local SQLite/volume persistence; it does not certify a remote
+backend, distributed durability, or end-to-end delivery of best-effort UDP.
+
 ## 5. Docker bridge deployment
 
 The user-level smoke test is:

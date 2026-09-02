@@ -21,3 +21,27 @@ tests:
         exp_alerts:
           - exp_labels: { severity: critical, status: violated }
             exp_annotations: { summary: "GraphX operational SLO is violated" }
+  - name: disabled history never alerts
+    interval: 1m
+    input_series:
+      - series: graphx_history_enabled
+        values: '0 0 0 0'
+      - series: graphx_history_backend_up
+        values: '0 0 0 0'
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: GraphXHistoryBackendUnavailable
+        exp_alerts: []
+  - name: enabled unavailable history alerts after hold period
+    interval: 1m
+    input_series:
+      - series: graphx_history_enabled
+        values: '1 1 1 1'
+      - series: graphx_history_backend_up
+        values: '0 0 0 0'
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: GraphXHistoryBackendUnavailable
+        exp_alerts:
+          - exp_labels: { severity: warning }
+            exp_annotations: { summary: "GraphX durable history backend is unavailable" }

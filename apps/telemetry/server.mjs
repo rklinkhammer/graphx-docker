@@ -2,7 +2,7 @@ import dgram from 'node:dgram'
 import { closeSync, createReadStream, existsSync, openSync, readFileSync, readSync, readdirSync, statSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { createServer as createSecureServer } from 'node:https'
-import { extname, join, normalize, resolve } from 'node:path'
+import { dirname, extname, join, normalize, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { WebSocketServer } from 'ws'
 import { parse } from 'yaml'
@@ -11,6 +11,8 @@ import { MAX_DATAGRAM_BYTES, RateLimiter, ReplayCache, isLoopback, originAllowed
   verifyEnvelope, webSocketBearer } from './security.mjs'
 import { OtlpHttpExporter, SloEvaluator, graphReadiness, otlpConfig, otlpMetricsRequest,
   otlpTraceRequest } from './operations.mjs'
+import { HistoryStore, historyConfig, parseHistoryQuery, sloHistoryRecord,
+  telemetryHistoryRecord } from './history.mjs'
 
 const root = normalize(process.env.GRAPHX_WEB_ROOT || join(fileURLToPath(new URL('.', import.meta.url)), '../../web/dist'))
 const port = Number(process.env.PORT || 8080)
@@ -28,6 +30,8 @@ const configuredCapture = config.observability?.capture || { enabled: false, pro
 const sloEvaluator = new SloEvaluator(config.observability?.slos)
 const configuredOtlp = otlpConfig(config.observability?.otlp)
 const otlpExporter = new OtlpHttpExporter(configuredOtlp)
+const configuredHistory = historyConfig(config.observability?.history, process.env, dirname(configPath))
+const historyStore = new HistoryStore(configuredHistory, graph.id)
 const captureConfig = { ...configuredCapture,
   enabled: process.env.GRAPHX_CAPTURE_ENABLED == null ? Boolean(configuredCapture.enabled) :
     ['1', 'true', 'yes', 'on'].includes(process.env.GRAPHX_CAPTURE_ENABLED.toLowerCase()),
@@ -220,6 +224,7 @@ function snapshot() {
       acknowledgements: Object.fromEntries(controlAcks) },
     health: { serviceReady: serviceState.httpReady && serviceState.udpReady && !serviceState.shuttingDown,
       graph: readiness }, slo, otlp: { enabled: configuredOtlp.enabled, ...otlpExporter.stats },
+    history: { ...historyStore.stats },
     nodes, edges: edgeViews,
     capture: { enabled: Boolean(captureConfig.enabled), provider: captureConfig.provider || null,
       format: files.length ? 'pcapng' : null,
@@ -310,6 +315,18 @@ function prometheus() {
     '# TYPE graphx_otlp_queue_depth gauge',
     '# HELP graphx_otlp_queue_bytes Current bounded OTLP export queue bytes.',
     '# TYPE graphx_otlp_queue_bytes gauge',
+    '# HELP graphx_history_backend_up Whether the optional durable history backend is ready.',
+    '# TYPE graphx_history_backend_up gauge',
+    '# HELP graphx_history_enabled Whether durable history is configured.',
+    '# TYPE graphx_history_enabled gauge',
+    '# HELP graphx_history_records_total Durable history record outcomes.',
+    '# TYPE graphx_history_records_total counter',
+    '# HELP graphx_history_queue_depth Current bounded durable-history write queue depth.',
+    '# TYPE graphx_history_queue_depth gauge',
+    '# HELP graphx_history_queue_bytes Current bounded durable-history write queue bytes.',
+    '# TYPE graphx_history_queue_bytes gauge',
+    '# HELP graphx_history_database_bytes Current SQLite database, WAL, and shared-memory bytes.',
+    '# TYPE graphx_history_database_bytes gauge',
   ]
   const readiness = graphReadiness(nodes, edges, Date.now(), heartbeatTimeout)
   lines.push(`graphx_service_ready ${serviceState.httpReady && serviceState.udpReady && !serviceState.shuttingDown ? 1 : 0}`)
@@ -333,6 +350,13 @@ function prometheus() {
   lines.push(`graphx_otlp_exports_total{outcome="rejected"} ${otlpExporter.stats.rejected}`)
   lines.push(`graphx_otlp_queue_depth ${otlpExporter.stats.queueDepth}`)
   lines.push(`graphx_otlp_queue_bytes ${otlpExporter.stats.queueBytes}`)
+  lines.push(`graphx_history_backend_up ${historyStore.stats.status === 'ready' ? 1 : 0}`)
+  lines.push(`graphx_history_enabled ${configuredHistory.enabled ? 1 : 0}`)
+  for (const outcome of ['written', 'failed', 'dropped', 'pruned'])
+    lines.push(`graphx_history_records_total{outcome="${outcome}"} ${historyStore.stats[outcome]}`)
+  lines.push(`graphx_history_queue_depth ${historyStore.stats.queueDepth}`)
+  lines.push(`graphx_history_queue_bytes ${historyStore.stats.queueBytes}`)
+  lines.push(`graphx_history_database_bytes ${historyStore.stats.databaseBytes}`)
   lines.push('# HELP graphx_node_cpu_percent Process CPU used by a GraphX node as a percentage of one core.')
   lines.push('# TYPE graphx_node_cpu_percent gauge')
   for (const [id, node] of Object.entries(nodes))
@@ -389,7 +413,8 @@ const handleRequest = (request, response) => {
       graphReady: readiness.ready })
   }
   if (!withinRateLimit(request, 120)) return json(response, 429, { error: 'rate limit exceeded' }, { 'retry-after': '60' })
-  const observed = ['/api/topology', '/api/captures', '/api/graph/ready', '/api/slo', '/metrics'].includes(url.pathname) ||
+  const observed = ['/api/topology', '/api/captures', '/api/graph/ready', '/api/slo',
+    '/api/history', '/api/history/status', '/metrics'].includes(url.pathname) ||
     url.pathname.startsWith('/captures/')
   if (observed && observationToken && !authorized(request, observationToken))
     return json(response, 401, { error: 'invalid observation token' }, { 'www-authenticate': 'Bearer realm="graphx-observation"' })
@@ -406,6 +431,22 @@ const handleRequest = (request, response) => {
   if (url.pathname === '/api/slo') {
     if (request.method !== 'GET') return json(response, 405, { error: 'method not allowed' }, { allow: 'GET' })
     return json(response, 200, slo)
+  }
+  if (url.pathname === '/api/history/status') {
+    if (request.method !== 'GET') return json(response, 405, { error: 'method not allowed' }, { allow: 'GET' })
+    return json(response, 200, historyStore.stats)
+  }
+  if (url.pathname === '/api/history') {
+    if (request.method !== 'GET') return json(response, 405, { error: 'method not allowed' }, { allow: 'GET' })
+    let query
+    try { query = parseHistoryQuery(url.searchParams, configuredHistory, nodeIds, edgeIds) }
+    catch (error) { return json(response, 400, { error: error.message }) }
+    historyStore.query(query)
+      .then(result => json(response, 200, result))
+      .catch(error => json(response, error.message.includes('capacity') ? 429 : 503,
+        { error: String(error.message).slice(0, 256) },
+        error.message.includes('capacity') ? { 'retry-after': '1' } : {}))
+    return
   }
   if (url.pathname === '/api/captures') {
     if (request.method !== 'GET') return json(response, 405, { error: 'method not allowed' }, { allow: 'GET' })
@@ -526,9 +567,11 @@ udp.on('message', (data, remote) => {
     if (data.length > MAX_DATAGRAM_BYTES) return
     const event = verifyEnvelope(JSON.parse(data.toString('utf8')), telemetrySecret, replayCache)
     if (!validateTelemetryEvent(event, nodeIds, edgeIds)) return
+    const receivedAt = Date.now()
+    if (configuredHistory.enabled)
+      historyStore.enqueue(telemetryHistoryRecord(event, graph.id, receivedAt))
     if (configuredOtlp.enabled && event.kind === 'trace')
       otlpExporter.enqueue(configuredOtlp.tracesPath, otlpTraceRequest(event))
-    const receivedAt = Date.now()
     if (event.kind === 'control_ack' && nodes[event.nodeId] &&
         (event.action === 'pause' || event.action === 'resume')) {
       controlAcks.set(event.nodeId, { action: event.action,
@@ -612,6 +655,8 @@ const sloTimer = setInterval(() => {
   const timestamp = Date.now()
   const readiness = graphReadiness(nodes, edges, timestamp, heartbeatTimeout)
   slo = sloEvaluator.observe(readiness.ready, edges, timestamp)
+  if (configuredHistory.enabled)
+    historyStore.enqueue(sloHistoryRecord(slo, readiness, graph.id, timestamp))
 }, 1000).unref()
 const otlpTimer = setInterval(() => {
   if (configuredOtlp.enabled) {
@@ -625,6 +670,9 @@ server.listen(port, httpBind, () => {
   serviceState.httpReady = true
   console.log(`GraphX telemetry ${tlsCertificateFile ? 'HTTPS/WSS' : 'HTTP/WS'} ${httpBind}:${port}, UDP ${udpBind}:${udpPort}`)
 })
+if (configuredHistory.enabled)
+  historyStore.waitUntilReady().then(() => console.log('GraphX durable history sqlite backend ready'))
+    .catch(error => console.error(`GraphX durable history unavailable: ${String(error.message).slice(0, 256)}`))
 
 function shutdown() {
   if (serviceState.shuttingDown) return
@@ -635,8 +683,21 @@ function shutdown() {
   for (const socket of webSockets.clients) socket.close(1001, 'service shutting down')
   webSockets.close()
   udp.close()
-  server.close(() => process.exit(0))
-  setTimeout(() => process.exit(1), 5000).unref()
+  let httpClosed = false
+  let historyClosed = !configuredHistory.enabled
+  let shutdownExitCode = 0
+  const finish = () => { if (httpClosed && historyClosed) process.exit(shutdownExitCode) }
+  server.close(() => { httpClosed = true; finish() })
+  historyStore.close(configuredHistory.shutdownTimeoutMs)
+    .catch(error => {
+      shutdownExitCode = 1
+      console.error(`GraphX durable history shutdown failed: ${String(error.message).slice(0, 256)}`)
+    })
+    .finally(() => { historyClosed = true; finish() })
+  setTimeout(
+    () => process.exit(1),
+    Math.max(5000, configuredHistory.shutdownTimeoutMs + 1000)
+  ).unref()
 }
 process.on('SIGTERM', shutdown)
 process.on('SIGINT', shutdown)

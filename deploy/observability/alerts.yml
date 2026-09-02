@@ -23,3 +23,8 @@ groups:
         expr: increase(graphx_otlp_exports_total{outcome="rejected"}[5m]) > 0
         labels: { severity: warning }
         annotations: { summary: "The OTLP receiver partially rejected GraphX telemetry" }
+      - alert: GraphXHistoryBackendUnavailable
+        expr: graphx_history_enabled == 1 and graphx_history_backend_up == 0
+        for: 2m
+        labels: { severity: warning }
+        annotations: { summary: "GraphX durable history backend is unavailable" }

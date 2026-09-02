@@ -97,6 +97,10 @@ test('operations dashboard keeps ratios, seconds, rates, and queue depth on sepa
     assert.ok(!(expressions.includes('graphx_otlp_exports_total') &&
       expressions.includes('graphx_otlp_queue_depth')))
   }
+  const panel = title => dashboard.panels.find(value => value.title === title)
+  assert.match(panel('History backend').targets[0].expr, /graphx_history_backend_up/)
+  assert.equal(panel('History outcomes').fieldConfig.defaults.unit, 'ops')
+  assert.equal(panel('History storage and queue').fieldConfig.defaults.unit, 'bytes')
 })
 
 test('OTLP configuration rejects credentials and insecure remote endpoints', () => {

@@ -103,6 +103,11 @@ void authoritative_config_loads() {
   expect(config.observability.slos.window_seconds == 300 &&
              config.observability.slos.availability_target == 0.99,
          "typed SLO configuration");
+  expect(!config.observability.history.enabled &&
+             config.observability.history.backend == "sqlite" &&
+             config.observability.history.max_records == 100000 &&
+             config.observability.history.max_database_bytes == 268435456,
+         "typed bounded history configuration");
 }
 
 void tcp_policy_loads() {
@@ -208,6 +213,44 @@ observability:
            "OTLP retry backoff diagnostic");
     expect(diagnostic_contains(error, "slos.window_seconds"), "SLO window diagnostic");
     expect(diagnostic_contains(error, "slos.availability_target"), "SLO ratio diagnostic");
+  }
+}
+
+void invalid_history_configuration_is_rejected() {
+  TemporaryConfig file(std::string(valid_config) + R"yaml(
+observability:
+  history: { enabled: true, backend: memory, database_file: history.sqlite, retention_seconds: 1, max_records: 1, max_database_bytes: 100, queue_capacity: 2, max_queue_bytes: 10, batch_size: 3, flush_interval_ms: 1, query_limit: 0, query_timeout_ms: 1, max_pending_queries: 0, shutdown_timeout_ms: 1 }
+)yaml");
+  try {
+    [[maybe_unused]] const auto ignored = graphx::load_config(file.path());
+    throw std::runtime_error("invalid history configuration was accepted");
+  } catch (const graphx::ConfigError& error) {
+    expect(diagnostic_contains(error, "history.backend"), "history backend diagnostic");
+    expect(diagnostic_contains(error, "history.retention_seconds"), "history retention diagnostic");
+    expect(diagnostic_contains(error, "history.max_database_bytes"), "history size diagnostic");
+    expect(diagnostic_contains(error, "must not exceed queue_capacity"),
+           "history batch relationship diagnostic");
+    expect(diagnostic_contains(error, "history.query_timeout_ms"), "history query diagnostic");
+  }
+}
+
+void history_scalar_types_are_strict() {
+  TemporaryConfig file(std::string(valid_config) + R"yaml(
+observability:
+  history:
+    enabled: "false"
+    query_limit: "200"
+)yaml");
+  try {
+    [[maybe_unused]] const auto ignored = graphx::load_config(file.path());
+    throw std::runtime_error("string history scalars were accepted");
+  } catch (const graphx::ConfigError& error) {
+    expect(diagnostic_contains(error, "history.enabled") &&
+               diagnostic_contains(error, "boolean, not a string"),
+           "history boolean type diagnostic");
+    expect(diagnostic_contains(error, "history.query_limit") &&
+               diagnostic_contains(error, "integer, not a string"),
+           "history integer type diagnostic");
   }
 }
 
@@ -730,6 +773,8 @@ int main() {
       {"invalid observability", invalid_observability_is_rejected},
       {"capture config", capture_configuration},
       {"invalid operations config", invalid_operations_configuration_is_rejected},
+      {"invalid history config", invalid_history_configuration_is_rejected},
+      {"strict history scalar types", history_scalar_types_are_strict},
       {"invalid shared-memory config", invalid_shared_memory_config_is_rejected},
       {"mixed network model", mixed_network_model_and_plan_load},
       {"standalone network examples", standalone_network_examples_load},

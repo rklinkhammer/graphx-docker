@@ -1,0 +1,11 @@
+services:
+  telemetry:
+    environment:
+      GRAPHX_HISTORY_ENABLED: "true"
+      GRAPHX_HISTORY_BACKEND: sqlite
+      GRAPHX_HISTORY_DATABASE_FILE: /var/lib/graphx/history/history.sqlite
+    volumes:
+      - graphx-history:/var/lib/graphx/history
+
+volumes:
+  graphx-history:
