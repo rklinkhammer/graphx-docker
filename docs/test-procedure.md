@@ -416,6 +416,51 @@ those two independent capture files.
 
 On Docker Desktop:
 
+### Local Linux verifier container on macOS
+
+Docker Desktop runs Linux containers inside its Linux VM, so the repository's
+Linux verifier image can reproduce Linux process, OpenSSL, socket, and SIGPIPE
+behavior while keeping build products out of the macOS checkout.
+
+Run the focused TLS security test first:
+
+```sh
+scripts/test-linux-container.sh tls
+```
+
+Additional modes are cumulative CTest builds for C++23 and C++20, the portable
+Phase 1–7 feature suite, and the pinned quality/fuzz gates:
+
+```sh
+scripts/test-linux-container.sh ctest
+scripts/test-linux-container.sh portable
+scripts/test-linux-container.sh quality
+```
+
+Logs are written under `outputs/linux-container/`. The image uses Ubuntu 24.04,
+Node 24, OpenSSL 3, and Clang 18. To install an organization root CA into this
+local verifier image without adding it to the repository, provide its absolute
+path as a BuildKit secret:
+
+```sh
+GRAPHX_CA_CERT=/absolute/path/to/company-root-ca.crt \
+  scripts/test-linux-container.sh tls
+```
+
+If the organization supplies a certificate installation script instead, save
+and inspect it locally, then pass that file without piping network content into
+the image build:
+
+```sh
+GRAPHX_CERT_INSTALL_SCRIPT=/absolute/path/to/install-certs.sh \
+  scripts/test-linux-container.sh tls
+```
+
+Do not use this container as proof of native macvlan, IPvlan, physical-parent,
+OVS, namespace-router, nftables, or netem behavior. Those acceptance gates still
+require a dedicated native Linux host. Docker documents macvlan as unsupported
+on Docker Desktop for Mac and Windows.
+
 ```sh
 examples/mixed-network/scripts/macos-up.sh
 examples/mixed-network/scripts/status.sh

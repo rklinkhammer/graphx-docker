@@ -458,6 +458,20 @@ capture sink writes exact canonical framed bytes and correlation comments;
 
 ## Tests
 
+On macOS with Docker Desktop (or another local Linux-container runtime), run the
+workspace-owned Linux verifier for the focused TLS gate or the cumulative
+portable suite:
+
+```sh
+scripts/test-linux-container.sh tls
+scripts/test-linux-container.sh portable
+```
+
+Use `GRAPHX_CA_CERT=/absolute/path/to/root-ca.crt` or
+`GRAPHX_CERT_INSTALL_SCRIPT=/absolute/path/to/install-certs.sh` when the Linux
+image needs organization trust. See [`docs/test-procedure.md`](docs/test-procedure.md)
+for all modes and the native-Linux networking boundary.
+
 `graphx-tests` covers:
 
 - framing prefix and payload preservation;

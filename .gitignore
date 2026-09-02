@@ -4,4 +4,5 @@
 /web/dist/
 /.DS_Store
 /outputs/*.zip
+/outputs/linux-container/
 /captures/
