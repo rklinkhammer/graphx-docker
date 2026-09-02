@@ -1,37 +1,63 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { bearerHeaders } from '../auth'
+import { isCurrentHistoryResponse, mergeHistoryRecords } from '../history.mjs'
 
 function displayTime(milliseconds) {
   return Number.isFinite(milliseconds) ? new Date(milliseconds).toLocaleString() : '—'
 }
 
-export function HistoryPanel({ observationToken, backend }) {
+export function HistoryPanel({ observationToken, backend, refreshIntervalMs = 5000 }) {
   const [records, setRecords] = useState([])
   const [nextCursor, setNextCursor] = useState(null)
   const [message, setMessage] = useState('Loading durable history…')
+  const [showingOlder, setShowingOlder] = useState(false)
+  const autoRefresh = useRef(true)
+  const requestGeneration = useRef(0)
 
   const load = useCallback(async (cursor = null, append = false) => {
+    const generation = ++requestGeneration.current
     try {
       const target = new URL('/api/history', window.location.origin)
       target.searchParams.set('limit', '100')
       if (cursor) target.searchParams.set('cursor', String(cursor))
       const response = await fetch(target, { headers: bearerHeaders(observationToken) })
       const body = await response.json()
+      if (!isCurrentHistoryResponse(generation, requestGeneration.current)) return
       if (!response.ok) throw new Error(body.error || `History returned ${response.status}`)
-      setRecords(previous => append ? [...previous, ...body.records] : body.records)
+      setRecords(previous => mergeHistoryRecords(previous, body.records, append))
       setNextCursor(body.nextCursor)
-      setMessage(body.records.length ? '' : 'No durable records have been retained yet.')
+      setMessage(body.records.length ? '' : append ? 'No older records remain.' :
+        'No durable records have been retained yet.')
     } catch (error) {
+      if (!isCurrentHistoryResponse(generation, requestGeneration.current)) return
       setMessage(error.message)
       if (!append) setRecords([])
     }
   }, [observationToken])
 
   useEffect(() => {
+    autoRefresh.current = true
+    setShowingOlder(false)
     load()
-    const timer = setInterval(() => load(), 5000)
-    return () => clearInterval(timer)
+    return () => { requestGeneration.current++ }
   }, [load])
+
+  useEffect(() => {
+    const timer = setInterval(() => { if (autoRefresh.current) load() }, refreshIntervalMs)
+    return () => clearInterval(timer)
+  }, [load, refreshIntervalMs])
+
+  const loadOlder = () => {
+    autoRefresh.current = false
+    setShowingOlder(true)
+    load(nextCursor, true)
+  }
+
+  const returnToNewest = () => {
+    autoRefresh.current = true
+    setShowingOlder(false)
+    load()
+  }
 
   return <section className="history-panel">
     <div className="history-heading"><div><span>DURABLE TELEMETRY</span><h2>Event history</h2></div>
@@ -53,6 +79,9 @@ export function HistoryPanel({ observationToken, backend }) {
         <span title={JSON.stringify(record.data)}>{JSON.stringify(record.data)}</span>
       </div>)}
     </div>}
-    {nextCursor && <button className="history-more" onClick={() => load(nextCursor, true)}>Load older records</button>}
+    <div className="history-actions">
+      {nextCursor && <button className="history-more" onClick={loadOlder}>Load older records</button>}
+      {showingOlder && <button className="history-more" onClick={returnToNewest}>Return to newest</button>}
+    </div>
   </section>
 }

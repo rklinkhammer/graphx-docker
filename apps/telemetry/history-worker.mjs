@@ -6,6 +6,7 @@ import { DatabaseSync } from 'node:sqlite'
 const SCHEMA_VERSION = 1
 let database
 let insertRecord
+let maintenanceTimer
 
 function databaseBytes() {
   let bytes = 0
@@ -107,6 +108,7 @@ function queryHistory(query) {
   const clauses = ['graph_id = ?']
   const parameters = [workerData.graphId]
   const add = (sql, value) => { if (value != null) { clauses.push(sql); parameters.push(value) } }
+  add('recorded_at_ms >= ?', Date.now() - workerData.retentionSeconds * 1000)
   add('id < ?', query.cursor)
   add('recorded_at_ms >= ?', query.after)
   add('recorded_at_ms <= ?', query.before)
@@ -130,9 +132,27 @@ function respond(requestId, result, error = null) {
   parentPort.postMessage({ requestId, result, error: error ? String(error?.message || error).slice(0, 256) : null })
 }
 
+function runMaintenance() {
+  try {
+    parentPort.postMessage({ type: 'maintenance', pruned: maintain(),
+      databaseBytes: databaseBytes() })
+  } catch (error) {
+    clearInterval(maintenanceTimer)
+    parentPort.postMessage({ type: 'maintenance', error: String(error?.message || error).slice(0, 256),
+      databaseBytes: databaseBytes() })
+    try { database.close() } catch { /* The failed operation may already have closed SQLite. */ }
+    parentPort.close()
+  }
+}
+
 try {
   migrate()
-  parentPort.postMessage({ type: 'ready', schemaVersion: SCHEMA_VERSION, databaseBytes: databaseBytes() })
+  const pruned = maintain()
+  parentPort.postMessage({ type: 'ready', schemaVersion: SCHEMA_VERSION, pruned,
+    databaseBytes: databaseBytes() })
+  const intervalMs = workerData.maintenanceIntervalMs || Math.max(1000,
+    Math.min(60000, Math.floor(workerData.retentionSeconds * 500)))
+  maintenanceTimer = setInterval(runMaintenance, intervalMs)
 } catch (error) {
   parentPort.postMessage({ type: 'fatal', error: String(error?.message || error).slice(0, 256) })
   throw error
@@ -150,6 +170,7 @@ parentPort.on('message', message => {
   }
   if (message.type === 'close') {
     try {
+      clearInterval(maintenanceTimer)
       maintain(); database.exec('PRAGMA wal_checkpoint(TRUNCATE)'); database.close()
       respond(message.requestId, { closed: true })
       setImmediate(() => process.exit(0))

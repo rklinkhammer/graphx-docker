@@ -2,13 +2,14 @@ import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import dgram from 'node:dgram'
 import { once } from 'node:events'
-import { mkdtempSync, rmSync, statSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { parse as parseYaml, stringify as stringifyYaml } from 'yaml'
 import { HistoryStore, historyConfig, parseHistoryQuery, telemetryHistoryRecord } from './history.mjs'
 
 function temporaryHistory() {
@@ -32,12 +33,26 @@ test('history configuration and query filters are strict and bounded', () => {
   assert.throws(() => historyConfig({ enabled: 'false' }, {}), /must be a boolean/)
   assert.throws(() => historyConfig({ enabled: false, batch_size: true }, {}), /integer/)
   assert.throws(() => historyConfig({ enabled: false, query_limit: '20' }, {}), /integer/)
+  assert.throws(() => historyConfig({ enabled: false, backend: '' }, {}), /backend/)
+  assert.throws(() => historyConfig({ enabled: false, database_file: '' }, {}), /database_file/)
+  assert.throws(() => historyConfig({ enabled: false, backend: '' },
+    { GRAPHX_HISTORY_BACKEND: 'sqlite' }), /backend/)
+  assert.throws(() => historyConfig({ enabled: false, database_file: '' },
+    { GRAPHX_HISTORY_DATABASE_FILE: '/tmp/override.sqlite' }), /database_file/)
+  assert.throws(() => historyConfig({ enabled: false, typo_retention_seconds: 60 }, {}),
+    /unknown history configuration property/)
+  assert.throws(() => historyConfig(null, {}), /must be an object/)
   assert.throws(() => historyConfig({ enabled: false }, { GRAPHX_HISTORY_QUERY_LIMIT: '1.5' }),
     /integer/)
   assert.equal(historyConfig({ enabled: false, query_limit: 5 },
     { GRAPHX_HISTORY_ENABLED: 'true', GRAPHX_HISTORY_QUERY_LIMIT: '9' }).enabled, true)
   assert.equal(historyConfig({ enabled: false, query_limit: 5 },
     { GRAPHX_HISTORY_QUERY_LIMIT: '' }).queryLimit, 5)
+  const emptyEnvironment = historyConfig({ enabled: false, backend: 'sqlite',
+    database_file: 'configured.sqlite' },
+    { GRAPHX_HISTORY_BACKEND: '', GRAPHX_HISTORY_DATABASE_FILE: '' }, '/config')
+  assert.equal(emptyEnvironment.backend, 'sqlite')
+  assert.equal(emptyEnvironment.databaseFile, '/config/configured.sqlite')
   const settings = config('/tmp/graphx-history-test.sqlite')
   assert.throws(() => parseHistoryQuery(new URLSearchParams('limit=21'), settings), /limit/)
   assert.throws(() => parseHistoryQuery(new URLSearchParams('unknown=1'), settings), /unknown/)
@@ -81,6 +96,87 @@ test('SQLite history persists across restart and uses stable bounded pagination'
     assert.equal(persisted.records.length, 10)
     assert.equal(persisted.records[0].data.sequence, 14)
   } finally {
+    await store.close().catch(() => {})
+    temporary.remove()
+  }
+})
+
+test('history applies reduced age and count retention before a reopened store is ready', async () => {
+  const temporary = temporaryHistory()
+  let store = new HistoryStore(config(temporary.file, { retention_seconds: 3600,
+    max_records: 100, queue_capacity: 32, batch_size: 20 }), 'graphx')
+  try {
+    await store.waitUntilReady()
+    const now = Date.now()
+    assert.equal(store.enqueue(telemetryHistoryRecord({ kind: 'trace', event: 'send',
+      nodeId: 'generator', edgeId: 'samples', sequence: 9001, timestamp: now - 120000 },
+    'graphx', now - 120000)), true)
+    for (let index = 0; index < 20; ++index)
+      assert.equal(store.enqueue(telemetryHistoryRecord({ kind: 'trace', event: 'send',
+        nodeId: 'generator', edgeId: 'samples', sequence: index, timestamp: now + index },
+      'graphx', now + index)), true)
+    await store.flush(); await store.close()
+
+    store = new HistoryStore(config(temporary.file, { retention_seconds: 60,
+      max_records: 10 }), 'graphx')
+    await store.waitUntilReady()
+    const retained = await store.query({ cursor: null, after: null, before: null, limit: 20,
+      node: null, edge: null, kind: null, event: null })
+    assert.equal(retained.records.length, 10)
+    assert.equal(retained.records.some(record => record.data.sequence === 9001), false)
+    assert.ok(store.stats.pruned >= 11)
+  } finally {
+    await store.close().catch(() => {})
+    temporary.remove()
+  }
+})
+
+test('idle maintenance removes expired rows and queries never expose them', async () => {
+  const temporary = temporaryHistory()
+  const settings = config(temporary.file, { retention_seconds: 60, max_records: 100 })
+  settings.maintenanceIntervalMs = 20
+  const store = new HistoryStore(settings, 'graphx')
+  try {
+    await store.waitUntilReady()
+    const database = new DatabaseSync(temporary.file)
+    const old = Date.now() - 120000
+    database.prepare(`INSERT INTO history_records
+      (graph_id,recorded_at_ms,event_at_ms,kind,event,node_id,edge_id,data_json)
+      VALUES (?,?,?,?,?,?,?,?)`).run('graphx', old, old, 'trace', 'send', 'generator',
+      'samples', JSON.stringify({ sequence: 9002 }))
+    database.close()
+
+    const hidden = await store.query({ cursor: null, after: null, before: null, limit: 20,
+      node: null, edge: null, kind: null, event: null })
+    assert.equal(hidden.records.length, 0)
+    for (let attempt = 0; attempt < 100 && store.stats.pruned === 0; ++attempt)
+      await new Promise(resolveWait => setTimeout(resolveWait, 10))
+    assert.equal(store.stats.pruned, 1)
+    const inspection = new DatabaseSync(temporary.file, { readOnly: true })
+    assert.equal(Number(inspection.prepare('SELECT count(*) AS count FROM history_records')
+      .get().count), 0)
+    inspection.close()
+  } finally { await store.close().catch(() => {}); temporary.remove() }
+})
+
+test('idle maintenance failure degrades history without blocking the service thread', async () => {
+  const temporary = temporaryHistory()
+  const settings = config(temporary.file, { retention_seconds: 60,
+    shutdown_timeout_ms: 100 })
+  settings.maintenanceIntervalMs = 20
+  const store = new HistoryStore(settings, 'graphx')
+  let lock
+  try {
+    await store.waitUntilReady()
+    lock = new DatabaseSync(temporary.file)
+    lock.exec('BEGIN IMMEDIATE')
+    for (let attempt = 0; attempt < 100 && store.stats.status !== 'degraded'; ++attempt)
+      await new Promise(resolveWait => setTimeout(resolveWait, 10))
+    assert.equal(store.stats.status, 'degraded')
+    assert.match(store.stats.lastError, /locked|busy/i)
+  } finally {
+    try { lock?.exec('ROLLBACK') } catch { /* worker may already have exited */ }
+    try { lock?.close() } catch { /* already closed */ }
     await store.close().catch(() => {})
     temporary.remove()
   }
@@ -197,6 +293,52 @@ async function availablePort() {
   await once(server, 'close')
   return port
 }
+
+async function rejectedTelemetryStartup(history, expected) {
+  const temporary = temporaryHistory()
+  const directory = dirname(fileURLToPath(import.meta.url))
+  const configFile = join(temporary.directory, 'graphx.yaml')
+  const source = parseYaml(readFileSync(resolve(directory, '../../graphx.yaml'), 'utf8'))
+  source.observability.history = history
+  writeFileSync(configFile, stringifyYaml(source))
+  const environment = { ...process.env, PORT: String(await availablePort()),
+    GRAPHX_TELEMETRY_PORT: String(await availablePort()), GRAPHX_HTTP_BIND: '127.0.0.1',
+    GRAPHX_TELEMETRY_BIND: '127.0.0.1', GRAPHX_CONFIG: configFile }
+  for (const key of Object.keys(environment))
+    if (key.startsWith('GRAPHX_HISTORY_')) delete environment[key]
+  const child = spawn(process.execPath, ['server.mjs'], { cwd: directory, env: environment,
+    stdio: ['ignore', 'ignore', 'pipe'] })
+  let stderr = ''
+  child.stderr.on('data', value => { stderr += value })
+  let deadlineTimer
+  try {
+    const [code] = await Promise.race([
+      once(child, 'exit'),
+      new Promise((_, rejectWait) => { deadlineTimer = setTimeout(
+        () => rejectWait(new Error('invalid telemetry configuration did not fail startup')), 3000) }),
+    ])
+    clearTimeout(deadlineTimer)
+    assert.notEqual(code, 0)
+    assert.match(stderr, expected)
+    assert.equal(existsSync(join(temporary.directory, '.graphx/history.sqlite')), false)
+    assert.equal(existsSync(join(temporary.directory, 'history.sqlite')), false)
+  } finally {
+    clearTimeout(deadlineTimer)
+    if (child.exitCode == null) child.kill('SIGKILL')
+    temporary.remove()
+  }
+}
+
+test('telemetry startup rejects history configuration rejected by the authoritative loader',
+  { timeout: 10000 }, async () => {
+    await rejectedTelemetryStartup({ enabled: true, backend: '',
+      database_file: 'history.sqlite' }, /history backend must be sqlite/)
+    await rejectedTelemetryStartup({ enabled: true, backend: 'sqlite',
+      database_file: '' }, /history database_file must be/)
+    await rejectedTelemetryStartup({ enabled: true, backend: 'sqlite',
+      database_file: 'history.sqlite', typo_retention_seconds: 60 },
+    /unknown history configuration property 'typo_retention_seconds'/)
+  })
 
 async function startTelemetry(databaseFile) {
   const directory = dirname(fileURLToPath(import.meta.url))

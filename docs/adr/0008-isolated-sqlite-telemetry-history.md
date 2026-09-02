@@ -18,6 +18,9 @@ the main event loop communicates through bounded write and query queues. Writes
 use transactional batches, WAL mode and full synchronous durability. Age,
 record-count, main-database size, queue count/bytes, batch size, query count,
 query limit, query deadline, flush interval, and shutdown deadline are explicit.
+Existing rows are pruned before the backend reports ready, maintenance also
+runs on a bounded idle interval, and reads apply the current age cutoff so an
+expired row is not exposed between physical prune cycles.
 
 Schema version and owning graph ID are stored in the database. Newer schemas and
 other graph identities fail closed for history access. The history backend has

@@ -2,6 +2,12 @@ import { Worker } from 'node:worker_threads'
 import { isAbsolute, resolve } from 'node:path'
 
 const MAX_HISTORY_RECORD_BYTES = 16 * 1024
+const HISTORY_CONFIG_KEYS = new Set([
+  'enabled', 'backend', 'database_file', 'retention_seconds', 'max_records',
+  'max_database_bytes', 'queue_capacity', 'max_queue_bytes', 'batch_size',
+  'flush_interval_ms', 'query_limit', 'query_timeout_ms', 'max_pending_queries',
+  'shutdown_timeout_ms',
+])
 
 function configInteger(value, fallback, minimum, maximum, name) {
   if (value == null) return fallback
@@ -41,20 +47,31 @@ function environmentBoolean(value, fallback, name) {
 }
 
 export function historyConfig(config = {}, env = process.env, baseDirectory = process.cwd()) {
+  if (!config || typeof config !== 'object' || Array.isArray(config))
+    throw new Error('history configuration must be an object')
+  for (const key of Object.keys(config))
+    if (!HISTORY_CONFIG_KEYS.has(key))
+      throw new Error(`unknown history configuration property '${key}'`)
   const enabled = environmentBoolean(env.GRAPHX_HISTORY_ENABLED,
     configBoolean(config.enabled, false, 'history enabled'), 'GRAPHX_HISTORY_ENABLED')
-  if (config.backend != null && typeof config.backend !== 'string')
+  const configuredBackend = config.backend == null ? 'sqlite' : config.backend
+  if (configuredBackend !== 'sqlite')
     throw new Error('history backend must be sqlite')
   if (env.GRAPHX_HISTORY_BACKEND != null && env.GRAPHX_HISTORY_BACKEND !== '' &&
-      typeof env.GRAPHX_HISTORY_BACKEND !== 'string')
+      env.GRAPHX_HISTORY_BACKEND !== 'sqlite')
     throw new Error('GRAPHX_HISTORY_BACKEND must be sqlite')
-  const backend = env.GRAPHX_HISTORY_BACKEND || config.backend || 'sqlite'
-  if (backend !== 'sqlite') throw new Error('history backend must be sqlite')
-  const configuredFile = env.GRAPHX_HISTORY_DATABASE_FILE || config.database_file ||
-    '.graphx/history.sqlite'
+  const backend = env.GRAPHX_HISTORY_BACKEND === 'sqlite' ? 'sqlite' : configuredBackend
+  const configuredFile = config.database_file == null
+    ? '.graphx/history.sqlite' : config.database_file
   if (typeof configuredFile !== 'string' || !configuredFile || configuredFile.length > 1024 ||
       configuredFile.includes('\0')) throw new Error('history database_file must be 1-1024 safe characters')
-  const databaseFile = isAbsolute(configuredFile) ? configuredFile : resolve(baseDirectory, configuredFile)
+  const environmentFile = env.GRAPHX_HISTORY_DATABASE_FILE
+  if (environmentFile != null && environmentFile !== '' &&
+      (typeof environmentFile !== 'string' || environmentFile.length > 1024 ||
+       environmentFile.includes('\0')))
+    throw new Error('GRAPHX_HISTORY_DATABASE_FILE must be 1-1024 safe characters')
+  const selectedFile = environmentFile == null || environmentFile === '' ? configuredFile : environmentFile
+  const databaseFile = isAbsolute(selectedFile) ? selectedFile : resolve(baseDirectory, selectedFile)
   const result = {
     enabled, backend, databaseFile,
     retentionSeconds: configuredInteger(config.retention_seconds,
@@ -311,7 +328,14 @@ export class HistoryStore {
     if (message.type === 'ready') {
       Object.assign(this.stats, { status: 'ready', schemaVersion: message.schemaVersion,
         databaseBytes: message.databaseBytes, lastError: null })
+      this.stats.pruned += message.pruned || 0
       this.#drain()
+      return
+    }
+    if (message.type === 'maintenance') {
+      this.stats.pruned += message.pruned || 0
+      this.stats.databaseBytes = message.databaseBytes ?? this.stats.databaseBytes
+      if (message.error) this.#degrade(new Error(message.error))
       return
     }
     if (message.type === 'batch') {

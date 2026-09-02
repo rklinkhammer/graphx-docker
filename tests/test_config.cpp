@@ -254,6 +254,31 @@ observability:
   }
 }
 
+void history_empty_and_unknown_values_are_strict() {
+  TemporaryConfig file(std::string(valid_config) + R"yaml(
+observability:
+  history:
+    enabled: true
+    backend: ""
+    database_file: ""
+    typo_retention_seconds: 60
+)yaml");
+  try {
+    [[maybe_unused]] const auto ignored = graphx::load_config(file.path());
+    throw std::runtime_error("empty and unknown history properties were accepted");
+  } catch (const graphx::ConfigError& error) {
+    expect(diagnostic_contains(error, "history.backend") &&
+               diagnostic_contains(error, "must not be empty"),
+           "empty history backend diagnostic");
+    expect(diagnostic_contains(error, "history.database_file") &&
+               diagnostic_contains(error, "must not be empty"),
+           "empty history database diagnostic");
+    expect(diagnostic_contains(error, "history.typo_retention_seconds") &&
+               diagnostic_contains(error, "unknown property"),
+           "unknown history property diagnostic");
+  }
+}
+
 void invalid_shared_memory_config_is_rejected() {
   TemporaryConfig file(R"yaml(
 version: 1
@@ -775,6 +800,7 @@ int main() {
       {"invalid operations config", invalid_operations_configuration_is_rejected},
       {"invalid history config", invalid_history_configuration_is_rejected},
       {"strict history scalar types", history_scalar_types_are_strict},
+      {"strict history strings and keys", history_empty_and_unknown_values_are_strict},
       {"invalid shared-memory config", invalid_shared_memory_config_is_rejected},
       {"mixed network model", mixed_network_model_and_plan_load},
       {"standalone network examples", standalone_network_examples_load},

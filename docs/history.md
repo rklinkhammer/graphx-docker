@@ -58,6 +58,9 @@ observability:
 Every property also has an uppercase `GRAPHX_HISTORY_*` deployment override.
 YAML booleans and numbers must use their native scalar types; quoted booleans or
 numbers are rejected consistently by the C++ planner and telemetry service.
+Unknown history properties and explicit empty YAML backend/database values are
+also rejected at both boundaries, so a typo cannot silently select a default
+retention policy or storage path.
 Environment booleans accept only documented true/false spellings, and numeric
 overrides must be unsigned base-10 integer strings. Configuration and
 environment values use the same validation ranges. An empty environment
@@ -65,9 +68,14 @@ override retains the YAML value. A relative database path is resolved from the
 directory containing `GRAPHX_CONFIG`; containers should use the absolute path
 from `compose.history.yaml`.
 
-Retention is enforced by both age and record count. SQLite `max_page_count`
-bounds the main database below `max_database_bytes`, with room reserved for
-SQLite metadata. Startup verifies that SQLite accepted the requested page cap.
+Retention is enforced by both age and record count before an existing database
+reports ready, before and after write batches, during bounded idle maintenance,
+and at graceful close. Queries also apply the age cutoff directly, so a record
+cannot become visible after its retention deadline between maintenance cycles.
+Idle maintenance runs at least once per minute and more frequently when the
+configured retention period is short. SQLite `max_page_count` bounds the main
+database below `max_database_bytes`, with room reserved for SQLite metadata.
+Startup verifies that SQLite accepted the requested page cap.
 If an existing database already exceeds a newly reduced cap, history degrades
 with an actionable error instead of silently reporting ready; raise the cap or
 restore/compact a suitable database while the service is stopped. WAL writes
@@ -92,8 +100,11 @@ starting, or degraded backend returns 503. The API supports reads only—deletio
 reconfiguration, replay, and runtime control are not Phase 7 capabilities.
 
 The console's **History** view refreshes the newest page every five seconds and
-can page backward. It shows backend health and queue/write/drop counters. The
-same observation credential used for live topology protects history reads.
+can page backward. Loading an older page pauses automatic refresh so the page
+chain remains stable; **Return to newest** resumes polling. Overlapping replies
+are generation-checked and pages are deduplicated by record ID. The view shows
+backend health and queue/write/drop counters. The same observation credential
+used for live topology protects history reads.
 
 ## Durability, schema, backup, and restore
 
@@ -119,10 +130,13 @@ access controls as observation telemetry.
 
 ## Verification
 
-Unit and subprocess integration tests cover strict configuration and filters,
-count retention, pagination, queue overflow, restart persistence, observation
-authentication, incompatible schemas, graph ownership, and independent service
-readiness. The isolated container test adds real Compose volume persistence:
+Unit and subprocess integration tests cover strict scalar/key/path
+configuration including full startup rejection, query filters, reduced
+age/count policies at reopen, idle expiry and maintenance failure, queue
+overflow, restart persistence, observation authentication, incompatible
+schemas, graph ownership, and independent service readiness. A mounted console
+test covers pagination, paused refresh, and reordered responses. The isolated
+container test adds real Compose volume persistence:
 
 ```sh
 scripts/test-phase7-history.sh

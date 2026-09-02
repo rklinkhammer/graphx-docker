@@ -106,14 +106,16 @@ deployment guidance.
 
 Phase 7 adds optional SQLite-backed, metadata-only telemetry and SLO history.
 Storage runs in a dedicated worker behind bounded queues, remains independent of
-graph and service readiness, and exposes authenticated read-only status and
-cursor APIs. Enable the persistent Compose volume with:
+graph and service readiness, applies age/count retention at startup, during
+idle operation, and on queries/writes, and exposes authenticated read-only
+status and cursor APIs. Enable the persistent Compose volume with:
 
 ```sh
 docker compose -f compose.yaml -f compose.history.yaml up -d --build
 ```
 
-The console's **History** view reads the same observation-protected API.
+The console's **History** view reads the same observation-protected API; paging
+older records pauses live refresh until the operator returns to the newest page.
 `scripts/test-phase7-history.sh` proves authentication denial/success plus a
 write and authenticated retrieval across a telemetry container restart. See
 [`docs/history.md`](docs/history.md) for data scope,

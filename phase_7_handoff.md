@@ -1,17 +1,17 @@
 # Phase 7 implementation handoff
 
-Date: 2026-09-01
+Date: 2026-09-02
 
 Work package: durable or backend-driven telemetry history
 
 ## 1. Outcome summary
 
-Phase 7 is implemented and the first independent verification findings have
-been remediated. GraphX now has an optional SQLite-backed history service that
-persists validated operational telemetry and SLO evaluations across collector/
-container restarts. The backend is disabled by default and isolated from graph
-processing and the telemetry event loop by a dedicated worker and bounded
-queues.
+Phase 7 is implemented and all three rounds of independent verification
+findings have been remediated. GraphX now has an optional SQLite-backed history
+service that persists validated operational telemetry and SLO evaluations
+across collector/container restarts. The backend is disabled by default and isolated
+from graph processing and the telemetry event loop by a dedicated worker and
+bounded queues.
 
 The implementation includes strict typed configuration and environment
 overrides, schema ownership/version checks, transactional WAL writes, age/count/
@@ -33,6 +33,10 @@ with an enabled observation token plus a negative unauthenticated request.
 | P2: shutdown exceeded deadline | SQLite busy waiting is capped by the shutdown budget and `close()` uses one absolute deadline without awaiting worker termination beyond it. A real second-writer lock test returns in about 134 ms at the 100 ms minimum. |
 | P3: mutable Node image | Both build stages use the reviewed Node 22.23.2 Alpine digest, recorded in `THIRD_PARTY.md` and ADR 0008. A no-cache image build resolves that digest. |
 | P3: false authentication claim | The live Compose test enables an observation token, requires unauthenticated 401, and authenticates status/query calls before and after restart. |
+| P2: empty/unknown YAML accepted by Node | The telemetry parser now rejects non-object history configuration, unknown properties, empty YAML backend/path values, and invalid YAML even when an environment override exists. Unit, C++, and full-service startup regressions use the same invalid cases. |
+| P3: refresh discarded older console pages | Loading older records now pauses polling until **Return to newest**, merges pages without duplicate IDs, and ignores stale responses by request generation. Pure deterministic web-state tests cover merge and generation behavior. |
+| P2: existing/idle DB violated retention | Startup prunes an existing database before reporting ready, bounded idle maintenance runs at least once per minute, and every query applies the current age cutoff. Reopen, idle-prune, non-disclosure, and locked-maintenance degradation regressions pass without long sleeps. |
+| P3: helper-only console regression | A mounted JSDOM/React test now exercises the actual component timer, buttons, cursor request, paused polling, token change/unmount, and reordered fetch completion. |
 
 No Phase 8 control-plane or Phase 9 capture/dissector behavior was added. The
 pre-existing user edits to `prompt/implement.md` and `prompt/verifier.md` were
@@ -76,6 +80,9 @@ preserved and are not implementation output.
 - Main DB growth is bounded with a verified `max_page_count`; an existing DB
   above a reduced cap fails history startup. Total disk metrics include DB, WAL
   and SHM, and documentation explicitly requires transient WAL headroom.
+- Age/count maintenance runs before backend readiness, around every write batch,
+  at graceful close, and on a bounded idle interval. Query-time age filtering
+  prevents expired rows from being exposed between physical prune cycles.
 
 ADR 0008 records the choice of an isolated SQLite worker over an in-memory-only
 extension, a remote service dependency, or SQLite calls on the event loop.
@@ -95,7 +102,7 @@ adapter.
 | Typed authoritative configuration and schema | `include/graphx/config.hpp`, `src/config.cpp`, `tests/test_config.cpp`, `config/schema/graphx.schema.json`, `graphx.yaml` |
 | Persistent deployment | `compose.history.yaml`, `compose.yaml`, `docker/telemetry.Dockerfile` |
 | Operations alert/dashboard | `deploy/observability/alerts.yml`, `deploy/observability/alerts.test.yml`, `deploy/observability/grafana/dashboards/graphx-operations.json` |
-| Read-only console view | `web/src/components/HistoryPanel.jsx`, `web/src/App.jsx`, `web/src/styles.css` |
+| Read-only console view and paging-state tests | `web/src/components/HistoryPanel.jsx`, `web/src/history.mjs`, `web/src/history.test.mjs`, `web/src/App.jsx`, `web/src/styles.css` |
 | Live restart acceptance | `scripts/test-phase7-history.sh` |
 | Architecture and operating guidance | `docs/adr/0008-isolated-sqlite-telemetry-history.md`, `docs/history.md`, `docs/observability.md`, `docs/security.md`, `docs/test-procedure.md`, `README.md`, `THIRD_PARTY.md` |
 
@@ -105,6 +112,7 @@ adapter.
 |---|---:|---|
 | Retention age | 604,800 s | 60–31,536,000 s |
 | Retained records | 100,000 | 10–10,000,000 |
+| Idle retention maintenance | At most 60 s | Internal interval is 1–60 s and no greater than half the retention period |
 | Main database | 256 MiB | 1 MiB–4 GiB; effective cap verified at startup; oversized existing DB degrades; WAL/SHM and active transaction need headroom |
 | Pending writes | 4,096 | 1–65,536; newest is dropped at capacity |
 | Pending write bytes | 8 MiB | 64 KiB–64 MiB |
@@ -126,12 +134,16 @@ adapter.
 - Portable feature suite passed: C++23 **12/12**, C++20 **12/12**, topology
   validation, finite TCP/shared-memory pipelines, coordinated shutdown,
   telemetry security, authenticated runtime behavior, web build and tests.
-- Telemetry suite passed **32/32**. Phase 7 coverage includes persistence,
-  stable pagination, filters, retention, queue overflow, forced DB-full
-  degradation, reduced-cap startup rejection, a real writer-lock shutdown
-  deadline, schema version, graph ownership, authenticated API, abrupt process
+- Telemetry suite passed **36/36**. Phase 7 coverage includes strict full-startup
+  configuration rejection without creating a database, persistence, stable
+  pagination, filters, reduced-policy startup pruning, query-time age
+  non-disclosure, idle pruning and maintenance failure, queue overflow, forced
+  DB-full degradation, reduced-cap startup rejection, a real writer-lock
+  shutdown deadline, schema version, graph ownership, authenticated API, abrupt process
   restart and service-readiness isolation.
-- Web tests passed **3/3** and the Vite production build passed.
+- Web tests passed **6/6**, including a mounted history component test for page
+  merging, paused refresh, token changes, and response reordering; the Vite
+  production build passed.
 - `scripts/test-phase7-history.sh` passed against an isolated real container and
   named volume: unauthenticated 401, authenticated UDP write/API retrieval,
   telemetry restart, persistent authenticated reread, and scoped cleanup.
@@ -142,6 +154,9 @@ adapter.
 - Both default and history-overlay Compose configurations validated; a no-cache
   telemetry image build succeeded from the immutable Node 22.23.2 Alpine
   digest.
+- The verifier's reduced-retention reproduction passed inside that selected
+  image runtime: 10 records remained, the expired record was hidden, and 11
+  rows were counted as pruned before readiness.
 - Telemetry and web npm audits each reported **0 vulnerabilities**.
 - The three pre-existing `gx-ipv-side-*`/`gx-ovs-*` containers remained running
   and were not restarted, modified, or removed.
@@ -184,10 +199,12 @@ existing React Flow bundle architecture.
   disturb an existing backward cursor.
 - Online backup, restore orchestration, migration administration, deletion,
   replay and remote backend plugins are intentionally absent.
-- Independent reverification should rerun the remediated type, reduced-cap,
-  writer-lock deadline and authenticated-container cases. Longer filesystem-
-  full/permission, query-load and corruption soaks remain useful, as do the
-  exact clang-format 18/clang-tidy gates and selected-runtime compatibility.
+- Independent reverification should rerun reduced age/count policy startup,
+  idle expiry, locked maintenance, mounted pagination state, strict
+  empty/unknown YAML startup, reduced-cap, writer-lock deadline, and
+  authenticated container cases. Longer filesystem-full/permission,
+  query-load, and corruption soaks remain useful, as do the exact clang-format
+  18/clang-tidy gates and selected-runtime compatibility.
 
 ## 8. Acceptance checklist
 

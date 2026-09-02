@@ -282,7 +282,8 @@ scripts/test-phase6-secure-otlp.sh
 
 ## Phase 7 durable history acceptance
 
-The telemetry test suite covers strict history configuration and query parsing,
+The telemetry test suite covers strict history configuration, unknown/empty
+value rejection at full service startup, and query parsing,
 bounded queues, count retention, stable pagination, reduced database-cap
 startup, a shutdown deadline under a real SQLite writer lock, schema and graph-
 ownership rejection, observation authentication, degraded-backend isolation,
@@ -290,6 +291,18 @@ abrupt process restart, and record persistence:
 
 ```sh
 npm test --prefix apps/telemetry
+```
+
+The history tests also reduce age/count policies across a database reopen,
+verify query-time non-disclosure and idle pruning without a long sleep, and
+force an idle maintenance lock failure to confirm isolated degradation.
+
+The web suite mounts the real history component to verify stable, deduplicated
+backward pages, paused polling, return-to-newest behavior, token changes, and
+stale-response suppression in addition to credential handling:
+
+```sh
+npm test --prefix web
 ```
 
 Validate both the default-disabled projection and the persistent-volume overlay:
