@@ -11,13 +11,44 @@ for tool in cmake ninja xxd; do
   command -v "$tool" >/dev/null || { echo "missing prerequisite: $tool" >&2; exit 2; }
 done
 
+if test -z "${CC:-}"; then
+  for candidate in clang-18 clang; do
+    if command -v "$candidate" >/dev/null; then
+      CC=$candidate
+      break
+    fi
+  done
+fi
+if test -z "${CXX:-}"; then
+  for candidate in clang++-18 clang++; do
+    if command -v "$candidate" >/dev/null; then
+      CXX=$candidate
+      break
+    fi
+  done
+fi
+if test -z "${CC:-}" || test -z "${CXX:-}"; then
+  echo "missing prerequisite: Clang with libFuzzer support (set CC and CXX)" >&2
+  exit 2
+fi
+command -v "$CC" >/dev/null || { echo "compiler not found: CC=$CC" >&2; exit 2; }
+command -v "$CXX" >/dev/null || { echo "compiler not found: CXX=$CXX" >&2; exit 2; }
+compiler_version=$("$CXX" --version)
+if ! grep -qi clang <<<"$compiler_version"; then
+  echo "GraphX fuzzing requires Clang; selected CXX=$CXX" >&2
+  echo "unset CC/CXX to auto-detect Clang, or set CC=clang CXX=clang++" >&2
+  exit 2
+fi
+export CC CXX
+echo "Fuzz compiler: CC=$CC CXX=$CXX"
+
 mkdir -p "$TMP_DIR/envelope" "$TMP_DIR/frame"
 xxd -r -p "$ROOT/tests/fixtures/envelope-v1.hex" >"$TMP_DIR/envelope/v1"
 xxd -r -p "$ROOT/tests/fixtures/envelope-v2.hex" >"$TMP_DIR/envelope/v2"
 cp "$TMP_DIR/envelope/v1" "$TMP_DIR/frame/v1-envelope"
 cp "$TMP_DIR/envelope/v2" "$TMP_DIR/frame/v2-envelope"
 
-cmake -S "$ROOT" -B "$BUILD_DIR" -G Ninja \
+cmake --fresh -S "$ROOT" -B "$BUILD_DIR" -G Ninja \
   -DCMAKE_BUILD_TYPE=RelWithDebInfo \
   -DCMAKE_CXX_STANDARD=23 \
   -DGRAPHX_BUILD_TESTS=OFF \

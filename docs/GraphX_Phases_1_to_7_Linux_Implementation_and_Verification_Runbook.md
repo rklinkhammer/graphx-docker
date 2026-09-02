@@ -113,7 +113,7 @@ The ordinary CI and portable tiers intentionally do not opt into privileged netw
 sudo apt-get update
 sudo apt-get install -y \
   git cmake ninja-build build-essential \
-  clang-18 clang-tools-18 clang-format-18 clang-tidy-18 \
+  clang-18 clang-tools-18 clang-format-18 clang-tidy-18 libclang-rt-18-dev \
   cppcheck libssl-dev openssl curl jq xxd \
   iproute2 nftables openvswitch-switch tcpdump wireshark-common
 ```

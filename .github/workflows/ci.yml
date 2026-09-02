@@ -120,7 +120,7 @@ jobs:
       - name: Install Clang and corpus tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang-18 clang-tools-18 ninja-build xxd libssl-dev
+          sudo apt-get install -y clang-18 clang-tools-18 libclang-rt-18-dev ninja-build xxd libssl-dev
       - name: Fuzz envelope and frame decoders
         env:
           CC: clang-18

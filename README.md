@@ -465,6 +465,7 @@ portable suite:
 ```sh
 scripts/test-linux-container.sh tls
 scripts/test-linux-container.sh portable
+GRAPHX_FUZZ_SECONDS=30 scripts/test-linux-container.sh fuzz
 ```
 
 Use `GRAPHX_CA_CERT=/absolute/path/to/root-ca.crt` or

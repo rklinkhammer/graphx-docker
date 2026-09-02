@@ -434,6 +434,7 @@ Phase 1–7 feature suite, and the pinned quality/fuzz gates:
 ```sh
 scripts/test-linux-container.sh ctest
 scripts/test-linux-container.sh portable
+GRAPHX_FUZZ_SECONDS=30 scripts/test-linux-container.sh fuzz
 scripts/test-linux-container.sh quality
 ```
 

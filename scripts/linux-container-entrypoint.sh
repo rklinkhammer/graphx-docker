@@ -59,11 +59,16 @@ case "$MODE" in
     GRAPHX_FUZZ_SECONDS="${GRAPHX_FUZZ_SECONDS:-30}" \
       "$ROOT/scripts/run-fuzz.sh"
     ;;
+  fuzz)
+    GRAPHX_FUZZ_BUILD_DIR=/tmp/graphx-linux-fuzz \
+    GRAPHX_FUZZ_SECONDS="${GRAPHX_FUZZ_SECONDS:-30}" \
+      "$ROOT/scripts/run-fuzz.sh"
+    ;;
   shell)
     exec /usr/bin/bash
     ;;
   *)
-    echo "usage: $0 {tls|ctest|portable|quality|shell}" >&2
+    echo "usage: $0 {tls|ctest|portable|quality|fuzz|shell}" >&2
     exit 64
     ;;
 esac

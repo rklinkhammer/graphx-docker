@@ -7,9 +7,9 @@ IMAGE=${GRAPHX_LINUX_VERIFIER_IMAGE:-graphx-linux-verifier:local}
 EVIDENCE_DIR=${GRAPHX_LINUX_EVIDENCE_DIR:-"$ROOT/outputs/linux-container"}
 
 case "$MODE" in
-  tls|ctest|portable|quality|shell) ;;
+  tls|ctest|portable|quality|fuzz|shell) ;;
   *)
-    echo "usage: $0 {tls|ctest|portable|quality|shell}" >&2
+    echo "usage: $0 {tls|ctest|portable|quality|fuzz|shell}" >&2
     exit 64
     ;;
 esac
@@ -44,7 +44,11 @@ echo "Building Linux verifier image: $IMAGE"
 
 echo "Running Linux verifier mode: $MODE"
 echo "Evidence directory: $EVIDENCE_DIR"
-docker run --rm --init \
+run=(docker run --rm --init \
   --name "graphx-linux-${MODE}-$$" \
-  --mount "type=bind,src=$EVIDENCE_DIR,dst=/evidence" \
-  "$IMAGE" "$MODE"
+  --mount "type=bind,src=$EVIDENCE_DIR,dst=/evidence")
+if test -n "${GRAPHX_FUZZ_SECONDS:-}"; then
+  run+=(--env "GRAPHX_FUZZ_SECONDS=$GRAPHX_FUZZ_SECONDS")
+fi
+run+=("$IMAGE" "$MODE")
+"${run[@]}"
