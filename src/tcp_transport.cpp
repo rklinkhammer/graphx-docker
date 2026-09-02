@@ -13,6 +13,8 @@
 #include <openssl/err.h>
 #include <openssl/ssl.h>
 #include <poll.h>
+#include <pthread.h>
+#include <signal.h>
 #include <stdexcept>
 #include <sys/socket.h>
 #include <thread>
@@ -36,6 +38,58 @@ namespace {
 
 using Clock = std::chrono::steady_clock;
 constexpr auto kAcceptCancellationPoll = std::chrono::milliseconds(25);
+
+// OpenSSL's socket BIO does not use MSG_NOSIGNAL on Linux. A TLS alert or a
+// peer closing during SSL_write_ex/handshake can therefore terminate the
+// process with SIGPIPE before OpenSSL can report the connection error. Block
+// SIGPIPE only in the calling thread while OpenSSL performs socket I/O, and
+// consume only a signal generated during that operation before restoring the
+// caller's signal mask.
+#ifndef SO_NOSIGPIPE
+class ScopedSigpipeBlock {
+ public:
+  ScopedSigpipeBlock() {
+    ::sigemptyset(&sigpipe_);
+    ::sigaddset(&sigpipe_, SIGPIPE);
+    const int status = ::pthread_sigmask(SIG_BLOCK, &sigpipe_, &previous_mask_);
+    if (status != 0)
+      throw std::runtime_error(std::string("block SIGPIPE: ") + std::strerror(status));
+    active_ = true;
+
+    if (::sigismember(&previous_mask_, SIGPIPE) == 0) {
+      sigset_t pending{};
+      if (::sigpending(&pending) == 0) {
+        pending_before_ = ::sigismember(&pending, SIGPIPE) == 1;
+      }
+    }
+  }
+
+  ScopedSigpipeBlock(const ScopedSigpipeBlock&) = delete;
+  ScopedSigpipeBlock& operator=(const ScopedSigpipeBlock&) = delete;
+
+  ~ScopedSigpipeBlock() {
+    if (!active_) return;
+    if (::sigismember(&previous_mask_, SIGPIPE) == 0 && !pending_before_) {
+      sigset_t pending{};
+      if (::sigpending(&pending) == 0 && ::sigismember(&pending, SIGPIPE) == 1) {
+        timespec no_wait{};
+        while (::sigtimedwait(&sigpipe_, nullptr, &no_wait) < 0 && errno == EINTR) {
+        }
+      }
+    }
+    (void)::pthread_sigmask(SIG_SETMASK, &previous_mask_, nullptr);
+  }
+
+ private:
+  sigset_t sigpipe_{};
+  sigset_t previous_mask_{};
+  bool active_{};
+  bool pending_before_{};
+};
+#else
+// BSD sockets provide per-socket protection, configured by configure_socket().
+class ScopedSigpipeBlock {};
+#endif
 
 std::runtime_error system_error(std::string_view action, int error = errno) {
   return std::runtime_error(std::string(action) + ": " + std::strerror(error));
@@ -198,6 +252,7 @@ ReadResult read_all(int socket, TcpTlsState* tls, std::span<std::byte> bytes,
       {
         std::scoped_lock lock(tls->mutex);
         if (!tls->session) return {ReadStatus::closed, transferred};
+        [[maybe_unused]] ScopedSigpipeBlock block_sigpipe;
         status = SSL_read_ex(tls->session.get(), bytes.data(), bytes.size(), &count);
         if (status != 1) ssl_error = SSL_get_error(tls->session.get(), status);
       }
@@ -241,6 +296,7 @@ std::chrono::nanoseconds write_all(int socket, TcpTlsState* tls, std::span<const
       {
         std::scoped_lock lock(tls->mutex);
         if (!tls->session) throw std::runtime_error("TLS connection is closed");
+        [[maybe_unused]] ScopedSigpipeBlock block_sigpipe;
         status = SSL_write_ex(tls->session.get(), bytes.data(), bytes.size(), &sent);
         if (status != 1) ssl_error = SSL_get_error(tls->session.get(), status);
       }
@@ -325,6 +381,7 @@ void TcpTransport::secure_connection(int socket, bool server) {
   }
   const auto deadline = Clock::now() + options_.connect_timeout;
   for (;;) {
+    [[maybe_unused]] ScopedSigpipeBlock block_sigpipe;
     const int status = server ? SSL_accept(raw_session) : SSL_connect(raw_session);
     if (status == 1) break;
     const int error = SSL_get_error(raw_session, status);
@@ -631,7 +688,10 @@ void TcpTransport::close() {
   retry_ready_.notify_all();
   if (tls_) {
     std::scoped_lock lock(tls_->mutex);
-    if (tls_->session) (void)SSL_shutdown(tls_->session.get());
+    if (tls_->session) {
+      [[maybe_unused]] ScopedSigpipeBlock block_sigpipe;
+      (void)SSL_shutdown(tls_->session.get());
+    }
   }
   close_connection();
   const int listener = listener_.exchange(-1);
