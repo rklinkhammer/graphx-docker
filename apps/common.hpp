@@ -131,9 +131,14 @@ class RuntimeTraceSink final : public graphx::TraceSink {
     }
     const auto otlp_host = env("GRAPHX_OTLP_HOST", "");
     if (!otlp_host.empty() || contains(config.observability.tracing, "otlp-http")) {
-      otlp_ = std::make_unique<graphx::OtlpHttpTraceSink>(
-          node_id_, otlp_host.empty() ? "127.0.0.1" : otlp_host, port("GRAPHX_OTLP_PORT", 4318),
-          env("GRAPHX_OTLP_PATH", "/v1/traces"));
+      const auto resolved_host = otlp_host.empty() ? std::string("127.0.0.1") : otlp_host;
+      if (resolved_host != "127.0.0.1" && resolved_host != "localhost" && resolved_host != "::1")
+        throw std::runtime_error(
+            "native OTLP/HTTP export is limited to a loopback collector; use the telemetry "
+            "service for authenticated TLS export");
+      otlp_ = std::make_unique<graphx::OtlpHttpTraceSink>(node_id_, resolved_host,
+                                                          port("GRAPHX_OTLP_PORT", 4318),
+                                                          env("GRAPHX_OTLP_PATH", "/v1/traces"));
       composite_.add(*otlp_);
     }
     const auto capture_enabled =

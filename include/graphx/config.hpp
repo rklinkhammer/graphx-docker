@@ -91,11 +91,37 @@ struct CaptureConfig {
   std::string directory{"captures"};
 };
 
+struct OtlpConfig {
+  bool enabled{};
+  std::string endpoint{"http://127.0.0.1:4318"};
+  std::string traces_path{"/v1/traces"};
+  std::string metrics_path{"/v1/metrics"};
+  std::uint32_t export_interval_ms{5000};
+  std::uint32_t timeout_ms{2000};
+  std::uint32_t queue_capacity{1024};
+  std::uint32_t max_queue_bytes{8 * 1024 * 1024};
+  std::uint32_t max_response_bytes{65536};
+  std::uint32_t retry_max_attempts{3};
+  std::uint32_t retry_initial_backoff_ms{200};
+  std::uint32_t retry_max_backoff_ms{5000};
+};
+
+struct SloConfig {
+  std::uint32_t window_seconds{300};
+  std::uint32_t minimum_window_seconds{10};
+  double availability_target{0.99};
+  double max_error_ratio{0.01};
+  double max_drop_ratio{0.01};
+  std::uint64_t max_p95_latency_us{10000};
+};
+
 struct ObservabilityConfig {
   ObservabilitySignalConfig metrics;
   ObservabilitySignalConfig tracing;
   TelemetryConfig telemetry;
   CaptureConfig capture;
+  OtlpConfig otlp;
+  SloConfig slos;
 };
 
 struct GraphConfig {

@@ -109,7 +109,7 @@ test('telemetry survives malformed HTTP and WebSocket request targets', { timeou
     cwd: directory,
     env: { ...process.env, PORT: String(port), GRAPHX_TELEMETRY_PORT: String(udpPort),
       GRAPHX_HTTP_BIND: '127.0.0.1', GRAPHX_TELEMETRY_BIND: '127.0.0.1',
-      GRAPHX_CONFIG: resolve(directory, '../../graphx.yaml') },
+      GRAPHX_CONFIG: resolve(directory, '../../graphx.yaml'), GRAPHX_OBSERVATION_TOKEN: secret },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
   try {
@@ -123,6 +123,19 @@ test('telemetry survives malformed HTTP and WebSocket request targets', { timeou
     await rawRequest(port, 'http://[', true)
     const health = await fetch(`http://127.0.0.1:${port}/api/health`)
     assert.equal(health.status, 200)
+    assert.equal((await fetch(`http://127.0.0.1:${port}/api/live`)).status, 200)
+    assert.equal((await fetch(`http://127.0.0.1:${port}/api/ready`)).status, 200)
+    assert.equal((await fetch(`http://127.0.0.1:${port}/api/graph/ready`)).status, 401)
+    const headers = { authorization: `Bearer ${secret}` }
+    assert.equal((await fetch(`http://127.0.0.1:${port}/api/graph/ready`, { headers })).status, 503)
+    assert.equal((await fetch(`http://127.0.0.1:${port}/api/slo`)).status, 401)
+    assert.equal((await fetch(`http://127.0.0.1:${port}/api/slo`, { headers })).status, 200)
+    const metrics = await (await fetch(`http://127.0.0.1:${port}/metrics`, { headers })).text()
+    assert.match(metrics, /graphx_service_ready 1/)
+    assert.match(metrics, /graphx_slo_status\{status="warming"\} 1/)
+    assert.match(metrics, /graphx_slo_ratio/)
+    assert.match(metrics, /graphx_otlp_exports_total\{outcome="retried"\} 0/)
+    assert.match(metrics, /graphx_otlp_queue_bytes 0/)
     assert.equal(child.exitCode, null)
   } finally {
     child.kill('SIGTERM')

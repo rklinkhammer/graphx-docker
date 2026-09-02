@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <arpa/inet.h>
 #include <charconv>
+#include <cmath>
 #include <cstdlib>
 #include <fstream>
 #include <functional>
@@ -22,6 +23,7 @@ namespace {
 constexpr std::size_t kMaxTextLength = 1024;
 const std::regex kIdentifier{"^[A-Za-z][A-Za-z0-9_-]{0,63}$"};
 const std::regex kMacAddress{"^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$"};
+const std::regex kHttpOrigin{R"(^https?://(\[[0-9A-Fa-f:]+\]|[A-Za-z0-9.-]+)(:([0-9]{1,5}))?/?$)"};
 
 struct Ipv4Cidr {
   std::uint32_t network{};
@@ -208,6 +210,21 @@ class ConfigParser {
       return node.as<bool>();
     } catch (const YAML::Exception&) {
       error(path, "must be a boolean");
+      return fallback;
+    }
+  }
+
+  double double_value(const YAML::Node& node, const std::string& path, double fallback) {
+    if (!node) return fallback;
+    try {
+      const auto value = node.as<double>();
+      if (!std::isfinite(value)) {
+        error(path, "must be a finite number");
+        return fallback;
+      }
+      return value;
+    } catch (const YAML::Exception&) {
+      error(path, "must be a finite number");
       return fallback;
     }
   }
@@ -859,7 +876,8 @@ class ConfigParser {
   void parse_observability(const YAML::Node& value, GraphConfig& config) {
     if (!value) return;
     if (!require_map(value, "observability")) return;
-    strict_keys(value, "observability", {"metrics", "tracing", "telemetry", "capture"});
+    strict_keys(value, "observability",
+                {"metrics", "tracing", "telemetry", "capture", "otlp", "slos"});
     parse_signal(value["metrics"], "observability.metrics", config.observability.metrics, false);
     parse_signal(value["tracing"], "observability.tracing", config.observability.tracing, true);
     if (const auto telemetry = value["telemetry"]) {
@@ -915,6 +933,124 @@ class ConfigParser {
             config.observability.capture.provider == "pcapng" &&
             config.observability.capture.directory.empty())
           error("observability.capture.directory", "is required for the pcapng provider");
+      }
+    }
+    if (const auto otlp = value["otlp"]) {
+      if (require_map(otlp, "observability.otlp")) {
+        strict_keys(otlp, "observability.otlp",
+                    {"enabled", "endpoint", "traces_path", "metrics_path", "export_interval_ms",
+                     "timeout_ms", "queue_capacity", "max_queue_bytes", "max_response_bytes",
+                     "retry_max_attempts", "retry_initial_backoff_ms", "retry_max_backoff_ms"});
+        auto& result = config.observability.otlp;
+        result.enabled = bool_value(otlp["enabled"], "observability.otlp.enabled", false);
+        if (otlp["endpoint"])
+          result.endpoint = text(otlp["endpoint"], "observability.otlp.endpoint", 2048);
+        if (otlp["traces_path"])
+          result.traces_path = text(otlp["traces_path"], "observability.otlp.traces_path", 256);
+        if (otlp["metrics_path"])
+          result.metrics_path = text(otlp["metrics_path"], "observability.otlp.metrics_path", 256);
+        if (!result.traces_path.starts_with('/'))
+          error("observability.otlp.traces_path", "must start with '/'");
+        if (!result.metrics_path.starts_with('/'))
+          error("observability.otlp.metrics_path", "must start with '/'");
+        std::smatch endpoint_match;
+        if (!std::regex_match(result.endpoint, endpoint_match, kHttpOrigin)) {
+          error("observability.otlp.endpoint",
+                "must be an HTTP(S) origin without credentials or a path");
+        } else if (endpoint_match[3].matched) {
+          unsigned endpoint_port{};
+          const auto port_text = endpoint_match[3].str();
+          const auto conversion =
+              std::from_chars(port_text.data(), port_text.data() + port_text.size(), endpoint_port);
+          if (conversion.ec != std::errc{} || endpoint_port == 0 || endpoint_port > 65535)
+            error("observability.otlp.endpoint", "port must be between 1 and 65535");
+        }
+        if (!std::regex_match(result.traces_path, std::regex{"^/[A-Za-z0-9._~/-]*$"}))
+          error("observability.otlp.traces_path", "contains unsupported characters");
+        if (!std::regex_match(result.metrics_path, std::regex{"^/[A-Za-z0-9._~/-]*$"}))
+          error("observability.otlp.metrics_path", "contains unsupported characters");
+        if (otlp["export_interval_ms"])
+          result.export_interval_ms =
+              unsigned_value(otlp["export_interval_ms"], "observability.otlp.export_interval_ms");
+        if (otlp["timeout_ms"])
+          result.timeout_ms = unsigned_value(otlp["timeout_ms"], "observability.otlp.timeout_ms");
+        if (otlp["queue_capacity"])
+          result.queue_capacity =
+              unsigned_value(otlp["queue_capacity"], "observability.otlp.queue_capacity");
+        if (otlp["max_queue_bytes"])
+          result.max_queue_bytes =
+              unsigned_value(otlp["max_queue_bytes"], "observability.otlp.max_queue_bytes");
+        if (otlp["max_response_bytes"])
+          result.max_response_bytes =
+              unsigned_value(otlp["max_response_bytes"], "observability.otlp.max_response_bytes");
+        if (otlp["retry_max_attempts"])
+          result.retry_max_attempts =
+              unsigned_value(otlp["retry_max_attempts"], "observability.otlp.retry_max_attempts");
+        if (otlp["retry_initial_backoff_ms"])
+          result.retry_initial_backoff_ms = unsigned_value(
+              otlp["retry_initial_backoff_ms"], "observability.otlp.retry_initial_backoff_ms");
+        if (otlp["retry_max_backoff_ms"])
+          result.retry_max_backoff_ms = unsigned_value(otlp["retry_max_backoff_ms"],
+                                                       "observability.otlp.retry_max_backoff_ms");
+        if (result.export_interval_ms < 250 || result.export_interval_ms > 600000)
+          error("observability.otlp.export_interval_ms", "must be between 250 and 600000");
+        if (result.timeout_ms < 100 || result.timeout_ms > 60000)
+          error("observability.otlp.timeout_ms", "must be between 100 and 60000");
+        if (result.queue_capacity == 0 || result.queue_capacity > 65536)
+          error("observability.otlp.queue_capacity", "must be between 1 and 65536");
+        if (result.max_queue_bytes < 65536 || result.max_queue_bytes > 64 * 1024 * 1024)
+          error("observability.otlp.max_queue_bytes", "must be between 65536 and 67108864");
+        if (result.max_response_bytes < 1024 || result.max_response_bytes > 4 * 1024 * 1024)
+          error("observability.otlp.max_response_bytes", "must be between 1024 and 4194304");
+        if (result.retry_max_attempts == 0 || result.retry_max_attempts > 10)
+          error("observability.otlp.retry_max_attempts", "must be between 1 and 10");
+        if (result.retry_initial_backoff_ms < 10 || result.retry_initial_backoff_ms > 60000)
+          error("observability.otlp.retry_initial_backoff_ms", "must be between 10 and 60000");
+        if (result.retry_max_backoff_ms < 10 || result.retry_max_backoff_ms > 600000)
+          error("observability.otlp.retry_max_backoff_ms", "must be between 10 and 600000");
+        if (result.retry_max_backoff_ms < result.retry_initial_backoff_ms)
+          error("observability.otlp.retry_max_backoff_ms",
+                "must not be less than retry_initial_backoff_ms");
+      }
+    }
+    if (const auto slos = value["slos"]) {
+      if (require_map(slos, "observability.slos")) {
+        strict_keys(slos, "observability.slos",
+                    {"window_seconds", "minimum_window_seconds", "availability_target",
+                     "max_error_ratio", "max_drop_ratio", "max_p95_latency_us"});
+        auto& result = config.observability.slos;
+        if (slos["window_seconds"])
+          result.window_seconds =
+              unsigned_value(slos["window_seconds"], "observability.slos.window_seconds");
+        if (slos["minimum_window_seconds"])
+          result.minimum_window_seconds = unsigned_value(
+              slos["minimum_window_seconds"], "observability.slos.minimum_window_seconds");
+        if (slos["availability_target"])
+          result.availability_target = double_value(slos["availability_target"],
+                                                    "observability.slos.availability_target", 0.99);
+        if (slos["max_error_ratio"])
+          result.max_error_ratio =
+              double_value(slos["max_error_ratio"], "observability.slos.max_error_ratio", 0.01);
+        if (slos["max_drop_ratio"])
+          result.max_drop_ratio =
+              double_value(slos["max_drop_ratio"], "observability.slos.max_drop_ratio", 0.01);
+        if (slos["max_p95_latency_us"])
+          result.max_p95_latency_us =
+              unsigned_value(slos["max_p95_latency_us"], "observability.slos.max_p95_latency_us");
+        if (result.window_seconds < 10 || result.window_seconds > 3600)
+          error("observability.slos.window_seconds", "must be between 10 and 3600");
+        if (result.minimum_window_seconds == 0 ||
+            result.minimum_window_seconds > result.window_seconds)
+          error("observability.slos.minimum_window_seconds",
+                "must be between 1 and window_seconds");
+        if (result.availability_target < 0 || result.availability_target > 1)
+          error("observability.slos.availability_target", "must be between 0 and 1");
+        if (result.max_error_ratio < 0 || result.max_error_ratio > 1)
+          error("observability.slos.max_error_ratio", "must be between 0 and 1");
+        if (result.max_drop_ratio < 0 || result.max_drop_ratio > 1)
+          error("observability.slos.max_drop_ratio", "must be between 0 and 1");
+        if (result.max_p95_latency_us == 0 || result.max_p95_latency_us > 3600000000ULL)
+          error("observability.slos.max_p95_latency_us", "must be between 1 and 3600000000");
       }
     }
   }

@@ -1,0 +1,17 @@
+services:
+  telemetry:
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    environment:
+      GRAPHX_OTLP_ENDPOINT: ${GRAPHX_OTLP_ENDPOINT:?set the HTTPS OTLP origin}
+      GRAPHX_OTLP_AUTH_TOKEN: ""
+      GRAPHX_OTLP_AUTH_TOKEN_FILE: /run/secrets/graphx-otlp-token
+      GRAPHX_OTLP_CA_FILE: /run/secrets/graphx-otlp-ca.pem
+    volumes:
+      - type: bind
+        source: ${GRAPHX_OTLP_AUTH_TOKEN_FILE:?set the host bearer-token file}
+        target: /run/secrets/graphx-otlp-token
+        read_only: true
+      - type: bind
+        source: ${GRAPHX_OTLP_CA_FILE:?set the host private-CA file}
+        target: /run/secrets/graphx-otlp-ca.pem
+        read_only: true

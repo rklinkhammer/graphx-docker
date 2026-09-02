@@ -209,6 +209,77 @@ exports one parent and one child span for the same trace, and requires distinct
 span IDs. This guards prefork worker lifecycles that same-process exporter tests
 cannot exercise.
 
+Native direct export intentionally accepts loopback collectors only. To verify
+the secure telemetry-service path, configure `GRAPHX_OTLP_ENDPOINT` with an
+HTTPS collector and optionally `GRAPHX_OTLP_AUTH_TOKEN_FILE`,
+`GRAPHX_OTLP_CA_FILE`, and the `GRAPHX_OTLP_CERT_FILE` / `GRAPHX_OTLP_KEY_FILE`
+pair. Confirm `/metrics` advances `graphx_otlp_exports_total`, failure does not
+interrupt the graph, the queue never exceeds its configured item or byte cap,
+and tokens and payloads do not appear in logs or metrics. The telemetry unit
+suite includes live UDP-to-authenticated-OTLP and private-CA/mTLS integration
+tests plus transient/permanent retry classification, `Retry-After`, absolute
+slow-drip deadline, shutdown-during-backoff, collector refusal followed by
+recovery, queue pressure during retry backoff, oversized-response, byte-cap,
+and forced all-zero identifier failure tests.
+
+For the hardened Compose projection, set host paths and validate both overlays:
+
+```sh
+export GRAPHX_OTLP_ENDPOINT=https://otel-collector.example:4318
+export GRAPHX_OTLP_AUTH_TOKEN_FILE=/host/secrets/otlp-token
+export GRAPHX_OTLP_CA_FILE=/host/secrets/otlp-ca.pem
+export GRAPHX_OTLP_CERT_FILE=/host/secrets/otlp-client.pem
+export GRAPHX_OTLP_KEY_FILE=/host/secrets/otlp-client-key.pem
+docker compose -f compose.yaml -f compose.otlp-secure.yaml \
+  -f compose.otlp-mtls.yaml config --quiet
+```
+
+Verify operational endpoints independently:
+
+```sh
+curl -f http://127.0.0.1:8080/api/live
+curl -f http://127.0.0.1:8080/api/ready
+curl -i http://127.0.0.1:8080/api/graph/ready
+curl http://127.0.0.1:8080/api/slo
+```
+
+Before nodes start, graph readiness must be 503 while service readiness is 200.
+After the graph is live, graph readiness must become 200. Stop a node and
+confirm it returns to 503 after the heartbeat deadline without restarting the
+telemetry service. The SLO is `warming` for its configured minimum window, then
+reports `met` or `violated` from measured rolling data.
+
+Validate the provisioned dashboard and alert assets with:
+
+```sh
+docker compose -f compose.yaml -f compose.observability.yaml config --quiet
+docker run --rm --entrypoint /bin/promtool \
+  -v "$PWD/deploy/observability:/etc/prometheus:ro" \
+  prom/prometheus:v3.13.0@sha256:c6b27ea434f8389bfe233fbc7be381cf50587c286e871bc842008f5a1b1908a7 \
+  check config /etc/prometheus/prometheus.yml
+docker run --rm --entrypoint /bin/promtool \
+  -v "$PWD/deploy/observability:/etc/prometheus:ro" \
+  -w /etc/prometheus \
+  prom/prometheus:v3.13.0@sha256:c6b27ea434f8389bfe233fbc7be381cf50587c286e871bc842008f5a1b1908a7 \
+  test rules alerts.test.yml
+```
+
+Static validation is not sufficient. Start the exact combined stack under an
+isolated Compose project, require both telemetry and Prometheus to become
+healthy, verify Prometheus reports the GraphX target `up`, query
+`graphx_service_ready`, and confirm Grafana returns dashboard UID
+`graphx-operations`. Then stop that isolated project. The operations regression
+script polls every condition under one bounded deadline, rather than assuming
+the first Prometheus scrape has completed when its process becomes ready. On a
+timeout it emits bounded container, target, and log diagnostics before cleanup.
+The checked-in regression scripts perform both the operations-stack and
+secure-export checks:
+
+```sh
+scripts/test-phase6-operations.sh
+scripts/test-phase6-secure-otlp.sh
+```
+
 ## 5. Docker bridge deployment
 
 The user-level smoke test is:

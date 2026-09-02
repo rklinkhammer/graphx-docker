@@ -86,6 +86,22 @@ See [`docs/security.md`](docs/security.md) for configuration examples, API
 authentication, limits, container policy, and the explicit Phase 8 authorization
 boundary.
 
+## Operations boundary
+
+Phase 6 adds secure bounded OTLP/HTTP JSON export from the telemetry service,
+separate process/service/graph health semantics, rolling in-memory SLO
+evaluation, Prometheus alerts, and a provisioned Grafana operations dashboard.
+The native C++ OTLP seam is intentionally loopback-only; remote export belongs
+at the telemetry service's authenticated TLS boundary. Start the optional stack
+with `docker compose -f compose.yaml -f compose.observability.yaml up -d --build`.
+Use `compose.otlp-secure.yaml` to mount a bearer-token file and private CA, and
+add `compose.otlp-mtls.yaml` when the receiver requires a client certificate.
+`scripts/test-phase6-operations.sh` verifies the complete operations stack and
+`scripts/test-phase6-secure-otlp.sh` verifies the secure Compose projection.
+See [`docs/observability.md`](docs/observability.md) for signal semantics,
+absolute request deadlines, bounded retry policy, endpoints, SLO formulas, and
+deployment guidance.
+
 ## Run the container demo manually
 
 Requirements: Docker with Compose.
@@ -381,9 +397,21 @@ The demo accepts these variables:
 | `GRAPHX_TELEMETRY_HOST` | all nodes | `127.0.0.1` | Best-effort UDP telemetry collector |
 | `GRAPHX_TELEMETRY_PORT` | all nodes, telemetry | `9000` | UDP event-ingest port |
 | `GRAPHX_HEARTBEAT_TIMEOUT_MS` | telemetry | configured value | Operations/test override for offline detection |
-| `GRAPHX_OTLP_HOST` | all nodes | empty (disabled) | OTLP/HTTP JSON collector host |
+| `GRAPHX_OTLP_HOST` | all nodes | empty (disabled) | Native OTLP/HTTP JSON collector host; loopback only |
 | `GRAPHX_OTLP_PORT` | all nodes | `4318` | OTLP/HTTP collector port |
 | `GRAPHX_OTLP_PATH` | all nodes | `/v1/traces` | OTLP trace endpoint |
+| `GRAPHX_OTLP_ENDPOINT` | telemetry | configured value (disabled by default) | HTTPS OTLP/HTTP base endpoint; setting a nonempty value enables export |
+| `GRAPHX_OTLP_AUTH_TOKEN[_FILE]` | telemetry | empty | Optional OTLP bearer credential; file form preferred |
+| `GRAPHX_OTLP_CA_FILE` | telemetry | empty | Optional private CA bundle |
+| `GRAPHX_OTLP_CERT_FILE`, `GRAPHX_OTLP_KEY_FILE` | telemetry | empty | Optional mTLS client credential pair |
+| `GRAPHX_OTLP_EXPORT_INTERVAL_MS` | telemetry | `5000` | OTLP metric snapshot interval |
+| `GRAPHX_OTLP_TIMEOUT_MS` | telemetry | `2000` | Per-request OTLP deadline |
+| `GRAPHX_OTLP_QUEUE_CAPACITY` | telemetry | `1024` | Bounded export queue |
+| `GRAPHX_OTLP_MAX_QUEUE_BYTES` | telemetry | `8388608` | Bounded export queue memory |
+| `GRAPHX_OTLP_MAX_RESPONSE_BYTES` | telemetry | `65536` | Maximum collector response body; capped at 4 MiB |
+| `GRAPHX_OTLP_RETRY_MAX_ATTEMPTS` | telemetry | `3` | Total attempts for retryable OTLP failures; 1–10 |
+| `GRAPHX_OTLP_RETRY_INITIAL_BACKOFF_MS` | telemetry | `200` | Initial exponential retry delay; jittered |
+| `GRAPHX_OTLP_RETRY_MAX_BACKOFF_MS` | telemetry | `5000` | Retry and `Retry-After` delay cap |
 | `GRAPHX_CAPTURE_ENABLED` | nodes, telemetry | configured value | Enable or disable runtime capture |
 | `GRAPHX_CAPTURE_PROVIDER` | nodes, telemetry | configured value | Capture provider; `pcapng` writes application frames |
 | `GRAPHX_CAPTURE_DIR` | nodes, telemetry | configured value | Shared capture-file directory |
@@ -402,8 +430,10 @@ baseline contract prematurely.
 
 To add observability, implement `TraceSink` and add its exporter name to the
 typed `observability.metrics` or `observability.tracing` configuration. The
-included OTLP/HTTP adapter turns canonical envelope trace IDs into spans and
-exports message/parent identities as attributes. The PCAPNG
+OTLP/HTTP adapters turn canonical envelope trace IDs into spans. Native direct
+export is loopback-only; the telemetry-service adapter is the authenticated TLS
+boundary for remote traces and metrics. See `docs/observability.md` for health,
+SLO, Prometheus, and Grafana operation. The PCAPNG
 capture sink writes exact canonical framed bytes and correlation comments;
 `ExtcapProvider` remains the C++ boundary for alternate live sources.
 
@@ -454,8 +484,10 @@ production-hardening phase forward.
    (implemented).
 4. **Quality automation** — CI, sanitizers, fuzzing, static analysis, and expanded
    transport tests (implemented).
-5. **Security** — authentication, TLS, API validation, and container hardening.
-6. **Operations** — OpenTelemetry integration, health checks, SLOs, and dashboards.
+5. **Security** — authentication, TLS, API validation, and container hardening
+   (implemented).
+6. **Operations** — OpenTelemetry integration, health checks, SLOs, and dashboards
+   (implemented).
 7. **History** — durable or backend-driven telemetry history.
 8. **Control plane** — authorized control and real runtime controls.
 9. **Wireshark** — production PCAPNG, dissector, and extcap implementation.

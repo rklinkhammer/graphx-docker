@@ -9,6 +9,8 @@ import { parse } from 'yaml'
 import { MAX_DATAGRAM_BYTES, RateLimiter, ReplayCache, isLoopback, originAllowed,
   parseRequestUrl, readSecret, signEnvelope, tokenMatches, validateTelemetryEvent,
   verifyEnvelope, webSocketBearer } from './security.mjs'
+import { OtlpHttpExporter, SloEvaluator, graphReadiness, otlpConfig, otlpMetricsRequest,
+  otlpTraceRequest } from './operations.mjs'
 
 const root = normalize(process.env.GRAPHX_WEB_ROOT || join(fileURLToPath(new URL('.', import.meta.url)), '../../web/dist'))
 const port = Number(process.env.PORT || 8080)
@@ -23,6 +25,9 @@ const transport = config.transport || {}
 const heartbeatTimeout = Number(process.env.GRAPHX_HEARTBEAT_TIMEOUT_MS || config.observability?.telemetry?.heartbeat_timeout_ms || 5000)
 const websocketPath = config.observability?.telemetry?.websocket || '/ws'
 const configuredCapture = config.observability?.capture || { enabled: false, provider: '' }
+const sloEvaluator = new SloEvaluator(config.observability?.slos)
+const configuredOtlp = otlpConfig(config.observability?.otlp)
+const otlpExporter = new OtlpHttpExporter(configuredOtlp)
 const captureConfig = { ...configuredCapture,
   enabled: process.env.GRAPHX_CAPTURE_ENABLED == null ? Boolean(configuredCapture.enabled) :
     ['1', 'true', 'yes', 'on'].includes(process.env.GRAPHX_CAPTURE_ENABLED.toLowerCase()),
@@ -100,6 +105,8 @@ function emptyEdge(connection = 'disconnected') {
 }
 
 const edges = Object.fromEntries(topology.edges.map(edge => [edge.id, emptyEdge()]))
+let serviceState = { httpReady: false, udpReady: false, shuttingDown: false }
+let slo = sloEvaluator.snapshot()
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png' }
 
 function recordRate(edge, timestamp, wireBytes) {
@@ -204,12 +211,16 @@ function snapshot() {
   const liveEndpoints = [...controlEndpoints.values()].filter(endpoint =>
     timestamp - endpoint.lastSeen <= heartbeatTimeout)
   const files = captureFiles()
+  const readiness = graphReadiness(nodes, edges, timestamp, heartbeatTimeout)
   return { kind: 'snapshot', graph: graph.id, topology,
     telemetry: { websocket: websocketPath, heartbeatTimeoutMs: heartbeatTimeout,
       rateWindowSeconds, latencyBoundsUs }, state,
     control: { available: controlToken.length > 0 && telemetrySecret.length > 0,
       authenticatedTelemetry: telemetrySecret.length > 0, connectedNodes: liveEndpoints.length,
-      acknowledgements: Object.fromEntries(controlAcks) }, nodes, edges: edgeViews,
+      acknowledgements: Object.fromEntries(controlAcks) },
+    health: { serviceReady: serviceState.httpReady && serviceState.udpReady && !serviceState.shuttingDown,
+      graph: readiness }, slo, otlp: { enabled: configuredOtlp.enabled, ...otlpExporter.stats },
+    nodes, edges: edgeViews,
     capture: { enabled: Boolean(captureConfig.enabled), provider: captureConfig.provider || null,
       format: files.length ? 'pcapng' : null,
       files }, recent: recentWithCapture(), timestamp }
@@ -281,7 +292,47 @@ function prometheus() {
     '# TYPE graphx_edge_backpressure_seconds_total counter',
     '# HELP graphx_edge_connected Whether recent events report a connected transport path.',
     '# TYPE graphx_edge_connected gauge',
+    '# HELP graphx_service_ready Whether the telemetry HTTP and UDP listeners are ready.',
+    '# TYPE graphx_service_ready gauge',
+    '# HELP graphx_graph_ready Whether all configured GraphX nodes and edges are ready.',
+    '# TYPE graphx_graph_ready gauge',
+    '# HELP graphx_slo_met Whether all GraphX SLO objectives are met after warm-up.',
+    '# TYPE graphx_slo_met gauge',
+    '# HELP graphx_slo_status Current SLO evaluator state as a one-hot gauge.',
+    '# TYPE graphx_slo_status gauge',
+    '# HELP graphx_slo_ratio Current value and configured target for dimensionless GraphX SLO objectives.',
+    '# TYPE graphx_slo_ratio gauge',
+    '# HELP graphx_slo_latency_seconds Current value and configured target for the GraphX latency SLO.',
+    '# TYPE graphx_slo_latency_seconds gauge',
+    '# HELP graphx_otlp_exports_total OTLP export outcomes.',
+    '# TYPE graphx_otlp_exports_total counter',
+    '# HELP graphx_otlp_queue_depth Current bounded OTLP export queue depth.',
+    '# TYPE graphx_otlp_queue_depth gauge',
+    '# HELP graphx_otlp_queue_bytes Current bounded OTLP export queue bytes.',
+    '# TYPE graphx_otlp_queue_bytes gauge',
   ]
+  const readiness = graphReadiness(nodes, edges, Date.now(), heartbeatTimeout)
+  lines.push(`graphx_service_ready ${serviceState.httpReady && serviceState.udpReady && !serviceState.shuttingDown ? 1 : 0}`)
+  lines.push(`graphx_graph_ready ${readiness.ready ? 1 : 0}`)
+  lines.push(`graphx_slo_met ${slo.met ? 1 : 0}`)
+  for (const status of ['warming', 'met', 'violated'])
+    lines.push(`graphx_slo_status{status="${status}"} ${slo.status === status ? 1 : 0}`)
+  for (const [name, objective] of Object.entries(slo.objectives || {})) {
+    if (name === 'p95LatencyUs') {
+      if (objective.value != null) lines.push(`graphx_slo_latency_seconds{quantile="0.95",kind="value"} ${objective.value / 1e6}`)
+      lines.push(`graphx_slo_latency_seconds{quantile="0.95",kind="target"} ${objective.target / 1e6}`)
+    } else {
+      if (objective.value != null) lines.push(`graphx_slo_ratio{objective="${name}",kind="value"} ${objective.value}`)
+      lines.push(`graphx_slo_ratio{objective="${name}",kind="target"} ${objective.target}`)
+    }
+  }
+  lines.push(`graphx_otlp_exports_total{outcome="exported"} ${otlpExporter.stats.exported}`)
+  lines.push(`graphx_otlp_exports_total{outcome="failed"} ${otlpExporter.stats.failed}`)
+  lines.push(`graphx_otlp_exports_total{outcome="retried"} ${otlpExporter.stats.retried}`)
+  lines.push(`graphx_otlp_exports_total{outcome="dropped"} ${otlpExporter.stats.dropped}`)
+  lines.push(`graphx_otlp_exports_total{outcome="rejected"} ${otlpExporter.stats.rejected}`)
+  lines.push(`graphx_otlp_queue_depth ${otlpExporter.stats.queueDepth}`)
+  lines.push(`graphx_otlp_queue_bytes ${otlpExporter.stats.queueBytes}`)
   lines.push('# HELP graphx_node_cpu_percent Process CPU used by a GraphX node as a percentage of one core.')
   lines.push('# TYPE graphx_node_cpu_percent gauge')
   for (const [id, node] of Object.entries(nodes))
@@ -317,21 +368,44 @@ function prometheus() {
 }
 
 const handleRequest = (request, response) => {
-  if (!withinRateLimit(request, 120)) return json(response, 429, { error: 'rate limit exceeded' }, { 'retry-after': '60' })
   if (!request.url || request.url.length > 2048) return json(response, 414, { error: 'request target too long' })
   const url = parseRequestUrl(request.url)
   if (!url) return json(response, 400, { error: 'invalid request target' })
+  if (url.pathname === '/api/live') {
+    if (request.method !== 'GET') return json(response, 405, { error: 'method not allowed' }, { allow: 'GET' })
+    return json(response, 200, { status: 'live', service: 'graphx-telemetry' })
+  }
+  if (url.pathname === '/api/ready') {
+    if (request.method !== 'GET') return json(response, 405, { error: 'method not allowed' }, { allow: 'GET' })
+    const ready = serviceState.httpReady && serviceState.udpReady && !serviceState.shuttingDown
+    return json(response, ready ? 200 : 503, { status: ready ? 'ready' : 'not-ready', service: 'graphx-telemetry',
+      listeners: { http: serviceState.httpReady, udp: serviceState.udpReady }, shuttingDown: serviceState.shuttingDown })
+  }
   if (url.pathname === '/api/health') {
     if (request.method !== 'GET') return json(response, 405, { error: 'method not allowed' }, { allow: 'GET' })
-    return json(response, 200, { status: 'ok', service: 'graphx-telemetry', tls: Boolean(tlsCertificateFile) })
+    const readiness = graphReadiness(nodes, edges, Date.now(), heartbeatTimeout)
+    return json(response, 200, { status: 'live', service: 'graphx-telemetry', tls: Boolean(tlsCertificateFile),
+      serviceReady: serviceState.httpReady && serviceState.udpReady && !serviceState.shuttingDown,
+      graphReady: readiness.ready })
   }
-  const observed = ['/api/topology', '/api/captures', '/metrics'].includes(url.pathname) ||
+  if (!withinRateLimit(request, 120)) return json(response, 429, { error: 'rate limit exceeded' }, { 'retry-after': '60' })
+  const observed = ['/api/topology', '/api/captures', '/api/graph/ready', '/api/slo', '/metrics'].includes(url.pathname) ||
     url.pathname.startsWith('/captures/')
   if (observed && observationToken && !authorized(request, observationToken))
     return json(response, 401, { error: 'invalid observation token' }, { 'www-authenticate': 'Bearer realm="graphx-observation"' })
   if (url.pathname === '/api/topology') {
     if (request.method !== 'GET') return json(response, 405, { error: 'method not allowed' }, { allow: 'GET' })
     return json(response, 200, snapshot())
+  }
+  if (url.pathname === '/api/graph/ready') {
+    if (request.method !== 'GET') return json(response, 405, { error: 'method not allowed' }, { allow: 'GET' })
+    const readiness = graphReadiness(nodes, edges, Date.now(), heartbeatTimeout)
+    return json(response, readiness.ready ? 200 : 503,
+      { status: readiness.ready ? 'ready' : 'not-ready', ...readiness })
+  }
+  if (url.pathname === '/api/slo') {
+    if (request.method !== 'GET') return json(response, 405, { error: 'method not allowed' }, { allow: 'GET' })
+    return json(response, 200, slo)
   }
   if (url.pathname === '/api/captures') {
     if (request.method !== 'GET') return json(response, 405, { error: 'method not allowed' }, { allow: 'GET' })
@@ -452,6 +526,8 @@ udp.on('message', (data, remote) => {
     if (data.length > MAX_DATAGRAM_BYTES) return
     const event = verifyEnvelope(JSON.parse(data.toString('utf8')), telemetrySecret, replayCache)
     if (!validateTelemetryEvent(event, nodeIds, edgeIds)) return
+    if (configuredOtlp.enabled && event.kind === 'trace')
+      otlpExporter.enqueue(configuredOtlp.tracesPath, otlpTraceRequest(event))
     const receivedAt = Date.now()
     if (event.kind === 'control_ack' && nodes[event.nodeId] &&
         (event.action === 'pause' || event.action === 'resume')) {
@@ -518,8 +594,10 @@ udp.on('message', (data, remote) => {
   } catch { /* Telemetry is best-effort; malformed datagrams are ignored. */ }
 })
 
+udp.on('listening', () => { serviceState.udpReady = true })
+udp.on('close', () => { serviceState.udpReady = false })
 udp.bind(udpPort, udpBind)
-setInterval(() => {
+const healthTimer = setInterval(() => {
   const now = Date.now()
   let changed = false
   for (const node of Object.values(nodes)) {
@@ -530,5 +608,35 @@ setInterval(() => {
   }
   if (changed) broadcast()
 }, Math.max(250, Math.min(heartbeatTimeout / 2, 1000))).unref()
-server.listen(port, httpBind, () => console.log(
-  `GraphX telemetry ${tlsCertificateFile ? 'HTTPS/WSS' : 'HTTP/WS'} ${httpBind}:${port}, UDP ${udpBind}:${udpPort}`))
+const sloTimer = setInterval(() => {
+  const timestamp = Date.now()
+  const readiness = graphReadiness(nodes, edges, timestamp, heartbeatTimeout)
+  slo = sloEvaluator.observe(readiness.ready, edges, timestamp)
+}, 1000).unref()
+const otlpTimer = setInterval(() => {
+  if (configuredOtlp.enabled) {
+    const readiness = graphReadiness(nodes, edges, Date.now(), heartbeatTimeout)
+    otlpExporter.enqueue(configuredOtlp.metricsPath, otlpMetricsRequest(
+      Object.fromEntries(Object.entries(edges).map(([id, edge]) => [id, edgeView(edge)])), nodes, slo,
+      readiness.ready))
+  }
+}, configuredOtlp.exportIntervalMs).unref()
+server.listen(port, httpBind, () => {
+  serviceState.httpReady = true
+  console.log(`GraphX telemetry ${tlsCertificateFile ? 'HTTPS/WSS' : 'HTTP/WS'} ${httpBind}:${port}, UDP ${udpBind}:${udpPort}`)
+})
+
+function shutdown() {
+  if (serviceState.shuttingDown) return
+  serviceState.shuttingDown = true
+  serviceState.httpReady = false
+  clearInterval(healthTimer); clearInterval(sloTimer); clearInterval(otlpTimer)
+  otlpExporter.close()
+  for (const socket of webSockets.clients) socket.close(1001, 'service shutting down')
+  webSockets.close()
+  udp.close()
+  server.close(() => process.exit(0))
+  setTimeout(() => process.exit(1), 5000).unref()
+}
+process.on('SIGTERM', shutdown)
+process.on('SIGINT', shutdown)

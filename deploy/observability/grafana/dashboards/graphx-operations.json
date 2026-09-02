@@ -1,0 +1,24 @@
+{
+  "annotations": { "list": [] },
+  "editable": false,
+  "panels": [
+    { "type": "stat", "title": "Graph ready", "gridPos": { "h": 5, "w": 4, "x": 0, "y": 0 }, "targets": [{ "expr": "graphx_graph_ready", "legendFormat": "ready" }], "fieldConfig": { "defaults": { "mappings": [{ "type": "value", "options": { "0": { "text": "NOT READY", "color": "red" }, "1": { "text": "READY", "color": "green" } } }], "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "red" }, { "color": "green", "value": 1 }] } }, "overrides": [] } },
+    { "type": "stat", "title": "SLO met", "gridPos": { "h": 5, "w": 4, "x": 4, "y": 0 }, "targets": [{ "expr": "graphx_slo_met", "legendFormat": "SLO" }] },
+    { "type": "timeseries", "title": "Message rate", "gridPos": { "h": 8, "w": 8, "x": 8, "y": 0 }, "targets": [{ "expr": "graphx_edge_message_rate", "legendFormat": "{{edge}}" }] },
+    { "type": "timeseries", "title": "P95 edge latency", "gridPos": { "h": 8, "w": 8, "x": 16, "y": 0 }, "targets": [{ "expr": "histogram_quantile(0.95, sum by (le, edge) (rate(graphx_edge_latency_seconds_bucket[5m])))", "legendFormat": "{{edge}}" }], "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] } },
+    { "type": "timeseries", "title": "SLO ratios and targets", "gridPos": { "h": 8, "w": 8, "x": 0, "y": 8 }, "targets": [{ "expr": "graphx_slo_ratio", "legendFormat": "{{objective}} {{kind}}" }], "fieldConfig": { "defaults": { "unit": "percentunit" }, "overrides": [] } },
+    { "type": "timeseries", "title": "SLO p95 latency and target", "gridPos": { "h": 8, "w": 4, "x": 8, "y": 8 }, "targets": [{ "expr": "graphx_slo_latency_seconds", "legendFormat": "p95 {{kind}}" }], "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] } },
+    { "type": "timeseries", "title": "Errors and drops", "gridPos": { "h": 8, "w": 6, "x": 12, "y": 8 }, "targets": [{ "expr": "rate(graphx_edge_errors_total[5m])", "legendFormat": "errors {{edge}}" }, { "expr": "rate(graphx_edge_dropped_total[5m])", "legendFormat": "drops {{edge}}" }] },
+    { "type": "timeseries", "title": "OTLP exporter outcomes", "gridPos": { "h": 8, "w": 6, "x": 18, "y": 8 }, "targets": [{ "expr": "rate(graphx_otlp_exports_total[5m])", "legendFormat": "{{outcome}}" }], "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] } },
+    { "type": "timeseries", "title": "OTLP queue depth", "gridPos": { "h": 8, "w": 6, "x": 0, "y": 16 }, "targets": [{ "expr": "graphx_otlp_queue_depth", "legendFormat": "records" }], "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] } },
+    { "type": "timeseries", "title": "Node CPU", "gridPos": { "h": 8, "w": 12, "x": 6, "y": 16 }, "targets": [{ "expr": "graphx_node_cpu_percent", "legendFormat": "{{node}}" }], "fieldConfig": { "defaults": { "unit": "percent" }, "overrides": [] } }
+  ],
+  "schemaVersion": 42,
+  "tags": ["graphx", "operations"],
+  "templating": { "list": [] },
+  "time": { "from": "now-30m", "to": "now" },
+  "timezone": "browser",
+  "title": "GraphX Operations",
+  "uid": "graphx-operations",
+  "version": 1
+}

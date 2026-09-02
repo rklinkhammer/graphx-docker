@@ -330,6 +330,34 @@
             "provider": { "type": "string", "minLength": 1, "maxLength": 128 },
             "directory": { "type": "string", "minLength": 1, "maxLength": 1024 }
           }
+        },
+        "otlp": {
+          "type": "object", "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "endpoint": { "type": "string", "pattern": "^https?://(\\[[0-9A-Fa-f:]+\\]|[A-Za-z0-9.-]+)(:[0-9]{1,5})?/?$", "maxLength": 2048 },
+            "traces_path": { "type": "string", "pattern": "^/[A-Za-z0-9._~/-]*$", "maxLength": 256 },
+            "metrics_path": { "type": "string", "pattern": "^/[A-Za-z0-9._~/-]*$", "maxLength": 256 },
+            "export_interval_ms": { "type": "integer", "minimum": 250, "maximum": 600000 },
+            "timeout_ms": { "type": "integer", "minimum": 100, "maximum": 60000 },
+            "queue_capacity": { "type": "integer", "minimum": 1, "maximum": 65536 },
+            "max_queue_bytes": { "type": "integer", "minimum": 65536, "maximum": 67108864 },
+            "max_response_bytes": { "type": "integer", "minimum": 1024, "maximum": 4194304 },
+            "retry_max_attempts": { "type": "integer", "minimum": 1, "maximum": 10 },
+            "retry_initial_backoff_ms": { "type": "integer", "minimum": 10, "maximum": 60000 },
+            "retry_max_backoff_ms": { "type": "integer", "minimum": 10, "maximum": 600000 }
+          }
+        },
+        "slos": {
+          "type": "object", "additionalProperties": false,
+          "properties": {
+            "window_seconds": { "type": "integer", "minimum": 10, "maximum": 3600 },
+            "minimum_window_seconds": { "type": "integer", "minimum": 1, "maximum": 3600 },
+            "availability_target": { "type": "number", "minimum": 0, "maximum": 1 },
+            "max_error_ratio": { "type": "number", "minimum": 0, "maximum": 1 },
+            "max_drop_ratio": { "type": "number", "minimum": 0, "maximum": 1 },
+            "max_p95_latency_us": { "type": "integer", "minimum": 1, "maximum": 3600000000 }
+          }
         }
       }
     }

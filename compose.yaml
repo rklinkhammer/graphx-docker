@@ -68,6 +68,12 @@ services:
     image: graphx-telemetry:latest
     ports: ["127.0.0.1:8080:8080"]
     expose: ["9000/udp"]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/api/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 6
+      start_period: 5s
     environment:
       GRAPHX_CAPTURE_ENABLED: ${GRAPHX_CAPTURE_ENABLED:-false}
       GRAPHX_CAPTURE_PROVIDER: pcapng
@@ -79,6 +85,17 @@ services:
       GRAPHX_TELEMETRY_BIND: 0.0.0.0
       GRAPHX_ALLOW_INSECURE_REMOTE: "true"
       GRAPHX_ALLOWED_ORIGINS: ${GRAPHX_ALLOWED_ORIGINS:-http://127.0.0.1:8080}
+      GRAPHX_OTLP_ENDPOINT: ${GRAPHX_OTLP_ENDPOINT:-}
+      GRAPHX_OTLP_AUTH_TOKEN: ${GRAPHX_OTLP_AUTH_TOKEN:-}
+      GRAPHX_OTLP_CA_FILE: ${GRAPHX_OTLP_CA_FILE:-}
+      GRAPHX_OTLP_EXPORT_INTERVAL_MS: ${GRAPHX_OTLP_EXPORT_INTERVAL_MS:-}
+      GRAPHX_OTLP_TIMEOUT_MS: ${GRAPHX_OTLP_TIMEOUT_MS:-}
+      GRAPHX_OTLP_QUEUE_CAPACITY: ${GRAPHX_OTLP_QUEUE_CAPACITY:-}
+      GRAPHX_OTLP_MAX_QUEUE_BYTES: ${GRAPHX_OTLP_MAX_QUEUE_BYTES:-}
+      GRAPHX_OTLP_MAX_RESPONSE_BYTES: ${GRAPHX_OTLP_MAX_RESPONSE_BYTES:-}
+      GRAPHX_OTLP_RETRY_MAX_ATTEMPTS: ${GRAPHX_OTLP_RETRY_MAX_ATTEMPTS:-}
+      GRAPHX_OTLP_RETRY_INITIAL_BACKOFF_MS: ${GRAPHX_OTLP_RETRY_INITIAL_BACKOFF_MS:-}
+      GRAPHX_OTLP_RETRY_MAX_BACKOFF_MS: ${GRAPHX_OTLP_RETRY_MAX_BACKOFF_MS:-}
     volumes: [captures:/captures:ro]
     networks: [graphx]
     read_only: true

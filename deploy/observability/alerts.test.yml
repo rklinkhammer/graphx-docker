@@ -1,0 +1,23 @@
+rule_files: [alerts.yml]
+evaluation_interval: 1m
+tests:
+  - name: warm-up never pages as a violation
+    interval: 1m
+    input_series:
+      - series: 'graphx_slo_status{status="violated"}'
+        values: '0 0 0 0 0'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: GraphXSloViolated
+        exp_alerts: []
+  - name: evaluated violation pages after the hold period
+    interval: 1m
+    input_series:
+      - series: 'graphx_slo_status{status="violated"}'
+        values: '1 1 1 1'
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: GraphXSloViolated
+        exp_alerts:
+          - exp_labels: { severity: critical, status: violated }
+            exp_annotations: { summary: "GraphX operational SLO is violated" }

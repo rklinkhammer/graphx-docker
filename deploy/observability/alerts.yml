@@ -1,0 +1,25 @@
+groups:
+  - name: graphx
+    rules:
+      - alert: GraphXGraphNotReady
+        expr: graphx_graph_ready == 0
+        for: 30s
+        labels: { severity: warning }
+        annotations: { summary: "GraphX graph is not ready" }
+      - alert: GraphXSloViolated
+        expr: graphx_slo_status{status="violated"} == 1
+        for: 2m
+        labels: { severity: critical }
+        annotations: { summary: "GraphX operational SLO is violated" }
+      - alert: GraphXOtlpExportFailures
+        expr: increase(graphx_otlp_exports_total{outcome="failed"}[5m]) > 0
+        labels: { severity: warning }
+        annotations: { summary: "GraphX OTLP exports are failing" }
+      - alert: GraphXOtlpQueueDrops
+        expr: increase(graphx_otlp_exports_total{outcome="dropped"}[5m]) > 0
+        labels: { severity: critical }
+        annotations: { summary: "GraphX OTLP export queue dropped telemetry" }
+      - alert: GraphXOtlpPartialRejection
+        expr: increase(graphx_otlp_exports_total{outcome="rejected"}[5m]) > 0
+        labels: { severity: warning }
+        annotations: { summary: "The OTLP receiver partially rejected GraphX telemetry" }

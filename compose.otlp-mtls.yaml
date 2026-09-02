@@ -1,0 +1,14 @@
+services:
+  telemetry:
+    environment:
+      GRAPHX_OTLP_CERT_FILE: /run/secrets/graphx-otlp-client.pem
+      GRAPHX_OTLP_KEY_FILE: /run/secrets/graphx-otlp-client.key
+    volumes:
+      - type: bind
+        source: ${GRAPHX_OTLP_CERT_FILE:?set the host client-certificate file}
+        target: /run/secrets/graphx-otlp-client.pem
+        read_only: true
+      - type: bind
+        source: ${GRAPHX_OTLP_KEY_FILE:?set the host client-private-key file}
+        target: /run/secrets/graphx-otlp-client.key
+        read_only: true

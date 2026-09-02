@@ -95,6 +95,14 @@ void authoritative_config_loads() {
   expect(config.observability.telemetry.host == "telemetry" &&
              config.observability.telemetry.heartbeat_timeout_ms == 5000,
          "typed telemetry configuration");
+  expect(!config.observability.otlp.enabled && config.observability.otlp.queue_capacity == 1024 &&
+             config.observability.otlp.retry_max_attempts == 3 &&
+             config.observability.otlp.retry_initial_backoff_ms == 200 &&
+             config.observability.otlp.retry_max_backoff_ms == 5000,
+         "typed bounded OTLP configuration");
+  expect(config.observability.slos.window_seconds == 300 &&
+             config.observability.slos.availability_target == 0.99,
+         "typed SLO configuration");
 }
 
 void tcp_policy_loads() {
@@ -180,6 +188,27 @@ observability:
   const auto capture = graphx::load_config(file.path()).observability.capture;
   expect(capture.enabled && capture.provider == "pcapng" && capture.directory == "test-captures",
          "PCAPNG capture configuration");
+}
+
+void invalid_operations_configuration_is_rejected() {
+  TemporaryConfig file(std::string(valid_config) + R"yaml(
+observability:
+  otlp: { enabled: true, endpoint: "http://user@collector.example/path", traces_path: traces, export_interval_ms: 1, timeout_ms: 1, queue_capacity: 0, max_queue_bytes: 10, max_response_bytes: 100, retry_max_attempts: 0, retry_initial_backoff_ms: 100, retry_max_backoff_ms: 10 }
+  slos: { window_seconds: 9, minimum_window_seconds: 20, availability_target: 1.1, max_error_ratio: -0.1, max_drop_ratio: 2, max_p95_latency_us: 0 }
+)yaml");
+  try {
+    [[maybe_unused]] const auto ignored = graphx::load_config(file.path());
+    throw std::runtime_error("invalid operations configuration was accepted");
+  } catch (const graphx::ConfigError& error) {
+    expect(diagnostic_contains(error, "otlp.traces_path"), "OTLP path diagnostic");
+    expect(diagnostic_contains(error, "otlp.endpoint"), "OTLP endpoint diagnostic");
+    expect(diagnostic_contains(error, "otlp.queue_capacity"), "OTLP queue diagnostic");
+    expect(diagnostic_contains(error, "otlp.retry_max_attempts"), "OTLP retry count diagnostic");
+    expect(diagnostic_contains(error, "otlp.retry_max_backoff_ms"),
+           "OTLP retry backoff diagnostic");
+    expect(diagnostic_contains(error, "slos.window_seconds"), "SLO window diagnostic");
+    expect(diagnostic_contains(error, "slos.availability_target"), "SLO ratio diagnostic");
+  }
 }
 
 void invalid_shared_memory_config_is_rejected() {
@@ -700,6 +729,7 @@ int main() {
       {"shared-memory config", shared_memory_config_loads},
       {"invalid observability", invalid_observability_is_rejected},
       {"capture config", capture_configuration},
+      {"invalid operations config", invalid_operations_configuration_is_rejected},
       {"invalid shared-memory config", invalid_shared_memory_config_is_rejected},
       {"mixed network model", mixed_network_model_and_plan_load},
       {"standalone network examples", standalone_network_examples_load},
