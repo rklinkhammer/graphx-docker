@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-CLANG_FORMAT_BIN=${CLANG_FORMAT:-clang-format}
+CLANG_FORMAT_BIN=${CLANG_FORMAT:-clang-format-18}
 REQUIRED_MAJOR=18
 FILES=()
 

@@ -34,7 +34,7 @@ C++20/23 compiler, Node.js/npm and curl. Docker tests need Docker Engine/Desktop
 also need a Linux host, Open vSwitch, iproute2, nftables and root/sudo access.
 tcpdump or dumpcap is optional for capture checks.
 
-Quality checks additionally need clang-format, clang-tidy, and cppcheck. Fuzzing
+Quality checks additionally need clang-format-18, clang-tidy-18, and cppcheck. Fuzzing
 needs Clang with libFuzzer and `xxd`. Override tool names with `CLANG_FORMAT`,
 `CLANG_TIDY`, and `CPPCHECK`; override build directories with
 `GRAPHX_QUALITY_BUILD_DIR` and `GRAPHX_FUZZ_BUILD_DIR`.
