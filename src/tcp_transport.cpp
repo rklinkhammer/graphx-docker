@@ -48,12 +48,11 @@ constexpr auto kAcceptCancellationPoll = std::chrono::milliseconds(25);
 #ifndef SO_NOSIGPIPE
 class ScopedSigpipeBlock {
  public:
-  ScopedSigpipeBlock() {
+  ScopedSigpipeBlock() noexcept {
     ::sigemptyset(&sigpipe_);
     ::sigaddset(&sigpipe_, SIGPIPE);
     const int status = ::pthread_sigmask(SIG_BLOCK, &sigpipe_, &previous_mask_);
-    if (status != 0)
-      throw std::runtime_error(std::string("block SIGPIPE: ") + std::strerror(status));
+    if (status != 0) return;
     active_ = true;
 
     if (::sigismember(&previous_mask_, SIGPIPE) == 0) {
@@ -67,7 +66,7 @@ class ScopedSigpipeBlock {
   ScopedSigpipeBlock(const ScopedSigpipeBlock&) = delete;
   ScopedSigpipeBlock& operator=(const ScopedSigpipeBlock&) = delete;
 
-  ~ScopedSigpipeBlock() {
+  ~ScopedSigpipeBlock() noexcept {
     if (!active_) return;
     if (::sigismember(&previous_mask_, SIGPIPE) == 0 && !pending_before_) {
       sigset_t pending{};
