@@ -75,16 +75,30 @@ The library uses C++23 by default but only relies on broadly available C++20-era
 ## Secure deployment boundary
 
 Phase 5 adds optional TLS 1.3/mTLS to TCP graph edges, HTTPS/mTLS for telemetry,
-separate observation and control bearer credentials, HMAC-authenticated
+separate observation and control credentials, HMAC-authenticated
 anti-replay UDP telemetry/control, strict API limits, and least-privilege Compose
 defaults. Telemetry binds to loopback by default and runtime controls remain
-disabled unless both a control credential and telemetry shared secret are
-configured. Secrets may be supplied inline or through `*_FILE` variables for
-mounted files; they do not belong in `graphx.yaml`.
+disabled unless a control credential and matching runtime identity model are
+configured. Phase 8 adds a versioned least-privilege policy, distinct per-node
+HMAC identities, attributable
+commands, idempotency, expiry, correlated acknowledgements and bounded audit.
+Arbitrary negative-ACK text is reduced to documented non-secret protocol codes
+before it reaches command responses, audit, history, or logs. All credential
+roles must contain mutually distinct values, and ordinary signed telemetry is
+bounded, normalized, and filtered against active, newly rotated, and recently
+superseded credentials before it reaches observation, export, or durable-history
+consumers. File-only control/runtime rotation uses a bounded pre-fan-out reload
+and 60-second redaction overlap. Deployments that may restart the collector
+during that overlap project the old values through the bounded, expiring
+`GRAPHX_PREVIOUS_CREDENTIALS_FILE`; those values are redaction-only and never
+authenticate. See the coordinated rotation procedure before rotating production
+credentials.
+Secrets may be supplied inline or through mounted files; they do not belong in
+`graphx.yaml`.
 
 See [`docs/security.md`](docs/security.md) for configuration examples, API
-authentication, limits, container policy, and the explicit Phase 8 authorization
-boundary.
+authentication, limits and container policy, and
+[`docs/control-plane.md`](docs/control-plane.md) for the Phase 8 boundary.
 
 ## Operations boundary
 
@@ -375,12 +389,15 @@ wire-byte rates are derived from sends in the active five-second window. The UI
 shows sent/received values independently and uses `—` when a value is genuinely
 unavailable instead of displaying a synthetic zero.
 
-Reset clears telemetry aggregation. When `GRAPHX_CONTROL_TOKEN` is configured,
-the authenticated pause/resume control is delivered over the existing connected
-UDP telemetry channel. Source nodes stop producing new envelopes while in-flight
-work drains. The API rejects missing/invalid credentials and reports when no
-live runtimes are available. Native netem fault hooks remain separate through
-`graphx infra fault` and the example helpers.
+Reset clears telemetry aggregation. Phase 8's versioned control policy scopes
+named principals to actions and source nodes. Pause/resume commands carry UUIDs,
+expiry, actor-scoped idempotency and per-node signed acknowledgements over the
+HMAC telemetry channel. Policy deployments use distinct node secrets; the
+single shared secret remains only in explicit legacy compatibility mode. Source nodes stop producing new envelopes while
+in-flight work drains. The earlier `GRAPHX_CONTROL_TOKEN` route remains a
+compatibility principal. See [`docs/control-plane.md`](docs/control-plane.md).
+Native netem fault hooks remain separate through `graphx infra fault` and the
+example helpers.
 
 ## Repository layout
 
@@ -415,6 +432,7 @@ The demo accepts these variables:
 | `GRAPHX_MAX_MESSAGES` | all demo nodes | `0` | Drain/stop after this many messages; zero runs continuously |
 | `GRAPHX_TELEMETRY_HOST` | all nodes | `127.0.0.1` | Best-effort UDP telemetry collector |
 | `GRAPHX_TELEMETRY_PORT` | all nodes, telemetry | `9000` | UDP event-ingest port |
+| `GRAPHX_PREVIOUS_CREDENTIALS_FILE` | telemetry | empty | Optional bounded, expiring redaction-only manifest used to preserve old-value filtering across restart |
 | `GRAPHX_HEARTBEAT_TIMEOUT_MS` | telemetry | configured value | Operations/test override for offline detection |
 | `GRAPHX_OTLP_HOST` | all nodes | empty (disabled) | Native OTLP/HTTP JSON collector host; loopback only |
 | `GRAPHX_OTLP_PORT` | all nodes | `4318` | OTLP/HTTP collector port |
@@ -524,7 +542,7 @@ production-hardening phase forward.
    (implemented).
 7. **History** — durable or backend-driven telemetry history (implemented with
    an optional isolated SQLite backend and read-only API).
-8. **Control plane** — authorized control and real runtime controls.
+8. **Control plane** — authorized control and real runtime controls (implemented).
 9. **Wireshark** — production PCAPNG, dissector, and extcap implementation.
 10. **Release engineering** — compatibility policy, packaging, and support processes.
 

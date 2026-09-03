@@ -13,7 +13,7 @@ RUN addgroup -S -g 65532 graphx-capture && addgroup node graphx-capture \
  && chown -R node:node /var/lib/graphx && chmod 0750 /var/lib/graphx /var/lib/graphx/history
 COPY apps/telemetry/package*.json ./
 RUN npm ci --omit=dev
-COPY --chown=node:node apps/telemetry/server.mjs apps/telemetry/security.mjs apps/telemetry/operations.mjs \
+COPY --chown=node:node apps/telemetry/server.mjs apps/telemetry/security.mjs apps/telemetry/control.mjs apps/telemetry/operations.mjs \
   apps/telemetry/history.mjs apps/telemetry/history-worker.mjs ./
 COPY graphx.yaml ./graphx.yaml
 COPY --from=web /app/web/dist ./web/dist

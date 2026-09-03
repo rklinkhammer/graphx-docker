@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { bearerHeaders, controlRequest, persistObservationToken, webSocketProtocols } from './auth.js'
+import { bearerHeaders, controlCommandRequest, controlRequest, controlStatusRequest, persistObservationToken, webSocketProtocols } from './auth.js'
 
 test('observation credentials use bearer headers and UTF-8 WebSocket subprotocols', () => {
   const token = 'graphx-observation-token-安全-0123456789'
@@ -10,6 +10,15 @@ test('observation credentials use bearer headers and UTF-8 WebSocket subprotocol
   const decoded = Buffer.from(protocols[1].slice('graphx-auth.'.length), 'base64url').toString('utf8')
   assert.equal(decoded, token)
   assert.deepEqual(webSocketProtocols(), ['graphx'])
+})
+
+test('command requests carry bounded intent and an idempotency identity', () => {
+  const request = controlCommandRequest('pause', 'control-token', ['generator'], 'maintenance', 'request-1')
+  assert.equal(request.url, '/api/control/commands')
+  assert.deepEqual(request.options.headers, { Authorization: 'Bearer control-token',
+    'Content-Type': 'application/json', 'Idempotency-Key': 'request-1' })
+  assert.deepEqual(JSON.parse(request.options.body), { action: 'pause', targetNodes: ['generator'],
+    reason: 'maintenance' })
 })
 
 test('observation persistence is session-scoped through the supplied storage', () => {
@@ -33,3 +42,9 @@ test('every control action, including reset, carries only the in-memory bearer',
     })
 })
 
+test('command status requests retain the in-memory control bearer', () => {
+  assert.deepEqual(controlStatusRequest('command/id', 'control-token'), {
+    url: '/api/control/commands/command%2Fid',
+    options: { method: 'GET', headers: { Authorization: 'Bearer control-token' } },
+  })
+})

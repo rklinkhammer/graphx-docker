@@ -160,7 +160,7 @@ std::string_view json_auth_field(std::string_view input, std::string_view name,
 
 bool authenticate_command(std::string_view input, std::string_view secret,
                           std::unordered_set<std::string>& nonces) {
-  if (secret.empty()) return input.find("\"auth\"") == std::string_view::npos;
+  if (secret.empty()) return false;
   constexpr std::string_view payload_marker = "{\"payload\":";
   const auto auth = input.rfind(",\"auth\":{");
   if (!input.starts_with(payload_marker) || auth == std::string_view::npos ||
@@ -194,6 +194,58 @@ bool authenticate_command(std::string_view input, std::string_view secret,
   if (nonces.size() >= 4096) nonces.clear();
   nonces.insert(std::string(nonce));
   return true;
+}
+
+std::string_view command_payload(std::string_view input) {
+  constexpr std::string_view marker = "{\"payload\":";
+  const auto auth = input.rfind(",\"auth\":{");
+  if (!input.starts_with(marker) || auth == std::string_view::npos) return {};
+  return input.substr(marker.size(), auth - marker.size());
+}
+
+std::string_view json_string_field(std::string_view input, std::string_view name,
+                                   std::size_t maximum) {
+  const std::string marker = "\"" + std::string(name) + "\":\"";
+  const auto start = input.find(marker);
+  if (start == std::string_view::npos) return {};
+  const auto value = start + marker.size();
+  const auto end = input.find('"', value);
+  if (end == std::string_view::npos || end - value > maximum) return {};
+  const auto result = input.substr(value, end - value);
+  if (result.find('\\') != std::string_view::npos) return {};
+  return result;
+}
+
+bool valid_command_id(std::string_view value) {
+  if (value.size() != 36 || value[8] != '-' || value[13] != '-' || value[18] != '-' ||
+      value[23] != '-')
+    return false;
+  for (std::size_t index = 0; index < value.size(); ++index) {
+    if (index == 8 || index == 13 || index == 18 || index == 23) continue;
+    const auto character = value[index];
+    if (!((character >= '0' && character <= '9') || (character >= 'a' && character <= 'f') ||
+          (character >= 'A' && character <= 'F')))
+      return false;
+  }
+  return true;
+}
+
+bool json_integer_field(std::string_view input, std::string_view name, std::int64_t& result) {
+  const std::string marker = "\"" + std::string(name) + "\":";
+  const auto start = input.find(marker);
+  if (start == std::string_view::npos) return false;
+  const auto value = start + marker.size();
+  auto end = value;
+  if (end < input.size() && input[end] == '-') ++end;
+  while (end < input.size() && input[end] >= '0' && input[end] <= '9') ++end;
+  if (end == value || (end == value + 1 && input[value] == '-')) return false;
+  try {
+    std::size_t parsed{};
+    result = std::stoll(std::string(input.substr(value, end - value)), &parsed);
+    return parsed == end - value;
+  } catch (...) {
+    return false;
+  }
 }
 
 void post_json(std::string_view host, std::uint16_t port, std::string_view path,
@@ -422,18 +474,33 @@ UdpJsonTraceSink::UdpJsonTraceSink(std::string node_id, std::string host, std::u
         if (count <= 0) continue;
         const std::string_view command(buffer.data(), static_cast<std::size_t>(count));
         if (!authenticate_command(command, state->shared_secret, nonces)) continue;
+        const auto payload = command_payload(command);
+        const auto kind = json_string_field(payload, "kind", 16);
+        const auto command_id = json_string_field(payload, "commandId", 36);
+        const auto target_node = json_string_field(payload, "targetNode", 64);
+        const auto requested_action = json_string_field(payload, "action", 8);
+        std::int64_t expires_at{};
+        const auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
+                             std::chrono::system_clock::now().time_since_epoch())
+                             .count();
+        if (kind != "control" || !valid_command_id(command_id) || target_node != state->node_id ||
+            !json_integer_field(payload, "expiresAt", expires_at) || expires_at < now ||
+            expires_at > now + 30000)
+          continue;
         std::string_view action;
-        if (command.find("\"action\":\"pause\"") != std::string_view::npos) {
+        if (requested_action == "pause") {
           state->paused.store(true, std::memory_order_relaxed);
           action = "pause";
-        } else if (command.find("\"action\":\"resume\"") != std::string_view::npos) {
+        } else if (requested_action == "resume") {
           state->paused.store(false, std::memory_order_relaxed);
           action = "resume";
         }
         if (!action.empty()) {
           const auto acknowledgement_payload =
               std::string{"{\"kind\":\"control_ack\",\"nodeId\":\""} + escape_json(state->node_id) +
-              "\",\"action\":\"" + std::string(action) + "\",\"accepted\":true}";
+              "\",\"action\":\"" + std::string(action) + "\",\"commandId\":\"" +
+              std::string(command_id) + "\",\"accepted\":true,\"state\":\"" +
+              (state->paused.load(std::memory_order_relaxed) ? "paused" : "running") + "\"}";
           const auto acknowledgement =
               signed_datagram(acknowledgement_payload, state->shared_secret);
           ::send(state->socket, acknowledgement.data(), acknowledgement.size(), 0);

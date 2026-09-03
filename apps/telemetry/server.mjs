@@ -7,12 +7,15 @@ import { fileURLToPath } from 'node:url'
 import { WebSocketServer } from 'ws'
 import { parse } from 'yaml'
 import { MAX_DATAGRAM_BYTES, RateLimiter, ReplayCache, isLoopback, originAllowed,
-  parseRequestUrl, readSecret, signEnvelope, tokenMatches, validateTelemetryEvent,
-  verifyEnvelope, webSocketBearer } from './security.mjs'
+  parseRequestUrl, readSecret, sanitizeControlAcknowledgement, sanitizeTelemetryEvent,
+  signEnvelope, tokenMatches, validateTelemetryEvent, verifyEnvelope, webSocketBearer } from './security.mjs'
 import { OtlpHttpExporter, SloEvaluator, graphReadiness, otlpConfig, otlpMetricsRequest,
   otlpTraceRequest } from './operations.mjs'
 import { HistoryStore, historyConfig, parseHistoryQuery, sloHistoryRecord,
   telemetryHistoryRecord } from './history.mjs'
+import { ControlAuthorizer, ControlConflictError, ControlPlane, CredentialRegistry,
+  PreviousCredentialStore, RuntimeIdentityStore, controlAuditHistoryRecord,
+  controlConfig } from './control.mjs'
 
 const root = normalize(process.env.GRAPHX_WEB_ROOT || join(fileURLToPath(new URL('.', import.meta.url)), '../../web/dist'))
 const port = Number(process.env.PORT || 8080)
@@ -32,6 +35,7 @@ const configuredOtlp = otlpConfig(config.observability?.otlp)
 const otlpExporter = new OtlpHttpExporter(configuredOtlp)
 const configuredHistory = historyConfig(config.observability?.history, process.env, dirname(configPath))
 const historyStore = new HistoryStore(configuredHistory, graph.id)
+const configuredControl = controlConfig(config.observability?.control)
 const captureConfig = { ...configuredCapture,
   enabled: process.env.GRAPHX_CAPTURE_ENABLED == null ? Boolean(configuredCapture.enabled) :
     ['1', 'true', 'yes', 'on'].includes(process.env.GRAPHX_CAPTURE_ENABLED.toLowerCase()),
@@ -39,6 +43,9 @@ const captureConfig = { ...configuredCapture,
 }
 const captureDirectory = resolve(process.env.GRAPHX_CAPTURE_DIR || captureConfig.directory || 'captures')
 const controlToken = readSecret('GRAPHX_CONTROL_TOKEN')
+const controlPolicyFile = process.env.GRAPHX_CONTROL_POLICY_FILE || ''
+const runtimeIdentityFile = process.env.GRAPHX_RUNTIME_IDENTITY_FILE || ''
+const previousCredentialFile = process.env.GRAPHX_PREVIOUS_CREDENTIALS_FILE || ''
 const observationToken = readSecret('GRAPHX_OBSERVATION_TOKEN')
 const telemetrySecret = readSecret('GRAPHX_TELEMETRY_SHARED_SECRET')
 const tlsCertificateFile = process.env.GRAPHX_TLS_CERT_FILE || ''
@@ -46,8 +53,14 @@ const tlsPrivateKeyFile = process.env.GRAPHX_TLS_KEY_FILE || ''
 const tlsClientCaFile = process.env.GRAPHX_TLS_CLIENT_CA_FILE || ''
 if (Boolean(tlsCertificateFile) !== Boolean(tlsPrivateKeyFile))
   throw new Error('GRAPHX_TLS_CERT_FILE and GRAPHX_TLS_KEY_FILE must be provided together')
+if (controlToken && controlPolicyFile)
+  throw new Error('GRAPHX_CONTROL_TOKEN and GRAPHX_CONTROL_POLICY_FILE are mutually exclusive')
+if (runtimeIdentityFile && telemetrySecret)
+  throw new Error('GRAPHX_RUNTIME_IDENTITY_FILE and GRAPHX_TELEMETRY_SHARED_SECRET are mutually exclusive')
+if (controlPolicyFile && !runtimeIdentityFile)
+  throw new Error('GRAPHX_RUNTIME_IDENTITY_FILE is required with GRAPHX_CONTROL_POLICY_FILE')
 if (controlToken && !telemetrySecret)
-  throw new Error('GRAPHX_TELEMETRY_SHARED_SECRET is required when runtime control is enabled')
+  throw new Error('GRAPHX_TELEMETRY_SHARED_SECRET is required with legacy runtime control')
 if (!tlsCertificateFile && !isLoopback(httpBind) && process.env.GRAPHX_ALLOW_INSECURE_REMOTE !== 'true')
   throw new Error('plaintext telemetry may bind only to loopback; use TLS or explicitly set GRAPHX_ALLOW_INSECURE_REMOTE=true')
 const allowedOrigins = new Set((process.env.GRAPHX_ALLOWED_ORIGINS || '').split(',').map(v => v.trim()).filter(Boolean))
@@ -94,10 +107,40 @@ let state = { paused: false, fault: false, updatedAt: new Date().toISOString() }
 const recent = []
 const captureReferences = []
 const controlEndpoints = new Map()
-const controlAcks = new Map()
+const controlStates = new Map()
 const nodes = Object.fromEntries(topology.nodes.map(node => [node.id, {
   status: 'starting', lastSeen: null, cpuPercent: null,
 }]))
+const nodeIds = new Set(Object.keys(nodes))
+const controllableNodeIds = new Set(graph.nodes.filter(node => node.kind === 'source').map(node => node.id))
+const runtimeIdentities = new RuntimeIdentityStore({ manifestFile: runtimeIdentityFile, nodeIds })
+const controlAuthorizer = new ControlAuthorizer({ policyFile: controlPolicyFile,
+  legacyToken: controlToken, nodeIds })
+const previousCredentials = new PreviousCredentialStore({ manifestFile: previousCredentialFile })
+const credentialRegistry = new CredentialRegistry({ observationToken, telemetrySecret,
+  controlAuthorizer, runtimeIdentities, previousCredentials })
+let reportedCredentialError = null
+function refreshCredentials(force = false) {
+  const valid = credentialRegistry.reload(force)
+  if (credentialRegistry.lastError !== reportedCredentialError) {
+    if (credentialRegistry.lastError) {
+      controlEndpoints.clear()
+      controlStates.clear()
+      console.error(`GraphX credential configuration invalid: ${credentialRegistry.lastError}`)
+    } else if (reportedCredentialError)
+      console.log('GraphX credential configuration recovered')
+    reportedCredentialError = credentialRegistry.lastError
+  }
+  return valid
+}
+refreshCredentials(true)
+const controlPlane = new ControlPlane(configuredControl, controllableNodeIds, {
+  auditSink: (entry, recordedAt) => {
+    if (configuredHistory.enabled &&
+        !historyStore.enqueue(controlAuditHistoryRecord(entry, graph.id, recordedAt)))
+      throw new Error('control audit history queue rejected record')
+  },
+})
 function emptyEdge(connection = 'disconnected') {
   return {
     sent: 0, received: 0, sentWireBytes: 0, receivedWireBytes: 0,
@@ -209,6 +252,7 @@ function recentWithCapture() {
 }
 
 function snapshot() {
+  refreshCredentials()
   const timestamp = Date.now()
   const edgeViews = Object.fromEntries(
     Object.entries(edges).map(([id, edge]) => [id, edgeView(edge, timestamp)]))
@@ -219,10 +263,16 @@ function snapshot() {
   return { kind: 'snapshot', graph: graph.id, topology,
     telemetry: { websocket: websocketPath, heartbeatTimeoutMs: heartbeatTimeout,
       rateWindowSeconds, latencyBoundsUs }, state,
-    control: { available: controlToken.length > 0 && telemetrySecret.length > 0,
-      authenticatedTelemetry: telemetrySecret.length > 0, connectedNodes: liveEndpoints.length,
-      acknowledgements: Object.fromEntries(controlAcks) },
-    health: { serviceReady: serviceState.httpReady && serviceState.udpReady && !serviceState.shuttingDown,
+    control: { available: credentialRegistry.lastError == null && controlAuthorizer.available &&
+        (runtimeIdentities.available || telemetrySecret.length > 0),
+      authenticatedTelemetry: credentialRegistry.lastError == null &&
+        (runtimeIdentities.available || telemetrySecret.length > 0),
+      nodeBoundIdentity: runtimeIdentities.available, connectedNodes: liveEndpoints.length,
+      controllableNodes: [...controllableNodeIds], nodeStates: Object.fromEntries(controlStates),
+      pendingCommands: controlPlane.pendingCount(), stats: { ...controlPlane.stats },
+      policyValid: credentialRegistry.lastError == null },
+    health: { serviceReady: serviceState.httpReady && serviceState.udpReady &&
+        !serviceState.shuttingDown && credentialRegistry.lastError == null,
       graph: readiness }, slo, otlp: { enabled: configuredOtlp.enabled, ...otlpExporter.stats },
     history: { ...historyStore.stats },
     nodes, edges: edgeViews,
@@ -249,6 +299,130 @@ function authorized(request, token) {
   return tokenMatches(token, request.headers.authorization || '')
 }
 
+function controlPrincipal(request) {
+  refreshCredentials()
+  return controlAuthorizer.authenticate(request.headers.authorization || '', false)
+}
+
+function controlTargets(action, requested = null) {
+  if (action === 'reset') return ['collector']
+  const targets = requested == null ? [...controllableNodeIds] : requested
+  if (!Array.isArray(targets) || !targets.length || targets.length > nodeIds.size ||
+      targets.some(node => typeof node !== 'string' || !controllableNodeIds.has(node)))
+    throw new Error('targetNodes must contain configured source node identifiers')
+  return [...new Set(targets)]
+}
+
+function resetCollectorCounters() {
+  recent.length = 0
+  captureReferences.length = 0
+  for (const edge of Object.values(edges)) {
+    const connection = edge.connection
+    Object.assign(edge, emptyEdge(connection))
+  }
+  state = { ...state, updatedAt: new Date().toISOString() }
+  broadcast()
+}
+
+function deliverControl(command) {
+  if (command.action === 'reset') { resetCollectorCounters(); return 1 }
+  let delivered = 0
+  const endpoints = new Map(liveControlEndpoints())
+  for (const nodeId of command.targetNodes) {
+    const endpoint = endpoints.get(nodeId)
+    if (!endpoint) continue
+    const payload = { kind: 'control', action: command.action, commandId: command.id,
+      targetNode: nodeId, issuedAt: command.issuedAt, expiresAt: command.expiresAt }
+    const targetSecret = runtimeIdentities.available ? runtimeIdentities.secretFor(nodeId, false) : telemetrySecret
+    if (!targetSecret) continue
+    const datagram = Buffer.from(JSON.stringify(signEnvelope(payload, targetSecret)))
+    udp.send(datagram, endpoint.port, endpoint.address)
+    delivered++
+  }
+  return delivered
+}
+
+function authorizeControl(request, response, action, targets) {
+  const principal = controlPrincipal(request)
+  if (!principal) {
+    controlPlane.deny({ action, targets, reason: 'authentication failed' })
+    json(response, 401, { accepted: false, action, error: 'invalid control credential' },
+      { 'www-authenticate': 'Bearer realm="graphx-control"' })
+    return null
+  }
+  if (!controlAuthorizer.permits(principal, action, targets)) {
+    controlPlane.deny({ actor: principal.id, action, targets, reason: 'authorization policy denied action or target' })
+    json(response, 403, { accepted: false, action, error: 'control action or target is not authorized' })
+    return null
+  }
+  return principal
+}
+
+function issueControl(request, response, { action, targetNodes, reason = null }) {
+  if (!['pause', 'resume', 'reset'].includes(action))
+    return json(response, 400, { accepted: false, action, error: 'unknown control action' })
+  if (!refreshCredentials() || !controlAuthorizer.available ||
+      (!runtimeIdentities.available && !telemetrySecret))
+    return json(response, 503, { accepted: false, action, error: 'runtime control is disabled' })
+  let targets
+  try { targets = controlTargets(action, targetNodes) }
+  catch (error) { return json(response, 400, { accepted: false, action, error: error.message }) }
+  const principal = authorizeControl(request, response, action, targets)
+  if (!principal) return
+  if (reason != null && credentialRegistry.credentialValues()
+    .some(secret => reason.includes(secret)))
+    return json(response, 400, { accepted: false, action,
+      error: 'control reason must not contain a configured credential' })
+  try {
+    const result = controlPlane.issue({ action, targetNodes: targets, actor: principal.id, reason,
+      idempotencyKey: request.headers['idempotency-key'] || null }, deliverControl)
+    if (result.command.status === 'accepted')
+      state = { ...state, paused: action === 'pause' ? true : action === 'resume' ? false : state.paused,
+        updatedAt: new Date().toISOString() }
+    return json(response, action === 'reset' ? 200 : 202,
+      { accepted: true, replayed: result.replayed, command: result.command, state })
+  } catch (error) {
+    const status = error instanceof ControlConflictError ? 409 :
+      error.message.includes('capacity') ? 429 :
+      error.message.includes('no live') ? 409 : 400
+    controlPlane.record({ actor: principal.id, action, targets, decision: 'rejected',
+      reason: String(error.message).slice(0, 256) })
+    return json(response, status, { accepted: false, action, error: error.message },
+      status === 429 ? { 'retry-after': '1' } : {})
+  }
+}
+
+function readControlBody(request) {
+  return new Promise((resolveBody, rejectBody) => {
+    const declared = Number(request.headers['content-length'] || 0)
+    if (!Number.isSafeInteger(declared) || declared < 0 || declared > configuredControl.maxRequestBytes)
+      return rejectBody(new Error('control request body exceeds configured limit'))
+    let size = 0
+    let settled = false
+    const chunks = []
+    request.on('data', chunk => {
+      if (settled) return
+      size += chunk.length
+      if (size > configuredControl.maxRequestBytes) {
+        settled = true
+        rejectBody(new Error('control request body exceeds configured limit'))
+      } else chunks.push(chunk)
+    })
+    request.on('end', () => {
+      if (settled) return
+      try {
+        const parsed = JSON.parse(Buffer.concat(chunks).toString('utf8'))
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) ||
+            Object.keys(parsed).some(key => !['action', 'targetNodes', 'reason'].includes(key)))
+          throw new Error('control request has unknown or invalid properties')
+        settled = true
+        resolveBody(parsed)
+      } catch (error) { settled = true; rejectBody(error) }
+    })
+    request.on('error', rejectBody)
+  })
+}
+
 function requestOriginAllowed(request) {
   const origin = request.headers.origin
   if (!origin) return true
@@ -272,6 +446,7 @@ function liveControlEndpoints(timestamp = Date.now()) {
 }
 
 function prometheus() {
+  refreshCredentials()
   const lines = [
     '# HELP graphx_edge_messages_total Messages observed on a GraphX edge.',
     '# TYPE graphx_edge_messages_total counter',
@@ -297,7 +472,7 @@ function prometheus() {
     '# TYPE graphx_edge_backpressure_seconds_total counter',
     '# HELP graphx_edge_connected Whether recent events report a connected transport path.',
     '# TYPE graphx_edge_connected gauge',
-    '# HELP graphx_service_ready Whether the telemetry HTTP and UDP listeners are ready.',
+    '# HELP graphx_service_ready Whether listeners are ready and credential configuration is valid.',
     '# TYPE graphx_service_ready gauge',
     '# HELP graphx_graph_ready Whether all configured GraphX nodes and edges are ready.',
     '# TYPE graphx_graph_ready gauge',
@@ -327,9 +502,20 @@ function prometheus() {
     '# TYPE graphx_history_queue_bytes gauge',
     '# HELP graphx_history_database_bytes Current SQLite database, WAL, and shared-memory bytes.',
     '# TYPE graphx_history_database_bytes gauge',
+    '# HELP graphx_control_commands_total Authorized control commands by terminal outcome.',
+    '# TYPE graphx_control_commands_total counter',
+    '# HELP graphx_control_denied_total Control requests denied by authentication or authorization.',
+    '# TYPE graphx_control_denied_total counter',
+    '# HELP graphx_control_pending_commands Current commands awaiting runtime acknowledgements.',
+    '# TYPE graphx_control_pending_commands gauge',
+    '# HELP graphx_control_policy_valid Whether the configured authorization policy is loaded.',
+    '# TYPE graphx_control_policy_valid gauge',
+    '# HELP graphx_control_audit_dropped_total Audit records dropped from a sink or bounded memory.',
+    '# TYPE graphx_control_audit_dropped_total counter',
   ]
   const readiness = graphReadiness(nodes, edges, Date.now(), heartbeatTimeout)
-  lines.push(`graphx_service_ready ${serviceState.httpReady && serviceState.udpReady && !serviceState.shuttingDown ? 1 : 0}`)
+  lines.push(`graphx_service_ready ${serviceState.httpReady && serviceState.udpReady &&
+    !serviceState.shuttingDown && credentialRegistry.lastError == null ? 1 : 0}`)
   lines.push(`graphx_graph_ready ${readiness.ready ? 1 : 0}`)
   lines.push(`graphx_slo_met ${slo.met ? 1 : 0}`)
   for (const status of ['warming', 'met', 'violated'])
@@ -357,6 +543,14 @@ function prometheus() {
   lines.push(`graphx_history_queue_depth ${historyStore.stats.queueDepth}`)
   lines.push(`graphx_history_queue_bytes ${historyStore.stats.queueBytes}`)
   lines.push(`graphx_history_database_bytes ${historyStore.stats.databaseBytes}`)
+  lines.push(`graphx_control_commands_total{outcome="issued"} ${controlPlane.stats.issued}`)
+  lines.push(`graphx_control_commands_total{outcome="accepted"} ${controlPlane.stats.accepted}`)
+  lines.push(`graphx_control_commands_total{outcome="rejected"} ${controlPlane.stats.rejected}`)
+  lines.push(`graphx_control_commands_total{outcome="timed_out"} ${controlPlane.stats.timedOut}`)
+  lines.push(`graphx_control_denied_total ${controlPlane.stats.denied}`)
+  lines.push(`graphx_control_pending_commands ${controlPlane.pendingCount()}`)
+  lines.push(`graphx_control_policy_valid ${credentialRegistry.lastError == null ? 1 : 0}`)
+  lines.push(`graphx_control_audit_dropped_total ${controlPlane.stats.auditDropped}`)
   lines.push('# HELP graphx_node_cpu_percent Process CPU used by a GraphX node as a percentage of one core.')
   lines.push('# TYPE graphx_node_cpu_percent gauge')
   for (const [id, node] of Object.entries(nodes))
@@ -401,15 +595,20 @@ const handleRequest = (request, response) => {
   }
   if (url.pathname === '/api/ready') {
     if (request.method !== 'GET') return json(response, 405, { error: 'method not allowed' }, { allow: 'GET' })
-    const ready = serviceState.httpReady && serviceState.udpReady && !serviceState.shuttingDown
+    refreshCredentials()
+    const ready = serviceState.httpReady && serviceState.udpReady && !serviceState.shuttingDown &&
+      credentialRegistry.lastError == null
     return json(response, ready ? 200 : 503, { status: ready ? 'ready' : 'not-ready', service: 'graphx-telemetry',
-      listeners: { http: serviceState.httpReady, udp: serviceState.udpReady }, shuttingDown: serviceState.shuttingDown })
+      listeners: { http: serviceState.httpReady, udp: serviceState.udpReady },
+      credentialConfiguration: credentialRegistry.lastError == null ? 'valid' : 'invalid',
+      shuttingDown: serviceState.shuttingDown })
   }
   if (url.pathname === '/api/health') {
     if (request.method !== 'GET') return json(response, 405, { error: 'method not allowed' }, { allow: 'GET' })
     const readiness = graphReadiness(nodes, edges, Date.now(), heartbeatTimeout)
     return json(response, 200, { status: 'live', service: 'graphx-telemetry', tls: Boolean(tlsCertificateFile),
-      serviceReady: serviceState.httpReady && serviceState.udpReady && !serviceState.shuttingDown,
+      serviceReady: serviceState.httpReady && serviceState.udpReady && !serviceState.shuttingDown &&
+        credentialRegistry.lastError == null,
       graphReady: readiness.ready })
   }
   if (!withinRateLimit(request, 120)) return json(response, 429, { error: 'rate limit exceeded' }, { 'retry-after': '60' })
@@ -441,7 +640,7 @@ const handleRequest = (request, response) => {
     let query
     try { query = parseHistoryQuery(url.searchParams, configuredHistory, nodeIds, edgeIds) }
     catch (error) { return json(response, 400, { error: error.message }) }
-    historyStore.query(query)
+    historyStore.query({ ...query, excludeControlAudit: true })
       .then(result => json(response, 200, result))
       .catch(error => json(response, error.message.includes('capacity') ? 429 : 503,
         { error: String(error.message).slice(0, 256) },
@@ -458,39 +657,81 @@ const handleRequest = (request, response) => {
       'content-type': 'text/plain; version=0.0.4; charset=utf-8' })
     return response.end(prometheus())
   }
-  if (url.pathname.startsWith('/api/control/') && request.method === 'POST') {
+  if (url.pathname === '/api/control/commands' && request.method === 'GET') {
+    const principal = controlPrincipal(request)
+    if (!principal)
+      return json(response, 401, { error: 'invalid control credential' },
+        { 'www-authenticate': 'Bearer realm="graphx-control"' })
+    const canReadAll = principal.permissions.has('commands:read:any')
+    const commands = controlPlane.list(100).filter(command => canReadAll || command.actor === principal.id)
+    return json(response, 200, { commands })
+  }
+  const commandMatch = url.pathname.match(/^\/api\/control\/commands\/([0-9a-f-]{36})$/)
+  if (commandMatch && request.method === 'GET') {
+    const principal = controlPrincipal(request)
+    if (!principal)
+      return json(response, 401, { error: 'invalid control credential' },
+        { 'www-authenticate': 'Bearer realm="graphx-control"' })
+    const command = controlPlane.get(commandMatch[1])
+    if (!command || (command.actor !== principal.id && !principal.permissions.has('commands:read:any')))
+      return json(response, 404, { error: 'control command not found' })
+    return json(response, 200, command)
+  }
+  if (url.pathname === '/api/control/audit/history' && request.method === 'GET') {
+    const principal = controlPrincipal(request)
+    if (!principal)
+      return json(response, 401, { error: 'invalid control credential' },
+        { 'www-authenticate': 'Bearer realm="graphx-control"' })
+    if (!principal.permissions.has('audit:read'))
+      return json(response, 403, { error: 'control audit access is not authorized' })
+    let query
+    try { query = parseHistoryQuery(url.searchParams, configuredHistory, nodeIds, edgeIds) }
+    catch (error) { return json(response, 400, { error: error.message }) }
+    historyStore.query({ ...query, kind: 'control_audit', excludeControlAudit: false })
+      .then(result => json(response, 200, result))
+      .catch(error => json(response, error.message.includes('capacity') ? 429 : 503,
+        { error: String(error.message).slice(0, 256) },
+        error.message.includes('capacity') ? { 'retry-after': '1' } : {}))
+    return
+  }
+  if (url.pathname === '/api/control/audit' && request.method === 'GET') {
+    const principal = controlPrincipal(request)
+    if (!principal)
+      return json(response, 401, { error: 'invalid control credential' },
+        { 'www-authenticate': 'Bearer realm="graphx-control"' })
+    if (!principal.permissions.has('audit:read'))
+      return json(response, 403, { error: 'control audit access is not authorized' })
+    const limitText = url.searchParams.get('limit')
+    if ([...url.searchParams.keys()].some(key => key !== 'limit') ||
+        (limitText != null && !/^[1-9][0-9]{0,2}$/.test(limitText)))
+      return json(response, 400, { error: 'audit limit must be an integer from 1 through 999' })
+    return json(response, 200, { records: controlPlane.auditRecords(Number(limitText || 100)),
+      stats: controlPlane.stats })
+  }
+  if (url.pathname === '/api/control/commands' && request.method === 'POST') {
+    if (!requestOriginAllowed(request))
+      return json(response, 403, { accepted: false, error: 'origin not allowed' })
+    if (!withinRateLimit(request, 10, 60000, 'control'))
+      return json(response, 429, { accepted: false, error: 'control rate limit exceeded' })
+    const contentType = String(request.headers['content-type'] || '').split(';', 1)[0]
+    if (contentType !== 'application/json')
+      return json(response, 415, { accepted: false, error: 'content-type must be application/json' })
+    readControlBody(request)
+      .then(body => issueControl(request, response, body))
+      .catch(error => {
+        if (!response.headersSent)
+          json(response, error.message.includes('exceeds') ? 413 : 400,
+            { accepted: false, error: String(error.message).slice(0, 256) })
+      })
+    return
+  }
+  if (/^\/api\/control\/(pause|resume|reset)$/.test(url.pathname) && request.method === 'POST') {
     const action = url.pathname.split('/').pop()
     if (!requestOriginAllowed(request)) return json(response, 403, { accepted: false, action, error: 'origin not allowed' })
     if (!withinRateLimit(request, 10, 60000, 'control')) return json(response, 429, { accepted: false, action, error: 'control rate limit exceeded' })
     if (Number(request.headers['content-length'] || 0) > 0 || request.headers['transfer-encoding'])
       return json(response, 413, { accepted: false, action, error: 'request body not accepted' })
-    if (!controlToken)
-      return json(response, 503, { accepted: false, action, error: 'runtime control is disabled' })
-    if (!authorized(request, controlToken))
-      return json(response, 401, { accepted: false, action, error: 'invalid control token' },
-        { 'www-authenticate': 'Bearer realm="graphx-control"' })
-    if (action === 'reset') {
-      recent.length = 0
-      captureReferences.length = 0
-      for (const edge of Object.values(edges)) {
-        const connection = edge.connection
-        Object.assign(edge, emptyEdge(connection))
-      }
-      state = { ...state, updatedAt: new Date().toISOString() }
-      broadcast()
-      return json(response, 200, { accepted: true, action, state })
-    }
-    if (action !== 'pause' && action !== 'resume')
-      return json(response, 404, { accepted: false, action, error: 'unknown control action' })
-    const endpoints = liveControlEndpoints()
-    if (!endpoints.length)
-      return json(response, 409, { accepted: false, action, error: 'no live runtime nodes' })
-    const command = Buffer.from(JSON.stringify(signEnvelope(
-      { kind: 'control', action, timestamp: Date.now() }, telemetrySecret)))
-    for (const [, endpoint] of endpoints) udp.send(command, endpoint.port, endpoint.address)
-    state = { ...state, paused: action === 'pause', updatedAt: new Date().toISOString() }
-    broadcast()
-    return json(response, 202, { accepted: true, action, delivered: endpoints.length, state })
+    return issueControl(request, response, { action, targetNodes: null })
   }
   if (url.pathname.startsWith('/api/control/'))
     return json(response, 405, { error: 'method not allowed' }, { allow: 'POST' })
@@ -560,25 +801,48 @@ function broadcast() {
 
 const udp = dgram.createSocket('udp4')
 const replayCache = new ReplayCache()
-const nodeIds = new Set(Object.keys(nodes))
 const edgeIds = new Set(Object.keys(edges))
 udp.on('message', (data, remote) => {
   try {
     if (data.length > MAX_DATAGRAM_BYTES) return
-    const event = verifyEnvelope(JSON.parse(data.toString('utf8')), telemetrySecret, replayCache)
-    if (!validateTelemetryEvent(event, nodeIds, edgeIds)) return
+    const envelope = JSON.parse(data.toString('utf8'))
+    if (!refreshCredentials()) return
+    const claimedNode = envelope?.payload?.nodeId
+    const nodeSecret = runtimeIdentities.available
+      ? runtimeIdentities.secretFor(claimedNode, false) : telemetrySecret
+    if (runtimeIdentityFile && !nodeSecret) return
+    const verifiedEvent = verifyEnvelope(envelope, nodeSecret, replayCache)
+    if (!validateTelemetryEvent(verifiedEvent, nodeIds, edgeIds)) return
+    // A valid event may arrive immediately after a projected token or identity
+    // file changes. Re-read the bounded credential set before any retained or
+    // exported value is produced so the candidate and superseded values are in
+    // the registry's redaction overlap. Invalid replacements fail closed.
+    if (!refreshCredentials(true)) return
+    const event = sanitizeTelemetryEvent(sanitizeControlAcknowledgement(verifiedEvent),
+      credentialRegistry.credentialValues())
     const receivedAt = Date.now()
+    if (event.kind === 'control_ack') {
+      const endpoint = controlEndpoints.get(event.nodeId)
+      if (!endpoint || endpoint.address !== remote.address || endpoint.port !== remote.port ||
+          receivedAt - endpoint.lastSeen > heartbeatTimeout) return
+      if (controlPlane.acknowledge(event, receivedAt)) {
+        if (configuredHistory.enabled)
+          historyStore.enqueue(telemetryHistoryRecord(event, graph.id, receivedAt))
+        const command = controlPlane.get(event.commandId)
+        if (event.accepted && event.state) controlStates.set(event.nodeId, event.state)
+        if (command?.status === 'accepted') {
+          const knownStates = [...controllableNodeIds].map(node => controlStates.get(node))
+          state = { ...state, paused: knownStates.length > 0 && knownStates.every(value => value === 'paused'),
+            updatedAt: new Date().toISOString() }
+        }
+      }
+      broadcast()
+      return
+    }
     if (configuredHistory.enabled)
       historyStore.enqueue(telemetryHistoryRecord(event, graph.id, receivedAt))
     if (configuredOtlp.enabled && event.kind === 'trace')
       otlpExporter.enqueue(configuredOtlp.tracesPath, otlpTraceRequest(event))
-    if (event.kind === 'control_ack' && nodes[event.nodeId] &&
-        (event.action === 'pause' || event.action === 'resume')) {
-      controlAcks.set(event.nodeId, { action: event.action,
-        accepted: event.accepted === true, receivedAt })
-      broadcast()
-      return
-    }
     if (event.kind === 'capture' && event.event === 'frame') {
       captureReferences.unshift(event)
       if (captureReferences.length > 200) captureReferences.length = 200

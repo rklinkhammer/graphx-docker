@@ -1,9 +1,9 @@
 # GraphX security boundary
 
 Phase 5 adds authentication, transport encryption, input validation, and
-least-privilege container defaults. It does not turn telemetry controls into a
-multi-user authorization service; role policy, identity-provider integration,
-credential rotation workflows, and auditable decisions remain Phase 8.
+least-privilege container defaults. Phase 8 adds a bounded local authorization
+policy, command identity/correlation, safe policy reload and auditable runtime
+decisions. External identity-provider integration remains future work.
 
 ## Threat model and defaults
 
@@ -13,6 +13,11 @@ stored in `graphx.yaml`. They enter processes through an environment variable or
 a file-mounted counterpart ending in `_FILE`. The two forms are mutually
 exclusive, values are limited to 4,096 bytes, and configured bearer/HMAC secrets
 must contain at least 32 bytes. GraphX does not print secret values.
+The collector compares SHA-256 fingerprints across observation, control,
+shared-telemetry, and per-node runtime credential roles. Any reuse fails the
+credential snapshot atomically without logging a value, disables control and
+authenticated runtime ingestion, and makes service readiness fail until a
+distinct configuration is available.
 
 The telemetry service binds HTTP and UDP to `127.0.0.1` by default. Plain HTTP
 cannot bind a non-loopback address unless
@@ -57,8 +62,11 @@ fail. Test credentials are deleted afterward.
 
 ## Telemetry datagram authentication
 
-Set the same `GRAPHX_TELEMETRY_SHARED_SECRET` (or `_FILE`) on every runtime node
-and the collector. A node wraps its original event as:
+For authenticated telemetry without policy control, set the same
+`GRAPHX_TELEMETRY_SHARED_SECRET` (or `_FILE`) on every runtime and collector.
+Policy-controlled deployments instead set `GRAPHX_RUNTIME_IDENTITY_FILE` on the
+collector and give each runtime a distinct `GRAPHX_TELEMETRY_SHARED_SECRET_FILE`.
+A node wraps its original event as:
 
 ```json
 {"payload":{"kind":"trace"},"auth":{"timestamp":0,"nonce":"32 lowercase hex characters","signature":"64 lowercase hex characters"}}
@@ -72,11 +80,20 @@ kind, node and edge identity, file names, identities, and numeric ranges before
 mutating state or remembering a control endpoint. Datagrams larger than 16 KiB
 are ignored.
 
-Pause/resume commands and acknowledgements use the same envelope. Runtime
-control cannot be enabled unless the collector has both a control bearer token
-and the HMAC secret. Without an HMAC secret, legacy unsigned telemetry remains
-available for loopback-only educational use, but HTTP runtime control is
-disabled.
+Pause/resume commands and acknowledgements use the same envelope. Policy control
+requires complete, unique per-node identities; the legacy control token requires
+the shared HMAC secret. Without either identity model, legacy unsigned telemetry
+remains available for loopback-only educational use, but control is disabled.
+Signed runtime fields are still untrusted. In particular, negative control ACK
+errors retain only the allow-listed protocol codes documented in
+`control-plane.md`; all arbitrary values are replaced before command, response,
+audit, history, or logging consumers see them. Ordinary telemetry is normalized
+to known properties before fan-out, diagnostic messages are limited to 256
+characters, connection and backpressure messages use protocol allowlists, and
+all retained string properties are filtered against active, newly discovered
+candidate, and recently superseded credentials.
+The same normalized event feeds snapshots/WebSockets, OTLP, history, and
+capture-reference state.
 
 ## HTTP, HTTPS, WebSocket, and API rules
 
@@ -87,9 +104,10 @@ required together and TLS 1.3 is the minimum. Setting
 | Surface | Method | Credential |
 |---|---|---|
 | `/api/health` | GET | public liveness only |
-| `/api/topology`, `/api/captures`, `/api/history`, `/api/history/status`, `/metrics`, capture download | GET | `GRAPHX_OBSERVATION_TOKEN` when configured |
+| `/api/topology`, `/api/captures`, `/api/history`, `/api/history/status`, `/metrics`, capture download | GET | `GRAPHX_OBSERVATION_TOKEN` when configured; control audit is excluded |
 | configured WebSocket path | upgrade | observation token in `graphx-auth.<base64url>` subprotocol when configured |
-| `/api/control/reset`, `/pause`, `/resume` | POST with no body | `GRAPHX_CONTROL_TOKEN`; same-origin/allowlisted Origin |
+| `/api/control/commands`, `/api/control/commands/:id`, `/api/control/audit`, `/api/control/audit/history` | POST/GET | scoped Phase 8 control principal with explicit cross-actor/audit permissions |
+| `/api/control/reset`, `/pause`, `/resume` | POST with no body | compatible control principal; same-origin/allowlisted Origin |
 
 Bearer values use `Authorization: Bearer ...` and constant-time comparison.
 Browser observation credentials are kept in session storage, not persistent
@@ -124,13 +142,22 @@ requirements and are not represented as hardened by these portable defaults.
 
 ## Operational limitations
 
-- Shared bearer and HMAC credentials have no built-in rotation or revocation;
-  restart processes after atomically replacing mounted secret files.
+- Phase 8 atomically reloads operator policy/token files and the runtime identity
+  manifest as one cross-domain credential snapshot and fails closed. Valid
+  signed datagrams force a bounded reload before fan-out, and superseded values
+  remain in a capped redaction-only set for 60 seconds. This prevents exact old,
+  candidate, or new values from entering retained telemetry across file-only
+  rotation. When collector restart is possible inside that interval, operators
+  must use the expiring `GRAPHX_PREVIOUS_CREDENTIALS_FILE` projection described
+  in `control-plane.md`; it restores old redaction values at startup but never
+  authenticates them. Malformed, overlong, over-capacity, writable, or
+  cross-role-colliding transition data fails closed. A runtime restart is
+  required to rotate its HMAC; observation credential rotation also requires
+  collector restart.
 - Rate limiting is in-process and per collector instance, not a distributed
   denial-of-service control.
 - HMAC replay checks require clocks within 30 seconds.
 - TLS protects TCP graph edges only when each edge explicitly enables it.
 - OTLP hardening, readiness, SLOs, and dashboards are Phase 6. Phase 7 durable
   metadata history reuses the observation boundary; protect its volume and
-  backups as sensitive operational data. Fine-grained control authorization and
-  audit remain Phase 8.
+  backups as sensitive operational data. See `control-plane.md` for Phase 8.

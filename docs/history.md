@@ -22,8 +22,11 @@ block UDP processing.
 
 Records contain graph, event, node and edge identity plus bounded operational
 metadata such as sequence, trace/message identifiers, latency, wire bytes and
-CPU percentage. Application message bodies, bearer tokens, HMAC secrets, OTLP
-credentials, control credentials, and capture contents are not stored.
+CPU percentage. Phase 8 can additionally retain bounded control-audit actor,
+decision, target, command and optional reason metadata. Application message
+bodies, configured GraphX bearer/HMAC credentials, OTLP credentials, and capture
+contents are not stored. Because an operator-supplied reason is retained and may
+name external systems, treat the history database as sensitive operational data.
 
 ## Enabling the backend
 
@@ -90,7 +93,10 @@ main-file limit plus a bounded active batch and WAL.
 `GET /api/history/status` returns backend state, schema version, current queue
 usage, database bytes, outcome counters, last write time, and a bounded error.
 `GET /api/history` returns newest-first records and a stable `nextCursor`.
-Both endpoints require `GRAPHX_OBSERVATION_TOKEN` when it is configured.
+Both endpoints require `GRAPHX_OBSERVATION_TOKEN` when it is configured. Phase 8
+control-audit rows are always excluded from this general endpoint, including an
+explicit `kind=control_audit` filter. Principals with `audit:read` use
+`GET /api/control/audit/history`; observation credentials cannot use that route.
 
 Supported query parameters are `cursor`, `after`, `before`, `limit`, `node`,
 `edge`, `kind`, and `event`. Times are Unix milliseconds. Unknown parameters,
@@ -124,9 +130,20 @@ it only for the same graph ID, with the service stopped, and preserve
 restrictive file ownership and permissions. Online backup and migration
 administration are intentionally not exposed as HTTP controls.
 
-The database is operationally sensitive even though payload bodies and secrets
-are excluded. Protect the volume, backups, and host directory with the same
-access controls as observation telemetry.
+The database is operationally sensitive even though payload bodies and
+configured GraphX credentials are excluded. Runtime acknowledgement errors are
+reduced to a documented non-secret error code before the command and history
+paths consume them. Ordinary runtime metadata is normalized and filtered
+against active, candidate, and recently superseded credentials before the
+history worker receives it; arbitrary
+runtime error text is retained only after the 256-character bound and credential
+filter. File-backed control/runtime candidates are reloaded before fan-out and
+superseded values remain filtered for a bounded 60-second overlap, so exact
+credentials cannot enter history on either side of rotation. If the collector
+can restart during that overlap, the deployment must project the bounded,
+expiring previous-credential manifest documented in `control-plane.md`; the
+collector loads those redaction-only values before becoming ready. Protect the
+volume, backups, and host directory at least as strongly as control-audit data.
 
 ## Verification
 

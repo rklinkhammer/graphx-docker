@@ -8,8 +8,9 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { RateLimiter, ReplayCache, parseRequestUrl, readSecret, signEnvelope, tokenMatches,
-  validateTelemetryEvent, verifyEnvelope, webSocketBearer } from './security.mjs'
+import { RateLimiter, ReplayCache, parseRequestUrl, readSecret, sanitizeControlAcknowledgement,
+  sanitizeTelemetryEvent, signEnvelope, tokenMatches, validateTelemetryEvent, verifyEnvelope,
+  webSocketBearer } from './security.mjs'
 
 const secret = '0123456789abcdef0123456789abcdef'
 
@@ -42,6 +43,54 @@ test('telemetry validation rejects unknown identities and unbounded values', () 
   assert.equal(validateTelemetryEvent(valid, nodes, edges), true)
   assert.equal(validateTelemetryEvent({ ...valid, nodeId: 'attacker' }, nodes, edges), false)
   assert.equal(validateTelemetryEvent({ ...valid, wireBytes: 1e12 }, nodes, edges), false)
+  assert.equal(validateTelemetryEvent({ ...valid, message: 'x'.repeat(257) }, nodes, edges), false)
+  assert.equal(validateTelemetryEvent({ ...valid, event: 'connection', message: 'arbitrary' },
+    nodes, edges), false)
+  assert.equal(validateTelemetryEvent({ ...valid, event: 'connection', message: 'connected' },
+    nodes, edges), true)
+  assert.equal(validateTelemetryEvent({ ...valid, event: 'backpressure', message: 'blocked' },
+    nodes, edges), true)
+})
+
+test('control acknowledgements require correlated bounded command identity and state', () => {
+  const nodes = new Set(['generator'])
+  const edges = new Set(['samples'])
+  const valid = { kind: 'control_ack', nodeId: 'generator', action: 'pause', accepted: true,
+    commandId: '8b85ab27-9318-4c01-aa2d-6ad93ca7f84b', state: 'paused' }
+  assert.equal(validateTelemetryEvent(valid, nodes, edges), true)
+  assert.equal(validateTelemetryEvent({ ...valid, commandId: 'forged' }, nodes, edges), false)
+  assert.equal(validateTelemetryEvent({ ...valid, state: 'unknown' }, nodes, edges), false)
+  assert.equal(validateTelemetryEvent({ ...valid, nodeId: 'attacker' }, nodes, edges), false)
+})
+
+test('control acknowledgement sanitization retains only protocol error codes', () => {
+  const acknowledgement = { kind: 'control_ack', accepted: false, error: 'busy' }
+  assert.deepEqual(sanitizeControlAcknowledgement(acknowledgement), acknowledgement)
+  assert.equal(sanitizeControlAcknowledgement({ ...acknowledgement,
+    error: secret }).error, 'runtime-rejected')
+  assert.equal(sanitizeControlAcknowledgement({ ...acknowledgement,
+    error: `failure:${secret}` }).error, 'runtime-rejected')
+  assert.equal(sanitizeControlAcknowledgement({ ...acknowledgement,
+    accepted: true, error: secret }).error, undefined)
+  assert.equal(sanitizeControlAcknowledgement({ kind: 'trace', message: secret }).message, secret)
+})
+
+test('telemetry sanitization removes credentials and unknown fields before fan-out', () => {
+  const credential = 'runtime-credential-01234567890123456789'
+  const event = sanitizeTelemetryEvent({ kind: 'trace', event: 'error', nodeId: 'generator',
+    edgeId: 'samples', message: `failure:${credential}`, messageId: `id:${credential}`,
+    parentMessageId: credential, traceId: credential, type: `type:${credential}`,
+    attackerControlled: credential }, [credential])
+  assert.equal(JSON.stringify(event).includes(credential), false)
+  assert.equal(event.message, 'failure:[credential-redacted]')
+  assert.equal('attackerControlled' in event, false)
+  const acknowledgement = sanitizeTelemetryEvent(sanitizeControlAcknowledgement({
+    kind: 'control_ack', nodeId: 'generator', action: 'pause', accepted: false,
+    commandId: '8b85ab27-9318-4c01-aa2d-6ad93ca7f84b', error: credential,
+    message: credential,
+  }), [credential])
+  assert.equal(acknowledgement.error, 'runtime-rejected')
+  assert.equal('message' in acknowledgement, false)
 })
 
 test('browser WebSocket bearer subprotocol is decoded', () => {

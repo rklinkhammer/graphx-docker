@@ -132,6 +132,15 @@ struct HistoryConfig {
   std::uint32_t shutdown_timeout_ms{2000};
 };
 
+struct ControlConfig {
+  std::uint32_t command_timeout_ms{2000};
+  std::uint32_t command_retention_seconds{3600};
+  std::uint32_t max_commands{1024};
+  std::uint32_t max_audit_records{4096};
+  std::uint32_t idempotency_ttl_seconds{3600};
+  std::uint32_t max_request_bytes{4096};
+};
+
 struct ObservabilityConfig {
   ObservabilitySignalConfig metrics;
   ObservabilitySignalConfig tracing;
@@ -140,6 +149,7 @@ struct ObservabilityConfig {
   OtlpConfig otlp;
   SloConfig slos;
   HistoryConfig history;
+  ControlConfig control;
 };
 
 struct GraphConfig {

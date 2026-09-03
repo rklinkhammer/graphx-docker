@@ -28,3 +28,12 @@ groups:
         for: 2m
         labels: { severity: warning }
         annotations: { summary: "GraphX durable history backend is unavailable" }
+      - alert: GraphXControlPolicyInvalid
+        expr: graphx_control_policy_valid == 0
+        for: 1m
+        labels: { severity: critical }
+        annotations: { summary: "GraphX control policy is invalid; control is fail-closed" }
+      - alert: GraphXControlCommandTimeouts
+        expr: increase(graphx_control_commands_total{outcome="timed_out"}[5m]) > 0
+        labels: { severity: warning }
+        annotations: { summary: "GraphX runtime control commands timed out" }

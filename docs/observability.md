@@ -125,7 +125,7 @@ The endpoints intentionally answer different questions:
 | Endpoint | HTTP status | Meaning | Authentication |
 |---|---|---|---|
 | `/api/live` | 200 while the event loop serves requests | process liveness | none |
-| `/api/ready` | 200/503 | HTTP and UDP listeners are active and shutdown has not begun | none |
+| `/api/ready` | 200/503 | HTTP and UDP listeners are active, credential configuration is valid, and shutdown has not begun | none |
 | `/api/graph/ready` | 200/503 | every configured node has a fresh running heartbeat and every edge is connected | observation token when configured |
 | `/api/health` | always 200 while live | compatibility summary; includes service and graph readiness booleans | none |
 | `/api/slo` | 200 | current bounded rolling SLO evaluation | observation token when configured |
@@ -180,6 +180,9 @@ Useful Prometheus series include:
   `graphx_history_records_total{outcome="written|failed|dropped|pruned"}`,
   `graphx_history_queue_depth`, `graphx_history_queue_bytes`, and
   `graphx_history_database_bytes`.
+- `graphx_control_commands_total{outcome="issued|accepted|rejected|timed_out"}`,
+  `graphx_control_denied_total`, `graphx_control_pending_commands`,
+  `graphx_control_policy_valid`, and `graphx_control_audit_dropped_total`.
 
 ## Provisioned operations stack
 
@@ -194,9 +197,11 @@ Grafana is at `http://127.0.0.1:3000` and Prometheus at
 `http://127.0.0.1:9090`. Set a strong `GRAPHX_GRAFANA_ADMIN_PASSWORD` outside a
 local lab. The dashboard covers graph readiness, SLO state and targets,
 throughput, p95 latency, errors/drops, node CPU, OTLP exporter health, and
-durable-history health, outcomes, queue bytes, and storage bytes.
+durable-history health, outcomes, queue bytes and storage bytes, plus control
+policy validity, pending commands and command outcomes.
 Alerts cover sustained graph unavailability, SLO violation, export failure,
-export queue loss, and an enabled but unavailable history backend. If observation authentication protects `/metrics`, add a
+export queue loss, an enabled but unavailable history backend, invalid control
+policy, and runtime command timeouts. If observation authentication protects `/metrics`, add a
 Prometheus bearer-token file through a deployment-specific secret projection;
 do not put the token in `prometheus.yml`.
 
@@ -213,27 +218,17 @@ events observed by this collector; Phase 7 can retain those observations, but
 does not turn best-effort delivery into durable end-to-end accounting. See
 [`history.md`](history.md).
 
-## Authenticated runtime control
+## Authorized runtime control
 
-Set both `GRAPHX_CONTROL_TOKEN` and `GRAPHX_TELEMETRY_SHARED_SECRET` on the
-telemetry service, and the shared secret on every runtime, to enable
-pause/resume/reset. Each credential must contain at least 32 bytes. Calls must
-use `Authorization: Bearer <token>`:
-
-```sh
-curl -i -X POST -H 'Authorization: Bearer choose-a-control-token-at-least-32-bytes' \
-  http://localhost:8080/api/control/pause
-curl -i -X POST -H 'Authorization: Bearer choose-a-control-token-at-least-32-bytes' \
-  http://localhost:8080/api/control/resume
-```
-
-HTTP 202 means the command was sent to at least one recently active runtime;
-the snapshot's `control.acknowledgements` records authenticated replies. HTTP 401 means the
-credential is absent or wrong, 409 means no runtime endpoint is live, and 503
-means server-side control is disabled. HMAC authentication, timestamp freshness,
-and nonce replay rejection protect the datagram exchange. Pause currently acts
-at source nodes: it prevents new envelopes while downstream nodes drain. It is
-not a process suspension, durable queue, or distributed transaction.
+Phase 8 separates observation from named control principals and adds bounded
+command identity, target/action authorization, actor-scoped idempotency, expiry,
+per-node cryptographic identity and signed acknowledgement, audit and explicit
+pending/accepted/rejected/timed-out states. Observation endpoints exclude
+commands and control audit; authorized operators use the dedicated live/durable
+audit routes. Pause prevents source nodes from creating new envelopes while
+downstream work drains. It is not a process suspension or distributed
+transaction. Configuration, API examples and failure semantics are in
+[`control-plane.md`](control-plane.md).
 
 ## Packet capture boundary
 

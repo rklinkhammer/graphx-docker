@@ -20,12 +20,15 @@ case "$VERSION" in
     ;;
 esac
 
-while IFS= read -r -d '' file; do FILES+=("$ROOT/$file"); done < <(
-  git -C "$ROOT" ls-files --cached --others --exclude-standard -z -- '*.cpp' '*.hpp'
-)
+for source_root in include src apps tests fuzz; do
+  test -d "$ROOT/$source_root" || continue
+  while IFS= read -r -d '' file; do FILES+=("$file"); done < <(
+    find "$ROOT/$source_root" -type f \( -name '*.cpp' -o -name '*.hpp' \) -print0
+  )
+done
 
 test "${#FILES[@]}" -gt 0 || {
-  echo "no tracked C++ files found" >&2
+  echo "no repository C++ files found" >&2
   exit 2
 }
 

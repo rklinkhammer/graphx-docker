@@ -14,7 +14,9 @@
     { "type": "timeseries", "title": "Node CPU", "gridPos": { "h": 8, "w": 12, "x": 6, "y": 16 }, "targets": [{ "expr": "graphx_node_cpu_percent", "legendFormat": "{{node}}" }], "fieldConfig": { "defaults": { "unit": "percent" }, "overrides": [] } },
     { "type": "stat", "title": "History backend", "gridPos": { "h": 8, "w": 6, "x": 18, "y": 16 }, "targets": [{ "expr": "clamp_max(graphx_history_backend_up + (1 - graphx_history_enabled), 1)", "legendFormat": "available or disabled" }], "fieldConfig": { "defaults": { "mappings": [{ "type": "value", "options": { "0": { "text": "DEGRADED", "color": "red" }, "1": { "text": "AVAILABLE", "color": "green" } } }], "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "red" }, { "color": "green", "value": 1 }] } }, "overrides": [] } },
     { "type": "timeseries", "title": "History outcomes", "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 }, "targets": [{ "expr": "rate(graphx_history_records_total[5m])", "legendFormat": "{{outcome}}" }], "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] } },
-    { "type": "timeseries", "title": "History storage and queue", "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 }, "targets": [{ "expr": "graphx_history_queue_bytes", "legendFormat": "queue bytes" }, { "expr": "graphx_history_database_bytes", "legendFormat": "database bytes" }], "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] } }
+    { "type": "timeseries", "title": "History storage and queue", "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 }, "targets": [{ "expr": "graphx_history_queue_bytes", "legendFormat": "queue bytes" }, { "expr": "graphx_history_database_bytes", "legendFormat": "database bytes" }], "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] } },
+    { "type": "stat", "title": "Control policy", "gridPos": { "h": 6, "w": 6, "x": 0, "y": 32 }, "targets": [{ "expr": "graphx_control_policy_valid", "legendFormat": "valid" }] },
+    { "type": "timeseries", "title": "Control command outcomes", "gridPos": { "h": 6, "w": 18, "x": 6, "y": 32 }, "targets": [{ "expr": "rate(graphx_control_commands_total[5m])", "legendFormat": "{{outcome}}" }, { "expr": "graphx_control_pending_commands", "legendFormat": "pending" }], "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] } }
   ],
   "schemaVersion": 42,
   "tags": ["graphx", "operations"],
@@ -23,5 +25,5 @@
   "timezone": "browser",
   "title": "GraphX Operations",
   "uid": "graphx-operations",
-  "version": 2
+  "version": 3
 }

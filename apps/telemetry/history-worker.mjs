@@ -115,6 +115,7 @@ function queryHistory(query) {
   add('node_id = ?', query.node)
   add('edge_id = ?', query.edge)
   add('kind = ?', query.kind)
+  if (query.excludeControlAudit) clauses.push("kind <> 'control_audit'")
   add('event = ?', query.event)
   parameters.push(query.limit + 1)
   const rows = database.prepare(`SELECT id,recorded_at_ms,event_at_ms,kind,event,node_id,edge_id,data_json

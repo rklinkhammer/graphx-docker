@@ -1,0 +1,43 @@
+services:
+  telemetry:
+    environment:
+      GRAPHX_CONTROL_TOKEN: ""
+      GRAPHX_CONTROL_POLICY_FILE: /run/graphx-control/policy.json
+      GRAPHX_TELEMETRY_SHARED_SECRET: ""
+      GRAPHX_RUNTIME_IDENTITY_FILE: /run/graphx-control/runtime-identities.json
+    volumes:
+      - ./config/control-policy.example.json:/run/graphx-control/policy.json:ro
+      - ./config/runtime-identities.example.json:/run/graphx-control/runtime-identities.json:ro
+    secrets:
+      - graphx-control-source-token
+      - graphx-control-admin-token
+      - graphx-runtime-generator-secret
+      - graphx-runtime-transform-secret
+      - graphx-runtime-sink-secret
+  generator:
+    environment:
+      GRAPHX_TELEMETRY_SHARED_SECRET: ""
+      GRAPHX_TELEMETRY_SHARED_SECRET_FILE: /run/secrets/graphx-runtime-generator-secret
+    secrets: [graphx-runtime-generator-secret]
+  transform:
+    environment:
+      GRAPHX_TELEMETRY_SHARED_SECRET: ""
+      GRAPHX_TELEMETRY_SHARED_SECRET_FILE: /run/secrets/graphx-runtime-transform-secret
+    secrets: [graphx-runtime-transform-secret]
+  sink:
+    environment:
+      GRAPHX_TELEMETRY_SHARED_SECRET: ""
+      GRAPHX_TELEMETRY_SHARED_SECRET_FILE: /run/secrets/graphx-runtime-sink-secret
+    secrets: [graphx-runtime-sink-secret]
+
+secrets:
+  graphx-control-source-token:
+    file: ${GRAPHX_CONTROL_SOURCE_TOKEN_FILE:?set GRAPHX_CONTROL_SOURCE_TOKEN_FILE}
+  graphx-control-admin-token:
+    file: ${GRAPHX_CONTROL_ADMIN_TOKEN_FILE:?set GRAPHX_CONTROL_ADMIN_TOKEN_FILE}
+  graphx-runtime-generator-secret:
+    file: ${GRAPHX_RUNTIME_GENERATOR_SECRET_FILE:?set GRAPHX_RUNTIME_GENERATOR_SECRET_FILE}
+  graphx-runtime-transform-secret:
+    file: ${GRAPHX_RUNTIME_TRANSFORM_SECRET_FILE:?set GRAPHX_RUNTIME_TRANSFORM_SECRET_FILE}
+  graphx-runtime-sink-secret:
+    file: ${GRAPHX_RUNTIME_SINK_SECRET_FILE:?set GRAPHX_RUNTIME_SINK_SECRET_FILE}

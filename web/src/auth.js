@@ -20,3 +20,17 @@ export function controlRequest(action, token = '') {
   return { url: `/api/control/${action}`, options: { method: 'POST', headers: bearerHeaders(token) } }
 }
 
+export function controlCommandRequest(action, token = '', targetNodes = null, reason = null,
+  idempotencyKey = crypto.randomUUID()) {
+  const body = { action }
+  if (targetNodes != null) body.targetNodes = targetNodes
+  if (reason != null) body.reason = reason
+  return { url: '/api/control/commands', options: { method: 'POST', headers: {
+    ...bearerHeaders(token), 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey,
+  }, body: JSON.stringify(body) } }
+}
+
+export function controlStatusRequest(commandId, token = '') {
+  return { url: `/api/control/commands/${encodeURIComponent(commandId)}`,
+    options: { method: 'GET', headers: bearerHeaders(token) } }
+}

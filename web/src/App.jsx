@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Boxes, CirclePause, CirclePlay, Database, GitBranch, KeyRound, Network, RotateCcw, TriangleAlert } from 'lucide-react'
 import { EdgeInspector } from './components/EdgeInspector'
+import { ControlCommandStatus } from './components/ControlCommandStatus'
 import { HistoryPanel } from './components/HistoryPanel'
 import { Topology } from './components/Topology'
 import { applicationEdges, applicationNodes, edgePaths, infrastructureNodes, networkEdges } from './data/topology'
-import { controlRequest, persistObservationToken } from './auth'
+import { controlCommandRequest, persistObservationToken } from './auth'
 import { useTelemetry } from './useTelemetry'
 
 function formatBytes(value) {
@@ -23,6 +24,7 @@ export default function App() {
   const { snapshot, connected } = useTelemetry(observationToken)
   const [selectedId, setSelectedId] = useState('samples')
   const [controlStatus, setControlStatus] = useState('Enter the control token to pause the source')
+  const [activeCommand, setActiveCommand] = useState(null)
   const [controlToken, setControlToken] = useState('')
   const [view, setView] = useState('application')
   useEffect(() => {
@@ -82,14 +84,16 @@ export default function App() {
   const displayedEdges = useMemo(() => view === 'application' ? edges : networkEdges(selectedId, topology), [view, edges, selectedId, topology])
 
   const control = async (action) => {
+    setActiveCommand(null)
     try {
-      const request = controlRequest(action, controlToken)
+      const request = controlCommandRequest(action, controlToken)
       const response = await fetch(request.url, request.options)
       const result = await response.json()
-      setControlStatus(result.accepted
-        ? result.delivered == null ? `${action} accepted by collector`
-          : `${action} delivered to ${result.delivered} node${result.delivered === 1 ? '' : 's'}`
-        : result.error)
+      const command = result.command
+      setActiveCommand(result.accepted && command ? { ...command, action } : null)
+      setControlStatus(result.accepted && command
+        ? `${action} ${command.status} · ${command.id.slice(0, 8)} · ${command.delivered} target${command.delivered === 1 ? '' : 's'}`
+        : result.accepted ? `${action} accepted by collector` : result.error)
       return result.accepted
     } catch { setControlStatus('Telemetry control service is unavailable'); return false }
   }
@@ -102,7 +106,7 @@ export default function App() {
     <section className="toolbar"><div><div className="breadcrumb"><Boxes size={15}/> Docker host / <strong>graphx</strong></div><h2>Live topology</h2><p>Container boundaries and framed transport telemetry</p></div>
       <div className="toolbar-actions"><button className={view === 'application' ? 'active' : ''} onClick={() => setView('application')}><GitBranch/> Application</button><button className={view === 'network' ? 'active' : ''} onClick={() => setView('network')}><Network/> Network path</button><button className={view === 'history' ? 'active' : ''} onClick={() => setView('history')}><Database/> History</button><label className="token-field" title="Optional GRAPHX_OBSERVATION_TOKEN"><KeyRound/><input aria-label="Observation token" type="password" value={observationToken} onChange={event => setObservationToken(event.target.value)} placeholder="Observation token"/></label><label className="token-field" title="GRAPHX_CONTROL_TOKEN configured on the telemetry service"><KeyRound/><input aria-label="Control token" type="password" value={controlToken} onChange={event => setControlToken(event.target.value)} placeholder="Control token"/></label><button onClick={() => control('pause')} disabled={!runtimeControl.available || runtimeControl.connectedNodes < 1 || !controlToken || snapshot?.state?.paused} title={runtimeControl.available ? `${runtimeControl.connectedNodes} runtime nodes connected` : 'Set GRAPHX_CONTROL_TOKEN on telemetry'}><CirclePause/> Pause source</button><button onClick={() => control('resume')} disabled={!runtimeControl.available || runtimeControl.connectedNodes < 1 || !controlToken} title="Resume is always available to recover a source after collector restart"><CirclePlay/> Resume</button><button className="danger" disabled title="Use the native Linux netem hooks in the network laboratories"><TriangleAlert/> Fault unavailable</button><button onClick={reset} disabled={!controlToken}><RotateCcw/> Reset counters</button></div>
     </section>
-    <section className="summary"><span><b>{graphNodes.length}</b> nodes</span><span><b>{edges.length}</b> logical edges</span><span><b>{Object.values(snapshot?.nodes || {}).filter(node => node.status !== 'running').length}</b> starting/offline</span><span className={traffic.flowing ? 'healthy' : 'waiting'}>● {traffic.flowing ? `Traffic flowing · ${traffic.samples.toLocaleString()} samples` : connected ? 'Waiting for samples' : 'Telemetry reconnecting'}</span><span>{controlStatus}</span></section>
+    <section className="summary"><span><b>{graphNodes.length}</b> nodes</span><span><b>{edges.length}</b> logical edges</span><span><b>{Object.values(snapshot?.nodes || {}).filter(node => node.status !== 'running').length}</b> starting/offline</span><span className={traffic.flowing ? 'healthy' : 'waiting'}>● {traffic.flowing ? `Traffic flowing · ${traffic.samples.toLocaleString()} samples` : connected ? 'Waiting for samples' : 'Telemetry reconnecting'}</span><ControlCommandStatus command={activeCommand} token={controlToken} fallback={controlStatus}/></section>
     {view === 'history' ? <HistoryPanel observationToken={observationToken} backend={snapshot?.history}/>
       : <section className="workspace"><div className="graph-panel"><div className="panel-label"><span>{view === 'application' ? 'APPLICATION DATAFLOW' : 'CONFIGURED NETWORK PATH'}</span><span>Drag nodes · Click edges to inspect</span></div><Topology nodes={displayedNodes} edges={displayedEdges} onEdgeSelect={setSelectedId}/></div><EdgeInspector edge={selected} networkPath={paths[selectedId]} observationToken={observationToken}/></section>}
     <footer><span>graphx.yaml</span><span>Telemetry · WebSocket</span><span>Capture · {snapshot?.capture?.enabled ? snapshot.capture.provider : 'disabled'}</span></footer>

@@ -4,11 +4,11 @@ You are the independent verification agent for the GraphX project located at:
 
 The implementation agent was assigned this work package:
 
-Phase 7
+Phase 8
 
 The implementer’s handoff is:
 
-`phase_7_handoff.md`
+`phase_8_handoff.md`
 
 Your responsibility is to determine whether the implementation is correct, complete, secure, compatible, operable, and ready to become the foundation for the next production-readiness phase.
 

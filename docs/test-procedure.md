@@ -94,6 +94,7 @@ Run:
 
 ```sh
 scripts/test-features.sh portable
+(cd apps/telemetry && node --test control.integration.test.mjs)
 ```
 
 Expected results:
@@ -113,8 +114,35 @@ Expected results:
 - The TCP and shared-memory pipelines each deliver sequence 8 with value 16.
 - Generator, transform, and sink exit cleanly after finite runs and SIGTERM.
 - Runtime output contains structured connection and processing events.
-- Browser credential/control helpers pass their tests and the web production
-  bundle builds.
+- Phase 8 tests prove scoped authorization, UUID command identity, exact
+  idempotent replay, conflicting-key rejection, per-node runtime identity,
+  endpoint-takeover/forged-ACK rejection, timeout, credential-in-reason
+  rejection, observation/audit isolation, and real signed source pause/resume.
+  Exact and embedded operator, observation, legacy HMAC, and per-node runtime
+  credentials in a signed negative ACK are reduced to a safe protocol code and
+  proven absent from command responses, live audit, reopened durable history,
+  observation snapshots, and collector logs.
+- Phase 8 credential-registry tests reuse values across every supported pair of
+  observation, control, shared-HMAC, and per-node runtime roles. Startup and
+  file-only rotation must fail closed with readiness 503 and policy/service
+  metrics at zero, and a distinct replacement must recover on the next bounded
+  reload without logging a value.
+- Ordinary telemetry regression tests place exact and embedded credentials in
+  diagnostics, identifiers, capture references, and unknown fields. They verify
+  event-specific state allowlists and bounds, then prove snapshot/WebSocket
+  source data and SQLite history remain credential-free after restart.
+- Phase 8 rotation tests replace control and per-node HMAC files inside the
+  ordinary one-second polling interval. They prove the candidate is discovered
+  before fan-out, superseded values remain filtered through the 60-second
+  overlap, then restart the collector inside that interval with an expiring
+  previous-credential projection. New-authenticated telemetry containing old
+  control/runtime values remains filtered from snapshots, WebSockets, OTLP,
+  capture references, SQLite and logs; the old authenticator is rejected, and
+  an old value in a new-authenticated command reason is rejected. Deterministic
+  tests also prove expiry, permissions, cross-role collision, malformed input,
+  and combined fail-closed capacity behavior.
+- Browser credential/control helpers and the mounted pending-to-terminal status
+  flow pass their tests, and the web production bundle builds.
 - `/api/health`, `/api/topology`, and `/metrics` respond. An unauthenticated
   pause is rejected; bearer- and HMAC-authenticated pause/resume is delivered and acknowledged.
   The real TCP generator's sent counter stops while paused and advances again
@@ -429,7 +457,7 @@ scripts/test-linux-container.sh tls
 ```
 
 Additional modes are cumulative CTest builds for C++23 and C++20, the portable
-Phase 1–7 feature suite, and the pinned quality/fuzz gates:
+Phase 1–8 feature suite, and the pinned quality/fuzz gates:
 
 ```sh
 scripts/test-linux-container.sh ctest

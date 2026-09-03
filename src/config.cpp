@@ -918,8 +918,9 @@ class ConfigParser {
   void parse_observability(const YAML::Node& value, GraphConfig& config) {
     if (!value) return;
     if (!require_map(value, "observability")) return;
-    strict_keys(value, "observability",
-                {"metrics", "tracing", "telemetry", "capture", "otlp", "slos", "history"});
+    strict_keys(
+        value, "observability",
+        {"metrics", "tracing", "telemetry", "capture", "otlp", "slos", "history", "control"});
     parse_signal(value["metrics"], "observability.metrics", config.observability.metrics, false);
     parse_signal(value["tracing"], "observability.tracing", config.observability.tracing, true);
     if (const auto telemetry = value["telemetry"]) {
@@ -1171,6 +1172,37 @@ class ConfigParser {
           error("observability.history.max_pending_queries", "must be between 1 and 128");
         if (result.shutdown_timeout_ms < 100 || result.shutdown_timeout_ms > 10000)
           error("observability.history.shutdown_timeout_ms", "must be between 100 and 10000");
+      }
+    }
+    if (const auto control = value["control"]) {
+      if (require_map(control, "observability.control")) {
+        strict_keys(control, "observability.control",
+                    {"command_timeout_ms", "command_retention_seconds", "max_commands",
+                     "max_audit_records", "idempotency_ttl_seconds", "max_request_bytes"});
+        auto& result = config.observability.control;
+        const auto assign = [&](std::string_view name, std::uint32_t& destination) {
+          const auto key = std::string(name);
+          if (control[key])
+            destination = history_unsigned_value(control[key], "observability.control." + key);
+        };
+        assign("command_timeout_ms", result.command_timeout_ms);
+        assign("command_retention_seconds", result.command_retention_seconds);
+        assign("max_commands", result.max_commands);
+        assign("max_audit_records", result.max_audit_records);
+        assign("idempotency_ttl_seconds", result.idempotency_ttl_seconds);
+        assign("max_request_bytes", result.max_request_bytes);
+        if (result.command_timeout_ms < 100 || result.command_timeout_ms > 30000)
+          error("observability.control.command_timeout_ms", "must be between 100 and 30000");
+        if (result.command_retention_seconds < 60 || result.command_retention_seconds > 86400)
+          error("observability.control.command_retention_seconds", "must be between 60 and 86400");
+        if (result.max_commands == 0 || result.max_commands > 10000)
+          error("observability.control.max_commands", "must be between 1 and 10000");
+        if (result.max_audit_records < 10 || result.max_audit_records > 100000)
+          error("observability.control.max_audit_records", "must be between 10 and 100000");
+        if (result.idempotency_ttl_seconds < 60 || result.idempotency_ttl_seconds > 86400)
+          error("observability.control.idempotency_ttl_seconds", "must be between 60 and 86400");
+        if (result.max_request_bytes < 256 || result.max_request_bytes > 16384)
+          error("observability.control.max_request_bytes", "must be between 256 and 16384");
       }
     }
   }

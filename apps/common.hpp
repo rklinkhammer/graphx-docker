@@ -55,11 +55,13 @@ inline std::string secret_env(const char* name) {
   const auto file_name = std::string(name) + "_FILE";
   const char* inline_value = std::getenv(name);
   const char* file_value = std::getenv(file_name.c_str());
-  if (inline_value && file_value)
+  const bool has_inline_value = inline_value && inline_value[0] != '\0';
+  const bool has_file_value = file_value && file_value[0] != '\0';
+  if (has_inline_value && has_file_value)
     throw std::runtime_error(std::string(name) + " and " + file_name + " are mutually exclusive");
   std::string value;
-  if (inline_value) value = inline_value;
-  if (file_value) {
+  if (has_inline_value) value = inline_value;
+  if (has_file_value) {
     std::ifstream input(file_value, std::ios::binary);
     if (!input) throw std::runtime_error("cannot read secret file for " + std::string(name));
     value.assign(std::istreambuf_iterator<char>(input), {});

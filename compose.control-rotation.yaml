@@ -1,0 +1,15 @@
+services:
+  telemetry:
+    environment:
+      GRAPHX_PREVIOUS_CREDENTIALS_FILE: /run/graphx-control/previous-credentials.json
+    volumes:
+      - ${GRAPHX_PREVIOUS_CREDENTIALS_MANIFEST_FILE:?set GRAPHX_PREVIOUS_CREDENTIALS_MANIFEST_FILE}:/run/graphx-control/previous-credentials.json:ro
+    secrets:
+      - graphx-previous-control-admin-token
+      - graphx-previous-runtime-generator-secret
+
+secrets:
+  graphx-previous-control-admin-token:
+    file: ${GRAPHX_PREVIOUS_CONTROL_ADMIN_TOKEN_FILE:?set GRAPHX_PREVIOUS_CONTROL_ADMIN_TOKEN_FILE}
+  graphx-previous-runtime-generator-secret:
+    file: ${GRAPHX_PREVIOUS_RUNTIME_GENERATOR_SECRET_FILE:?set GRAPHX_PREVIOUS_RUNTIME_GENERATOR_SECRET_FILE}

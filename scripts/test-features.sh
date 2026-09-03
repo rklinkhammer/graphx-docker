@@ -172,7 +172,9 @@ portable() {
     d.on("message", data => {
       const command = JSON.parse(data).payload;
       if (command?.kind === "control") d.send(JSON.stringify(sign({kind:"control_ack", nodeId:"generator",
-        action:command.action, accepted:true})), Number(process.env.GRAPHX_TEST_UDP_PORT), "127.0.0.1");
+        action:command.action, commandId:command.commandId, accepted:true,
+        state:command.action === "pause" ? "paused" : "running"})),
+        Number(process.env.GRAPHX_TEST_UDP_PORT), "127.0.0.1");
     });
     for (const event of events) d.send(JSON.stringify(sign(event)), Number(process.env.GRAPHX_TEST_UDP_PORT), "127.0.0.1");
     setTimeout(() => d.close(), 5000);
@@ -223,8 +225,26 @@ portable() {
   grep -q '"accepted":false' "$TMP_DIR/pause-unauthorized.json"
   test "$(curl -sS -o "$TMP_DIR/pause.json" -w '%{http_code}' -X POST -H "Authorization: Bearer $control_token" "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/control/pause")" = 202
   grep -q '"accepted":true' "$TMP_DIR/pause.json"
-  sleep 0.1
-  curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/topology" | grep -q '"action":"pause","accepted":true'
+  pause_id=$(node -p 'JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8")).command.id' "$TMP_DIR/pause.json")
+  command_accepted=false
+  for _ in {1..40}; do
+    curl -fsS -H "Authorization: Bearer $control_token" \
+      "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/control/commands/$pause_id" \
+      >"$TMP_DIR/pause-status.json"
+    if node -e 'const value=require(process.argv[1]); process.exit(value.status === "accepted" ? 0 : 1)' \
+        "$TMP_DIR/pause-status.json"; then
+      command_accepted=true
+      break
+    fi
+    sleep 0.05
+  done
+  test "$command_accepted" = true
+  curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/topology" \
+    >"$TMP_DIR/topology-after-control.json"
+  if grep -q '"commands"' "$TMP_DIR/topology-after-control.json"; then
+    echo "observation topology exposed control command summaries" >&2
+    return 1
+  fi
   curl -fsS -X POST -H "Authorization: Bearer $control_token" "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/control/reset" | grep -q '"paused":true'
   test "$(curl -sS -o "$TMP_DIR/resume.json" -w '%{http_code}' -X POST -H "Authorization: Bearer $control_token" "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/control/resume")" = 202
   grep -q '"accepted":true' "$TMP_DIR/resume.json"

@@ -25,8 +25,10 @@ expired row is not exposed between physical prune cycles.
 Schema version and owning graph ID are stored in the database. Newer schemas and
 other graph identities fail closed for history access. The history backend has
 an independent degraded state and metrics; its failure does not make the live
-telemetry service unready. Reads reuse the observation authorization boundary
-and stable newest-first cursors. There is no history mutation API.
+telemetry service unready. Ordinary reads reuse the observation authorization
+boundary and stable newest-first cursors. Phase 8 control-audit records are
+excluded from that boundary and require the dedicated control-audit permission.
+There is no history mutation API.
 
 The implementation uses the SQLite module shipped with the Node 22.23.2 Alpine
 runtime pinned by immutable digest in both telemetry image stages, so GraphX
@@ -42,7 +44,7 @@ adds no package-manager dependency or native add-on lifecycle.
 - Main-database growth and retained WAL size are bounded; operators still need
   headroom for an active transaction and filesystem behavior.
 - Database files and backups are sensitive operational data and need restricted
-  access even though payload bodies and credentials are never stored.
+  access even though payload bodies and configured GraphX credentials are not stored.
 - Remote backends, online backup administration, retention controls, replay,
   deletion, and capture indexing require separate future decisions.
 - `node:sqlite` is still marked experimental in the pinned Node 22 runtime. Its

@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "principals": [
+    {
+      "id": "source-operator",
+      "token_file": "/run/secrets/graphx-control-source-token",
+      "permissions": ["pause", "resume"],
+      "nodes": ["generator"]
+    },
+    {
+      "id": "control-admin",
+      "token_file": "/run/secrets/graphx-control-admin-token",
+      "permissions": ["pause", "resume", "reset", "commands:read:any", "audit:read"],
+      "nodes": ["*"]
+    }
+  ]
+}

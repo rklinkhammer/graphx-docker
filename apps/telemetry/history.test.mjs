@@ -10,6 +10,7 @@ import { DatabaseSync } from 'node:sqlite'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml'
+import { controlAuditHistoryRecord } from './control.mjs'
 import { HistoryStore, historyConfig, parseHistoryQuery, telemetryHistoryRecord } from './history.mjs'
 
 function temporaryHistory() {
@@ -99,6 +100,28 @@ test('SQLite history persists across restart and uses stable bounded pagination'
     await store.close().catch(() => {})
     temporary.remove()
   }
+})
+
+test('control audit metadata survives history restart without credentials', async () => {
+  const temporary = temporaryHistory()
+  const settings = config(temporary.file)
+  let store = new HistoryStore(settings, 'graphx')
+  try {
+    await store.waitUntilReady()
+    const record = controlAuditHistoryRecord({ actor: 'source-operator', action: 'pause',
+      targetNodes: ['generator'], decision: 'acknowledged',
+      commandId: '8b85ab27-9318-4c01-aa2d-6ad93ca7f84b', reason: 'maintenance' }, 'graphx')
+    assert.equal(store.enqueue(record), true)
+    await store.flush()
+    await store.close()
+    store = new HistoryStore(settings, 'graphx')
+    await store.waitUntilReady()
+    const persisted = await store.query({ cursor: null, after: null, before: null, limit: 10,
+      node: null, edge: null, kind: 'control_audit', event: null })
+    assert.equal(persisted.records.length, 1)
+    assert.equal(persisted.records[0].data.actor, 'source-operator')
+    assert.equal(JSON.stringify(persisted).includes('token'), false)
+  } finally { await store.close().catch(() => {}); temporary.remove() }
 })
 
 test('history applies reduced age and count retention before a reopened store is ready', async () => {

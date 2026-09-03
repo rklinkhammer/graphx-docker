@@ -19,6 +19,7 @@
 #include <functional>
 #include <iostream>
 #include <netinet/in.h>
+#include <openssl/hmac.h>
 #include <poll.h>
 #include <stdexcept>
 #include <sys/socket.h>
@@ -538,7 +539,9 @@ void udp_runtime_control() {
   ::setsockopt(collector, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
 
   {
-    graphx::UdpJsonTraceSink sink("generator", "127.0.0.1", ntohs(address.sin_port));
+    constexpr std::string_view secret = "runtime-control-secret-012345678901";
+    graphx::UdpJsonTraceSink sink("generator", "127.0.0.1", ntohs(address.sin_port),
+                                  std::string(secret));
     sink.on_heartbeat("generator", 1.0);
     std::array<char, 2048> event{};
     sockaddr_storage runtime{};
@@ -561,9 +564,37 @@ void udp_runtime_control() {
                    std::string_view::npos &&
                event_json.find("\"type\":\"Observed\\u0001\"") != std::string_view::npos,
            "UDP event carries canonical protocol identities");
-    const auto command = [&](std::string_view action) {
-      const auto json =
-          std::string{"{\"kind\":\"control\",\"action\":\""} + std::string(action) + "\"}";
+    std::uint64_t command_sequence{};
+    const auto command = [&](std::string_view action, std::string_view target = "generator",
+                             std::int64_t expiry_offset = 1000) {
+      ++command_sequence;
+      const auto command_id = std::string{"00000000-0000-4000-8000-"} + std::string(11, '0') +
+                              std::to_string(command_sequence);
+      const auto timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                 std::chrono::system_clock::now().time_since_epoch())
+                                 .count();
+      const auto payload = std::string{"{\"kind\":\"control\",\"action\":\""} +
+                           std::string(action) + "\",\"commandId\":\"" + command_id +
+                           "\",\"targetNode\":\"" + std::string(target) +
+                           "\",\"expiresAt\":" + std::to_string(timestamp + expiry_offset) + "}";
+      const auto nonce = std::string(31, '0') + std::to_string(command_sequence);
+      const auto signed_value = std::to_string(timestamp) + "." + nonce + "." + payload;
+      std::array<unsigned char, EVP_MAX_MD_SIZE> digest{};
+      unsigned int digest_size{};
+      expect(HMAC(EVP_sha256(), secret.data(), static_cast<int>(secret.size()),
+                  reinterpret_cast<const unsigned char*>(signed_value.data()), signed_value.size(),
+                  digest.data(), &digest_size) != nullptr,
+             "UDP runtime command HMAC");
+      constexpr std::string_view digits = "0123456789abcdef";
+      std::string signature;
+      signature.reserve(digest_size * 2);
+      for (unsigned int index = 0; index < digest_size; ++index) {
+        signature += digits[digest[index] >> 4];
+        signature += digits[digest[index] & 0x0f];
+      }
+      const auto json = std::string{"{\"payload\":"} + payload +
+                        ",\"auth\":{\"timestamp\":" + std::to_string(timestamp) + ",\"nonce\":\"" +
+                        nonce + "\",\"signature\":\"" + signature + "\"}}";
       expect(::sendto(collector, json.data(), json.size(), 0, reinterpret_cast<sockaddr*>(&runtime),
                       runtime_size) > 0,
              "UDP runtime command delivery");
@@ -575,6 +606,12 @@ void udp_runtime_control() {
       }
       return false;
     };
+    command("pause", "transform");
+    std::this_thread::sleep_for(20ms);
+    expect(!sink.paused(), "UDP command for another node is ignored");
+    command("pause", "generator", -1);
+    std::this_thread::sleep_for(20ms);
+    expect(!sink.paused(), "expired UDP command is ignored");
     command("pause");
     expect(await(true), "UDP pause command");
     command("resume");

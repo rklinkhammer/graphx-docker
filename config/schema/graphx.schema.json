@@ -377,6 +377,17 @@
             "max_pending_queries": { "type": "integer", "minimum": 1, "maximum": 128 },
             "shutdown_timeout_ms": { "type": "integer", "minimum": 100, "maximum": 10000 }
           }
+        },
+        "control": {
+          "type": "object", "additionalProperties": false,
+          "properties": {
+            "command_timeout_ms": { "type": "integer", "minimum": 100, "maximum": 30000 },
+            "command_retention_seconds": { "type": "integer", "minimum": 60, "maximum": 86400 },
+            "max_commands": { "type": "integer", "minimum": 1, "maximum": 10000 },
+            "max_audit_records": { "type": "integer", "minimum": 10, "maximum": 100000 },
+            "idempotency_ttl_seconds": { "type": "integer", "minimum": 60, "maximum": 86400 },
+            "max_request_bytes": { "type": "integer", "minimum": 256, "maximum": 16384 }
+          }
         }
       }
     }

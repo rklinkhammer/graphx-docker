@@ -45,3 +45,23 @@ tests:
         exp_alerts:
           - exp_labels: { severity: warning }
             exp_annotations: { summary: "GraphX durable history backend is unavailable" }
+  - name: valid control policy does not alert
+    interval: 1m
+    input_series:
+      - series: graphx_control_policy_valid
+        values: '1 1 1'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: GraphXControlPolicyInvalid
+        exp_alerts: []
+  - name: invalid control policy fails closed and alerts
+    interval: 1m
+    input_series:
+      - series: graphx_control_policy_valid
+        values: '0 0 0'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: GraphXControlPolicyInvalid
+        exp_alerts:
+          - exp_labels: { severity: critical }
+            exp_annotations: { summary: "GraphX control policy is invalid; control is fail-closed" }

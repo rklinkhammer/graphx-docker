@@ -108,6 +108,10 @@ void authoritative_config_loads() {
              config.observability.history.max_records == 100000 &&
              config.observability.history.max_database_bytes == 268435456,
          "typed bounded history configuration");
+  expect(config.observability.control.command_timeout_ms == 2000 &&
+             config.observability.control.max_commands == 1024 &&
+             config.observability.control.max_request_bytes == 4096,
+         "typed bounded control configuration");
 }
 
 void tcp_policy_loads() {
@@ -276,6 +280,26 @@ observability:
     expect(diagnostic_contains(error, "history.typo_retention_seconds") &&
                diagnostic_contains(error, "unknown property"),
            "unknown history property diagnostic");
+  }
+}
+
+void invalid_control_configuration_is_rejected() {
+  TemporaryConfig file(std::string(valid_config) + R"yaml(
+observability:
+  control: { command_timeout_ms: 99, command_retention_seconds: 1, max_commands: 0, max_audit_records: 1, idempotency_ttl_seconds: "60", max_request_bytes: 100, typo: 1 }
+)yaml");
+  try {
+    [[maybe_unused]] const auto ignored = graphx::load_config(file.path());
+    throw std::runtime_error("invalid control configuration was accepted");
+  } catch (const graphx::ConfigError& error) {
+    expect(diagnostic_contains(error, "control.command_timeout_ms"), "control timeout diagnostic");
+    expect(diagnostic_contains(error, "control.max_commands"), "control capacity diagnostic");
+    expect(diagnostic_contains(error, "control.idempotency_ttl_seconds") &&
+               diagnostic_contains(error, "integer, not a string"),
+           "control scalar type diagnostic");
+    expect(diagnostic_contains(error, "control.typo") &&
+               diagnostic_contains(error, "unknown property"),
+           "control unknown property diagnostic");
   }
 }
 
@@ -801,6 +825,7 @@ int main() {
       {"invalid history config", invalid_history_configuration_is_rejected},
       {"strict history scalar types", history_scalar_types_are_strict},
       {"strict history strings and keys", history_empty_and_unknown_values_are_strict},
+      {"invalid control config", invalid_control_configuration_is_rejected},
       {"invalid shared-memory config", invalid_shared_memory_config_is_rejected},
       {"mixed network model", mixed_network_model_and_plan_load},
       {"standalone network examples", standalone_network_examples_load},

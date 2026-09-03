@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "nodes": [
+    {
+      "id": "generator",
+      "secret_file": "/run/secrets/graphx-runtime-generator-secret"
+    },
+    {
+      "id": "transform",
+      "secret_file": "/run/secrets/graphx-runtime-transform-secret"
+    },
+    {
+      "id": "sink",
+      "secret_file": "/run/secrets/graphx-runtime-sink-secret"
+    }
+  ]
+}
