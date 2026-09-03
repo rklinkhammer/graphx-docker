@@ -123,3 +123,15 @@ oversized envelopes, and forbidden lossy v1 serialization.
 Errors are exceptions with boundary context. Callers must treat a protocol error
 as a failed message/connection according to the transport contract; they must not
 reinterpret it as timeout, cancellation, or end-of-stream.
+
+## Wireshark representation
+
+Phase 9 introduces no new wire version. PCAPNG application packets contain the
+same four-byte stream length followed by the exact v1 or v2 envelope. The USER0
+Lua dissector at `wireshark/graphx.lua` applies the bounds and exact-consumption
+rules above, including mandatory nonzero v2 message/trace identities and unique
+attribute keys, and exposes `graphx.*` display fields. The optional parent ID
+may remain all-zero to represent no parent. PCAPNG comments add bounded capture
+correlation context but are not part of the envelope and cannot override decoded
+values; oversized optional metadata is replaced by an explicit truncation
+marker without dropping the canonical frame.

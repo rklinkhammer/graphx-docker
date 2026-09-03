@@ -1,78 +1,174 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/usr/bin/env python3
+"""Bounded extcap adapter for GraphX-generated PCAPNG files."""
 
-interface=graphx
-capture_file=
-fifo=
-follow=true
-mode=
+from __future__ import annotations
 
-while (($#)); do
-  case $1 in
-    --extcap-interfaces) mode=interfaces ;;
-    --extcap-dlts) mode=dlts ;;
-    --extcap-config) mode=config ;;
-    --capture) mode=capture ;;
-    --extcap-interface|--capture-file|--fifo|--follow|--extcap-capture-filter|--extcap-version)
-      key=$1
-      shift
-      (($#)) || { echo "$key requires a value" >&2; exit 2; }
-      case $key in
-        --extcap-interface) interface=$1 ;;
-        --capture-file) capture_file=$1 ;;
-        --fifo) fifo=$1 ;;
-        --follow) follow=$1 ;;
-      esac
-      ;;
-    --extcap-interface=*) interface=${1#*=} ;;
-    --capture-file=*) capture_file=${1#*=} ;;
-    --fifo=*) fifo=${1#*=} ;;
-    --follow=*) follow=${1#*=} ;;
-    --extcap-capture-filter=*|--extcap-version=*) ;;
-    --help)
-      echo "GraphX extcap: --extcap-interfaces | --extcap-dlts | --extcap-config | --capture --capture-file FILE --fifo FIFO"
-      exit 0
-      ;;
-  esac
-  shift
-done
+import argparse
+import errno
+import os
+import stat
+import struct
+import sys
+import time
+from pathlib import Path
 
-case $mode in
-  interfaces)
-    echo 'extcap {version=0.1.0}{display=GraphX PCAPNG capture}'
-    echo 'interface {value=graphx}{display=GraphX framed envelopes}'
-    echo 'interface {value=graphx-ethernet}{display=GraphX Ethernet mirror capture}'
-    ;;
-  dlts)
-    case "$interface" in
-      graphx) echo 'dlt {number=147}{name=USER0}{display=GraphX framed envelope (USER0)}' ;;
-      graphx-ethernet) echo 'dlt {number=1}{name=EN10MB}{display=Ethernet}' ;;
-      *) echo "unknown extcap interface: $interface" >&2; exit 2 ;;
-    esac
-    ;;
-  config)
-    [[ "$interface" == graphx || "$interface" == graphx-ethernet ]] || {
-      echo "unknown extcap interface: $interface" >&2; exit 2;
-    }
-    echo 'arg {number=0}{call=--capture-file}{display=PCAPNG file}{type=fileselect}{required=true}{group=Capture}'
-    echo 'arg {number=1}{call=--follow}{display=Follow live file}{type=boolean}{default=true}{group=Capture}'
-    ;;
-  capture)
-    [[ "$interface" == graphx || "$interface" == graphx-ethernet ]] || {
-      echo "unknown extcap interface: $interface" >&2; exit 2;
-    }
-    test -n "$capture_file" && test -f "$capture_file" || {
-      echo "--capture-file must identify an existing PCAPNG file" >&2; exit 2;
-    }
-    test -n "$fifo" || { echo "--fifo is required for capture" >&2; exit 2; }
-    if test "$follow" = true || test "$follow" = 1 || test "$follow" = yes; then
-      tail -c +1 -f "$capture_file" >"$fifo"
-    else
-      cp "$capture_file" "$fifo"
-    fi
-    ;;
-  *)
-    echo "no extcap operation selected" >&2
-    exit 2
-    ;;
-esac
+VERSION = "1.0.0"
+MAX_BLOCK_BYTES = 17 * 1024 * 1024
+POLL_SECONDS = 0.05
+INTERFACES = {"graphx": 147, "graphx-ethernet": 1}
+
+
+class ExtcapError(RuntimeError):
+    pass
+
+
+def parser() -> argparse.ArgumentParser:
+    result = argparse.ArgumentParser(description="GraphX PCAPNG extcap adapter")
+    operations = result.add_mutually_exclusive_group()
+    operations.add_argument("--extcap-interfaces", action="store_true")
+    operations.add_argument("--extcap-dlts", action="store_true")
+    operations.add_argument("--extcap-config", action="store_true")
+    operations.add_argument("--capture", action="store_true")
+    result.add_argument("--extcap-interface", default="graphx")
+    result.add_argument("--extcap-version")
+    result.add_argument("--extcap-capture-filter", default="")
+    result.add_argument("--capture-file")
+    result.add_argument("--fifo")
+    result.add_argument("--follow", choices=("true", "false"), default="true")
+    result.add_argument("--no-follow", action="store_true")
+    return result
+
+
+def emit_metadata(args: argparse.Namespace) -> bool:
+    if args.extcap_interfaces:
+        print(f"extcap {{version={VERSION}}}{{display=GraphX PCAPNG capture}}")
+        print("interface {value=graphx}{display=GraphX framed envelopes}")
+        print("interface {value=graphx-ethernet}{display=GraphX Ethernet mirror capture}")
+        return True
+    if args.extcap_interface not in INTERFACES:
+        raise ExtcapError(f"unknown extcap interface: {args.extcap_interface}")
+    if args.extcap_dlts:
+        if args.extcap_interface == "graphx":
+            print("dlt {number=147}{name=USER0}{display=GraphX framed envelope (USER0)}")
+        else:
+            print("dlt {number=1}{name=EN10MB}{display=Ethernet}")
+        return True
+    if args.extcap_config:
+        print("arg {number=0}{call=--capture-file}{display=PCAPNG file}{type=fileselect}"
+              "{required=true}{group=Capture}{tooltip=GraphX-generated PCAPNG file}")
+        print("arg {number=1}{call=--no-follow}{display=Read current file only}{type=boolflag}"
+              "{default=false}{group=Capture}")
+        return True
+    return False
+
+
+def read_exact(source, count: int, follow: bool) -> bytes | None:
+    chunks = bytearray()
+    while len(chunks) < count:
+        chunk = source.read(count - len(chunks))
+        if chunk:
+            chunks.extend(chunk)
+            continue
+        if not follow:
+            if chunks:
+                raise ExtcapError("truncated PCAPNG block")
+            return None
+        time.sleep(POLL_SECONDS)
+    return bytes(chunks)
+
+
+def stream_capture(args: argparse.Namespace) -> None:
+    if not args.capture_file or not args.fifo:
+        raise ExtcapError("--capture-file and --fifo are required for capture")
+    if args.extcap_capture_filter:
+        raise ExtcapError("capture filters are not supported; use a Wireshark display filter")
+    source_path = Path(args.capture_file)
+    follow = args.follow == "true" and not args.no_follow
+    expected_linktype = INTERFACES[args.extcap_interface]
+    saw_section = False
+    saw_interface = False
+    flags = (os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) |
+             getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0))
+    try:
+        source_fd = os.open(source_path, flags)
+        if not stat.S_ISREG(os.fstat(source_fd).st_mode):
+            os.close(source_fd)
+            raise ExtcapError("capture file must be a regular non-symlink file")
+    except OSError as error:
+        if error.errno == errno.ELOOP:
+            raise ExtcapError("capture file must be a regular non-symlink file") from error
+        raise ExtcapError(f"cannot open capture file safely: {error.strerror}") from error
+    with os.fdopen(source_fd, "rb", buffering=0) as source, open(args.fifo, "wb", buffering=0) as sink:
+        while True:
+            header = read_exact(source, 8, follow)
+            if header is None:
+                break
+            block_type, block_length = struct.unpack("<II", header)
+            if block_length < 12 or block_length % 4 or block_length > MAX_BLOCK_BYTES:
+                raise ExtcapError(f"invalid PCAPNG block length: {block_length}")
+            remainder = read_exact(source, block_length - 8, follow)
+            if remainder is None:
+                raise ExtcapError("truncated PCAPNG block")
+            if struct.unpack_from("<I", remainder, len(remainder) - 4)[0] != block_length:
+                raise ExtcapError("PCAPNG block length trailer does not match")
+            block = header + remainder
+            if not saw_section:
+                if block_type != 0x0A0D0D0A or block_length < 28:
+                    raise ExtcapError("capture does not begin with a PCAPNG section header")
+                if block[8:12] != b"\x4d\x3c\x2b\x1a":
+                    raise ExtcapError("only little-endian GraphX PCAPNG sections are supported")
+                major, minor = struct.unpack_from("<HH", block, 12)
+                if (major, minor) != (1, 0):
+                    raise ExtcapError(
+                        f"unsupported PCAPNG section version: {major}.{minor}"
+                    )
+                if struct.unpack_from("<Q", block, 16)[0] != 0xFFFFFFFFFFFFFFFF:
+                    raise ExtcapError("unsupported PCAPNG section length")
+                saw_section = True
+            elif not saw_interface:
+                if block_type != 1 or block_length < 20:
+                    raise ExtcapError("PCAPNG interface description must follow the section header")
+                linktype = struct.unpack_from("<H", block, 8)[0]
+                if linktype != expected_linktype:
+                    raise ExtcapError(
+                        f"capture link type {linktype} does not match interface {args.extcap_interface}"
+                    )
+                saw_interface = True
+            else:
+                if block_type == 0x0A0D0D0A:
+                    raise ExtcapError("multiple PCAPNG sections are not supported")
+                if block_type == 1:
+                    raise ExtcapError("multiple PCAPNG interfaces are not supported")
+                if block_type != 6 or block_length < 32:
+                    raise ExtcapError("unsupported PCAPNG block after interface description")
+                if struct.unpack_from("<I", block, 8)[0] != 0:
+                    raise ExtcapError("PCAPNG packet references an unsupported interface")
+            sink.write(block)
+        if not saw_interface:
+            raise ExtcapError("capture has no interface description")
+
+
+def main() -> int:
+    try:
+        args = parser().parse_args()
+        if emit_metadata(args):
+            return 0
+        if not args.capture:
+            if args.extcap_capture_filter:
+                print("Capture filters are not supported; use a Wireshark display filter")
+                return 0
+            if args.extcap_version is not None:
+                print(f"extcap {{version={VERSION}}}{{display=GraphX PCAPNG capture}}")
+                return 0
+            raise ExtcapError("no extcap operation selected")
+        stream_capture(args)
+        return 0
+    except (BrokenPipeError, KeyboardInterrupt):
+        return 0
+    except (ExtcapError, OSError) as error:
+        print(f"graphx-extcap: {error}", file=sys.stderr)
+        return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())

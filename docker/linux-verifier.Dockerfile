@@ -13,7 +13,7 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       bash build-essential ca-certificates clang-18 clang-format-18 clang-tidy-18 \
       cmake cppcheck curl git libssl-dev ninja-build openssl pkg-config xxd \
-      libclang-rt-18-dev \
+      libclang-rt-18-dev python3 tshark \
  && rm -rf /var/lib/apt/lists/*
 
 # A public/private-organization root CA may be supplied at build time with:

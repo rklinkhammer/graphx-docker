@@ -1,5 +1,5 @@
 import dgram from 'node:dgram'
-import { closeSync, createReadStream, existsSync, openSync, readFileSync, readSync, readdirSync, statSync } from 'node:fs'
+import { closeSync, createReadStream, existsSync, readFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { createServer as createSecureServer } from 'node:https'
 import { dirname, extname, join, normalize, resolve } from 'node:path'
@@ -16,6 +16,7 @@ import { HistoryStore, historyConfig, parseHistoryQuery, sloHistoryRecord,
 import { ControlAuthorizer, ControlConflictError, ControlPlane, CredentialRegistry,
   PreviousCredentialStore, RuntimeIdentityStore, controlAuditHistoryRecord,
   controlConfig } from './control.mjs'
+import { listValidatedCaptures, openValidatedCapture } from './capture-files.mjs'
 
 const root = normalize(process.env.GRAPHX_WEB_ROOT || join(fileURLToPath(new URL('.', import.meta.url)), '../../web/dist'))
 const port = Number(process.env.PORT || 8080)
@@ -30,6 +31,30 @@ const transport = config.transport || {}
 const heartbeatTimeout = Number(process.env.GRAPHX_HEARTBEAT_TIMEOUT_MS || config.observability?.telemetry?.heartbeat_timeout_ms || 5000)
 const websocketPath = config.observability?.telemetry?.websocket || '/ws'
 const configuredCapture = config.observability?.capture || { enabled: false, provider: '' }
+function captureInteger(name, configured, fallback, minimum, maximum) {
+  const fromEnvironment = process.env[name]
+  const candidate = fromEnvironment ?? configured ?? fallback
+  if (fromEnvironment == null && typeof candidate !== 'number')
+    throw new Error(`${name} must be a typed integer between ${minimum} and ${maximum}`)
+  if (fromEnvironment != null && !/^[0-9]+$/.test(candidate))
+    throw new Error(`${name} must be an integer between ${minimum} and ${maximum}`)
+  const value = Number(candidate)
+  if (!Number.isSafeInteger(value) || value < minimum || value > maximum)
+    throw new Error(`${name} must be an integer between ${minimum} and ${maximum}`)
+  return value
+}
+function captureBoolean(name, configured, fallback) {
+  const candidate = process.env[name]
+  if (candidate == null) {
+    const value = configured ?? fallback
+    if (typeof value !== 'boolean') throw new Error(`${name} must be a typed boolean`)
+    return value
+  }
+  const value = candidate.toLowerCase()
+  if (['1', 'true', 'yes', 'on'].includes(value)) return true
+  if (['0', 'false', 'no', 'off'].includes(value)) return false
+  throw new Error(`${name} must be one of true, false, 1, 0, yes, no, on, or off`)
+}
 const sloEvaluator = new SloEvaluator(config.observability?.slos)
 const configuredOtlp = otlpConfig(config.observability?.otlp)
 const otlpExporter = new OtlpHttpExporter(configuredOtlp)
@@ -37,11 +62,27 @@ const configuredHistory = historyConfig(config.observability?.history, process.e
 const historyStore = new HistoryStore(configuredHistory, graph.id)
 const configuredControl = controlConfig(config.observability?.control)
 const captureConfig = { ...configuredCapture,
-  enabled: process.env.GRAPHX_CAPTURE_ENABLED == null ? Boolean(configuredCapture.enabled) :
-    ['1', 'true', 'yes', 'on'].includes(process.env.GRAPHX_CAPTURE_ENABLED.toLowerCase()),
+  enabled: captureBoolean('GRAPHX_CAPTURE_ENABLED', configuredCapture.enabled, false),
   provider: process.env.GRAPHX_CAPTURE_PROVIDER || configuredCapture.provider || '',
+  snaplen: captureInteger('GRAPHX_CAPTURE_SNAPLEN', configuredCapture.snaplen,
+    16 * 1024 * 1024 + 4, 256, 16 * 1024 * 1024 + 4),
+  maxFileBytes: captureInteger('GRAPHX_CAPTURE_MAX_FILE_BYTES', configuredCapture.max_file_bytes,
+    256 * 1024 * 1024, 65536, 4 * 1024 * 1024 * 1024),
+  maxPackets: captureInteger('GRAPHX_CAPTURE_MAX_PACKETS', configuredCapture.max_packets,
+    1_000_000, 1, 100_000_000),
 }
+if (captureConfig.provider && !['pcapng', 'ovs-span'].includes(captureConfig.provider))
+  throw new Error('GRAPHX_CAPTURE_PROVIDER must be pcapng or ovs-span')
+if (captureConfig.enabled && !captureConfig.provider)
+  throw new Error('GRAPHX_CAPTURE_PROVIDER is required when capture is enabled')
+if (captureConfig.enabled && captureConfig.provider === 'pcapng' &&
+    !process.env.GRAPHX_CAPTURE_DIR && !configuredCapture.directory)
+  throw new Error('GRAPHX_CAPTURE_DIR is required for the pcapng provider')
 const captureDirectory = resolve(process.env.GRAPHX_CAPTURE_DIR || captureConfig.directory || 'captures')
+const captureCatalogMaxFiles = captureInteger('GRAPHX_CAPTURE_CATALOG_MAX_FILES', undefined,
+  128, 1, 1024)
+const captureCatalogMaxEntries = captureInteger('GRAPHX_CAPTURE_CATALOG_MAX_ENTRIES', undefined,
+  512, captureCatalogMaxFiles, 4096)
 const controlToken = readSecret('GRAPHX_CONTROL_TOKEN')
 const controlPolicyFile = process.env.GRAPHX_CONTROL_POLICY_FILE || ''
 const runtimeIdentityFile = process.env.GRAPHX_RUNTIME_IDENTITY_FILE || ''
@@ -212,34 +253,23 @@ function edgeView(edge, timestamp = Date.now()) {
   }
 }
 
-function pcapngLinkType(path) {
-  let descriptor
-  try {
-    descriptor = openSync(path, 'r')
-    const bytes = Buffer.alloc(512)
-    const count = readSync(descriptor, bytes, 0, bytes.length, 0)
-    if (count < 24 || bytes.readUInt32LE(0) !== 0x0a0d0d0a) return null
-    const sectionLength = bytes.readUInt32LE(4)
-    if (sectionLength + 10 > count || bytes.readUInt32LE(sectionLength) !== 1) return null
-    return bytes.readUInt16LE(sectionLength + 8)
-  } catch { return null }
-  finally { if (descriptor != null) closeSync(descriptor) }
-}
-
-function captureFiles() {
-  if (!captureConfig.enabled || !existsSync(captureDirectory)) return []
-  try {
-    return readdirSync(captureDirectory, { withFileTypes: true })
-      .filter(entry => entry.isFile() && /^[A-Za-z][A-Za-z0-9_-]{0,63}\.pcapng$/.test(entry.name))
-      .map(entry => {
-        const path = join(captureDirectory, entry.name)
-        const details = statSync(path)
-        const linkType = pcapngLinkType(path)
-        return { name: entry.name, nodeId: entry.name.slice(0, -7), size: details.size,
-          modifiedAt: details.mtime.toISOString(), url: `/captures/${encodeURIComponent(entry.name)}`,
-          linkType, format: linkType === 1 ? 'ethernet' : linkType === 147 ? 'graphx-frame' : 'unknown' }
-      })
-  } catch { return [] }
+let captureCatalogCache = { expiresAt: 0, catalog: null }
+function captureCatalog() {
+  if (!captureConfig.enabled || !existsSync(captureDirectory))
+    return { files: [], scannedEntries: 0, truncated: false }
+  const now = Date.now()
+  if (captureCatalogCache.catalog && captureCatalogCache.expiresAt > now)
+    return captureCatalogCache.catalog
+  const listed = listValidatedCaptures(captureDirectory, captureConfig.maxFileBytes,
+    { maxFiles: captureCatalogMaxFiles, maxEntries: captureCatalogMaxEntries })
+  const catalog = { scannedEntries: listed.scannedEntries, truncated: listed.truncated,
+    files: listed.captures.map(({ name, details, linkType }) => ({
+      name, nodeId: name.slice(0, -7), size: details.size,
+      modifiedAt: details.mtime.toISOString(), url: `/captures/${encodeURIComponent(name)}`,
+      linkType, format: linkType === 1 ? 'ethernet' : 'graphx-frame',
+    })) }
+  captureCatalogCache = { expiresAt: now + 1000, catalog }
+  return catalog
 }
 
 function recentWithCapture() {
@@ -258,7 +288,7 @@ function snapshot() {
     Object.entries(edges).map(([id, edge]) => [id, edgeView(edge, timestamp)]))
   const liveEndpoints = [...controlEndpoints.values()].filter(endpoint =>
     timestamp - endpoint.lastSeen <= heartbeatTimeout)
-  const files = captureFiles()
+  const catalog = captureCatalog()
   const readiness = graphReadiness(nodes, edges, timestamp, heartbeatTimeout)
   return { kind: 'snapshot', graph: graph.id, topology,
     telemetry: { websocket: websocketPath, heartbeatTimeoutMs: heartbeatTimeout,
@@ -277,8 +307,12 @@ function snapshot() {
     history: { ...historyStore.stats },
     nodes, edges: edgeViews,
     capture: { enabled: Boolean(captureConfig.enabled), provider: captureConfig.provider || null,
-      format: files.length ? 'pcapng' : null,
-      files }, recent: recentWithCapture(), timestamp }
+      format: catalog.files.length ? 'pcapng' : null,
+      limits: { snaplen: captureConfig.snaplen, maxFileBytes: captureConfig.maxFileBytes,
+        maxPackets: captureConfig.maxPackets, catalogMaxFiles: captureCatalogMaxFiles,
+        catalogMaxEntries: captureCatalogMaxEntries },
+      files: catalog.files, catalogTruncated: catalog.truncated,
+      catalogScannedEntries: catalog.scannedEntries }, recent: recentWithCapture(), timestamp }
 }
 
 const securityHeaders = {
@@ -742,12 +776,17 @@ const handleRequest = (request, response) => {
     catch { return json(response, 400, { error: 'invalid capture name' }) }
     if (!/^[A-Za-z][A-Za-z0-9_-]{0,63}\.pcapng$/.test(name))
       return json(response, 404, { error: 'capture not found' })
-    const available = captureFiles().some(file => file.name === name)
     const capturePath = join(captureDirectory, name)
-    if (!available || !existsSync(capturePath)) return json(response, 404, { error: 'capture not found' })
+    let descriptor
+    try {
+      descriptor = openValidatedCapture(capturePath, captureConfig.maxFileBytes).descriptor
+    } catch {
+      if (descriptor != null) closeSync(descriptor)
+      return json(response, 404, { error: 'capture not found' })
+    }
     response.writeHead(200, { ...securityHeaders, 'cache-control': 'no-store', 'content-type': 'application/vnd.tcpdump.pcap',
       'content-disposition': `attachment; filename="${name}"` })
-    return createReadStream(capturePath).pipe(response)
+    return createReadStream(null, { fd: descriptor, autoClose: true }).pipe(response)
   }
   let requested = url.pathname === '/' ? 'index.html' : url.pathname.slice(1)
   const file = resolve(root, requested)

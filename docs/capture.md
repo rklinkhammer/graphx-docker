@@ -10,7 +10,8 @@ Each node writes its own PCAPNG file. The file contains:
 
 - one Section Header Block describing the GraphX representation;
 - one Interface Description Block using `LINKTYPE_USER0` (147), nanosecond
-  timestamp resolution, and a 16 MiB + 4-byte snap length;
+  timestamp resolution, and a configurable snap length (16 MiB + 4 bytes by
+  default, enough for the largest canonical frame);
 - one Enhanced Packet Block for every observed send or receive callback;
 - the exact canonical `u32` big-endian length prefix followed by the serialized
   `GXE` envelope as packet data;
@@ -26,10 +27,10 @@ message ID. Version-1 records fall back to edge, trace ID, and sequence.
 The packet bytes retain their original envelope wire version and can be decoded
 according to [`protocol.md`](protocol.md). GraphX deliberately does not label
 these records as Ethernet, IP, or TCP.
-`LINKTYPE_USER0` is a private-use libpcap value, so this representation is meant
-for local educational captures. It must not be treated as a stable interchange
-format for unrelated products. A future registered link type or Wireshark
-dissector can replace USER0 without changing the `CaptureSink` boundary.
+`LINKTYPE_USER0` is a private-use libpcap value. It must not be treated as a
+globally registered interchange format or enabled in a Wireshark profile where
+another protocol owns USER0. The Phase 9 Lua dissector binds explicitly to that
+encapsulation without changing GraphX's application wire format.
 
 Metadata uses the standard PCAPNG `opt_comment` option. GraphX does not invent a
 Private Enterprise Number for a custom option or block.
@@ -45,6 +46,7 @@ Primary format references:
 - [IETF PCAPNG draft](https://datatracker.ietf.org/doc/draft-ietf-opsawg-pcapng/)
 - [libpcap link-type registry source](https://github.com/the-tcpdump-group/libpcap/blob/master/pcap-common.c)
 - [Wireshark extcap developer guide](https://www.wireshark.org/docs/wsdg_html_chunked/ChCaptureExtcap.html)
+- [Wireshark Lua dissector example](https://www.wireshark.org/docs/wsdg_html_chunked/wslua_dissector_example.html)
 
 ## Standalone demo
 
@@ -64,17 +66,52 @@ For a manual local run, set:
 export GRAPHX_CAPTURE_ENABLED=true
 export GRAPHX_CAPTURE_PROVIDER=pcapng
 export GRAPHX_CAPTURE_DIR="$PWD/captures/manual"
+export GRAPHX_CAPTURE_MAX_FILE_BYTES=268435456
+export GRAPHX_CAPTURE_MAX_PACKETS=1000000
 ```
 
 Then run the nodes normally. Configuration can instead enable the same behavior:
 
 ```yaml
 observability:
-  capture: { enabled: true, provider: pcapng, directory: captures }
+  capture:
+    enabled: true
+    provider: pcapng
+    directory: captures
+    snaplen: 16777220
+    max_file_bytes: 268435456
+    max_packets: 1000000
 ```
 
-Files with the same node name are truncated at node startup. Capture is not
-rotated and can grow without a configured limit.
+Files with the same node name are replaced at node startup only after the open
+descriptor has been validated as a single-link regular file. The writer opens
+nonblocking and with no-follow semantics, so symlinks, hard links, FIFOs,
+sockets, and devices are rejected without blocking or changing their contents.
+New files are created owner/group-readable and writable. An Enhanced Packet
+Block is committed only when the complete block fits. Optional correlation
+comments are bounded by PCAPNG's 16-bit option length; if metadata is too large,
+the writer emits a small valid JSON truncation marker and still records the
+exact canonical frame. Capture stops for that process, without stopping graph
+traffic, when either configured limit is reached. Automatic rotation is
+intentionally not performed: use a new directory or archive the stopped file
+before restarting a node. This makes retention and deletion an explicit
+operator decision while bounding disk consumption to one file per node.
+
+The defaults are 256 MiB and 1,000,000 packets per node. `snaplen` is 256–
+16,777,220 bytes, `max_file_bytes` is 64 KiB–4 GiB, and `max_packets` is
+1–100,000,000. A snap length below 16,777,220 intentionally produces truncated
+packet records; the original packet length remains in the Enhanced Packet Block
+and the dissector reports the frame as truncated rather than inventing data.
+
+Telemetry examines at most `GRAPHX_CAPTURE_CATALOG_MAX_ENTRIES` directory
+entries per one-second catalog refresh and returns at most
+`GRAPHX_CAPTURE_CATALOG_MAX_FILES` validated files, sorted by name. Defaults are
+512 examined entries and 128 files; limits are 1–1,024 files and the configured
+file limit–4,096 entries. `catalogTruncated: true` means more directory entries
+or matching files exist than the bounded view can represent.
+`catalogScannedEntries` reports the work performed. Direct authenticated
+downloads validate the requested descriptor independently, so a valid file
+omitted from a truncated catalog remains downloadable by its known name.
 
 ## Docker demo
 
@@ -96,12 +133,32 @@ curl -o generator.pcapng http://localhost:8080/captures/generator.pcapng
 `scripts/demo.sh stop` leaves the named volume intact. To deliberately delete
 the captures together with the Compose resources, use `docker compose down -v`.
 
+## Wireshark dissector
+
+Copy `wireshark/graphx.lua` to the personal Lua plugin directory printed by
+`tshark -G folders` or shown under **Help → About Wireshark → Folders**, then
+restart Wireshark. The `graphx.*` display fields cover the stream length,
+version, sequence, timestamp, v2 message/trace/parent identities, v1 legacy
+trace, type, attribute count and values, and payload. The dissector validates
+lengths before every read, caps attributes at 4,096, rejects unsupported
+versions, mandatory all-zero v2 message/trace identities, duplicate attribute
+keys, and trailing data, and adds expert diagnostics for malformed packets. An
+all-zero optional parent identity remains the valid absent-parent encoding.
+See [`../wireshark/README.md`](../wireshark/README.md) for filters.
+
 ## Wireshark extcap
 
-`tools/graphx-extcap` implements the initial extcap control surface. It lists a
+`tools/graphx-extcap` implements the production Phase 9 extcap control surface. It lists a
 GraphX application interface (DLT 147) and a standard Ethernet interface (DLT
 1), presents capture-file and live-follow options, and writes the selected
-PCAPNG stream to the FIFO supplied by Wireshark.
+PCAPNG stream to the FIFO supplied by Wireshark. It requires Python 3, opens
+sources nonblocking, rejects symlink/non-regular inputs, checks the section
+header and interface DLT, limits
+each buffered block to 17 MiB, and accepts only the GraphX PCAPNG 1.0 profile:
+indefinite section length, one initial interface, interface-zero Enhanced Packet
+Blocks, and no later sections or interfaces. It verifies block lengths/trailers
+and emits only complete blocks. A nonempty capture filter is rejected
+explicitly; use a Wireshark display filter after capture.
 
 Check it directly:
 
@@ -118,8 +175,26 @@ your Wireshark installation, keep it executable, and restart Wireshark. Select
 capture** for OVS/dumpcap files, choose the matching PCAPNG file, and start
 capture. The follow option streams records appended while capture runs.
 
-This first extcap adapter follows one node file. It does not merge files, rotate
-captures, add a native GraphX dissector, or control the node lifecycle.
+The adapter follows one node file. It does not merge or rotate files and does
+not control the node lifecycle. Stop capture through Wireshark; termination and
+FIFO closure are treated as normal cancellation.
+
+## Security and retention
+
+PCAPNG packet bytes include the complete GraphX envelope payload and attributes.
+They are operational evidence, not sanitized telemetry, and may contain
+application-sensitive data. Protect the capture directory, limit observation
+download access with `GRAPHX_OBSERVATION_TOKEN`, export files only to approved
+locations, and apply an external retention/deletion policy. Capture filenames
+are fixed to bounded node identifiers. The collector opens each download once
+with nonblocking/no-follow semantics, validates regular-file type, single-link
+ownership, size, PCAPNG header, and DLT on that exact descriptor, then streams
+the same descriptor. A writable shared volume therefore cannot use a symlink,
+hard link, special file, or pathname replacement race to serve unchecked bytes.
+Only the supported USER0 and Ethernet DLTs are downloadable.
+Catalog scans and observation snapshots are bounded and cached for one second;
+the catalog reports truncation instead of allocating or broadcasting every file
+in a hostile directory.
 
 ## Application capture versus OVS capture
 

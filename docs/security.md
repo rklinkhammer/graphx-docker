@@ -137,6 +137,23 @@ the volume as capture GID 65532 with mode `0770`, and the Node user is a member 
 that group, so initialization order does not change node write or collector read
 access. The native image includes only the OpenSSL runtime required by TLS.
 
+Raw PCAPNG application records include complete envelope attributes and payloads
+and may be sensitive even though telemetry metadata is sanitized. Capture files
+have explicit byte and packet bounds. Writers validate a nonblocking,
+no-follow descriptor before truncation and reject symlinks, hard links, FIFOs,
+sockets, devices, and other non-regular output targets without changing them.
+The collector opens each capture once, rejects non-regular or multiply linked
+objects, and validates size, PCAPNG header, and DLT on the exact descriptor it
+streams. This prevents another writer on the shared volume from racing a
+capture name into unchecked bytes. Extcap similarly rejects symlink inputs and
+validates the restricted PCAPNG 1.0 section/interface layout and bounded
+complete blocks before writing to Wireshark's FIFO. Apply observation
+authentication and an external retention policy to every capture directory.
+Telemetry bounds each catalog refresh by both directory entries and returned
+files, caches it for one second, and reports truncation. This prevents a node
+with capture-volume write access from forcing an unbounded synchronous scan or
+an unbounded HTTP/WebSocket snapshot.
+
 Privileged OVS/macvlan/ipvlan laboratories have separate threat and capability
 requirements and are not represented as hardened by these portable defaults.
 

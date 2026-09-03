@@ -1,10 +1,14 @@
 #include "graphx/capture.hpp"
 
 #include <algorithm>
-#include <fstream>
+#include <cerrno>
+#include <fcntl.h>
 #include <mutex>
 #include <stdexcept>
 #include <string>
+#include <system_error>
+#include <sys/stat.h>
+#include <unistd.h>
 #include <vector>
 
 namespace graphx {
@@ -15,6 +19,7 @@ constexpr std::uint32_t kInterfaceDescriptionBlock = 0x00000001;
 constexpr std::uint32_t kEnhancedPacketBlock = 0x00000006;
 constexpr std::uint16_t kLinktypeEthernet = 1;
 constexpr std::uint16_t kLinktypeUser0 = 147;
+constexpr std::size_t kMaximumOptionLength = UINT16_MAX;
 
 void put_u16(std::vector<std::byte>& out, std::uint16_t value) {
   out.push_back(static_cast<std::byte>(value & 0xff));
@@ -40,7 +45,7 @@ void pad32(std::vector<std::byte>& out) {
 }
 
 void put_option(std::vector<std::byte>& out, std::uint16_t code, std::string_view value) {
-  if (value.size() > UINT16_MAX) throw std::length_error("PCAPNG option is too large");
+  if (value.size() > kMaximumOptionLength) throw std::length_error("PCAPNG option is too large");
   put_u16(out, code);
   put_u16(out, static_cast<std::uint16_t>(value.size()));
   put_bytes(out, value);
@@ -52,40 +57,74 @@ void end_options(std::vector<std::byte>& out) {
   put_u16(out, 0);
 }
 
-std::string escape_json(std::string_view value) {
-  std::string escaped;
-  escaped.reserve(value.size());
+bool append_bounded(std::string& output, std::string_view value) {
+  if (output.size() > kMaximumOptionLength || value.size() > kMaximumOptionLength - output.size())
+    return false;
+  output.append(value);
+  return true;
+}
+
+bool append_escaped_json(std::string& output, std::string_view value) {
   for (const char character : value) {
+    std::string_view escaped;
+    char encoded[6]{};
     switch (character) {
       case '\\':
-        escaped += "\\\\";
+        escaped = "\\\\";
         break;
       case '"':
-        escaped += "\\\"";
+        escaped = "\\\"";
         break;
       case '\n':
-        escaped += "\\n";
+        escaped = "\\n";
         break;
       case '\r':
-        escaped += "\\r";
+        escaped = "\\r";
         break;
       case '\t':
-        escaped += "\\t";
+        escaped = "\\t";
         break;
       default: {
         const auto byte = static_cast<unsigned char>(character);
         if (byte < 0x20 || byte >= 0x7f) {
           constexpr std::string_view digits = "0123456789abcdef";
-          escaped += "\\u00";
-          escaped += digits[byte >> 4];
-          escaped += digits[byte & 0x0f];
+          encoded[0] = '\\';
+          encoded[1] = 'u';
+          encoded[2] = '0';
+          encoded[3] = '0';
+          encoded[4] = digits[byte >> 4];
+          encoded[5] = digits[byte & 0x0f];
+          escaped = std::string_view(encoded, sizeof(encoded));
         } else {
-          escaped += character;
+          encoded[0] = character;
+          escaped = std::string_view(encoded, 1);
         }
       }
     }
+    if (!append_bounded(output, escaped)) return false;
   }
-  return escaped;
+  return true;
+}
+
+std::string capture_comment(std::string_view edge_id, std::string_view direction,
+                            const CaptureSink::Metadata& metadata) {
+  std::string result;
+  result.reserve(512);
+  const auto append = [&](std::string_view value) { return append_bounded(result, value); };
+  const auto escaped = [&](std::string_view value) { return append_escaped_json(result, value); };
+  const auto sequence = std::to_string(metadata.sequence);
+  const auto version = std::to_string(metadata.wire_version);
+  if (append("{\"graphx\":{\"edge\":\"") && escaped(edge_id) && append("\",\"direction\":\"") &&
+      escaped(direction) && append("\",\"sequence\":") && append(sequence) &&
+      append(",\"wire_version\":") && append(version) && append(",\"message_id\":\"") &&
+      escaped(metadata.message_id) && append("\",\"parent_message_id\":\"") &&
+      escaped(metadata.parent_message_id) && append("\",\"trace_id\":\"") &&
+      escaped(metadata.trace_id) && append("\",\"type\":\"") && escaped(metadata.type) &&
+      append("\"}}"))
+    return result;
+
+  return "{\"graphx\":{\"metadata_truncated\":true,\"sequence\":" + sequence +
+         ",\"wire_version\":" + version + "}}";
 }
 
 std::vector<std::byte> block(std::uint32_t type, std::vector<std::byte> body) {
@@ -99,10 +138,18 @@ std::vector<std::byte> block(std::uint32_t type, std::vector<std::byte> body) {
   return output;
 }
 
-void write_all(std::ofstream& stream, std::span<const std::byte> bytes) {
-  stream.write(reinterpret_cast<const char*>(bytes.data()),
-               static_cast<std::streamsize>(bytes.size()));
-  if (!stream) throw std::runtime_error("failed to write PCAPNG capture");
+void write_all(int descriptor, std::span<const std::byte> bytes) {
+  std::size_t position{};
+  while (position < bytes.size()) {
+    const auto written = ::write(descriptor, bytes.data() + position, bytes.size() - position);
+    if (written > 0) {
+      position += static_cast<std::size_t>(written);
+      continue;
+    }
+    if (written < 0 && errno == EINTR) continue;
+    throw std::system_error(errno ? errno : EIO, std::generic_category(),
+                            "failed to write PCAPNG capture");
+  }
 }
 
 }  // namespace
@@ -111,40 +158,98 @@ class WriterState {
  public:
   WriterState(std::filesystem::path output, std::uint32_t maximum, std::uint16_t linktype,
               std::string_view interface_name, std::string_view interface_description,
-              std::string_view section_comment)
-      : path_(std::move(output)), snaplen_(maximum) {
+              std::string_view section_comment, std::uint64_t max_file_bytes,
+              std::uint64_t max_packets)
+      : path_(std::move(output)),
+        snaplen_(maximum),
+        max_file_bytes_(max_file_bytes),
+        max_packets_(max_packets) {
     if (snaplen_ == 0) throw std::invalid_argument("PCAPNG snaplen must be positive");
+    if (max_file_bytes_ < 65536)
+      throw std::invalid_argument("PCAPNG maximum file size must be at least 65536 bytes");
+    if (max_packets_ == 0)
+      throw std::invalid_argument("PCAPNG maximum packet count must be positive");
     if (path_.has_parent_path()) std::filesystem::create_directories(path_.parent_path());
-    stream_.open(path_, std::ios::binary | std::ios::trunc);
-    if (!stream_) throw std::runtime_error("cannot open PCAPNG capture: " + path_.string());
+    descriptor_ = ::open(path_.c_str(), O_WRONLY | O_CREAT | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK,
+                         S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
+    if (descriptor_ < 0)
+      throw std::system_error(errno, std::generic_category(),
+                              "cannot safely open PCAPNG capture " + path_.string());
+    struct stat details {};
+    if (::fstat(descriptor_, &details) != 0) {
+      const auto error = errno;
+      ::close(descriptor_);
+      descriptor_ = -1;
+      throw std::system_error(error, std::generic_category(),
+                              "cannot inspect PCAPNG output " + path_.string());
+    }
+    if (!S_ISREG(details.st_mode) || details.st_nlink != 1) {
+      ::close(descriptor_);
+      descriptor_ = -1;
+      throw std::system_error(
+          EINVAL, std::generic_category(),
+          "PCAPNG output must be a singly linked regular file " + path_.string());
+    }
+    const auto status_flags = ::fcntl(descriptor_, F_GETFL);
+    if (status_flags < 0 || ::fcntl(descriptor_, F_SETFL, status_flags & ~O_NONBLOCK) != 0) {
+      const auto error = errno;
+      ::close(descriptor_);
+      descriptor_ = -1;
+      throw std::system_error(error, std::generic_category(),
+                              "cannot configure PCAPNG output " + path_.string());
+    }
+    if (::ftruncate(descriptor_, 0) != 0 || ::lseek(descriptor_, 0, SEEK_SET) < 0) {
+      const auto error = errno;
+      ::close(descriptor_);
+      descriptor_ = -1;
+      throw std::system_error(error, std::generic_category(),
+                              "cannot truncate PCAPNG capture " + path_.string());
+    }
+    if (::fchmod(descriptor_, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP) != 0) {
+      const auto error = errno;
+      ::close(descriptor_);
+      descriptor_ = -1;
+      throw std::system_error(error, std::generic_category(),
+                              "cannot protect PCAPNG capture " + path_.string());
+    }
 
-    std::vector<std::byte> section;
-    put_u32(section, 0x1a2b3c4d);
-    put_u16(section, 1);
-    put_u16(section, 0);
-    put_u64(section, UINT64_MAX);
-    put_option(section, 1, section_comment);
-    end_options(section);
-    write_all(stream_, block(kSectionHeaderBlock, std::move(section)));
+    try {
+      std::vector<std::byte> section;
+      put_u32(section, 0x1a2b3c4d);
+      put_u16(section, 1);
+      put_u16(section, 0);
+      put_u64(section, UINT64_MAX);
+      put_option(section, 1, section_comment);
+      end_options(section);
+      static_cast<void>(write_block(block(kSectionHeaderBlock, std::move(section))));
 
-    std::vector<std::byte> interface;
-    put_u16(interface, linktype);
-    put_u16(interface, 0);
-    put_u32(interface, snaplen_);
-    put_option(interface, 2, interface_name);
-    put_option(interface, 3, interface_description);
-    put_u16(interface, 9);
-    put_u16(interface, 1);
-    interface.push_back(std::byte{9});  // 10^-9 second timestamp resolution.
-    pad32(interface);
-    end_options(interface);
-    write_all(stream_, block(kInterfaceDescriptionBlock, std::move(interface)));
-    stream_.flush();
+      std::vector<std::byte> interface;
+      put_u16(interface, linktype);
+      put_u16(interface, 0);
+      put_u32(interface, snaplen_);
+      put_option(interface, 2, interface_name);
+      put_option(interface, 3, interface_description);
+      put_u16(interface, 9);
+      put_u16(interface, 1);
+      interface.push_back(std::byte{9});  // 10^-9 second timestamp resolution.
+      pad32(interface);
+      end_options(interface);
+      static_cast<void>(write_block(block(kInterfaceDescriptionBlock, std::move(interface))));
+    } catch (...) {
+      ::close(descriptor_);
+      descriptor_ = -1;
+      throw;
+    }
+  }
+
+  ~WriterState() {
+    if (descriptor_ >= 0) ::close(descriptor_);
   }
 
   void record(std::span<const std::byte> bytes, std::chrono::system_clock::time_point timestamp,
               std::string_view comment) {
     std::scoped_lock lock(mutex_);
+    if (packets_ >= max_packets_) throw std::length_error("PCAPNG packet limit reached");
     const auto captured = static_cast<std::uint32_t>(std::min<std::size_t>(bytes.size(), snaplen_));
     const auto original =
         static_cast<std::uint32_t>(std::min<std::size_t>(bytes.size(), UINT32_MAX));
@@ -162,11 +267,8 @@ class WriterState {
     pad32(packet);
     if (!comment.empty()) put_option(packet, 1, comment);
     end_options(packet);
-    const auto position = stream_.tellp();
-    if (position < 0) throw std::runtime_error("failed to locate PCAPNG packet offset");
-    last_offset_ = static_cast<std::uint64_t>(position);
-    write_all(stream_, block(kEnhancedPacketBlock, std::move(packet)));
-    stream_.flush();
+    const auto position = write_block(block(kEnhancedPacketBlock, std::move(packet)));
+    last_offset_ = position;
     ++packets_;
   }
 
@@ -179,27 +281,52 @@ class WriterState {
     std::scoped_lock lock(mutex_);
     return last_offset_;
   }
+  std::uint64_t bytes_written() const noexcept {
+    std::scoped_lock lock(mutex_);
+    return bytes_written_;
+  }
 
  private:
+  std::uint64_t write_block(const std::vector<std::byte>& bytes) {
+    if (bytes_written_ > max_file_bytes_ || bytes.size() > max_file_bytes_ - bytes_written_)
+      throw std::length_error("PCAPNG file size limit reached");
+    const auto position = ::lseek(descriptor_, 0, SEEK_CUR);
+    if (position < 0) throw std::runtime_error("failed to locate PCAPNG block offset");
+    try {
+      write_all(descriptor_, bytes);
+    } catch (...) {
+      static_cast<void>(::ftruncate(descriptor_, position));
+      static_cast<void>(::lseek(descriptor_, position, SEEK_SET));
+      throw;
+    }
+    bytes_written_ += bytes.size();
+    return static_cast<std::uint64_t>(position);
+  }
+
   std::filesystem::path path_;
   std::uint32_t snaplen_;
-  std::ofstream stream_;
+  std::uint64_t max_file_bytes_;
+  std::uint64_t max_packets_;
+  int descriptor_{-1};
   mutable std::mutex mutex_;
   std::uint64_t packets_{};
   std::uint64_t last_offset_{};
+  std::uint64_t bytes_written_{};
 };
 
 struct PcapngCaptureSink::Impl {
-  explicit Impl(std::filesystem::path output, std::uint32_t maximum)
+  Impl(std::filesystem::path output, std::uint32_t maximum, std::uint64_t max_file_bytes,
+       std::uint64_t max_packets)
       : writer(std::move(output), maximum, kLinktypeUser0, "graphx-framed-envelope",
                "GraphX application frame, not an Ethernet or IP network packet",
-               "GraphX canonical application frames: u32be length + GXE envelope; LINKTYPE_USER0") {
-  }
+               "GraphX canonical application frames: u32be length + GXE envelope; LINKTYPE_USER0",
+               max_file_bytes, max_packets) {}
   WriterState writer;
 };
 
-PcapngCaptureSink::PcapngCaptureSink(std::filesystem::path path, std::uint32_t snaplen)
-    : impl_(std::make_unique<Impl>(std::move(path), snaplen)) {}
+PcapngCaptureSink::PcapngCaptureSink(std::filesystem::path path, std::uint32_t snaplen,
+                                     std::uint64_t max_file_bytes, std::uint64_t max_packets)
+    : impl_(std::make_unique<Impl>(std::move(path), snaplen, max_file_bytes, max_packets)) {}
 
 PcapngCaptureSink::~PcapngCaptureSink() = default;
 
@@ -207,13 +334,7 @@ void PcapngCaptureSink::record_frame(std::string_view edge_id, std::span<const s
                                      std::chrono::system_clock::time_point timestamp,
                                      const Metadata& metadata) {
   const auto direction = metadata.direction == Direction::sent ? "sent" : "received";
-  const auto comment =
-      std::string{"{\"graphx\":{\"edge\":\""} + escape_json(edge_id) + "\",\"direction\":\"" +
-      direction + "\",\"sequence\":" + std::to_string(metadata.sequence) +
-      ",\"wire_version\":" + std::to_string(metadata.wire_version) + ",\"message_id\":\"" +
-      escape_json(metadata.message_id) + "\",\"parent_message_id\":\"" +
-      escape_json(metadata.parent_message_id) + "\",\"trace_id\":\"" +
-      escape_json(metadata.trace_id) + "\",\"type\":\"" + escape_json(metadata.type) + "\"}}";
+  const auto comment = capture_comment(edge_id, direction, metadata);
   impl_->writer.record(frame, timestamp, comment);
 }
 
@@ -229,18 +350,27 @@ std::uint64_t PcapngCaptureSink::last_packet_offset() const noexcept {
   return impl_->writer.last_packet_offset();
 }
 
+std::uint64_t PcapngCaptureSink::bytes_written() const noexcept {
+  return impl_->writer.bytes_written();
+}
+
 struct EthernetPcapngCaptureSink::Impl {
-  Impl(std::filesystem::path output, const std::string& interface_name, std::uint32_t maximum)
+  Impl(std::filesystem::path output, const std::string& interface_name, std::uint32_t maximum,
+       std::uint64_t max_file_bytes, std::uint64_t max_packets)
       : writer(std::move(output), maximum, kLinktypeEthernet, interface_name,
                "IEEE 802.3/Ethernet frames captured from " + interface_name,
-               "GraphX standard Ethernet packet capture; LINKTYPE_ETHERNET") {}
+               "GraphX standard Ethernet packet capture; LINKTYPE_ETHERNET", max_file_bytes,
+               max_packets) {}
   WriterState writer;
 };
 
 EthernetPcapngCaptureSink::EthernetPcapngCaptureSink(std::filesystem::path path,
                                                      std::string interface_name,
-                                                     std::uint32_t snaplen)
-    : impl_(std::make_unique<Impl>(std::move(path), std::move(interface_name), snaplen)) {}
+                                                     std::uint32_t snaplen,
+                                                     std::uint64_t max_file_bytes,
+                                                     std::uint64_t max_packets)
+    : impl_(std::make_unique<Impl>(std::move(path), std::move(interface_name), snaplen,
+                                   max_file_bytes, max_packets)) {}
 
 EthernetPcapngCaptureSink::~EthernetPcapngCaptureSink() = default;
 
@@ -262,6 +392,10 @@ std::uint64_t EthernetPcapngCaptureSink::packet_count() const noexcept {
 
 std::uint64_t EthernetPcapngCaptureSink::last_packet_offset() const noexcept {
   return impl_->writer.last_packet_offset();
+}
+
+std::uint64_t EthernetPcapngCaptureSink::bytes_written() const noexcept {
+  return impl_->writer.bytes_written();
 }
 
 }  // namespace graphx

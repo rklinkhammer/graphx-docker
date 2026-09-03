@@ -192,11 +192,73 @@ observability:
 void capture_configuration() {
   TemporaryConfig file(std::string(valid_config) + R"yaml(
 observability:
-  capture: { enabled: true, provider: pcapng, directory: test-captures }
+  capture: { enabled: true, provider: pcapng, directory: test-captures, snaplen: 4096, max_file_bytes: 1048576, max_packets: 500 }
 )yaml");
   const auto capture = graphx::load_config(file.path()).observability.capture;
-  expect(capture.enabled && capture.provider == "pcapng" && capture.directory == "test-captures",
+  expect(capture.enabled && capture.provider == "pcapng" && capture.directory == "test-captures" &&
+             capture.snaplen == 4096 && capture.max_file_bytes == 1048576 &&
+             capture.max_packets == 500,
          "PCAPNG capture configuration");
+
+  TemporaryConfig maximum(std::string(valid_config) + R"yaml(
+observability:
+  capture: { enabled: true, provider: pcapng, directory: captures, max_file_bytes: 4294967296 }
+)yaml");
+  expect(graphx::load_config(maximum.path()).observability.capture.max_file_bytes ==
+             4ULL * 1024 * 1024 * 1024,
+         "PCAPNG capture accepts its documented 64-bit byte limit");
+
+  TemporaryConfig external_provider(std::string(valid_config) + R"yaml(
+observability:
+  capture: { enabled: true, provider: ovs-span }
+)yaml");
+  expect(graphx::load_config(external_provider.path()).observability.capture.provider == "ovs-span",
+         "external capture provider does not require a PCAPNG directory");
+
+  TemporaryConfig missing_directory(std::string(valid_config) + R"yaml(
+observability:
+  capture: { enabled: true, provider: pcapng }
+)yaml");
+  try {
+    [[maybe_unused]] const auto ignored = graphx::load_config(missing_directory.path());
+    throw std::runtime_error("PCAPNG capture without a directory was accepted");
+  } catch (const graphx::ConfigError& error) {
+    expect(diagnostic_contains(error, "capture.directory"), "capture directory diagnostic");
+  }
+
+  TemporaryConfig invalid(std::string(valid_config) + R"yaml(
+observability:
+  capture: { enabled: true, provider: pcapng, directory: captures, snaplen: 0, max_file_bytes: 10, max_packets: 0 }
+)yaml");
+  try {
+    [[maybe_unused]] const auto ignored = graphx::load_config(invalid.path());
+    throw std::runtime_error("invalid capture limits were accepted");
+  } catch (const graphx::ConfigError& error) {
+    expect(diagnostic_contains(error, "capture.snaplen"), "capture snaplen diagnostic");
+    expect(diagnostic_contains(error, "capture.max_file_bytes"), "capture byte limit diagnostic");
+    expect(diagnostic_contains(error, "capture.max_packets"), "capture packet limit diagnostic");
+  }
+
+  const std::pair<std::string_view, std::string_view> invalid_types[] = {
+      {"enabled: \"false\", provider: pcapng", "boolean, not a string"},
+      {"enabled: true, provider: pcapng, directory: captures, snaplen: \"4096\"",
+       "integer, not a string"},
+      {"enabled: true, provider: pcapng, directory: captures, max_file_bytes: \"1048576\"",
+       "integer, not a string"},
+      {"enabled: true, provider: pcapng, directory: captures, max_packets: \"500\"",
+       "integer, not a string"},
+      {"enabled: true, provider: pcapgn, directory: captures", "must be 'pcapng' or 'ovs-span'"},
+  };
+  for (const auto& [capture, expected] : invalid_types) {
+    TemporaryConfig invalid_type(std::string(valid_config) + "\nobservability:\n  capture: { " +
+                                 std::string(capture) + " }\n");
+    try {
+      [[maybe_unused]] const auto ignored = graphx::load_config(invalid_type.path());
+      throw std::runtime_error("invalid capture scalar or provider was accepted");
+    } catch (const graphx::ConfigError& error) {
+      expect(diagnostic_contains(error, expected), "strict capture configuration diagnostic");
+    }
+  }
 }
 
 void invalid_operations_configuration_is_rejected() {
@@ -813,6 +875,7 @@ void shared_memory_factory_uses_connect_timeout() {
 }  // namespace
 
 int main() {
+  std::cout << std::unitbuf;
   ::unsetenv("GRAPHX_OVERRIDES");
   const std::pair<const char*, std::function<void()>> tests[] = {
       {"authoritative config", authoritative_config_loads},

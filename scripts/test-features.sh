@@ -310,6 +310,7 @@ portable() {
   observation_token=observation-feature-token-012345678
   PORT=$secure_http_port GRAPHX_TELEMETRY_PORT=$secure_udp_port \
     GRAPHX_CONFIG="$TMP_DIR/telemetry-graphx.yaml" GRAPHX_WEB_ROOT="$ROOT/web/dist" \
+    GRAPHX_CAPTURE_DIR="$TMP_DIR/captures" \
     GRAPHX_TLS_CERT_FILE="$TMP_DIR/http.pem" GRAPHX_TLS_KEY_FILE="$TMP_DIR/http.key" \
     GRAPHX_OBSERVATION_TOKEN="$observation_token" node "$ROOT/apps/telemetry/server.mjs" \
     >"$TMP_DIR/secure-telemetry.log" 2>&1 &
@@ -325,6 +326,7 @@ portable() {
     grep -qi '^x-content-type-options: nosniff'
   if PORT=$((secure_http_port + 1)) GRAPHX_TELEMETRY_PORT=$((secure_udp_port + 1)) \
     GRAPHX_HTTP_BIND=0.0.0.0 GRAPHX_CONFIG="$TMP_DIR/telemetry-graphx.yaml" \
+    GRAPHX_CAPTURE_DIR="$TMP_DIR/captures" \
     node "$ROOT/apps/telemetry/server.mjs" >"$TMP_DIR/insecure-bind.log" 2>&1; then
     echo "plaintext non-loopback telemetry bind was accepted" >&2
     return 1

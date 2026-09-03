@@ -121,7 +121,10 @@ int topology_command(const std::string& command, int argc, char** argv) {
             << (config.observability.capture.provider.empty()
                     ? "none"
                     : config.observability.capture.provider)
-            << " directory=" << config.observability.capture.directory << '\n';
+            << " directory=" << config.observability.capture.directory
+            << " snaplen=" << config.observability.capture.snaplen
+            << " max_file_bytes=" << config.observability.capture.max_file_bytes
+            << " max_packets=" << config.observability.capture.max_packets << '\n';
   return 0;
 }
 

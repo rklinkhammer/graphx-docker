@@ -23,6 +23,7 @@
 #include <poll.h>
 #include <stdexcept>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/un.h>
 #include <sys/mman.h>
 #include <sys/wait.h>
@@ -296,6 +297,7 @@ void pcapng_capture() {
   const auto path = std::filesystem::temp_directory_path() /
                     ("graphx-capture-" + std::to_string(::getpid()) + ".pcapng");
   std::filesystem::remove(path);
+  std::ofstream(path) << "stale-capture-data";
   auto envelope = graphx::Envelope::make(42, "Sample", "payload");
   envelope.trace_id = "0123456789abcdef0123456789abcdef";
   envelope.message_id = "fedcba9876543210fedcba9876543210";
@@ -304,7 +306,7 @@ void pcapng_capture() {
       std::chrono::duration_cast<std::chrono::system_clock::duration>(
           std::chrono::nanoseconds{123456789})};
   {
-    graphx::PcapngCaptureSink capture(path);
+    graphx::PcapngCaptureSink capture(path, 16 * 1024 * 1024 + 4, 1024 * 1024, 1);
     capture.record_frame("samples", framed, timestamp,
                          {.direction = graphx::CaptureSink::Direction::sent,
                           .sequence = envelope.sequence,
@@ -313,17 +315,26 @@ void pcapng_capture() {
                           .parent_message_id = envelope.parent_message_id,
                           .trace_id = envelope.trace_id,
                           .type = envelope.type});
-    expect(
-        capture.packet_count() == 1 && capture.path() == path && capture.last_packet_offset() > 0,
-        "PCAPNG capture state");
+    expect(capture.packet_count() == 1 && capture.path() == path &&
+               capture.last_packet_offset() > 0 && capture.bytes_written() > framed.size(),
+           "PCAPNG capture state");
+    expect_failure(
+        [&] {
+          capture.record_frame("samples", framed, timestamp,
+                               {.direction = graphx::CaptureSink::Direction::sent});
+        },
+        "packet limit");
   }
 
   std::ifstream stream(path, std::ios::binary);
   const std::vector<char> characters((std::istreambuf_iterator<char>(stream)), {});
   const auto* begin = reinterpret_cast<const std::byte*>(characters.data());
   const std::span<const std::byte> bytes(begin, characters.size());
+  const std::string file_text(characters.begin(), characters.end());
   expect(bytes.size() > framed.size() + 80, "PCAPNG output size");
   expect(little_u32(bytes, 0) == 0x0a0d0d0a, "PCAPNG section header");
+  expect(file_text.find("stale-capture-data") == std::string::npos,
+         "validated single-link capture is replaced");
   const auto section_length = little_u32(bytes, 4);
   expect(little_u32(bytes, section_length) == 1, "PCAPNG interface block");
   expect(little_u16(bytes, section_length + 8) == 147, "PCAPNG USER0 link type");
@@ -333,7 +344,6 @@ void pcapng_capture() {
   expect(little_u32(bytes, packet_offset + 20) == framed.size(), "PCAPNG captured length");
   expect(std::equal(framed.begin(), framed.end(), bytes.begin() + packet_offset + 28),
          "PCAPNG exact framed bytes");
-  const std::string file_text(characters.begin(), characters.end());
   expect(
       file_text.find("\"edge\":\"samples\"") != std::string::npos &&
           file_text.find("\"direction\":\"sent\"") != std::string::npos &&
@@ -343,6 +353,100 @@ void pcapng_capture() {
           file_text.find("\"trace_id\":\"0123456789abcdef0123456789abcdef\"") != std::string::npos,
       "PCAPNG correlation metadata");
   std::filesystem::remove(path);
+
+  const auto link = path.string() + ".link";
+  const auto target = path.string() + ".target";
+  {
+    std::ofstream(target) << "protected";
+    std::filesystem::create_symlink(target, link);
+    expect_failure([&] { graphx::PcapngCaptureSink rejected(link); }, "PCAPNG capture");
+    std::ifstream protected_file(target);
+    std::string protected_text;
+    protected_file >> protected_text;
+    expect(protected_text == "protected", "PCAPNG symlink target remains unchanged");
+  }
+  std::filesystem::remove(link);
+  std::filesystem::remove(target);
+
+  const auto hard_link = path.string() + ".hard-link";
+  const auto hard_target = path.string() + ".hard-target";
+  {
+    std::ofstream(hard_target) << "protected-hard-link";
+    std::filesystem::create_hard_link(hard_target, hard_link);
+    expect_failure([&] { graphx::PcapngCaptureSink rejected(hard_link); }, "singly linked");
+    std::ifstream protected_file(hard_target);
+    std::string protected_text;
+    protected_file >> protected_text;
+    expect(protected_text == "protected-hard-link", "PCAPNG hard-link target remains unchanged");
+  }
+  std::filesystem::remove(hard_link);
+  std::filesystem::remove(hard_target);
+
+  const auto fifo = path.string() + ".fifo";
+  expect(::mkfifo(fifo.c_str(), 0600) == 0, "create PCAPNG FIFO target");
+  const auto fifo_start = std::chrono::steady_clock::now();
+  expect_failure([&] { graphx::PcapngCaptureSink rejected(fifo); }, "PCAPNG capture");
+  expect(std::chrono::steady_clock::now() - fifo_start < 1s,
+         "PCAPNG FIFO target is rejected without blocking");
+  std::filesystem::remove(fifo);
+
+  const auto socket_path = path.string() + ".socket";
+  const int socket_descriptor = ::socket(AF_UNIX, SOCK_STREAM, 0);
+  expect(socket_descriptor >= 0, "create PCAPNG Unix socket target");
+  sockaddr_un socket_address{};
+  socket_address.sun_family = AF_UNIX;
+  std::memcpy(socket_address.sun_path, socket_path.c_str(), socket_path.size() + 1);
+  expect(::bind(socket_descriptor, reinterpret_cast<const sockaddr*>(&socket_address),
+                sizeof(socket_address)) == 0,
+         "bind PCAPNG Unix socket target");
+  const auto socket_start = std::chrono::steady_clock::now();
+  expect_failure([&] { graphx::PcapngCaptureSink rejected(socket_path); }, "PCAPNG capture");
+  expect(std::chrono::steady_clock::now() - socket_start < 1s,
+         "PCAPNG socket target is rejected without blocking");
+  ::close(socket_descriptor);
+  std::filesystem::remove(socket_path);
+
+  expect_failure([] { graphx::PcapngCaptureSink rejected("/dev/null"); }, "regular file");
+
+  const auto metadata_path = path.string() + ".metadata";
+  {
+    graphx::PcapngCaptureSink capture(metadata_path, 16 * 1024 * 1024 + 4, 1024 * 1024, 2);
+    auto large_metadata = graphx::Envelope::make(43, std::string(70000, 'A'), "payload");
+    const auto large_frame = graphx::frame(graphx::serialize(large_metadata));
+    const graphx::CaptureSink::Metadata metadata{
+        .direction = graphx::CaptureSink::Direction::sent,
+        .sequence = large_metadata.sequence,
+        .wire_version = large_metadata.wire_version,
+        .message_id = large_metadata.message_id,
+        .parent_message_id = large_metadata.parent_message_id,
+        .trace_id = large_metadata.trace_id,
+        .type = large_metadata.type};
+    capture.record_frame("samples", large_frame, timestamp, metadata);
+    capture.record_frame("samples", large_frame, timestamp, metadata);
+    expect(capture.packet_count() == 2, "oversized optional metadata does not disable capture");
+  }
+  {
+    std::ifstream stream(metadata_path, std::ios::binary);
+    const std::string contents((std::istreambuf_iterator<char>(stream)), {});
+    expect(contents.find("\"metadata_truncated\":true") != std::string::npos,
+           "oversized capture metadata has an explicit truncation marker");
+  }
+  std::filesystem::remove(metadata_path);
+
+  const auto limited_path = path.string() + ".limited";
+  {
+    graphx::PcapngCaptureSink limited(limited_path, 16 * 1024 * 1024 + 4, 65536, 10);
+    const std::vector<std::byte> large_frame(65536, std::byte{0x01});
+    expect_failure(
+        [&] {
+          limited.record_frame("samples", large_frame, timestamp,
+                               {.direction = graphx::CaptureSink::Direction::received});
+        },
+        "file size limit");
+    expect(limited.packet_count() == 0 && limited.bytes_written() < 65536,
+           "PCAPNG byte limit leaves a valid header and no partial packet");
+  }
+  std::filesystem::remove(limited_path);
 }
 
 void ethernet_pcapng_capture() {
@@ -357,7 +461,8 @@ void ethernet_pcapng_capture() {
   {
     graphx::EthernetPcapngCaptureSink capture(path, "br-gx-mac");
     capture.record_packet(frame, std::chrono::system_clock::now(), "OVS mirror br-gx-mac");
-    expect(capture.packet_count() == 1 && capture.last_packet_offset() > 0,
+    expect(capture.packet_count() == 1 && capture.last_packet_offset() > 0 &&
+               capture.bytes_written() >= frame.size(),
            "Ethernet PCAPNG capture state");
     bool rejected{};
     try {

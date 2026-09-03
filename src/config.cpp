@@ -230,6 +230,35 @@ class ConfigParser {
     return fallback;
   }
 
+  bool capture_bool_value(const YAML::Node& node, const std::string& path, bool fallback) {
+    if (!node) return fallback;
+    if (!node.IsScalar() || node.Tag() == "!" || node.Tag() == "tag:yaml.org,2002:str") {
+      error(path, "must be a boolean, not a string");
+      return fallback;
+    }
+    const auto& value = node.Scalar();
+    if (value == "true" || value == "True" || value == "TRUE") return true;
+    if (value == "false" || value == "False" || value == "FALSE") return false;
+    error(path, "must be a boolean");
+    return fallback;
+  }
+
+  std::uint32_t capture_unsigned_value(const YAML::Node& node, const std::string& path) {
+    if (node && (node.Tag() == "!" || node.Tag() == "tag:yaml.org,2002:str")) {
+      error(path, "must be an unsigned integer, not a string");
+      return 0;
+    }
+    return unsigned_value(node, path);
+  }
+
+  std::uint64_t capture_unsigned_64_value(const YAML::Node& node, const std::string& path) {
+    if (node && (node.Tag() == "!" || node.Tag() == "tag:yaml.org,2002:str")) {
+      error(path, "must be an unsigned integer, not a string");
+      return 0;
+    }
+    return unsigned_64_value(node, path);
+  }
+
   std::uint32_t history_unsigned_value(const YAML::Node& node, const std::string& path) {
     if (node && (node.Tag() == "!" || node.Tag() == "tag:yaml.org,2002:str")) {
       error(path, "must be an unsigned integer, not a string");
@@ -961,21 +990,44 @@ class ConfigParser {
     }
     if (const auto capture = value["capture"]) {
       if (require_map(capture, "observability.capture")) {
-        strict_keys(capture, "observability.capture", {"enabled", "provider", "directory"});
+        strict_keys(
+            capture, "observability.capture",
+            {"enabled", "provider", "directory", "snaplen", "max_file_bytes", "max_packets"});
         config.observability.capture.enabled =
-            bool_value(capture["enabled"], "observability.capture.enabled", false);
+            capture_bool_value(capture["enabled"], "observability.capture.enabled", false);
         if (capture["provider"])
           config.observability.capture.provider =
               text(capture["provider"], "observability.capture.provider", 128);
         if (capture["directory"])
           config.observability.capture.directory =
               text(capture["directory"], "observability.capture.directory", 1024);
+        if (capture["snaplen"])
+          config.observability.capture.snaplen =
+              capture_unsigned_value(capture["snaplen"], "observability.capture.snaplen");
+        if (capture["max_file_bytes"])
+          config.observability.capture.max_file_bytes = capture_unsigned_64_value(
+              capture["max_file_bytes"], "observability.capture.max_file_bytes");
+        if (capture["max_packets"])
+          config.observability.capture.max_packets =
+              capture_unsigned_value(capture["max_packets"], "observability.capture.max_packets");
         if (config.observability.capture.enabled && config.observability.capture.provider.empty())
           error("observability.capture.provider", "is required when capture is enabled");
+        if (!config.observability.capture.provider.empty() &&
+            config.observability.capture.provider != "pcapng" &&
+            config.observability.capture.provider != "ovs-span")
+          error("observability.capture.provider", "must be 'pcapng' or 'ovs-span'");
         if (config.observability.capture.enabled &&
-            config.observability.capture.provider == "pcapng" &&
-            config.observability.capture.directory.empty())
+            config.observability.capture.provider == "pcapng" && !capture["directory"])
           error("observability.capture.directory", "is required for the pcapng provider");
+        if (config.observability.capture.snaplen < 256 ||
+            config.observability.capture.snaplen > 16 * 1024 * 1024 + 4)
+          error("observability.capture.snaplen", "must be between 256 and 16777220");
+        if (config.observability.capture.max_file_bytes < 65536 ||
+            config.observability.capture.max_file_bytes > 4ULL * 1024 * 1024 * 1024)
+          error("observability.capture.max_file_bytes", "must be between 65536 and 4294967296");
+        if (config.observability.capture.max_packets == 0 ||
+            config.observability.capture.max_packets > 100'000'000)
+          error("observability.capture.max_packets", "must be between 1 and 100000000");
       }
     }
     if (const auto otlp = value["otlp"]) {

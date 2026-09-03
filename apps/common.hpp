@@ -8,6 +8,8 @@
 
 #include <chrono>
 #include <algorithm>
+#include <charconv>
+#include <cctype>
 #include <csignal>
 #include <ctime>
 #include <cstdlib>
@@ -47,8 +49,35 @@ inline std::uint16_t port(const char* name, std::uint16_t fallback) {
 }
 
 inline bool boolean_env(const char* name, bool fallback) {
-  const auto value = env(name, fallback ? "true" : "false");
-  return value == "1" || value == "true" || value == "yes" || value == "on";
+  const char* configured = std::getenv(name);
+  if (!configured) return fallback;
+  std::string value(configured);
+  std::ranges::transform(value, value.begin(), [](unsigned char character) {
+    return static_cast<char>(std::tolower(character));
+  });
+  if (value == "1" || value == "true" || value == "yes" || value == "on") return true;
+  if (value == "0" || value == "false" || value == "no" || value == "off") return false;
+  throw std::runtime_error(std::string(name) +
+                           " must be one of true, false, 1, 0, yes, no, on, or off");
+}
+
+inline std::string capture_provider_env(std::string fallback) {
+  auto provider = env("GRAPHX_CAPTURE_PROVIDER", std::move(fallback));
+  if (!provider.empty() && provider != "pcapng" && provider != "ovs-span")
+    throw std::runtime_error("GRAPHX_CAPTURE_PROVIDER must be 'pcapng' or 'ovs-span'");
+  return provider;
+}
+
+inline std::uint64_t unsigned_env(const char* name, std::uint64_t fallback, std::uint64_t minimum,
+                                  std::uint64_t maximum) {
+  const auto value = env(name, std::to_string(fallback));
+  std::uint64_t parsed{};
+  const auto [end, error] = std::from_chars(value.data(), value.data() + value.size(), parsed);
+  if (error != std::errc{} || end != value.data() + value.size() || parsed < minimum ||
+      parsed > maximum)
+    throw std::runtime_error(std::string(name) + " must be between " + std::to_string(minimum) +
+                             " and " + std::to_string(maximum));
+  return parsed;
 }
 
 inline std::string secret_env(const char* name) {
@@ -145,14 +174,23 @@ class RuntimeTraceSink final : public graphx::TraceSink {
     }
     const auto capture_enabled =
         boolean_env("GRAPHX_CAPTURE_ENABLED", config.observability.capture.enabled);
-    const auto capture_provider =
-        env("GRAPHX_CAPTURE_PROVIDER", config.observability.capture.provider);
+    const auto capture_provider = capture_provider_env(config.observability.capture.provider);
     if (capture_enabled && capture_provider == "pcapng") {
       const auto directory = env("GRAPHX_CAPTURE_DIR", config.observability.capture.directory);
-      capture_ = std::make_unique<graphx::PcapngCaptureSink>(std::filesystem::path(directory) /
-                                                             (node_id_ + ".pcapng"));
+      const auto snaplen =
+          unsigned_env("GRAPHX_CAPTURE_SNAPLEN", config.observability.capture.snaplen, 256,
+                       16 * 1024 * 1024 + 4);
+      const auto max_file_bytes =
+          unsigned_env("GRAPHX_CAPTURE_MAX_FILE_BYTES", config.observability.capture.max_file_bytes,
+                       65536, 4ULL * 1024 * 1024 * 1024);
+      const auto max_packets = unsigned_env(
+          "GRAPHX_CAPTURE_MAX_PACKETS", config.observability.capture.max_packets, 1, 100'000'000);
+      capture_ = std::make_unique<graphx::PcapngCaptureSink>(
+          std::filesystem::path(directory) / (node_id_ + ".pcapng"),
+          static_cast<std::uint32_t>(snaplen), max_file_bytes, max_packets);
       std::cout << "capture node=" << node_id_ << " provider=pcapng path=" << capture_->path()
-                << std::endl;
+                << " snaplen=" << snaplen << " max_file_bytes=" << max_file_bytes
+                << " max_packets=" << max_packets << std::endl;
     }
     heartbeat(true);
   }

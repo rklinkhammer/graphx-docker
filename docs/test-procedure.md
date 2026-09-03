@@ -157,8 +157,28 @@ Expected results:
   counts errors, drops, rejections, reconnects and backpressure independently.
 - The finite TCP pipeline writes valid non-empty PCAPNG files for all three
   nodes, retains trace IDs in capture metadata, and passes a byte-for-byte
-  extcap and HTTP-download check. Binary unit tests verify USER0 (147) for
-  GraphX frames and Ethernet (1) for actual Ethernet-frame capture.
+  validating-extcap and HTTP-download check. Binary unit tests verify USER0
+  (147) for GraphX frames, Ethernet (1) for actual Ethernet-frame capture,
+  byte/packet limits, complete-block failure, and symlink refusal. When TShark
+  is installed, CTest loads the Lua plugin, decodes v1/v2 fixture packets,
+  exercises display filters, and verifies malformed expert output, including
+  mandatory zero v2 identities and duplicate keys while allowing a zero parent.
+- Adversarial capture tests verify that FIFO, socket, device, symlink, and
+  multiply linked writer targets are rejected promptly without modifying their
+  contents; valid oversized metadata falls back to a bounded comment and does
+  not stop subsequent capture.
+- Extcap tests reject unsupported section versions/lengths, additional sections
+  or interfaces, packets before the interface, nonzero packet interface IDs,
+  unknown blocks, truncation, oversized blocks, bad trailers, and symlinks.
+- Telemetry tests prove capture limits are reported and a writable capture
+  volume cannot turn a capture-name symlink or hard link into a collector file
+  download, FIFO validation does not block, and descriptor validation remains
+  bound to the inode actually streamed across a pathname replacement. They also
+  prove entry/file catalog bounds, sorted truncation metadata, cached snapshot
+  bounds, direct download outside a truncated catalog, and valid initial
+  PCAPNG blocks larger than 512 bytes.
+- The AJV Draft 2020-12 regression test exercises the same capture provider,
+  directory, scalar-type, and numeric-boundary cases as the native loader tests.
 - The container job runs `scripts/test-container-hardening.sh` after image builds
   to prove both fresh-volume initialization orders allow native capture writes,
   while the collector can read but cannot write the mounted volume.
@@ -167,8 +187,13 @@ For a focused rerun:
 
 ```sh
 ctest --test-dir build/dev --output-on-failure
+ctest --test-dir build/dev -R 'graphx-(extcap|wireshark-dissector)' --output-on-failure
 examples/shared-memory/run.sh
 ```
+
+The dissector test is configured only when `tshark` is found. CI installs
+TShark in the Linux native matrix; a local configure without TShark prints an
+explicit unavailable message rather than representing the dissector as tested.
 
 ## 3. Observe the live TCP pipeline
 

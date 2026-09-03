@@ -89,6 +89,9 @@ struct CaptureConfig {
   bool enabled{};
   std::string provider;
   std::string directory{"captures"};
+  std::uint32_t snaplen{16 * 1024 * 1024 + 4};
+  std::uint64_t max_file_bytes{256ULL * 1024 * 1024};
+  std::uint64_t max_packets{1'000'000};
 };
 
 struct OtlpConfig {

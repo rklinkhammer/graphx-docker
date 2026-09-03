@@ -234,8 +234,13 @@ transaction. Configuration, API examples and failure semantics are in
 
 OVS SPAN ports and the example `tcpdump`/`dumpcap` hooks collect standard
 Ethernet packets now.
-The existing PCAPNG sink records canonical application frames and reports
-packet indexes/offsets through telemetry. The console can download available
-files, and the extcap adapter can follow one in Wireshark. See
-[`capture.md`](capture.md). Automated matching to separate OVS packet captures
-remains future hardening.
+The bounded PCAPNG sink records canonical application frames and reports packet
+indexes/offsets through telemetry. The console can download no-follow-validated
+files using the same descriptor it validates, the extcap adapter follows
+complete validated PCAPNG 1.0 blocks, and the Lua dissector decodes v1/v2 frames
+with the native decoder's identity and attribute-key validity rules. See
+[`capture.md`](capture.md). Automated
+matching to separate OVS packet captures remains future hardening.
+Capture snapshots use a one-second cached, deterministically sorted catalog with
+explicit entry/file bounds and truncation metadata; downloads remain independent
+of catalog inclusion.

@@ -14,7 +14,9 @@ namespace graphx {
 class PcapngCaptureSink final : public CaptureSink {
  public:
   explicit PcapngCaptureSink(std::filesystem::path path,
-                             std::uint32_t snaplen = 16 * 1024 * 1024 + 4);
+                             std::uint32_t snaplen = 16 * 1024 * 1024 + 4,
+                             std::uint64_t max_file_bytes = 256ULL * 1024 * 1024,
+                             std::uint64_t max_packets = 1'000'000);
   ~PcapngCaptureSink() override;
   PcapngCaptureSink(const PcapngCaptureSink&) = delete;
   PcapngCaptureSink& operator=(const PcapngCaptureSink&) = delete;
@@ -26,6 +28,7 @@ class PcapngCaptureSink final : public CaptureSink {
   [[nodiscard]] const std::filesystem::path& path() const noexcept;
   [[nodiscard]] std::uint64_t packet_count() const noexcept;
   [[nodiscard]] std::uint64_t last_packet_offset() const noexcept;
+  [[nodiscard]] std::uint64_t bytes_written() const noexcept;
 
  private:
   struct Impl;
@@ -38,7 +41,9 @@ class PcapngCaptureSink final : public CaptureSink {
 class EthernetPcapngCaptureSink final {
  public:
   EthernetPcapngCaptureSink(std::filesystem::path path, std::string interface_name,
-                            std::uint32_t snaplen = 262144);
+                            std::uint32_t snaplen = 262144,
+                            std::uint64_t max_file_bytes = 256ULL * 1024 * 1024,
+                            std::uint64_t max_packets = 1'000'000);
   ~EthernetPcapngCaptureSink();
   EthernetPcapngCaptureSink(const EthernetPcapngCaptureSink&) = delete;
   EthernetPcapngCaptureSink& operator=(const EthernetPcapngCaptureSink&) = delete;
@@ -50,6 +55,7 @@ class EthernetPcapngCaptureSink final {
   [[nodiscard]] const std::filesystem::path& path() const noexcept;
   [[nodiscard]] std::uint64_t packet_count() const noexcept;
   [[nodiscard]] std::uint64_t last_packet_offset() const noexcept;
+  [[nodiscard]] std::uint64_t bytes_written() const noexcept;
 
  private:
   struct Impl;

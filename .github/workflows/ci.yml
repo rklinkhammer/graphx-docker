@@ -31,7 +31,10 @@ jobs:
           persist-credentials: false
       - name: Install Ninja on Linux
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y ninja-build libssl-dev
+        run: >-
+          sudo apt-get update &&
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y
+          ninja-build libssl-dev python3 tshark
       - name: Install Ninja on macOS
         if: runner.os == 'macOS'
         run: brew install ninja openssl@3
@@ -141,7 +144,10 @@ jobs:
           node-version: 24
           package-manager-cache: false
       - name: Install build tools
-        run: sudo apt-get update && sudo apt-get install -y ninja-build libssl-dev
+        run: >-
+          sudo apt-get update &&
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y
+          ninja-build libssl-dev python3 tshark
       - name: Run portable acceptance
         run: scripts/test-features.sh portable
       - name: Audit production JavaScript dependencies

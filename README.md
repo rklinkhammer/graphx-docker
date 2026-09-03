@@ -5,8 +5,8 @@
 GraphX is a small, educational framework for describing a processing graph once, running its nodes in separate processes or containers, and inspecting what crosses each edge. This scaffold starts with a C++23 runtime, framed TCP and in-process transports, a three-stage demo, and a React Flow development console.
 
 > Status: framework scaffold. The demo path, live telemetry, four baseline
-> transports, correlated PCAPNG application capture, and an initial Wireshark
-> extcap adapter work. A native GraphX dissector is not yet included.
+> transports, bounded correlated PCAPNG application capture, a GraphX
+> Wireshark dissector, and a validated live-follow extcap adapter work.
 
 ## Run the complete demo
 
@@ -196,7 +196,7 @@ This portable demo writes one correlated PCAPNG file per node. For the standard
 Docker demo, use `GRAPHX_CAPTURE_ENABLED=true scripts/demo.sh start` and download
 captures from the selected edge in the console. See
 [`docs/capture.md`](docs/capture.md) for the file representation, Wireshark
-extcap setup, and USER0 limitations.
+dissector/extcap setup, resource limits, and USER0 limitations.
 
 ## Run the local shared-memory demo
 
@@ -276,8 +276,10 @@ The core contracts stay deliberately small:
   best-effort UDP JSON, and an optional bounded OTLP/HTTP JSON exporter are included.
 - **CaptureSink / PcapngCaptureSink / ExtcapProvider** record canonical framed
   envelopes with correlation metadata and preserve the boundary for alternate
-  live capture providers. The included extcap adapter follows a capture file
-  through Wireshark's FIFO interface.
+  live capture providers. Per-file bytes, packet counts, and the telemetry
+  catalog are bounded; the included
+  extcap adapter validates and follows complete PCAPNG blocks through
+  Wireshark's FIFO, and the Lua dissector exposes v1/v2 fields.
 
 TCP uses a four-byte unsigned big-endian length followed by one serialized
 envelope. Frames are capped at 16 MiB before allocation. One receive deadline
@@ -450,8 +452,13 @@ The demo accepts these variables:
 | `GRAPHX_OTLP_RETRY_INITIAL_BACKOFF_MS` | telemetry | `200` | Initial exponential retry delay; jittered |
 | `GRAPHX_OTLP_RETRY_MAX_BACKOFF_MS` | telemetry | `5000` | Retry and `Retry-After` delay cap |
 | `GRAPHX_CAPTURE_ENABLED` | nodes, telemetry | configured value | Enable or disable runtime capture |
-| `GRAPHX_CAPTURE_PROVIDER` | nodes, telemetry | configured value | Capture provider; `pcapng` writes application frames |
+| `GRAPHX_CAPTURE_PROVIDER` | nodes, telemetry | configured value | Capture provider: `pcapng` for application frames or established external `ovs-span` capture |
 | `GRAPHX_CAPTURE_DIR` | nodes, telemetry | configured value | Shared capture-file directory |
+| `GRAPHX_CAPTURE_SNAPLEN` | nodes, telemetry | `16777220` | Per-packet captured-byte limit; 256–16,777,220 |
+| `GRAPHX_CAPTURE_MAX_FILE_BYTES` | nodes, telemetry | `268435456` | Per-node PCAPNG file limit; 64 KiB–4 GiB |
+| `GRAPHX_CAPTURE_MAX_PACKETS` | nodes, telemetry | `1000000` | Per-node packet limit; 1–100,000,000 |
+| `GRAPHX_CAPTURE_CATALOG_MAX_FILES` | telemetry | `128` | Maximum validated files returned in a capture catalog; 1–1,024 |
+| `GRAPHX_CAPTURE_CATALOG_MAX_ENTRIES` | telemetry | `512` | Maximum directory entries examined per catalog refresh; catalog maximum–4,096 |
 | `GRAPHX_WEB_ROOT` | telemetry | `web/dist` | Built frontend directory |
 | `PORT` | telemetry | `8080` | HTTP service port |
 
@@ -472,7 +479,9 @@ export is loopback-only; the telemetry-service adapter is the authenticated TLS
 boundary for remote traces and metrics. See `docs/observability.md` for health,
 SLO, Prometheus, and Grafana operation. The PCAPNG
 capture sink writes exact canonical framed bytes and correlation comments;
-`ExtcapProvider` remains the C++ boundary for alternate live sources.
+the USER0 Lua dissector decodes both supported wire versions, and the extcap
+adapter streams validated complete blocks. `ExtcapProvider` remains the C++
+boundary for alternate live sources.
 
 ## Tests
 
@@ -543,7 +552,8 @@ production-hardening phase forward.
 7. **History** — durable or backend-driven telemetry history (implemented with
    an optional isolated SQLite backend and read-only API).
 8. **Control plane** — authorized control and real runtime controls (implemented).
-9. **Wireshark** — production PCAPNG, dissector, and extcap implementation.
+9. **Wireshark** — bounded PCAPNG, v1/v2 Lua dissector, and validated extcap
+   implementation (implemented).
 10. **Release engineering** — compatibility policy, packaging, and support processes.
 
 ## Design boundaries
