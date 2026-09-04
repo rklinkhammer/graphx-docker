@@ -294,6 +294,7 @@ and forced all-zero identifier failure tests.
 For the hardened Compose projection, set host paths and validate both overlays:
 
 ```sh
+(
 export GRAPHX_OTLP_ENDPOINT=https://otel-collector.example:4318
 export GRAPHX_OTLP_AUTH_TOKEN_FILE=/host/secrets/otlp-token
 export GRAPHX_OTLP_CA_FILE=/host/secrets/otlp-ca.pem
@@ -301,7 +302,12 @@ export GRAPHX_OTLP_CERT_FILE=/host/secrets/otlp-client.pem
 export GRAPHX_OTLP_KEY_FILE=/host/secrets/otlp-client-key.pem
 docker compose -f compose.yaml -f compose.otlp-secure.yaml \
   -f compose.otlp-mtls.yaml config --quiet
+)
 ```
+
+The subshell prevents container-only secret paths from leaking into later host
+tests. The portable feature runner independently removes inherited `GRAPHX_*`
+deployment settings from telemetry and web test subprocesses.
 
 Verify operational endpoints independently:
 

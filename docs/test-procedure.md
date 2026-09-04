@@ -34,6 +34,8 @@ Additional requirements:
 
 The commands stop at the first failure and write a combined log under
 `outputs/verification/`. Set `GRAPHX_VERIFY_LOG_DIR` to use another location.
+Portable tests isolate telemetry and web subprocesses from inherited `GRAPHX_*`
+deployment variables, so container-only secret paths cannot affect host tests.
 
 ## Run the tests
 

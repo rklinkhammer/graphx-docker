@@ -21,6 +21,30 @@ trap cleanup EXIT INT TERM
 
 step() { printf '\n==> %s\n' "$*"; }
 require() { command -v "$1" >/dev/null || { echo "missing prerequisite: $1" >&2; exit 2; }; }
+without_graphx_environment() {
+  local name
+  local -a command=(env)
+  while IFS='=' read -r name _; do
+    case "$name" in
+      GRAPHX_*) command+=(-u "$name") ;;
+    esac
+  done < <(env)
+  "${command[@]}" "$@"
+}
+isolate_portable_environment() {
+  local name
+  local build_jobs=${GRAPHX_BUILD_JOBS:-4}
+  local http_port=${GRAPHX_TEST_HTTP_PORT:-18080}
+  local udp_port=${GRAPHX_TEST_UDP_PORT:-19000}
+  while IFS='=' read -r name _; do
+    case "$name" in
+      GRAPHX_*) unset "$name" ;;
+    esac
+  done < <(env)
+  export GRAPHX_BUILD_JOBS="$build_jobs"
+  export GRAPHX_TEST_HTTP_PORT="$http_port"
+  export GRAPHX_TEST_UDP_PORT="$udp_port"
+}
 wait_for_exit() {
   local pid=$1 name=$2
   for _ in {1..100}; do
@@ -141,9 +165,9 @@ portable() {
 
   step "Build the web console and exercise telemetry HTTP semantics"
   npm ci --prefix "$ROOT/apps/telemetry" --no-audit --no-fund
-  npm test --prefix "$ROOT/apps/telemetry"
+  without_graphx_environment npm test --prefix "$ROOT/apps/telemetry"
   npm ci --prefix "$ROOT/web" --no-audit --no-fund
-  npm test --prefix "$ROOT/web"
+  without_graphx_environment npm test --prefix "$ROOT/web"
   npm run build --prefix "$ROOT/web"
   sed 's/provider: ovs-span/provider: pcapng/' \
     "$ROOT/examples/ipvlan-l2/graphx.yaml" >"$TMP_DIR/telemetry-graphx.yaml"
@@ -346,9 +370,18 @@ portable() {
   step "Portable feature suite passed"
 }
 
+portable_isolated() (
+  # Deployment settings such as container-only secret paths must not affect
+  # host acceptance. The subshell restores the caller's settings afterward so
+  # Docker and native-network suites can still consume their explicit inputs.
+  isolate_portable_environment
+  trap cleanup EXIT INT TERM
+  portable
+)
+
 docker_suite() {
   require docker
-  portable
+  portable_isolated
   step "Validate and smoke-test the standard Compose deployment"
   docker compose -f "$ROOT/compose.yaml" config >/dev/null
   docker compose -f "$ROOT/compose.yaml" up -d --build
@@ -372,7 +405,7 @@ linux_network() {
   require ip
   require ovs-vsctl
   require nft
-  portable
+  portable_isolated
   test -x "$BUILD_DIR/graphx" || {
     echo "GraphX CLI was not built at $BUILD_DIR/graphx" >&2
     exit 2
@@ -405,7 +438,7 @@ linux_network() {
 }
 
 case "$MODE" in
-  portable) portable ;;
+  portable) portable_isolated ;;
   docker) docker_suite ;;
   linux-network) linux_network ;;
   *) echo "usage: $0 [portable|docker|linux-network]" >&2; exit 64 ;;
