@@ -5,10 +5,6 @@ ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 source "$ROOT/scripts/configure-build-trust.sh"
 COMPOSE=(docker compose -f "$ROOT/compose.yaml")
 URL=${GRAPHX_DEMO_URL:-http://127.0.0.1:8080}
-OBSERVATION_HEADERS=()
-if test -n "${GRAPHX_OBSERVATION_TOKEN:-}"; then
-  OBSERVATION_HEADERS=(-H "Authorization: Bearer $GRAPHX_OBSERVATION_TOKEN")
-fi
 
 usage() {
   cat <<'EOF'
@@ -27,6 +23,14 @@ require() {
     echo "Missing prerequisite: $1" >&2
     exit 2
   }
+}
+
+observed_get() {
+  if test -n "${GRAPHX_OBSERVATION_TOKEN:-}"; then
+    curl -fsS -H "Authorization: Bearer $GRAPHX_OBSERVATION_TOKEN" "$1"
+  else
+    curl -fsS "$1"
+  fi
 }
 
 wait_for_telemetry() {
@@ -76,11 +80,11 @@ verify() {
     }
   done
 
-  metrics_before=$(curl -fsS "${OBSERVATION_HEADERS[@]}" "$URL/metrics")
+  metrics_before=$(observed_get "$URL/metrics")
   first_samples=$(received_count samples <<<"$metrics_before")
   first_transformed=$(received_count transformed <<<"$metrics_before")
   sleep 2
-  metrics_after=$(curl -fsS "${OBSERVATION_HEADERS[@]}" "$URL/metrics")
+  metrics_after=$(observed_get "$URL/metrics")
   second_samples=$(received_count samples <<<"$metrics_after")
   second_transformed=$(received_count transformed <<<"$metrics_after")
 
