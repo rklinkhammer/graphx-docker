@@ -178,7 +178,7 @@ void envelope_protocol_rejects_invalid_input() {
   trailing.push_back(std::byte{});
   expect_failure([&] { graphx::deserialize(trailing); }, "trailing envelope bytes");
   auto zero_message = version2;
-  std::fill(zero_message.begin() + 20, zero_message.begin() + 36, std::byte{});
+  for (std::size_t index = 20; index < 36; ++index) zero_message.at(index) = std::byte{};
   expect_failure([&] { graphx::deserialize(zero_message); }, "zero envelope identity");
 
   const auto append_u32 = [](std::vector<std::byte>& bytes, std::uint32_t value) {
