@@ -678,9 +678,15 @@ void udp_runtime_control() {
     std::array<char, 2048> event{};
     sockaddr_storage runtime{};
     socklen_t runtime_size = sizeof(runtime);
-    expect(::recvfrom(collector, event.data(), event.size(), 0,
-                      reinterpret_cast<sockaddr*>(&runtime), &runtime_size) > 0,
+    const auto heartbeat_size = ::recvfrom(collector, event.data(), event.size(), 0,
+                                           reinterpret_cast<sockaddr*>(&runtime), &runtime_size);
+    expect(heartbeat_size > 0,
            "UDP control endpoint registration");
+    const std::string_view heartbeat_json(event.data(), static_cast<std::size_t>(heartbeat_size));
+    expect(heartbeat_json.find("\"event\":\"heartbeat\"") != std::string_view::npos &&
+               heartbeat_json.find("\"nodeId\":\"generator\"") != std::string_view::npos &&
+               heartbeat_json.find("\"edgeId\"") == std::string_view::npos,
+           "UDP heartbeat identifies the runtime without an invalid edge identifier");
     auto envelope = graphx::Envelope::make(12, std::string{"Observed"} + char{1}, "value");
     envelope.message_id = "00112233445566778899aabbccddeeff";
     envelope.trace_id = "102132435465768798a9babcbddcedfe";

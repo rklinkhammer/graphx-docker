@@ -601,13 +601,13 @@ void UdpJsonTraceSink::on_backpressure(std::string_view edge_id, std::chrono::na
   emit("backpressure", edge_id, nullptr, 0, duration, rejected ? "rejected" : "blocked");
 }
 
-void UdpJsonTraceSink::on_processing(std::string_view node_id, const Envelope& envelope,
+void UdpJsonTraceSink::on_processing(std::string_view, const Envelope& envelope,
                                      std::chrono::nanoseconds duration, bool success) {
-  emit("processing", node_id, &envelope, 0, duration, success ? "ok" : "error");
+  emit("processing", {}, &envelope, 0, duration, success ? "ok" : "error");
 }
 
-void UdpJsonTraceSink::on_heartbeat(std::string_view node_id, double cpu_percent) {
-  emit("heartbeat", node_id, nullptr, 0, {}, {}, cpu_percent);
+void UdpJsonTraceSink::on_heartbeat(std::string_view, double cpu_percent) {
+  emit("heartbeat", {}, nullptr, 0, {}, {}, cpu_percent);
 }
 
 void UdpJsonTraceSink::on_capture(std::string_view edge_id, const Envelope& envelope,
@@ -641,8 +641,9 @@ void UdpJsonTraceSink::emit(std::string_view event, std::string_view edge_id,
                        .count();
   std::ostringstream json;
   json << "{\"kind\":\"trace\",\"event\":\"" << event << "\",\"nodeId\":\""
-       << escape_json(impl_->node_id) << "\",\"edgeId\":\"" << escape_json(edge_id)
-       << "\",\"timestamp\":" << now << ",\"wireBytes\":" << wire_bytes << ",\"latencyUs\":"
+       << escape_json(impl_->node_id) << '"';
+  if (!edge_id.empty()) json << ",\"edgeId\":\"" << escape_json(edge_id) << '"';
+  json << ",\"timestamp\":" << now << ",\"wireBytes\":" << wire_bytes << ",\"latencyUs\":"
        << std::chrono::duration_cast<std::chrono::microseconds>(latency).count();
   if (envelope) {
     json << ",\"sequence\":" << envelope->sequence

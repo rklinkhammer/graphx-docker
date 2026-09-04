@@ -50,6 +50,12 @@ test('telemetry validation rejects unknown identities and unbounded values', () 
     nodes, edges), true)
   assert.equal(validateTelemetryEvent({ ...valid, event: 'backpressure', message: 'blocked' },
     nodes, edges), true)
+  assert.equal(validateTelemetryEvent({ kind: 'trace', event: 'heartbeat', nodeId: 'generator',
+    timestamp: Date.now(), cpuPercent: 1 }, nodes, edges), true)
+  assert.equal(validateTelemetryEvent({ kind: 'trace', event: 'processing', nodeId: 'generator',
+    timestamp: Date.now(), message: 'ok' }, nodes, edges), true)
+  assert.equal(validateTelemetryEvent({ kind: 'trace', event: 'processing', nodeId: 'generator',
+    edgeId: 'generator', timestamp: Date.now(), message: 'ok' }, nodes, edges), false)
 })
 
 test('control acknowledgements require correlated bounded command identity and state', () => {

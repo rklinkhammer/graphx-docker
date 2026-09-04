@@ -300,7 +300,9 @@ portable() {
   test "$(curl -sS -o "$TMP_DIR/runtime-pause.json" -w '%{http_code}' -X POST -H "Authorization: Bearer $control_token" "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/control/pause")" = 202
   sleep 0.15
   paused_count=$(sent_count)
-  sleep 0.25
+  # Stay paused beyond the collector's one-second endpoint timeout. Runtime
+  # heartbeats must keep the control return path live so Resume still works.
+  sleep 1.25
   test "$(sent_count)" = "$paused_count"
   test "$(curl -sS -o "$TMP_DIR/runtime-resume.json" -w '%{http_code}' -X POST -H "Authorization: Bearer $control_token" "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/control/resume")" = 202
   resumed=false

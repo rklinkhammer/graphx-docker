@@ -180,6 +180,8 @@ export function validateTelemetryEvent(event, nodeIds, edgeIds) {
     return CONNECTION_STATES.has(event.message)
   if (event.event === 'backpressure')
     return BACKPRESSURE_STATES.has(event.message)
+  if (event.event === 'processing')
+    return ['ok', 'error'].includes(event.message)
   if (event.event !== 'error' && event.message != null) return false
   return true
 }
