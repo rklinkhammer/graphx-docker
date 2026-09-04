@@ -12,9 +12,10 @@ if docker compose -p gx-ovs -f "$example_dir/compose/macos-ovs.compose.yml" ps -
     tc qdisc replace dev br-gx-ipv root netem delay "${DELAY:-20ms}" "${JITTER:-3ms}" loss "${LOSS:-1%}"
 fi
 repo_dir="$(cd "$example_dir/../.." && pwd)"
+graphx="${GRAPHX_BUILD_DIR:-$repo_dir/build/dev}/graphx"
 if [[ "$action" == clear ]]; then
-  exec sudo "$repo_dir/build/dev/graphx" infra fault clear "$example_dir/graphx.yaml" \
+  exec sudo "$graphx" infra fault clear "$example_dir/graphx.yaml" \
     --router domain-router --interface ipv
 fi
-exec sudo "$repo_dir/build/dev/graphx" infra fault apply "$example_dir/graphx.yaml" \
+exec sudo "$graphx" infra fault apply "$example_dir/graphx.yaml" \
   --router domain-router --interface ipv --delay "${DELAY:-20ms}" --jitter "${JITTER:-3ms}" --loss "${LOSS:-1%}"

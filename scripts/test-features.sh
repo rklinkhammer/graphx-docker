@@ -361,6 +361,11 @@ linux_network() {
   require ovs-vsctl
   require nft
   portable
+  test -x "$BUILD_DIR/graphx" || {
+    echo "GraphX CLI was not built at $BUILD_DIR/graphx" >&2
+    exit 2
+  }
+  export GRAPHX_BUILD_DIR="$BUILD_DIR"
   for example in macvlan ipvlan-l2 ipvlan-l3 mixed-network; do
     step "Run native $example lab"
     if test "$example" = mixed-network; then

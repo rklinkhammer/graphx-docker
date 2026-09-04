@@ -2,6 +2,7 @@
 set -euo pipefail
 example_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 repo_dir="$(cd "$example_dir/../.." && pwd)"
+graphx="${GRAPHX_BUILD_DIR:-$repo_dir/build/dev}/graphx"
 [[ "$(uname -s)" == Linux ]] || { echo "native profile requires Linux" >&2; exit 2; }
 
 sudo -v
@@ -47,13 +48,13 @@ rollback() {
       down --remove-orphans >/dev/null 2>&1 || true
     docker compose -p gx-ipv-side -f "$example_dir/compose/ipvlan.compose.yml" \
       down --remove-orphans >/dev/null 2>&1 || true
-    sudo "$repo_dir/build/dev/graphx" infra destroy "$example_dir/graphx.yaml" || true
+    sudo "$graphx" infra destroy "$example_dir/graphx.yaml" || true
   fi
   exit "$status"
 }
 trap rollback EXIT
 
-sudo "$repo_dir/build/dev/graphx" infra create "$example_dir/graphx.yaml"
+sudo "$graphx" infra create "$example_dir/graphx.yaml"
 docker compose -p gx-mac-side -f "$example_dir/compose/macvlan.compose.yml" up -d --build
 docker compose -p gx-ipv-side -f "$example_dir/compose/ipvlan.compose.yml" up -d --build
 trap - EXIT
