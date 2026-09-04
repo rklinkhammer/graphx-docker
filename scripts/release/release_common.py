@@ -47,6 +47,8 @@ ARCHIVE_EXECUTABLE_FILES = frozenset({
     "bin/graphx-generator",
     "bin/graphx-transform",
     "bin/graphx-sink",
+    "bin/graphx-udp-publisher",
+    "bin/graphx-udp-subscriber",
     "libexec/graphx/graphx-extcap",
 })
 
@@ -62,6 +64,7 @@ ARCHIVE_PUBLIC_HEADERS = frozenset({
     "include/graphx/observability.hpp",
     "include/graphx/shared_memory_transport.hpp",
     "include/graphx/tcp_transport.hpp",
+    "include/graphx/udp_transport.hpp",
     "include/graphx/transport.hpp",
     "include/graphx/transport_factory.hpp",
     "include/graphx/types.hpp",
@@ -84,6 +87,7 @@ ARCHIVE_DOCUMENTATION_FILES = frozenset({
     "share/doc/graphx/docs/adr/0009-authorized-runtime-control-plane.md",
     "share/doc/graphx/docs/adr/0010-bounded-pcapng-wireshark-extcap.md",
     "share/doc/graphx/docs/adr/0011-immutable-release-artifacts-and-explicit-compatibility.md",
+    "share/doc/graphx/docs/adr/0012-bounded-ipv4-udp-edges.md",
     "share/doc/graphx/docs/capture.md",
     "share/doc/graphx/docs/compatibility-policy.md",
     "share/doc/graphx/docs/complete-system-demo.md",
@@ -98,6 +102,7 @@ ARCHIVE_DOCUMENTATION_FILES = frozenset({
     "share/doc/graphx/docs/security.md",
     "share/doc/graphx/docs/shared-memory-transport.md",
     "share/doc/graphx/docs/tcp-transport.md",
+    "share/doc/graphx/docs/udp-transport.md",
     "share/doc/graphx/docs/test-procedure.md",
     "share/doc/graphx/docs/unix-domain-socket-transport.md",
     "share/doc/graphx/docs/upgrade.md",

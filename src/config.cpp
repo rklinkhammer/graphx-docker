@@ -23,6 +23,7 @@ namespace {
 constexpr std::size_t kMaxTextLength = 1024;
 const std::regex kIdentifier{"^[A-Za-z][A-Za-z0-9_-]{0,63}$"};
 const std::regex kMacAddress{"^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$"};
+const std::regex kInterfaceName{"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,14}$"};
 const std::regex kHttpOrigin{R"(^https?://(\[[0-9A-Fa-f:]+\]|[A-Za-z0-9.-]+)(:([0-9]{1,5}))?/?$)"};
 
 struct Ipv4Cidr {
@@ -285,6 +286,23 @@ class ConfigParser {
     }
   }
 
+  bool udp_bool_value(const YAML::Node& node, const std::string& path, bool fallback) {
+    if (!node) return fallback;
+    if (!node.IsScalar() || node.Tag() == "!" || node.Tag() == "tag:yaml.org,2002:str") {
+      error(path, "must be a boolean, not a string");
+      return fallback;
+    }
+    return bool_value(node, path, fallback);
+  }
+
+  std::uint32_t udp_unsigned_value(const YAML::Node& node, const std::string& path) {
+    if (node && (node.Tag() == "!" || node.Tag() == "tag:yaml.org,2002:str")) {
+      error(path, "must be an unsigned integer, not a string");
+      return 0;
+    }
+    return unsigned_value(node, path);
+  }
+
   double double_value(const YAML::Node& node, const std::string& path, double fallback) {
     if (!node) return fallback;
     try {
@@ -388,6 +406,8 @@ class ConfigParser {
       edge.edge.transport = transport;
       if (transport == "tcp")
         edge.transport.kind = TransportKind::tcp;
+      else if (transport == "udp")
+        edge.transport.kind = TransportKind::udp;
       else if (transport == "unix")
         edge.transport.kind = TransportKind::unix_socket;
       else if (transport == "in_process")
@@ -402,8 +422,8 @@ class ConfigParser {
 
   void parse_transports(const YAML::Node& transports, GraphConfig& config) {
     if (!require_map(transports, "transport")) return;
-    strict_keys(transports, "transport", {"tcp", "unix", "in_process", "shared_memory"});
-    const std::string_view sections[] = {"tcp", "unix", "in_process", "shared_memory"};
+    strict_keys(transports, "transport", {"tcp", "udp", "unix", "in_process", "shared_memory"});
+    const std::string_view sections[] = {"tcp", "udp", "unix", "in_process", "shared_memory"};
     std::unordered_set<std::string> consumed;
     for (auto& edge : config.edges) {
       const auto name = std::string(to_string(edge.transport.kind));
@@ -495,6 +515,77 @@ class ConfigParser {
               error(tls_path + ".ca_file", "is required when client certificates are required");
           }
         }
+      } else if (edge.transport.kind == TransportKind::udp) {
+        strict_keys(
+            settings, path,
+            {"mode", "destination", "bind", "port", "interface", "ttl", "loopback", "reuse_address",
+             "receive_buffer_bytes", "send_buffer_bytes", "max_datagram_bytes", "framing"});
+        const auto mode = text(settings["mode"], path + ".mode", 16);
+        if (mode == "unicast")
+          edge.transport.udp_mode = UdpMode::unicast;
+        else if (mode == "broadcast")
+          edge.transport.udp_mode = UdpMode::broadcast;
+        else if (mode == "multicast")
+          edge.transport.udp_mode = UdpMode::multicast;
+        else
+          error(path + ".mode", "must be 'unicast', 'broadcast', or 'multicast'");
+        edge.transport.destination = text(settings["destination"], path + ".destination", 15);
+        edge.transport.bind = text(settings["bind"], path + ".bind", 15);
+        const auto destination = ipv4_address(edge.transport.destination);
+        const auto bind = ipv4_address(edge.transport.bind);
+        if (!destination) error(path + ".destination", "must be an IPv4 address");
+        if (!bind) error(path + ".bind", "must be an IPv4 address");
+        if (destination) {
+          const bool multicast = (*destination & 0xf0000000U) == 0xe0000000U;
+          const bool limited_broadcast = *destination == 0xffffffffU;
+          if (edge.transport.udp_mode == UdpMode::multicast && !multicast)
+            error(path + ".destination", "multicast mode requires an address in 224.0.0.0/4");
+          if (edge.transport.udp_mode == UdpMode::unicast && (multicast || limited_broadcast))
+            error(path + ".destination", "unicast mode rejects multicast and broadcast addresses");
+          if (edge.transport.udp_mode == UdpMode::broadcast && multicast)
+            error(path + ".destination", "broadcast mode rejects multicast addresses");
+        }
+        const auto port = udp_unsigned_value(settings["port"], path + ".port");
+        if (port == 0 || port > 65535)
+          error(path + ".port", "must be between 1 and 65535");
+        else
+          edge.transport.port = static_cast<std::uint16_t>(port);
+        if (settings["interface"]) {
+          if (!settings["interface"].IsScalar())
+            error(path + ".interface", "must be a scalar string");
+          else if (settings["interface"].Scalar().size() > 15)
+            error(path + ".interface", "exceeds maximum length 15");
+          else
+            edge.transport.interface = settings["interface"].Scalar();
+          if (!edge.transport.interface.empty() && !ipv4_address(edge.transport.interface) &&
+              !std::regex_match(edge.transport.interface, kInterfaceName))
+            error(path + ".interface", "must be an IPv4 address or interface name");
+        }
+        if (settings["ttl"])
+          edge.transport.ttl = udp_unsigned_value(settings["ttl"], path + ".ttl");
+        if (edge.transport.ttl > 255) error(path + ".ttl", "must be between 0 and 255");
+        edge.transport.loopback = udp_bool_value(settings["loopback"], path + ".loopback", true);
+        edge.transport.reuse_address =
+            udp_bool_value(settings["reuse_address"], path + ".reuse_address", false);
+        if (settings["receive_buffer_bytes"])
+          edge.transport.receive_buffer_bytes =
+              udp_unsigned_value(settings["receive_buffer_bytes"], path + ".receive_buffer_bytes");
+        if (edge.transport.receive_buffer_bytes < 4096 ||
+            edge.transport.receive_buffer_bytes > 256U * 1024 * 1024)
+          error(path + ".receive_buffer_bytes", "must be between 4096 and 268435456");
+        if (settings["send_buffer_bytes"])
+          edge.transport.send_buffer_bytes =
+              udp_unsigned_value(settings["send_buffer_bytes"], path + ".send_buffer_bytes");
+        if (edge.transport.send_buffer_bytes < 4096 ||
+            edge.transport.send_buffer_bytes > 256U * 1024 * 1024)
+          error(path + ".send_buffer_bytes", "must be between 4096 and 268435456");
+        if (settings["max_datagram_bytes"])
+          edge.transport.max_datagram_bytes =
+              udp_unsigned_value(settings["max_datagram_bytes"], path + ".max_datagram_bytes");
+        if (edge.transport.max_datagram_bytes < 64 || edge.transport.max_datagram_bytes > 65507)
+          error(path + ".max_datagram_bytes", "must be between 64 and 65507");
+        if (settings["framing"])
+          edge.transport.framing = text(settings["framing"], path + ".framing", 16);
       } else if (edge.transport.kind == TransportKind::unix_socket) {
         strict_keys(settings, path, {"path", "framing", "connect_timeout_ms", "send_timeout_ms"});
         edge.transport.path = text(settings["path"], path + ".path", 103);
@@ -1534,10 +1625,24 @@ std::string_view to_string(TransportKind kind) noexcept {
       return "in_process";
     case TransportKind::tcp:
       return "tcp";
+    case TransportKind::udp:
+      return "udp";
     case TransportKind::unix_socket:
       return "unix";
     case TransportKind::shared_memory:
       return "shared_memory";
+  }
+  return "unknown";
+}
+
+std::string_view to_string(UdpMode mode) noexcept {
+  switch (mode) {
+    case UdpMode::unicast:
+      return "unicast";
+    case UdpMode::broadcast:
+      return "broadcast";
+    case UdpMode::multicast:
+      return "multicast";
   }
   return "unknown";
 }

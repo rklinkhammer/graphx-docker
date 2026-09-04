@@ -102,6 +102,7 @@ add_library(graphx
   src/observability.cpp
   src/shared_memory_transport.cpp
   src/tcp_transport.cpp
+  src/udp_transport.cpp
   src/unix_domain_socket_transport.cpp
   src/transport_factory.cpp
 )
@@ -129,6 +130,14 @@ foreach(app generator transform sink)
   graphx_enable_sanitizers(graphx-${app})
 endforeach()
 
+foreach(app udp_publisher udp_subscriber)
+  string(REPLACE "_" "-" app_name "${app}")
+  add_executable(graphx-${app_name} apps/${app}/main.cpp)
+  target_link_libraries(graphx-${app_name} PRIVATE graphx)
+  graphx_enable_analysis(graphx-${app_name})
+  graphx_enable_sanitizers(graphx-${app_name})
+endforeach()
+
 add_executable(graphx-cli apps/cli/main.cpp)
 set_target_properties(graphx-cli PROPERTIES OUTPUT_NAME graphx)
 target_link_libraries(graphx-cli PRIVATE graphx)
@@ -151,6 +160,7 @@ if(GRAPHX_BUNDLED_YAML_CPP)
     RENAME yaml-cpp-LICENSE COMPONENT documentation)
 endif()
 install(TARGETS graphx-cli graphx-generator graphx-transform graphx-sink
+  graphx-udp-publisher graphx-udp-subscriber
   RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT runtime)
 install(DIRECTORY include/graphx DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
   COMPONENT development FILES_MATCHING PATTERN "*.hpp")
@@ -271,7 +281,8 @@ if(GRAPHX_BUILD_TESTS)
     set_tests_properties(graphx-package PROPERTIES DISABLED TRUE)
   endif()
   set(graphx_config_cli_tests graphx-config-cli)
-  foreach(example mixed-network macvlan ipvlan-l2 ipvlan-l3 shared-memory)
+  foreach(example mixed-network macvlan ipvlan-l2 ipvlan-l3 shared-memory udp-unicast
+                  udp-broadcast udp-multicast)
     add_test(NAME graphx-config-${example}
       COMMAND graphx-cli validate ${CMAKE_SOURCE_DIR}/examples/${example}/graphx.yaml)
     list(APPEND graphx_config_cli_tests graphx-config-${example})
@@ -289,6 +300,15 @@ if(GRAPHX_BUILD_TESTS)
   add_test(NAME graphx-transport-lifecycle-stress
     COMMAND graphx-tests --filter "transport lifecycle stress")
   set_tests_properties(graphx-transport-lifecycle-stress PROPERTIES TIMEOUT 30)
+  add_test(NAME graphx-udp-transport
+    COMMAND graphx-tests --filter "UDP" --repeat 3)
+  set_tests_properties(graphx-udp-transport PROPERTIES TIMEOUT 30)
+  add_test(NAME graphx-udp-unicast-example
+    COMMAND ${CMAKE_SOURCE_DIR}/examples/udp-unicast/run.sh)
+  add_test(NAME graphx-udp-multicast-example
+    COMMAND ${CMAKE_SOURCE_DIR}/examples/udp-multicast/run.sh)
+  set_tests_properties(graphx-udp-unicast-example graphx-udp-multicast-example
+    PROPERTIES TIMEOUT 15 ENVIRONMENT "GRAPHX_BUILD_DIR=${CMAKE_BINARY_DIR}")
   if(GRAPHX_ENABLE_SANITIZERS)
     add_test(NAME graphx-sanitizer-coverage
       COMMAND ${CMAKE_COMMAND}

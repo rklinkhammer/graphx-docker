@@ -344,6 +344,26 @@ std::string_view to_string(ConnectionState state) noexcept {
   return "unknown";
 }
 
+std::string_view to_string(UdpEvent event) noexcept {
+  switch (event) {
+    case UdpEvent::malformed:
+      return "malformed";
+    case UdpEvent::truncated:
+      return "truncated";
+    case UdpEvent::oversized:
+      return "oversized";
+    case UdpEvent::socket_error:
+      return "socket_error";
+    case UdpEvent::sequence_gap:
+      return "sequence_gap";
+    case UdpEvent::duplicate:
+      return "duplicate";
+    case UdpEvent::out_of_order:
+      return "out_of_order";
+  }
+  return "unknown";
+}
+
 void MetricsTraceSink::on_send(std::string_view edge_id, const Envelope&, std::size_t wire_bytes) {
   std::scoped_lock lock(mutex_);
   auto& value = edges_[std::string(edge_id)];
@@ -389,6 +409,34 @@ void MetricsTraceSink::on_backpressure(std::string_view edge_id, std::chrono::na
   if (rejected) ++value.rejected;
 }
 
+void MetricsTraceSink::on_udp_event(std::string_view edge_id, UdpEvent event, std::uint64_t count) {
+  std::scoped_lock lock(mutex_);
+  auto& value = edges_[std::string(edge_id)];
+  switch (event) {
+    case UdpEvent::malformed:
+      value.udp_malformed += count;
+      break;
+    case UdpEvent::truncated:
+      value.udp_truncated += count;
+      break;
+    case UdpEvent::oversized:
+      value.udp_oversized += count;
+      break;
+    case UdpEvent::socket_error:
+      value.udp_socket_errors += count;
+      break;
+    case UdpEvent::sequence_gap:
+      value.udp_sequence_gaps += count;
+      break;
+    case UdpEvent::duplicate:
+      value.udp_duplicates += count;
+      break;
+    case UdpEvent::out_of_order:
+      value.udp_out_of_order += count;
+      break;
+  }
+}
+
 EdgeMetrics MetricsTraceSink::edge(std::string_view edge_id) const {
   std::scoped_lock lock(mutex_);
   if (const auto found = edges_.find(std::string(edge_id)); found != edges_.end())
@@ -421,6 +469,11 @@ void CompositeTraceSink::on_reconnect(std::string_view edge_id) {
 void CompositeTraceSink::on_backpressure(std::string_view edge_id,
                                          std::chrono::nanoseconds duration, bool rejected) {
   for (auto* sink : sinks_) sink->on_backpressure(edge_id, duration, rejected);
+}
+
+void CompositeTraceSink::on_udp_event(std::string_view edge_id, UdpEvent event,
+                                      std::uint64_t count) {
+  for (auto* sink : sinks_) sink->on_udp_event(edge_id, event, count);
 }
 
 void CompositeTraceSink::on_processing(std::string_view node_id, const Envelope& envelope,

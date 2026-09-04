@@ -64,6 +64,9 @@ with tempfile.TemporaryDirectory(prefix="graphx-package-test-") as temporary:
     required = [
         executable, prefix / "lib" / "libgraphx.a",
         prefix / "include" / "graphx" / "version.hpp",
+        prefix / "include" / "graphx" / "udp_transport.hpp",
+        prefix / "bin" / "graphx-udp-publisher",
+        prefix / "bin" / "graphx-udp-subscriber",
         prefix / "lib" / "cmake" / "GraphX" / "GraphXConfig.cmake",
         prefix / "libexec" / "graphx" / "graphx-extcap",
         prefix / "share" / "graphx" / "wireshark" / "graphx.lua",
@@ -100,9 +103,13 @@ add_executable(consumer main.cpp)
 target_link_libraries(consumer PRIVATE GraphX::graphx)
 """, encoding="utf-8")
     (consumer / "main.cpp").write_text(f"""#include <graphx/envelope.hpp>
+#include <graphx/udp_transport.hpp>
 #include <graphx/version.hpp>
 int main() {{
-  return graphx::version == \"{VERSION}\" &&
+  graphx::UdpOptions udp;
+  const auto envelope = graphx::Envelope::make(1, \"Package\", \"udp\");
+  return graphx::version == \"{VERSION}\" && udp.max_datagram_bytes == 65507 &&
+    graphx::serialized_size(envelope) == graphx::serialize(envelope).size() &&
     graphx::is_canonical_identity(\"0123456789abcdef0123456789abcdef\") ? 0 : 1;
 }}
 """, encoding="utf-8")

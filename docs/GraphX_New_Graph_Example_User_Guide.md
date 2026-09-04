@@ -41,7 +41,7 @@ Choose these properties for every edge:
 - a unique bounded edge ID;
 - one existing output port and one existing input port;
 - identical schema names at both ends;
-- one supported transport: `in_process`, `tcp`, `unix`, or `shared_memory`;
+- one supported transport: `in_process`, `tcp`, `udp`, `unix`, or `shared_memory`;
 - explicit capacity, timeout, retry, and backpressure values required by that
   transport; and
 - an optional network path that matches the declared interfaces and networks.

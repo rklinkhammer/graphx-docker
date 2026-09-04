@@ -2,6 +2,7 @@
 
 #include "graphx/tcp_transport.hpp"
 #include "graphx/shared_memory_transport.hpp"
+#include "graphx/udp_transport.hpp"
 #include "graphx/unix_domain_socket_transport.hpp"
 
 #include <stdexcept>
@@ -36,6 +37,26 @@ TransportPtr TransportFactory::create(const EdgeConfig& edge, ConnectionMode mod
             TcpTransport::connect(endpoint, edge.edge.id, trace_sink, options));
       return std::make_unique<TcpTransport>(
           TcpTransport::listen(endpoint, edge.edge.id, trace_sink, options));
+    }
+    case TransportKind::udp: {
+      if (transport.port == 0 || transport.destination.empty() || transport.bind.empty())
+        throw std::invalid_argument("UDP transport requires destination, bind, and nonzero port");
+      UdpOptions options;
+      options.mode = transport.udp_mode;
+      options.interface = transport.interface;
+      options.ttl = static_cast<std::uint8_t>(transport.ttl);
+      options.loopback = transport.loopback;
+      options.reuse_address = transport.reuse_address;
+      options.receive_buffer_bytes = transport.receive_buffer_bytes;
+      options.send_buffer_bytes = transport.send_buffer_bytes;
+      options.max_datagram_bytes = transport.max_datagram_bytes;
+      if (mode == ConnectionMode::connect)
+        return std::make_unique<UdpTransport>(
+            UdpTransport::connect({transport.destination, transport.port}, transport.bind,
+                                  edge.edge.id, trace_sink, options));
+      return std::make_unique<UdpTransport>(
+          UdpTransport::listen({transport.bind, transport.port}, transport.destination,
+                               edge.edge.id, trace_sink, options));
     }
     case TransportKind::unix_socket:
       if (transport.path.empty())

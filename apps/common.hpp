@@ -131,6 +131,10 @@ class ConsoleTraceSink final : public graphx::TraceSink {
               << " event=backpressure mode=" << (rejected ? "rejected" : "blocked")
               << " duration_us=" << duration.count() / 1000.0 << std::endl;
   }
+  void on_udp_event(std::string_view edge, graphx::UdpEvent event, std::uint64_t count) override {
+    std::cout << "metric edge=" << edge << " event=udp_" << graphx::to_string(event)
+              << " count=" << count << std::endl;
+  }
   void on_processing(std::string_view node, const graphx::Envelope& envelope,
                      std::chrono::nanoseconds duration, bool success) override {
     std::cout << "metric node=" << node << " event=processing seq=" << envelope.sequence
@@ -235,6 +239,9 @@ class RuntimeTraceSink final : public graphx::TraceSink {
   void on_backpressure(std::string_view edge, std::chrono::nanoseconds duration,
                        bool rejected) override {
     composite_.on_backpressure(edge, duration, rejected);
+  }
+  void on_udp_event(std::string_view edge, graphx::UdpEvent event, std::uint64_t count) override {
+    composite_.on_udp_event(edge, event, count);
   }
   void on_processing(std::string_view node, const graphx::Envelope& envelope,
                      std::chrono::nanoseconds duration, bool success) override {

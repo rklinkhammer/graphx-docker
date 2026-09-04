@@ -19,13 +19,23 @@ inline constexpr std::size_t kMaxNodes = 1024;
 inline constexpr std::size_t kMaxEdges = 4096;
 inline constexpr std::size_t kMaxPortsPerNode = 256;
 
-enum class TransportKind { in_process, tcp, unix_socket, shared_memory };
+enum class TransportKind { in_process, tcp, udp, unix_socket, shared_memory };
+enum class UdpMode { unicast, broadcast, multicast };
 
 struct TransportConfig {
   TransportKind kind{};
   std::string host;
   std::string bind;
   std::uint16_t port{};
+  UdpMode udp_mode{UdpMode::unicast};
+  std::string destination;
+  std::string interface;
+  std::uint32_t ttl{1};
+  bool loopback{true};
+  bool reuse_address{};
+  std::uint32_t receive_buffer_bytes{4 * 1024 * 1024};
+  std::uint32_t send_buffer_bytes{4 * 1024 * 1024};
+  std::uint32_t max_datagram_bytes{65507};
   std::string path;
   std::string channel;
   std::string framing{"u32be"};
@@ -196,5 +206,6 @@ class ConfigError final : public std::runtime_error {
                                       const std::vector<ConfigOverride>& overrides = {});
 
 [[nodiscard]] std::string_view to_string(TransportKind kind) noexcept;
+[[nodiscard]] std::string_view to_string(UdpMode mode) noexcept;
 
 }  // namespace graphx

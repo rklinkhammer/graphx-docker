@@ -4,7 +4,7 @@
 
 GraphX is a small, educational framework for describing a processing graph once, running its nodes in separate processes or containers, and inspecting what crosses each edge. This scaffold starts with a C++23 runtime, framed TCP and in-process transports, a three-stage demo, and a React Flow development console.
 
-> Status: framework scaffold. The demo path, live telemetry, four baseline
+> Status: framework scaffold. The demo path, live telemetry, five baseline
 > transports, bounded correlated PCAPNG application capture, a GraphX
 > Wireshark dissector, and a validated live-follow extcap adapter work.
 
@@ -244,6 +244,25 @@ examples/shared-memory/run.sh
 
 See [`examples/shared-memory/README.md`](examples/shared-memory/README.md) and
 [`docs/shared-memory-transport.md`](docs/shared-memory-transport.md).
+
+## Run the UDP examples
+
+GraphX supports bounded IPv4 UDP unicast, broadcast, and multicast edges. The
+unicast and multicast examples run locally; the broadcast example uses an
+internal Docker subnet so it cannot transmit on a physical interface:
+
+```sh
+examples/udp-unicast/run.sh
+examples/udp-multicast/run.sh
+examples/udp-broadcast/run.sh
+```
+
+The broadcast image must be built or loaded first. Its runner disables image
+builds and pulls so the actual isolated example can run without internet access;
+see `examples/udp-broadcast/README.md`.
+
+See [`docs/udp-transport.md`](docs/udp-transport.md) for delivery semantics,
+limits, interface selection, MTU guidance, observability, and security limits.
 
 ## Run the web console during development
 
@@ -503,7 +522,7 @@ The demo accepts these variables:
 
 To add a transport, implement the three-method `Transport` interface, extend the
 versioned schema and loader, and add the mapping to `TransportFactory`. TCP,
-Unix-domain socket, and shared-memory implementations expose parallel
+UDP, Unix-domain socket, and shared-memory implementations expose parallel
 connect/listen constructors. Serialization stays above the transport layer so
 the same envelope and tracing behavior can be compared across them. A future
 specialized API may add zero-copy shared-memory views without expanding the
@@ -550,6 +569,8 @@ for all modes and the native-Linux networking boundary.
   cross-process delivery/crash detection;
 - TCP request/reply across a loopback socket, including framing, envelope
   decoding, and v1 followed by v2 on one live connection;
+- UDP unicast delivery, malformed/truncated datagram recovery, cancellation,
+  sequence-anomaly metrics, and two-listener multicast fan-out;
 - fragmented headers/payloads, consecutive frames, closure boundaries, maximum
   frame rejection, full-frame deadlines, reconnect, listener replacement, and
   cancellation without `SIGPIPE`;

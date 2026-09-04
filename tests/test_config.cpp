@@ -777,6 +777,126 @@ transport:
   }
 }
 
+std::string udp_config(std::string_view mode, std::string_view destination,
+                       std::string_view extra = {}) {
+  return "version: 1\n"
+         "graph:\n"
+         "  id: udp-test\n"
+         "  nodes:\n"
+         "    - { id: source, kind: source, ports: [{ name: out, direction: output, schema: "
+         "Message }] }\n"
+         "    - { id: target, kind: sink, ports: [{ name: in, direction: input, schema: Message }] "
+         "}\n"
+         "  edges:\n"
+         "    - { id: datagrams, from: source.out, to: target.in, transport: udp }\n"
+         "transport:\n"
+         "  udp:\n"
+         "    datagrams:\n"
+         "      mode: " +
+         std::string(mode) +
+         "\n"
+         "      destination: " +
+         std::string(destination) +
+         "\n"
+         "      bind: 0.0.0.0\n"
+         "      port: 47101\n"
+         "      interface: 127.0.0.1\n"
+         "      ttl: 1\n"
+         "      loopback: true\n"
+         "      reuse_address: true\n"
+         "      receive_buffer_bytes: 65536\n"
+         "      send_buffer_bytes: 65536\n"
+         "      max_datagram_bytes: 1400\n"
+         "      framing: u32be\n" +
+         std::string(extra);
+}
+
+void udp_configuration_loads_and_validates() {
+  for (const auto& [mode, destination] :
+       {std::pair{"unicast", "127.0.0.1"}, std::pair{"broadcast", "127.255.255.255"},
+        std::pair{"multicast", "239.255.42.1"}}) {
+    TemporaryConfig file(udp_config(mode, destination));
+    const auto config = graphx::load_config(file.path());
+    const auto& udp = config.edge("datagrams").transport;
+    expect(udp.kind == graphx::TransportKind::udp && udp.destination == destination &&
+               udp.max_datagram_bytes == 1400 && udp.receive_buffer_bytes == 65536,
+           "UDP configuration loads");
+  }
+
+  const auto changed = [](std::string source, std::string_view from, std::string_view to) {
+    const auto position = source.find(from);
+    if (position == std::string::npos) throw std::runtime_error("UDP fixture edit failed");
+    source.replace(position, from.size(), to);
+    return source;
+  };
+  const auto base = udp_config("unicast", "127.0.0.1");
+  for (const auto& valid :
+       {changed(base, "      port: 47101\n", "      port: 1\n"),
+        changed(base, "      port: 47101\n", "      port: 65535\n"),
+        changed(base, "      ttl: 1\n", "      ttl: 0\n"),
+        changed(base, "      ttl: 1\n", "      ttl: 255\n"),
+        changed(base, "      interface: 127.0.0.1\n", ""),
+        changed(base, "      interface: 127.0.0.1\n", "      interface: \"\"\n"),
+        changed(base, "      receive_buffer_bytes: 65536\n", "      receive_buffer_bytes: 4096\n"),
+        changed(base, "      send_buffer_bytes: 65536\n", "      send_buffer_bytes: 268435456\n"),
+        changed(base, "      max_datagram_bytes: 1400\n", "      max_datagram_bytes: 64\n"),
+        changed(base, "      max_datagram_bytes: 1400\n", "      max_datagram_bytes: 65507\n")}) {
+    TemporaryConfig file(valid);
+    expect(graphx::load_config(file.path()).edge("datagrams").transport.kind ==
+               graphx::TransportKind::udp,
+           "UDP boundary configuration loads");
+  }
+  const std::pair<std::string, std::string> invalid[] = {
+      {changed(base, "      mode: unicast\n", ""), ".mode"},
+      {changed(base, "      destination: 127.0.0.1\n", ""), ".destination"},
+      {changed(base, "      bind: 0.0.0.0\n", ""), ".bind"},
+      {changed(base, "      port: 47101\n", ""), ".port"},
+      {udp_config("stream", "127.0.0.1"), ".mode"},
+      {udp_config("multicast", "127.0.0.1"), ".destination"},
+      {udp_config("unicast", "239.255.42.1"), ".destination"},
+      {udp_config("unicast", "255.255.255.255"), ".destination"},
+      {udp_config("broadcast", "239.255.42.1"), ".destination"},
+      {changed(base, "      destination: 127.0.0.1\n", "      destination: invalid\n"),
+       ".destination"},
+      {changed(base, "      destination: 127.0.0.1\n", "      destination: ::1\n"), ".destination"},
+      {changed(base, "      bind: 0.0.0.0\n", "      bind: invalid\n"), ".bind"},
+      {changed(base, "      port: 47101\n", "      port: 0\n"), ".port"},
+      {changed(base, "      port: 47101\n", "      port: 65536\n"), ".port"},
+      {changed(base, "      port: 47101\n", "      port: \"47101\"\n"), ".port"},
+      {changed(base, "      interface: 127.0.0.1\n", "      interface: bad/interface\n"),
+       ".interface"},
+      {changed(base, "      interface: 127.0.0.1\n", "      interface: [lo]\n"), ".interface"},
+      {changed(base, "      ttl: 1\n", "      ttl: 256\n"), ".ttl"},
+      {changed(base, "      ttl: 1\n", "      ttl: 4294967296\n"), ".ttl"},
+      {changed(base, "      loopback: true\n", "      loopback: \"true\"\n"), ".loopback"},
+      {changed(base, "      reuse_address: true\n", "      reuse_address: 1\n"), ".reuse_address"},
+      {changed(base, "      receive_buffer_bytes: 65536\n", "      receive_buffer_bytes: 4095\n"),
+       ".receive_buffer_bytes"},
+      {changed(base, "      receive_buffer_bytes: 65536\n",
+               "      receive_buffer_bytes: 4294967296\n"),
+       ".receive_buffer_bytes"},
+      {changed(base, "      send_buffer_bytes: 65536\n", "      send_buffer_bytes: 268435457\n"),
+       ".send_buffer_bytes"},
+      {udp_config("unicast", "127.0.0.1", "      reconnect: true\n"), "reconnect"},
+      {udp_config("unicast", "127.0.0.1", "      tls: { enabled: true }\n"), "tls"},
+      {udp_config("unicast", "127.0.0.1", "      unknown: true\n"), "unknown"},
+      {udp_config("unicast", "127.0.0.1", "    orphan:\n      mode: unicast\n"),
+       "transport.udp.orphan"},
+      {udp_config("unicast", "127.0.0.1", "      max_datagram_bytes: 63\n"), "max_datagram_bytes"},
+      {udp_config("unicast", "127.0.0.1", "      max_datagram_bytes: 65508\n"),
+       "max_datagram_bytes"},
+      {udp_config("unicast", "127.0.0.1", "      framing: raw\n"), ".framing"}};
+  for (const auto& [source, expected] : invalid) {
+    TemporaryConfig file(source);
+    try {
+      [[maybe_unused]] const auto ignored = graphx::load_config(file.path());
+      throw std::runtime_error("invalid UDP configuration was accepted");
+    } catch (const graphx::ConfigError& error) {
+      expect(diagnostic_contains(error, expected), "UDP diagnostic contains precise path");
+    }
+  }
+}
+
 void factory_rejects_unvalidated_settings() {
   graphx::TransportFactory factory;
   graphx::EdgeConfig edge;
@@ -872,6 +992,26 @@ void shared_memory_factory_uses_connect_timeout() {
          "shared-memory factory connect timeout propagation");
 }
 
+void udp_factory_round_trip() {
+  graphx::TransportFactory factory;
+  graphx::EdgeConfig edge;
+  edge.edge.id = "factory-udp";
+  edge.transport.kind = graphx::TransportKind::udp;
+  edge.transport.udp_mode = graphx::UdpMode::unicast;
+  edge.transport.destination = "127.0.0.1";
+  edge.transport.bind = "127.0.0.1";
+  edge.transport.port = static_cast<std::uint16_t>(45000 + (::getpid() % 1000));
+  edge.transport.receive_buffer_bytes = 65536;
+  edge.transport.send_buffer_bytes = 65536;
+  edge.transport.max_datagram_bytes = 1400;
+  auto receiver = factory.create(edge, graphx::ConnectionMode::listen);
+  auto sender = factory.create(edge, graphx::ConnectionMode::connect);
+  sender->send(graphx::Envelope::make(7, "Test", "udp factory"));
+  const auto message = receiver->receive(500ms);
+  expect(message && message->sequence == 7 && message->payload == "udp factory",
+         "UDP factory delivery");
+}
+
 }  // namespace
 
 int main() {
@@ -902,12 +1042,14 @@ int main() {
       {"in-process queue config", in_process_queue_config_loads_and_validates},
       {"Unix socket deadline config", unix_socket_deadline_config_loads_and_validates},
       {"TCP TLS config", tcp_tls_config_loads_and_validates},
+      {"UDP config", udp_configuration_loads_and_validates},
       {"in-process factory", in_process_factory_shares_named_channel},
       {"factory validation", factory_rejects_unvalidated_settings},
       {"TCP factory", tcp_factory_round_trip},
       {"Unix socket factory", unix_factory_round_trip},
       {"shared-memory factory", shared_memory_factory_round_trip},
-      {"shared-memory factory timeout", shared_memory_factory_uses_connect_timeout}};
+      {"shared-memory factory timeout", shared_memory_factory_uses_connect_timeout},
+      {"UDP factory", udp_factory_round_trip}};
   int failures{};
   for (const auto& [name, test] : tests) {
     try {

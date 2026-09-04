@@ -1,0 +1,26 @@
+version: 1
+graph:
+  id: udp-multicast
+  nodes:
+    - { id: publisher, kind: source, ports: [{ name: out, direction: output, schema: UdpExample }] }
+    - { id: subscriber, kind: sink, ports: [{ name: in, direction: input, schema: UdpExample }] }
+  edges:
+    - { id: messages, from: publisher.out, to: subscriber.in, transport: udp }
+transport:
+  udp:
+    messages:
+      mode: multicast
+      destination: 239.255.42.1
+      bind: 0.0.0.0
+      port: 47103
+      interface: 127.0.0.1
+      ttl: 0
+      loopback: true
+      reuse_address: true
+      receive_buffer_bytes: 65536
+      send_buffer_bytes: 65536
+      max_datagram_bytes: 1400
+      framing: u32be
+observability:
+  metrics: { enabled: true, exporters: [console] }
+  tracing: { enabled: false, exporters: [console] }

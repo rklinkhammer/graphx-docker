@@ -5,10 +5,12 @@
 #include "graphx/observability.hpp"
 #include "graphx/shared_memory_transport.hpp"
 #include "graphx/tcp_transport.hpp"
+#include "graphx/udp_transport.hpp"
 #include "graphx/unix_domain_socket_transport.hpp"
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <cstring>
 #include <exception>
@@ -64,6 +66,31 @@ class ThrowOnCloseTraceSink final : public graphx::TraceSink {
     if (state == graphx::ConnectionState::closed)
       throw std::runtime_error("deliberate close observer failure");
   }
+};
+
+class ThrowOnEveryTraceSink final : public graphx::TraceSink {
+ public:
+  void on_send(std::string_view, const graphx::Envelope&, std::size_t) override { fail(); }
+  void on_receive(std::string_view, const graphx::Envelope&, std::size_t,
+                  std::chrono::nanoseconds) override {
+    fail();
+  }
+  void on_error(std::string_view, std::string_view) override { fail(); }
+  void on_connection(std::string_view, graphx::ConnectionState) override { fail(); }
+  void on_udp_event(std::string_view, graphx::UdpEvent, std::uint64_t) override { fail(); }
+
+ private:
+  [[noreturn]] static void fail() { throw std::runtime_error("deliberate observer failure"); }
+};
+
+class CountingErrorTraceSink final : public graphx::TraceSink {
+ public:
+  void on_send(std::string_view, const graphx::Envelope&, std::size_t) override {}
+  void on_receive(std::string_view, const graphx::Envelope&, std::size_t,
+                  std::chrono::nanoseconds) override {}
+  void on_error(std::string_view, std::string_view) override { ++errors; }
+
+  std::uint64_t errors{};
 };
 
 void framing() {
@@ -751,6 +778,345 @@ struct RawListener {
     if (socket >= 0) ::close(socket);
   }
 };
+
+std::uint16_t reserve_udp_port() {
+  const int socket = ::socket(AF_INET, SOCK_DGRAM, 0);
+  if (socket < 0) throw std::runtime_error("UDP port reservation socket");
+  sockaddr_in address{};
+  address.sin_family = AF_INET;
+  address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+  address.sin_port = 0;
+  if (::bind(socket, reinterpret_cast<sockaddr*>(&address), sizeof(address)) != 0) {
+    ::close(socket);
+    throw std::runtime_error("UDP port reservation bind");
+  }
+  socklen_t size = sizeof(address);
+  if (::getsockname(socket, reinterpret_cast<sockaddr*>(&address), &size) != 0) {
+    ::close(socket);
+    throw std::runtime_error("UDP port reservation name");
+  }
+  const auto port = ntohs(address.sin_port);
+  ::close(socket);
+  return port;
+}
+
+void send_raw_udp(std::uint16_t port, std::span<const std::byte> bytes) {
+  const int socket = ::socket(AF_INET, SOCK_DGRAM, 0);
+  if (socket < 0) throw std::runtime_error("raw UDP socket");
+  sockaddr_in address{};
+  address.sin_family = AF_INET;
+  address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+  address.sin_port = htons(port);
+  const auto sent = ::sendto(socket, bytes.data(), bytes.size(), 0,
+                             reinterpret_cast<sockaddr*>(&address), sizeof(address));
+  ::close(socket);
+  expect(sent == static_cast<ssize_t>(bytes.size()), "raw UDP datagram send");
+}
+
+void udp_unicast_integrity_and_metrics() {
+  const auto port = reserve_udp_port();
+  graphx::UdpOptions options;
+  options.receive_buffer_bytes = 65536;
+  options.send_buffer_bytes = 65536;
+  options.max_datagram_bytes = 256;
+  graphx::MetricsTraceSink metrics;
+  auto receiver =
+      graphx::UdpTransport::listen({"127.0.0.1", port}, "127.0.0.1", "udp-test", &metrics, options);
+  auto sender =
+      graphx::UdpTransport::connect({"127.0.0.1", port}, "0.0.0.0", "udp-test", &metrics, options);
+
+  expect(receiver.receive_result(2ms).status == graphx::ReceiveStatus::timeout,
+         "UDP receive timeout is distinct");
+  for (const auto sequence : {1ULL, 3ULL, 3ULL, 2ULL}) {
+    sender.send(graphx::Envelope::make(sequence, "Datagram", std::to_string(sequence)));
+    const auto result = receiver.receive_result(500ms);
+    expect(result.status == graphx::ReceiveStatus::message && result.envelope->sequence == sequence,
+           "UDP unicast delivery");
+  }
+  auto counters = metrics.edge("udp-test");
+  expect(counters.sent == 4 && counters.received == 4 && counters.udp_sequence_gaps == 1 &&
+             counters.udp_duplicates == 1 && counters.udp_out_of_order == 1,
+         "UDP traffic and sequence anomaly metrics");
+
+  const std::vector<std::byte> empty_datagram;
+  send_raw_udp(port, empty_datagram);
+  const std::array short_datagram{std::byte{0}, std::byte{1}};
+  send_raw_udp(port, short_datagram);
+  const auto canonical =
+      graphx::frame(graphx::serialize(graphx::Envelope::make(9, "Datagram", "raw-validation")));
+  auto length_mismatch = canonical;
+  length_mismatch[3] =
+      static_cast<std::byte>(std::to_integer<unsigned char>(length_mismatch[3]) - 1);
+  send_raw_udp(port, length_mismatch);
+  auto invalid_magic = canonical;
+  invalid_magic[4] = std::byte{'B'};
+  send_raw_udp(port, invalid_magic);
+  auto unknown_version = canonical;
+  unknown_version[7] = std::byte{99};
+  send_raw_udp(port, unknown_version);
+  auto trailing = canonical;
+  trailing.push_back(std::byte{});
+  const auto enlarged = static_cast<std::uint32_t>(trailing.size() - 4);
+  trailing[0] = static_cast<std::byte>((enlarged >> 24) & 0xff);
+  trailing[1] = static_cast<std::byte>((enlarged >> 16) & 0xff);
+  trailing[2] = static_cast<std::byte>((enlarged >> 8) & 0xff);
+  trailing[3] = static_cast<std::byte>(enlarged & 0xff);
+  send_raw_udp(port, trailing);
+  std::vector<std::byte> truncated(300, std::byte{0x55});
+  send_raw_udp(port, truncated);
+  sender.send(graphx::Envelope::make(4, "Datagram", "recovered"));
+  const auto recovered = receiver.receive_result(500ms);
+  expect(recovered.status == graphx::ReceiveStatus::message &&
+             recovered.envelope->payload == "recovered",
+         "UDP receiver recovers after malformed and truncated packets");
+  counters = metrics.edge("udp-test");
+  expect(counters.udp_malformed == 6 && counters.udp_truncated == 1,
+         "UDP invalid datagram metrics");
+
+  auto oversized = graphx::Envelope::make(5, "Datagram", std::string(300, 'x'));
+  expect_failure([&] { sender.send(oversized); }, "max_datagram_bytes");
+  expect(metrics.edge("udp-test").udp_oversized == 1, "UDP oversized send metric");
+
+  auto moved_sender = std::move(sender);
+  // Intentionally exercise the public moved-from guard.
+  // NOLINTNEXTLINE(bugprone-use-after-move)
+  expect_failure([&] { sender.send(graphx::Envelope::make(6, "Datagram", "moved")); },
+                 "moved-from");
+  moved_sender.close();
+  moved_sender.close();
+
+  auto blocked = std::async(std::launch::async, [&] { return receiver.receive_result(); });
+  receiver.close();
+  receiver.close();
+  expect(blocked.wait_for(1s) == std::future_status::ready &&
+             blocked.get().status == graphx::ReceiveStatus::cancelled,
+         "UDP close promptly cancels blocked receive");
+}
+
+void udp_malformed_flood_preserves_deadline() {
+  constexpr int flood_threads = 8;
+  const auto port = reserve_udp_port();
+  graphx::UdpOptions options;
+  options.receive_buffer_bytes = 65536;
+  options.send_buffer_bytes = 65536;
+  options.max_datagram_bytes = 256;
+  graphx::MetricsTraceSink metrics;
+  auto receiver = graphx::UdpTransport::listen({"127.0.0.1", port}, "127.0.0.1", "udp-flood",
+                                               &metrics, options);
+
+  std::atomic<int> started{};
+  std::atomic<bool> stop_requested{};
+  std::atomic<bool> sender_failed{};
+  std::vector<std::thread> senders;
+  for (int index = 0; index < flood_threads; ++index) {
+    senders.emplace_back([&] {
+      const int descriptor = ::socket(AF_INET, SOCK_DGRAM, 0);
+      if (descriptor < 0) {
+        sender_failed.store(true);
+        started.fetch_add(1);
+        return;
+      }
+      sockaddr_in target{};
+      target.sin_family = AF_INET;
+      target.sin_port = htons(port);
+      target.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+      const std::byte malformed{0x42};
+      (void)::sendto(descriptor, &malformed, 1, 0, reinterpret_cast<sockaddr*>(&target),
+                     sizeof(target));
+      started.fetch_add(1);
+      const auto stop = std::chrono::steady_clock::now() + 500ms;
+      while (!stop_requested.load() && std::chrono::steady_clock::now() < stop)
+        (void)::sendto(descriptor, &malformed, 1, 0, reinterpret_cast<sockaddr*>(&target),
+                       sizeof(target));
+      ::close(descriptor);
+    });
+  }
+  while (started.load() != flood_threads) std::this_thread::yield();
+
+  const auto begin = std::chrono::steady_clock::now();
+  const auto result = receiver.receive_result(50ms);
+  const auto elapsed = std::chrono::steady_clock::now() - begin;
+  stop_requested.store(true);
+  for (auto& sender : senders) sender.join();
+
+  expect(!sender_failed.load(), "create malformed UDP flood sockets");
+  expect(result.status == graphx::ReceiveStatus::timeout,
+         "malformed UDP flood preserves timeout outcome");
+  expect(elapsed < 300ms, "malformed UDP flood preserves original receive deadline");
+  expect(metrics.edge("udp-flood").udp_malformed > 0,
+         "malformed UDP flood increments bounded counter");
+
+  auto sender =
+      graphx::UdpTransport::connect({"127.0.0.1", port}, "0.0.0.0", "udp-flood", nullptr, options);
+  graphx::ReceiveResult recovered;
+  for (int attempt = 0; attempt < 10 && !recovered.has_message(); ++attempt) {
+    sender.send(graphx::Envelope::make(static_cast<std::uint64_t>(attempt + 1), "Recovery",
+                                       "valid after flood"));
+    recovered = receiver.receive_result(100ms);
+  }
+  expect(recovered.has_message() && recovered.envelope->payload == "valid after flood",
+         "UDP receiver remains usable after malformed flood");
+}
+
+void udp_configured_datagram_boundaries() {
+  const auto port = reserve_udp_port();
+  auto boundary = graphx::Envelope::make(1, "Boundary", "");
+  const auto empty_frame_size = graphx::frame(graphx::serialize(boundary)).size();
+  constexpr std::size_t maximum = 256;
+  expect(empty_frame_size < maximum, "UDP boundary fixture has payload capacity");
+  auto maximum_boundary = boundary;
+  maximum_boundary.payload.resize(maximum - empty_frame_size, 'x');
+  expect(graphx::frame(graphx::serialize(maximum_boundary)).size() == maximum,
+         "UDP fixture reaches exact configured datagram maximum");
+
+  graphx::UdpOptions options;
+  options.receive_buffer_bytes = 65536;
+  options.send_buffer_bytes = 65536;
+  options.max_datagram_bytes = maximum;
+  auto receiver = graphx::UdpTransport::listen({"127.0.0.1", port}, "127.0.0.1", "udp-boundary",
+                                               nullptr, options);
+  auto sender = graphx::UdpTransport::connect({"127.0.0.1", port}, "0.0.0.0", "udp-boundary",
+                                              nullptr, options);
+  sender.send(boundary);
+  const auto empty = receiver.receive_result(500ms);
+  expect(empty.has_message() && empty.envelope->payload.empty(),
+         "UDP zero-length envelope payload is accepted");
+
+  boundary = std::move(maximum_boundary);
+  boundary.sequence = 2;
+  sender.send(boundary);
+  const auto received = receiver.receive_result(500ms);
+  expect(received.has_message() && received.envelope->payload == boundary.payload,
+         "UDP exact configured datagram maximum is accepted");
+
+  boundary.payload.push_back('x');
+  expect_failure([&] { sender.send(boundary); }, "max_datagram_bytes");
+
+  auto substantially_oversized =
+      graphx::Envelope::make(3, "Boundary", std::string(1024 * 1024, 'x'));
+  expect(graphx::serialized_size(substantially_oversized) > maximum,
+         "UDP oversize preflight computes size without serialization");
+  expect_failure([&] { sender.send(substantially_oversized); }, "max_datagram_bytes");
+}
+
+void udp_socket_error_metrics() {
+  graphx::UdpOptions options;
+  options.receive_buffer_bytes = 65536;
+  options.send_buffer_bytes = 65536;
+  options.max_datagram_bytes = 1400;
+  graphx::MetricsTraceSink metrics;
+  expect_failure(
+      [&] {
+        [[maybe_unused]] auto unavailable = graphx::UdpTransport::listen(
+            {"192.0.2.1", reserve_udp_port()}, "127.0.0.1", "udp-socket-error", &metrics, options);
+      },
+      "bind UDP receiver");
+  const auto counters = metrics.edge("udp-socket-error");
+  expect(counters.udp_socket_errors == 1 && counters.errors == 1,
+         "UDP socket failures have distinct counter and error diagnostics");
+
+  // A socket explicitly bound to loopback cannot route to the TEST-NET-1
+  // destination on supported hosts. Exercise repeated failures on one live
+  // transport so every occurrence is counted while text is rate-limited.
+  graphx::MetricsTraceSink repeated_metrics;
+  CountingErrorTraceSink diagnostic_count;
+  graphx::CompositeTraceSink traces;
+  traces.add(repeated_metrics);
+  traces.add(diagnostic_count);
+  auto failing_sender = graphx::UdpTransport::connect({"192.0.2.1", 9}, "127.0.0.1",
+                                                      "udp-repeated-error", &traces, options);
+  for (int attempt = 0; attempt < 3; ++attempt)
+    expect_failure([&] { failing_sender.send(graphx::Envelope::make(1, "Failure", "no route")); },
+                   "send failed");
+  expect(repeated_metrics.edge("udp-repeated-error").udp_socket_errors == 3 &&
+             diagnostic_count.errors == 1,
+         "UDP socket errors count every failure and rate-limit repeated diagnostics");
+}
+
+void udp_concurrent_close_stress() {
+  constexpr int iterations = 100;
+  for (int iteration = 0; iteration < iterations; ++iteration) {
+    graphx::UdpOptions options;
+    options.receive_buffer_bytes = 65536;
+    options.send_buffer_bytes = 65536;
+    options.max_datagram_bytes = 1400;
+    auto receiver = graphx::UdpTransport::listen({"127.0.0.1", reserve_udp_port()}, "127.0.0.1",
+                                                 "udp-concurrent-close", nullptr, options);
+    auto blocked = std::async(std::launch::async, [&] { return receiver.receive_result(); });
+    expect(blocked.wait_for(2ms) == std::future_status::timeout,
+           "UDP receive entered its blocking path before concurrent close");
+    auto first_close = std::async(std::launch::async, [&] { receiver.close(); });
+    auto second_close = std::async(std::launch::async, [&] { receiver.close(); });
+    expect(first_close.wait_for(1s) == std::future_status::ready &&
+               second_close.wait_for(1s) == std::future_status::ready,
+           "concurrent UDP close calls finish promptly");
+    first_close.get();
+    second_close.get();
+    expect(blocked.wait_for(1s) == std::future_status::ready &&
+               blocked.get().status == graphx::ReceiveStatus::cancelled,
+           "concurrent UDP close cancels infinite receive");
+  }
+}
+
+void udp_observer_failure_is_non_blocking() {
+  const auto port = reserve_udp_port();
+  graphx::UdpOptions options;
+  options.receive_buffer_bytes = 65536;
+  options.send_buffer_bytes = 65536;
+  options.max_datagram_bytes = 1400;
+  ThrowOnEveryTraceSink trace;
+  auto receiver = graphx::UdpTransport::listen({"127.0.0.1", port}, "127.0.0.1", "udp-observer",
+                                               &trace, options);
+  auto sender = graphx::UdpTransport::connect({"127.0.0.1", port}, "0.0.0.0", "udp-observer",
+                                              &trace, options);
+  const std::array malformed{std::byte{0}, std::byte{1}};
+  send_raw_udp(port, malformed);
+  sender.send(graphx::Envelope::make(1, "Observer", "still delivered"));
+  const auto received = receiver.receive_result(500ms);
+  expect(received.has_message() && received.envelope->payload == "still delivered",
+         "UDP observer failure cannot block processing");
+  receiver.close();
+  sender.close();
+}
+
+void udp_multicast_two_listeners() {
+  const auto port = reserve_udp_port();
+  constexpr std::string_view group = "239.255.42.1";
+  graphx::UdpOptions options;
+  options.mode = graphx::UdpMode::multicast;
+  options.interface = "127.0.0.1";
+  options.loopback = true;
+  options.reuse_address = true;
+  options.receive_buffer_bytes = 65536;
+  options.send_buffer_bytes = 65536;
+  options.max_datagram_bytes = 1400;
+  auto first = graphx::UdpTransport::listen({"0.0.0.0", port}, std::string(group), "multicast-a",
+                                            nullptr, options);
+  auto second = graphx::UdpTransport::listen({"0.0.0.0", port}, std::string(group), "multicast-b",
+                                             nullptr, options);
+  auto sender = graphx::UdpTransport::connect({std::string(group), port}, "0.0.0.0",
+                                              "multicast-publisher", nullptr, options);
+  sender.send(graphx::Envelope::make(1, "Multicast", "one datagram"));
+  const auto received_a = first.receive_result(1s);
+  const auto received_b = second.receive_result(1s);
+  expect(received_a.has_message() && received_b.has_message() &&
+             received_a.envelope->payload == "one datagram" &&
+             received_b.envelope->message_id == received_a.envelope->message_id,
+         "one multicast datagram reaches two joined listeners");
+  first.close();
+  sender.send(graphx::Envelope::make(2, "Multicast", "remaining listener"));
+  expect(second.receive_result(1s).has_message(),
+         "closing one multicast listener does not disturb another");
+
+  auto invalid_options = options;
+  invalid_options.interface = "graphx-no-such-interface";
+  expect_failure(
+      [&] {
+        [[maybe_unused]] auto invalid = graphx::UdpTransport::connect(
+            {std::string(group), port}, "0.0.0.0", "invalid-interface", nullptr, invalid_options);
+      },
+      "has no configured IPv4 address");
+}
 
 std::string receive_http_request(int listener) {
   pollfd descriptor{listener, POLLIN, 0};
@@ -1497,6 +1863,20 @@ void observer_failure_does_not_break_close() {
              tcp_receive.get().status == graphx::ReceiveStatus::cancelled,
          "TCP close ignores observer failure and cancels receive");
 
+  graphx::UdpOptions udp_options;
+  udp_options.receive_buffer_bytes = 65536;
+  udp_options.send_buffer_bytes = 65536;
+  const auto udp_port = reserve_udp_port();
+  auto udp = graphx::UdpTransport::listen({"127.0.0.1", udp_port}, "127.0.0.1", "observer-udp",
+                                          &trace, udp_options);
+  auto udp_receive = std::async(std::launch::async, [&] { return udp.receive_result(); });
+  expect(udp_receive.wait_for(20ms) == std::future_status::timeout,
+         "UDP receive is blocked before close");
+  udp.close();
+  expect(udp_receive.wait_for(1s) == std::future_status::ready &&
+             udp_receive.get().status == graphx::ReceiveStatus::cancelled,
+         "UDP close ignores observer failure and cancels receive");
+
   const auto path = "/tmp/graphx-observer-" + std::to_string(::getpid()) + ".sock";
   auto unix = graphx::UnixDomainSocketTransport::listen(path, "observer-unix", &trace);
   auto unix_receive = std::async(std::launch::async, [&] { return unix.receive_result(); });
@@ -1579,6 +1959,26 @@ void transport_lifecycle_stress() {
       sender.close();
     }
     {
+      const auto port = reserve_udp_port();
+      graphx::UdpOptions options;
+      options.receive_buffer_bytes = 65536;
+      options.send_buffer_bytes = 65536;
+      options.max_datagram_bytes = 1400;
+      auto receiver = graphx::UdpTransport::listen({"127.0.0.1", port}, "127.0.0.1", "stress-udp",
+                                                   nullptr, options);
+      auto sender = graphx::UdpTransport::connect({"127.0.0.1", port}, "0.0.0.0", "stress-udp",
+                                                  nullptr, options);
+      sender.send(graphx::Envelope::make(iteration + 1, "Stress", "udp"));
+      expect(receiver.receive_result(1s).status == graphx::ReceiveStatus::message,
+             "repeated UDP delivery");
+      auto blocked = std::async(std::launch::async, [&] { return receiver.receive_result(); });
+      receiver.close();
+      expect(blocked.wait_for(1s) == std::future_status::ready &&
+                 blocked.get().status == graphx::ReceiveStatus::cancelled,
+             "repeated UDP close cancels receive");
+      sender.close();
+    }
+    {
       auto receiver = graphx::SharedMemoryTransport::listen(segment, "stress-shared");
       auto sender = graphx::SharedMemoryTransport::connect(segment, "stress-shared");
       sender.send(graphx::Envelope::make(iteration + 1, "Stress", "shared-memory"));
@@ -1656,6 +2056,13 @@ int main(int argc, char** argv) {
       {"in-process typed outcomes", in_process_typed_outcomes_and_backpressure},
       {"in-process validation atomicity", in_process_validation_is_atomic},
       {"metrics", metrics_sink},
+      {"UDP unicast integrity and metrics", udp_unicast_integrity_and_metrics},
+      {"UDP malformed flood deadline", udp_malformed_flood_preserves_deadline},
+      {"UDP configured datagram boundaries", udp_configured_datagram_boundaries},
+      {"UDP socket error metrics", udp_socket_error_metrics},
+      {"UDP concurrent close stress", udp_concurrent_close_stress},
+      {"UDP observer failure", udp_observer_failure_is_non_blocking},
+      {"UDP multicast two listeners", udp_multicast_two_listeners},
       {"UDP runtime control", udp_runtime_control},
       {"OTLP HTTP JSON", otlp_http_json_export},
       {"OTLP fork-safe span identities", otlp_span_ids_are_fork_safe},

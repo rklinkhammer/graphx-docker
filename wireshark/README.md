@@ -1,7 +1,7 @@
 # GraphX Wireshark integration
 
-`graphx.lua` is the supported Phase 9 dissector for GraphX application capture.
-It binds only to Wireshark's USER0 encapsulation table, decodes the canonical
+`graphx.lua` is the supported GraphX application-capture dissector. It binds to
+Wireshark's USER0 encapsulation table and configured UDP ports, and decodes the canonical
 four-byte stream prefix and envelope wire versions 1 and 2, exposes filterable
 identity/correlation fields, and reports truncated, oversized, malformed,
 unknown-version, and trailing data without reading past captured bytes.
@@ -24,5 +24,11 @@ graphx.attribute_count > 0
 
 USER0 is a local/private-use link type and can conflict with another local
 USER0 protocol. Install this dissector only in profiles where GraphX owns USER0.
-Ethernet PCAPNG files from OVS or dumpcap remain ordinary Ethernet and do not
-use this dissector.
+Ethernet PCAPNG files from OVS or dumpcap remain ordinary Ethernet. GraphX UDP
+datagrams within them use the same framed-envelope payload and can be decoded.
+
+The plugin registers the narrow example port range `47101-47103` by default and
+exposes it as the `UDP ports` preference. Change or clear that preference for a
+deployment, or use Wireshark **Decode As** to select GraphX for an individual
+UDP flow. Avoid broad ranges because unrelated UDP payloads must not be
+classified as GraphX.

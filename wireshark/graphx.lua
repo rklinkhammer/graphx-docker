@@ -2,6 +2,9 @@
 -- Supports envelope wire versions 1 and 2 without changing the wire format.
 
 local graphx = Proto("graphx", "GraphX Framed Envelope")
+graphx.prefs.udp_ports = Pref.range(
+    "UDP ports", "47101-47103",
+    "UDP ports decoded as one complete GraphX framed envelope; clear to disable", 65535)
 
 local fields = {
     frame_length = ProtoField.uint32("graphx.frame_length", "Envelope length", base.DEC),
@@ -148,3 +151,16 @@ assert(wtap.USER0, "this Wireshark build does not expose USER0 encapsulation")
 -- USER0 already has Wireshark's generic user-DLT handler. Replace that default
 -- for this explicitly loaded plugin so 4.2 and newer select GraphX reliably.
 encapsulation:set(wtap.USER0, graphx)
+
+-- Register only the small configurable example range. Loading the dissector
+-- also makes GraphX available through Wireshark's UDP Decode As interface.
+local udp_ports = DissectorTable.get("udp.port")
+local registered_udp_ports
+local function update_udp_ports()
+    if registered_udp_ports then udp_ports:remove(registered_udp_ports, graphx) end
+    registered_udp_ports = graphx.prefs.udp_ports
+    if registered_udp_ports then udp_ports:add(registered_udp_ports, graphx) end
+end
+graphx.init = update_udp_ports
+graphx.prefs_changed = update_udp_ports
+update_udp_ports()

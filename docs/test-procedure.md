@@ -5,7 +5,7 @@ user run of the complete application, follow
 [`complete-system-demo.md`](complete-system-demo.md); it has one start command,
 observable success criteria, a live traffic check, and troubleshooting steps.
 
-This procedure exercises the source model, all four transports, hardened TCP
+This procedure exercises the source model, all five transports, hardened TCP
 behavior, authenticated runtime control, correlated GraphX/Ethernet PCAPNG and
 extcap, browser assets, Docker deployment, infrastructure
 planning, and the optional native network laboratories. Start with the portable
@@ -189,7 +189,22 @@ For a focused rerun:
 ctest --test-dir build/dev --output-on-failure
 ctest --test-dir build/dev -R 'graphx-(extcap|wireshark-dissector)' --output-on-failure
 examples/shared-memory/run.sh
+examples/udp-unicast/run.sh
+examples/udp-multicast/run.sh
 ```
+
+Run `examples/udp-broadcast/run.sh` separately with Docker. It uses an internal,
+fixed subnet and must never be rewritten to auto-select a physical interface.
+For Phase 11 acceptance on a native Linux host, run
+`GRAPHX_VERIFY_LIVE_CAPTURE=1 examples/udp-broadcast/run-native-linux.sh`
+(when `dumpcap` and `tshark` are installed), followed twice by
+`examples/udp-broadcast/down-native-linux.sh`. This creates only two disposable
+network namespaces and an unattached temporary bridge; Docker Desktop is not
+accepted as evidence for this gate. The live-capture option observes only the
+disposable publisher veth, decodes the result with the checked-in Lua dissector,
+and requires GraphX sequences 1 through 5. The privileged Linux feature suite
+runs the capture check automatically when its tools are present and otherwise
+prints an explicit skip before running the delivery gate.
 
 The dissector test is configured only when `tshark` is found. CI installs
 TShark in the Linux native matrix; a local configure without TShark prints an

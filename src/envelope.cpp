@@ -83,6 +83,16 @@ std::size_t encoded_size(const Envelope& envelope) {
   return checked_string_size(total, envelope.payload.size());
 }
 
+void validate_serializable(const Envelope& envelope) {
+  if (envelope.wire_version != kEnvelopeWireVersion1 &&
+      envelope.wire_version != kEnvelopeWireVersion2)
+    throw std::invalid_argument("unsupported envelope wire version " +
+                                std::to_string(envelope.wire_version));
+  if (envelope.wire_version == kEnvelopeWireVersion1 &&
+      (!envelope.message_id.empty() || !envelope.parent_message_id.empty()))
+    throw std::invalid_argument("envelope wire version 1 cannot encode message lineage identities");
+}
+
 void put_string(std::vector<std::byte>& out, std::string_view value) {
   if (value.size() > UINT32_MAX) throw std::length_error("string too large");
   put<std::uint32_t>(out, static_cast<std::uint32_t>(value.size()));
@@ -189,15 +199,13 @@ Envelope Envelope::derive(const Envelope& parent, std::uint64_t sequence, std::s
   return envelope;
 }
 
+std::size_t serialized_size(const Envelope& envelope) {
+  validate_serializable(envelope);
+  return encoded_size(envelope);
+}
+
 std::vector<std::byte> serialize(const Envelope& envelope) {
-  if (envelope.wire_version != kEnvelopeWireVersion1 &&
-      envelope.wire_version != kEnvelopeWireVersion2)
-    throw std::invalid_argument("unsupported envelope wire version " +
-                                std::to_string(envelope.wire_version));
-  if (envelope.wire_version == kEnvelopeWireVersion1 &&
-      (!envelope.message_id.empty() || !envelope.parent_message_id.empty()))
-    throw std::invalid_argument("envelope wire version 1 cannot encode message lineage identities");
-  const auto size = encoded_size(envelope);
+  const auto size = serialized_size(envelope);
   std::vector<std::byte> out;
   out.reserve(size);
   out.push_back(std::byte{'G'});

@@ -44,6 +44,9 @@ struct Envelope {
 };
 
 std::vector<std::byte> serialize(const Envelope& envelope);
+// Computes the serialized envelope size without allocating or copying payload
+// data. Transports with a smaller wire limit use this before serialization.
+std::size_t serialized_size(const Envelope& envelope);
 Envelope deserialize(std::span<const std::byte> bytes);
 
 }  // namespace graphx

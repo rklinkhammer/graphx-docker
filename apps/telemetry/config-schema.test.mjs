@@ -49,3 +49,27 @@ test('capture JSON schema matches native conditional and scalar semantics', () =
   expectInvalid({ enabled: true, provider: 'pcapng', directory: 'captures', snaplen: '4096' },
     'quoted integer')
 })
+
+function withUdp(settings) {
+  const configuration = structuredClone(base)
+  configuration.graph.edges[0].transport = 'udp'
+  configuration.transport.udp = { [configuration.graph.edges[0].id]: settings }
+  return configuration
+}
+
+test('UDP JSON schema enforces scalar types and numeric boundaries', () => {
+  const minimum = { mode: 'unicast', destination: '127.0.0.1', bind: '0.0.0.0', port: 1,
+    ttl: 0, receive_buffer_bytes: 4096, send_buffer_bytes: 4096,
+    max_datagram_bytes: 64, framing: 'u32be' }
+  assert.equal(validate(withUdp(minimum)), true, JSON.stringify(validate.errors))
+  const maximum = { ...minimum, mode: 'multicast', destination: '239.255.42.1', port: 65535,
+    ttl: 255, receive_buffer_bytes: 268435456, send_buffer_bytes: 268435456,
+    max_datagram_bytes: 65507, loopback: true, reuse_address: true, interface: '127.0.0.1' }
+  assert.equal(validate(withUdp(maximum)), true, JSON.stringify(validate.errors))
+  for (const [field, value] of [['port', 0], ['ttl', 256], ['receive_buffer_bytes', 4095],
+    ['send_buffer_bytes', 268435457], ['max_datagram_bytes', 65508], ['loopback', 'true'],
+    ['framing', 'raw']]) {
+    assert.equal(validate(withUdp({ ...minimum, [field]: value })), false,
+      `${field}=${value} unexpectedly valid`)
+  }
+})

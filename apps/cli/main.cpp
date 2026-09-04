@@ -75,6 +75,18 @@ int topology_command(const std::string& command, int argc, char** argv) {
                 << edge.transport.retry_initial_backoff_ms << '-'
                 << edge.transport.retry_max_backoff_ms
                 << "ms reconnect=" << (edge.transport.reconnect ? "true" : "false");
+    else if (edge.transport.kind == graphx::TransportKind::udp)
+      std::cout << " mode=" << to_string(edge.transport.udp_mode)
+                << " destination=" << edge.transport.destination << ':' << edge.transport.port
+                << " bind=" << edge.transport.bind << ':' << edge.transport.port
+                << (edge.transport.interface.empty() ? ""
+                                                     : " interface=" + edge.transport.interface)
+                << " ttl=" << edge.transport.ttl
+                << " loopback=" << (edge.transport.loopback ? "true" : "false")
+                << " reuse-address=" << (edge.transport.reuse_address ? "true" : "false")
+                << " receive-buffer=" << edge.transport.receive_buffer_bytes
+                << " send-buffer=" << edge.transport.send_buffer_bytes
+                << " max-datagram=" << edge.transport.max_datagram_bytes;
     else if (edge.transport.kind == graphx::TransportKind::unix_socket)
       std::cout << " path=" << edge.transport.path;
     else if (edge.transport.kind == graphx::TransportKind::shared_memory)

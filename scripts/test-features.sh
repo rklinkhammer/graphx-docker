@@ -123,12 +123,21 @@ portable() {
   wait_for_exit "${PIDS[1]}" transform
   wait_for_exit "${PIDS[0]}" sink
   PIDS=()
+  unset GRAPHX_MAX_MESSAGES GRAPHX_INTERVAL_MS
 
   step "Run the finite shared-memory process pipeline"
   unset GRAPHX_OVERRIDES
   GRAPHX_BUILD_DIR="$BUILD_DIR" GRAPHX_MAX_MESSAGES=8 GRAPHX_INTERVAL_MS=5 \
     "$ROOT/examples/shared-memory/run.sh" >"$TMP_DIR/shared.log"
   grep -q 'sink seq=8 value=16' "$TMP_DIR/shared.log"
+
+  step "Run bounded UDP unicast and multicast examples"
+  GRAPHX_BUILD_DIR="$BUILD_DIR" GRAPHX_MAX_MESSAGES=5 "$ROOT/examples/udp-unicast/run.sh" \
+    >"$TMP_DIR/udp-unicast.log"
+  grep -q 'PASS received=5' "$TMP_DIR/udp-unicast.log"
+  GRAPHX_BUILD_DIR="$BUILD_DIR" GRAPHX_MAX_MESSAGES=5 "$ROOT/examples/udp-multicast/run.sh" \
+    >"$TMP_DIR/udp-multicast.log"
+  test "$(grep -c 'PASS received=5' "$TMP_DIR/udp-multicast.log")" = 2
 
   step "Build the web console and exercise telemetry HTTP semantics"
   npm ci --prefix "$ROOT/apps/telemetry" --no-audit --no-fund
@@ -348,6 +357,8 @@ docker_suite() {
   "$ROOT/scripts/demo.sh" verify
   docker compose -f "$ROOT/compose.yaml" ps
   docker compose -f "$ROOT/compose.yaml" down --remove-orphans
+  step "Run isolated UDP broadcast example"
+  "$ROOT/examples/udp-broadcast/run.sh"
   trap cleanup EXIT INT TERM
   step "Docker feature suite passed"
 }
@@ -367,6 +378,15 @@ linux_network() {
     exit 2
   }
   export GRAPHX_BUILD_DIR="$BUILD_DIR"
+  step "Run native isolated UDP broadcast lab"
+  if command -v dumpcap >/dev/null && command -v tshark >/dev/null; then
+    GRAPHX_VERIFY_LIVE_CAPTURE=1 "$ROOT/examples/udp-broadcast/run-native-linux.sh"
+  else
+    echo "SKIP: live UDP capture requires dumpcap and tshark; running delivery gate only"
+    "$ROOT/examples/udp-broadcast/run-native-linux.sh"
+  fi
+  "$ROOT/examples/udp-broadcast/down-native-linux.sh"
+  "$ROOT/examples/udp-broadcast/down-native-linux.sh"
   for example in macvlan ipvlan-l2 ipvlan-l3 mixed-network; do
     step "Run native $example lab"
     if test "$example" = mixed-network; then

@@ -1,0 +1,22 @@
+version: 1
+graph:
+  id: udp-broadcast
+  nodes:
+    - { id: publisher, kind: source, ports: [{ name: out, direction: output, schema: Discovery }] }
+    - { id: subscriber, kind: sink, ports: [{ name: in, direction: input, schema: Discovery }] }
+  edges:
+    - { id: messages, from: publisher.out, to: subscriber.in, transport: udp }
+transport:
+  udp:
+    messages:
+      mode: broadcast
+      destination: 172.31.91.255
+      bind: 0.0.0.0
+      port: 47102
+      receive_buffer_bytes: 65536
+      send_buffer_bytes: 65536
+      max_datagram_bytes: 1400
+      framing: u32be
+observability:
+  metrics: { enabled: true, exporters: [console] }
+  tracing: { enabled: false, exporters: [console] }

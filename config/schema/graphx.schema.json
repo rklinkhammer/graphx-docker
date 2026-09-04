@@ -28,6 +28,7 @@
       "additionalProperties": false,
       "properties": {
         "tcp": { "type": "object", "additionalProperties": { "$ref": "#/$defs/tcp" } },
+        "udp": { "type": "object", "additionalProperties": { "$ref": "#/$defs/udp" } },
         "unix": { "type": "object", "additionalProperties": { "$ref": "#/$defs/unix" } },
         "in_process": { "type": "object", "additionalProperties": { "$ref": "#/$defs/inProcess" } },
         "shared_memory": { "type": "object", "additionalProperties": { "$ref": "#/$defs/sharedMemory" } }
@@ -75,7 +76,7 @@
         "id": { "$ref": "#/$defs/id" },
         "from": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}\\.[A-Za-z][A-Za-z0-9_-]{0,63}$" },
         "to": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}\\.[A-Za-z][A-Za-z0-9_-]{0,63}$" },
-        "transport": { "enum": ["tcp", "unix", "in_process", "shared_memory"] }
+        "transport": { "enum": ["tcp", "udp", "unix", "in_process", "shared_memory"] }
       }
     },
     "tcp": {
@@ -111,6 +112,24 @@
         "max_attempts": { "type": "integer", "minimum": 1, "maximum": 1000 },
         "initial_backoff_ms": { "type": "integer", "minimum": 0, "maximum": 600000 },
         "max_backoff_ms": { "type": "integer", "minimum": 0, "maximum": 600000 }
+      }
+    },
+    "udp": {
+      "type": "object", "additionalProperties": false,
+      "required": ["mode", "destination", "bind", "port"],
+      "properties": {
+        "mode": { "enum": ["unicast", "broadcast", "multicast"] },
+        "destination": { "type": "string", "pattern": "^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(\\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)){3}$", "minLength": 7, "maxLength": 15 },
+        "bind": { "type": "string", "pattern": "^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(\\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)){3}$", "minLength": 7, "maxLength": 15 },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "interface": { "type": "string", "maxLength": 15 },
+        "ttl": { "type": "integer", "minimum": 0, "maximum": 255 },
+        "loopback": { "type": "boolean" },
+        "reuse_address": { "type": "boolean" },
+        "receive_buffer_bytes": { "type": "integer", "minimum": 4096, "maximum": 268435456 },
+        "send_buffer_bytes": { "type": "integer", "minimum": 4096, "maximum": 268435456 },
+        "max_datagram_bytes": { "type": "integer", "minimum": 64, "maximum": 65507 },
+        "framing": { "const": "u32be" }
       }
     },
     "unix": {

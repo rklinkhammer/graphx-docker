@@ -13,6 +13,12 @@ a zero length, an oversized length, and a connection that ends or times out in
 the middle of a frame. In-process and shared-memory transports preserve the same
 serialized-envelope contract even where their physical storage differs.
 
+UDP carries that same four-byte prefix and one complete envelope in each
+datagram. Its encoded frame is additionally limited to the IPv4 UDP maximum of
+65,507 bytes and the configured `max_datagram_bytes`. A mismatched length,
+truncated datagram, or trailing data causes the entire datagram to be dropped;
+GraphX does not split or reassemble envelopes at the application layer.
+
 ## Scalar and collection encoding
 
 - All integers in the envelope are big-endian.

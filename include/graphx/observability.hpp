@@ -18,6 +18,17 @@ namespace graphx {
 enum class ConnectionState { disconnected, connecting, listening, connected, closed, error };
 std::string_view to_string(ConnectionState state) noexcept;
 
+enum class UdpEvent {
+  malformed,
+  truncated,
+  oversized,
+  socket_error,
+  sequence_gap,
+  duplicate,
+  out_of_order
+};
+std::string_view to_string(UdpEvent event) noexcept;
+
 class TraceSink {
  public:
   virtual ~TraceSink() = default;
@@ -31,6 +42,7 @@ class TraceSink {
   virtual void on_backpressure(std::string_view, std::chrono::nanoseconds, bool) {}
   virtual void on_processing(std::string_view, const Envelope&, std::chrono::nanoseconds, bool) {}
   virtual void on_heartbeat(std::string_view, double) {}
+  virtual void on_udp_event(std::string_view, UdpEvent, std::uint64_t = 1) {}
 };
 
 class NullTraceSink final : public TraceSink {
@@ -50,6 +62,13 @@ struct EdgeMetrics {
   std::uint64_t reconnects{};
   std::uint64_t backpressure_events{};
   std::uint64_t rejected{};
+  std::uint64_t udp_malformed{};
+  std::uint64_t udp_truncated{};
+  std::uint64_t udp_oversized{};
+  std::uint64_t udp_socket_errors{};
+  std::uint64_t udp_sequence_gaps{};
+  std::uint64_t udp_duplicates{};
+  std::uint64_t udp_out_of_order{};
   std::chrono::nanoseconds total_backpressure{};
   std::chrono::nanoseconds total_latency{};
   std::array<std::uint64_t, 8> latency_buckets{};
@@ -66,6 +85,7 @@ class MetricsTraceSink final : public TraceSink {
   void on_reconnect(std::string_view edge_id) override;
   void on_backpressure(std::string_view edge_id, std::chrono::nanoseconds duration,
                        bool rejected) override;
+  void on_udp_event(std::string_view edge_id, UdpEvent event, std::uint64_t count = 1) override;
   EdgeMetrics edge(std::string_view edge_id) const;
 
  private:
@@ -87,6 +107,7 @@ class CompositeTraceSink final : public TraceSink {
   void on_processing(std::string_view node_id, const Envelope& envelope,
                      std::chrono::nanoseconds duration, bool success) override;
   void on_heartbeat(std::string_view node_id, double cpu_percent) override;
+  void on_udp_event(std::string_view edge_id, UdpEvent event, std::uint64_t count = 1) override;
 
  private:
   std::vector<TraceSink*> sinks_;

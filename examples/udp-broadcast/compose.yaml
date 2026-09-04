@@ -1,0 +1,32 @@
+name: graphx-udp-broadcast
+services:
+  listener:
+    image: ${GRAPHX_BROADCAST_IMAGE:-graphx-demo:latest}
+    entrypoint: [/usr/local/bin/graphx-udp-subscriber]
+    environment: { GRAPHX_CONFIG: /example/graphx.yaml, GRAPHX_MAX_MESSAGES: "5" }
+    volumes: [./graphx.yaml:/example/graphx.yaml:ro]
+    networks: [isolated]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+  beacon:
+    image: ${GRAPHX_BROADCAST_IMAGE:-graphx-demo:latest}
+    entrypoint: [/usr/local/bin/graphx-udp-publisher]
+    environment:
+      GRAPHX_CONFIG: /example/graphx.yaml
+      GRAPHX_MAX_MESSAGES: "5"
+      GRAPHX_MESSAGE_PREFIX: discovery
+      GRAPHX_START_DELAY_MS: "500"
+    volumes: [./graphx.yaml:/example/graphx.yaml:ro]
+    depends_on: [listener]
+    networks: [isolated]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+networks:
+  isolated:
+    internal: true
+    ipam:
+      config: [{ subnet: 172.31.91.0/24 }]

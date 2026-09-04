@@ -6,6 +6,23 @@ All notable GraphX changes are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- IPv4 UDP edges for unicast, isolated directed broadcast, and multicast, with
+  bounded datagrams, cancellation, sequence-anomaly metrics, Wireshark support,
+  and deterministic runnable examples.
+
+### Fixed
+
+- Made concurrent UDP close retain socket and cancellation descriptors until
+  active operations finish, preflighted configured datagram limits before
+  serialization, bounded repeated socket-error diagnostics, and added an
+  offline broadcast runner plus a native Linux namespace acceptance lab with
+  optional capability-gated live capture and TShark decoding.
+- Preserved finite UDP receive deadlines under continuous malformed traffic and
+  isolated portable acceptance stages so shutdown-only environment values do
+  not leak into the UDP examples.
+
 ## [1.0.0] - 2026-09-04
 
 ### Added

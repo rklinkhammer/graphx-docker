@@ -41,6 +41,8 @@ RUN mkdir /captures && chown 65532:65532 /captures && chmod 0770 /captures
 COPY --from=build /src/build/graphx-generator /usr/local/bin/
 COPY --from=build /src/build/graphx-transform /usr/local/bin/
 COPY --from=build /src/build/graphx-sink /usr/local/bin/
+COPY --from=build /src/build/graphx-udp-publisher /usr/local/bin/
+COPY --from=build /src/build/graphx-udp-subscriber /usr/local/bin/
 COPY --from=build /src/build/graphx /usr/local/bin/
 COPY --from=build /src/graphx.yaml /etc/graphx/graphx.yaml
 ENV GRAPHX_CONFIG=/etc/graphx/graphx.yaml GRAPHX_VERSION=${GRAPHX_VERSION} \

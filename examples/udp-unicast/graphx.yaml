@@ -1,0 +1,22 @@
+version: 1
+graph:
+  id: udp-unicast
+  nodes:
+    - { id: publisher, kind: source, ports: [{ name: out, direction: output, schema: UdpExample }] }
+    - { id: subscriber, kind: sink, ports: [{ name: in, direction: input, schema: UdpExample }] }
+  edges:
+    - { id: messages, from: publisher.out, to: subscriber.in, transport: udp }
+transport:
+  udp:
+    messages:
+      mode: unicast
+      destination: 127.0.0.1
+      bind: 127.0.0.1
+      port: 47101
+      receive_buffer_bytes: 65536
+      send_buffer_bytes: 65536
+      max_datagram_bytes: 1400
+      framing: u32be
+observability:
+  metrics: { enabled: true, exporters: [console] }
+  tracing: { enabled: false, exporters: [console] }

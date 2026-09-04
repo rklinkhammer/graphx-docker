@@ -33,6 +33,65 @@ fi
 
 "$FIXTURE_WRITER" "$TEST_DIR/graphx.pcapng"
 chmod 0644 "$TEST_DIR/graphx.pcapng"
+
+# Wrap the canonical v2 frame in Ethernet/IPv4/UDP to exercise the UDP port
+# registration using an actual packet capture rather than the USER0 link type.
+python3 - "$TEST_DIR/graphx.pcapng" "$TEST_DIR/graphx-udp.pcap" <<'PY'
+from pathlib import Path
+import struct
+import sys
+
+source = Path(sys.argv[1]).read_bytes()
+magic = source.find(b'GXE\x02')
+if magic < 4:
+    raise SystemExit('fixture has no framed v2 envelope')
+size = int.from_bytes(source[magic - 4:magic], 'big')
+frame = source[magic - 4:magic + size]
+source_ip = bytes((127, 0, 0, 1))
+destination_ip = bytes((127, 0, 0, 1))
+udp = struct.pack('!HHHH', 40000, 47101, 8 + len(frame), 0) + frame
+ip = bytearray(struct.pack('!BBHHHBBH4s4s', 0x45, 0, 20 + len(udp), 1, 0, 64, 17, 0,
+                           source_ip, destination_ip))
+words = struct.unpack('!10H', ip)
+total = sum(words)
+total = (total & 0xffff) + (total >> 16)
+total = (total & 0xffff) + (total >> 16)
+ip[10:12] = struct.pack('!H', (~total) & 0xffff)
+ethernet = bytes.fromhex('0200000000020200000000010800') + ip + udp
+pcap = struct.pack('<IHHIIII', 0xa1b2c3d4, 2, 4, 0, 0, 65535, 1)
+pcap += struct.pack('<IIII', 1700000000, 0, len(ethernet), len(ethernet)) + ethernet
+Path(sys.argv[2]).write_bytes(pcap)
+PY
+chmod 0644 "$TEST_DIR/graphx-udp.pcap"
+"${TSHARK_COMMAND[@]}" -n -X "lua_script:$DISSECTOR" -r "$TEST_DIR/graphx-udp.pcap" \
+  -T fields -E separator=, -e ip.proto -e udp.dstport -e graphx.version -e graphx.sequence \
+  >"$TEST_DIR/udp-fields.txt"
+grep -q '^17,47101,2,42$' "$TEST_DIR/udp-fields.txt" || {
+  echo "unexpected UDP dissector fields:" >&2
+  sed -n '1,10p' "$TEST_DIR/udp-fields.txt" >&2
+  exit 1
+}
+
+cp "$TEST_DIR/graphx-udp.pcap" "$TEST_DIR/graphx-udp-bad-length.pcap"
+python3 - "$TEST_DIR/graphx-udp-bad-length.pcap" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+data = bytearray(path.read_bytes())
+# Classic PCAP header (24), packet header (16), Ethernet (14), IPv4 (20),
+# and UDP (8) precede the GraphX u32be frame length.
+offset = 24 + 16 + 14 + 20 + 8
+declared = int.from_bytes(data[offset:offset + 4], 'big')
+data[offset:offset + 4] = (declared - 1).to_bytes(4, 'big')
+path.write_bytes(data)
+PY
+chmod 0644 "$TEST_DIR/graphx-udp-bad-length.pcap"
+"${TSHARK_COMMAND[@]}" -n -X "lua_script:$DISSECTOR" \
+  -r "$TEST_DIR/graphx-udp-bad-length.pcap" \
+  -Y '_ws.expert.message contains "length prefix does not match captured packet size"' \
+  -T fields -e frame.number >"$TEST_DIR/udp-bad-length.txt"
+grep -q '^1$' "$TEST_DIR/udp-bad-length.txt"
 "${TSHARK_COMMAND[@]}" -n -X "lua_script:$DISSECTOR" -r "$TEST_DIR/graphx.pcapng" \
   -T fields -E separator=, -e graphx.version -e graphx.sequence -e graphx.type \
   -e graphx.attribute_count >"$TEST_DIR/fields.txt"
