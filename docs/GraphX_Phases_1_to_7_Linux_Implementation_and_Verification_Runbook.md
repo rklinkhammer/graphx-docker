@@ -656,7 +656,7 @@ At minimum, independently confirm:
 
 ### Step 5 — Reconcile documentation with runtime
 
-Compare `README.md`, `docs/test-procedure.md`, the phase-specific docs/ADRs, `graphx.yaml`, schema, Compose projections, and handoff claims with observed behavior. A stale acceptance report is a documentation gap even when code now passes.
+Compare `README.md`, `docs/test-reference.md`, the phase-specific docs/ADRs, `graphx.yaml`, schema, Compose projections, and handoff claims with observed behavior. A stale acceptance report is a documentation gap even when code now passes.
 
 ### Step 6 — Write the verdict
 

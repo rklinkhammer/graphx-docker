@@ -8,4 +8,5 @@ __pycache__/
 /outputs/*.zip
 /outputs/release*/
 /outputs/linux-container/
+/outputs/verification/
 /captures/

@@ -103,6 +103,7 @@ ARCHIVE_DOCUMENTATION_FILES = frozenset({
     "share/doc/graphx/docs/shared-memory-transport.md",
     "share/doc/graphx/docs/tcp-transport.md",
     "share/doc/graphx/docs/udp-transport.md",
+    "share/doc/graphx/docs/test-reference.md",
     "share/doc/graphx/docs/test-procedure.md",
     "share/doc/graphx/docs/unix-domain-socket-transport.md",
     "share/doc/graphx/docs/upgrade.md",

@@ -1,624 +1,127 @@
-# GraphX feature test procedure
+# GraphX test procedure
 
-This document is the exhaustive developer/acceptance procedure. For the first
-user run of the complete application, follow
-[`complete-system-demo.md`](complete-system-demo.md); it has one start command,
-observable success criteria, a live traffic check, and troubleshooting steps.
+This is the short testing entry point for developers and independent verifiers.
+Choose one profile, run one command, and retain the generated log. Detailed
+coverage, rationale, and manual diagnostics are in
+[`test-reference.md`](test-reference.md).
 
-This procedure exercises the source model, all five transports, hardened TCP
-behavior, authenticated runtime control, correlated GraphX/Ethernet PCAPNG and
-extcap, browser assets, Docker deployment, infrastructure
-planning, and the optional native network laboratories. Start with the portable
-tier. The privileged tier is deliberately never selected automatically.
+## Choose a profile
 
-## Test tiers
-
-| Tier | Host | Coverage | Command |
+| Profile | Use it when | Coverage | Host |
 |---|---|---|---|
-| Quality | macOS or Linux | Repository formatting, clang-tidy, cppcheck | `scripts/check-format.sh && scripts/run-static-analysis.sh` |
-| Sanitizers | macOS or Linux | Complete CTest under ASan and UBSan | `cmake --preset sanitizers && cmake --build --preset sanitizers && ctest --preset sanitizers` |
-| Fuzz | Clang host | Envelope and frame libFuzzer targets under ASan/UBSan | `GRAPHX_FUZZ_SECONDS=30 scripts/run-fuzz.sh` |
-| Portable | macOS or Linux | C++20/23, unit/integration tests, config/infra dry-runs, TCP and shared-memory process pipelines, graceful SIGTERM, web build, configuration-driven telemetry, heartbeat expiry, API and Prometheus output | `scripts/test-features.sh portable` |
-| Docker | macOS or Linux with Docker | Portable tier plus the standard bridge-network Compose deployment | `scripts/test-features.sh docker` |
-| Native network | Linux only | Portable tier plus real macvlan, IPvlan L2/L3, OVS, namespace routing, nftables and netem | `GRAPHX_ALLOW_PRIVILEGED_TESTS=1 scripts/test-features.sh linux-network` |
+| `quick` | Editing C++ code | Fresh development build and CTest | macOS or Linux |
+| `portable` | Preparing a normal change | C++20/23, configurations, process pipelines, telemetry, web, and portable examples | macOS or Linux |
+| `full` | Preparing a pull request | Formatting, static analysis, sanitizers, fuzzing, portable acceptance, and Docker acceptance | macOS or Linux with Docker |
+| `native-linux` | Certifying network behavior | Portable acceptance plus UDP broadcast, macvlan, IPvlan, OVS, namespaces, nftables, netem, and live packet capture | Native Linux only |
+| `release` | Building a release candidate | Clean release build, package contract, SBOM, checksums, and independent artifact verification | Supported release host |
 
-The script uses a temporary directory for logs, tears down its local processes,
-and leaves build directories and installed JavaScript dependencies in place for
-inspection. Override ports with `GRAPHX_TEST_HTTP_PORT` and
-`GRAPHX_TEST_UDP_PORT` if 18080 or 19000 is occupied.
+`native-linux` is the only profile that validates native Linux network-driver
+behavior. A Linux container or Docker Desktop VM is useful evidence but is not a
+substitute for that profile.
 
 ## Prerequisites
 
-Portable tests need CMake 3.25+, Ninja, OpenSSL 3 and its development headers, a
-C++20/23 compiler, Node.js/npm and curl. Docker tests need Docker Engine/Desktop with Compose. Native network tests
-also need a Linux host, Open vSwitch, iproute2, nftables and root/sudo access.
-tcpdump or dumpcap is optional for capture checks.
+All profiles need CMake 3.25+, Ninja, OpenSSL 3 development files, and a C++20/23
+compiler. Portable testing also needs Node.js, npm, and curl.
 
-Quality checks additionally need clang-format-18, clang-tidy-18, and cppcheck. Fuzzing
-needs Clang with libFuzzer and `xxd`. Override tool names with `CLANG_FORMAT`,
-`CLANG_TIDY`, and `CPPCHECK`; override build directories with
-`GRAPHX_QUALITY_BUILD_DIR` and `GRAPHX_FUZZ_BUILD_DIR`.
+Additional requirements:
 
-Docker Desktop does not expose native macvlan/ipvlan semantics. On macOS, use the
-mixed-network macOS profile to test the containerized userspace OVS simulation;
-use native Linux for driver-accurate results.
+- `full`: Docker Compose, Clang 18, clang-format-18, clang-tidy-18, cppcheck,
+  `xxd`, and libFuzzer support.
+- `native-linux`: Docker Compose, Open vSwitch, iproute2, nftables, dumpcap,
+  tshark, and sudo access.
+- `release`: Python 3 and a clean Git worktree at the intended release commit.
 
-## 1. Quality automation
+The commands stop at the first failure and write a combined log under
+`outputs/verification/`. Set `GRAPHX_VERIFY_LOG_DIR` to use another location.
 
-The checked-in workflow at `.github/workflows/ci.yml` runs on pushes to `main`,
-pull requests, a weekly schedule, and manual dispatch. Its external actions are pinned to immutable
-commit SHAs. The matrix covers C++20 and C++23 on Ubuntu and macOS. Separate jobs
-run ASan/UBSan, clang-format 18, clang-tidy 18, cppcheck, bounded libFuzzer smoke
-runs, the portable feature suite, npm production audits, and Compose image
-builds. Workflow permissions are read-only and duplicate branch runs are
-cancelled.
+## Run the tests
 
-Run the same focused gates locally:
+For an ordinary code edit, start here:
 
 ```sh
-scripts/check-format.sh
-scripts/run-static-analysis.sh
-cmake --preset sanitizers
-cmake --build --preset sanitizers
-ASAN_OPTIONS=detect_leaks=1 UBSAN_OPTIONS=halt_on_error=1 ctest --preset sanitizers
-GRAPHX_FUZZ_SECONDS=30 scripts/run-fuzz.sh
+scripts/verify.sh quick
 ```
 
-Apple's sanitizer runtime may not provide LeakSanitizer in every toolchain. The
-CI macOS job disables leak detection explicitly while retaining ASan/UBSan; the
-Ubuntu job requires leak detection. Sanitized binaries are test artifacts and
-must not be shipped as production executables.
-
-The sanitizer configuration compiles every GraphX-owned library, application,
-test, and enabled fuzzer translation unit with ASan/UBSan and frame pointers.
-The `graphx-sanitizer-coverage` CTest audits `compile_commands.json` and fails if
-any GraphX-owned source is linked to the sanitizer runtime without also being
-compiled with instrumentation. Fetched yaml-cpp remains deliberately outside
-that project-owned instrumentation policy. The fuzz runner invokes the same
-audit after configuring its fuzzer targets, so the enabled fuzzer translation
-units are covered as well.
-
-The fuzz script converts the exact v1/v2 golden fixtures into a temporary seed
-corpus. `graphx-envelope-fuzz` exercises parsing, canonical reserialization, and
-round-trip invariants. `graphx-frame-fuzz` exercises length-prefix validation,
-framing invariants, and framed envelope decoding. Routine CI uses a bounded
-30-second smoke run for each target; the weekly run uses 300 seconds per target,
-and local campaigns can set `GRAPHX_FUZZ_SECONDS` without changing the harness.
-
-Privileged Linux network laboratories remain manual opt-in tests. CI validates
-their configuration and dry-run plans but never mutates runner networking.
-
-## 2. Portable automated acceptance
-
-Run:
+Before handing a change to another implementer or verifier, run:
 
 ```sh
-scripts/test-features.sh portable
-(cd apps/telemetry && node --test control.integration.test.mjs)
+scripts/verify.sh portable
 ```
 
-Expected results:
-
-- CTest passes for both C++23 and C++20. This includes envelope/framing, TCP
-  fragmentation, deadlines, reconnect and `SIGPIPE` handling; Unix sockets;
-  shared-memory wraparound, ownership, process death and backpressure; config
-  validation; infrastructure-plan generation; exact v1/v2 golden vectors;
-  identity lineage; and malformed-envelope rejection.
-- An ephemeral-credential TLS test proves TLS 1.3 mutual-authentication and
-  reconnect round trips, and rejects a peer-name mismatch, an untrusted CA, and a
-  missing client certificate. Telemetry tests reject bad HMACs, stale timestamps,
-  replay, unknown identities, unbounded values, rate-state overflow, and malformed
-  HTTP/WebSocket targets while proving that the server remains healthy.
-- Every `graphx.yaml` validates. Infrastructure create/status/destroy and a
-  netem fault are rendered with `--dry-run` without changing the host.
-- The TCP and shared-memory pipelines each deliver sequence 8 with value 16.
-- Generator, transform, and sink exit cleanly after finite runs and SIGTERM.
-- Runtime output contains structured connection and processing events.
-- Phase 8 tests prove scoped authorization, UUID command identity, exact
-  idempotent replay, conflicting-key rejection, per-node runtime identity,
-  endpoint-takeover/forged-ACK rejection, timeout, credential-in-reason
-  rejection, observation/audit isolation, and real signed source pause/resume.
-  Exact and embedded operator, observation, legacy HMAC, and per-node runtime
-  credentials in a signed negative ACK are reduced to a safe protocol code and
-  proven absent from command responses, live audit, reopened durable history,
-  observation snapshots, and collector logs.
-- Phase 8 credential-registry tests reuse values across every supported pair of
-  observation, control, shared-HMAC, and per-node runtime roles. Startup and
-  file-only rotation must fail closed with readiness 503 and policy/service
-  metrics at zero, and a distinct replacement must recover on the next bounded
-  reload without logging a value.
-- Ordinary telemetry regression tests place exact and embedded credentials in
-  diagnostics, identifiers, capture references, and unknown fields. They verify
-  event-specific state allowlists and bounds, then prove snapshot/WebSocket
-  source data and SQLite history remain credential-free after restart.
-- Phase 8 rotation tests replace control and per-node HMAC files inside the
-  ordinary one-second polling interval. They prove the candidate is discovered
-  before fan-out, superseded values remain filtered through the 60-second
-  overlap, then restart the collector inside that interval with an expiring
-  previous-credential projection. New-authenticated telemetry containing old
-  control/runtime values remains filtered from snapshots, WebSockets, OTLP,
-  capture references, SQLite and logs; the old authenticator is rejected, and
-  an old value in a new-authenticated command reason is rejected. Deterministic
-  tests also prove expiry, permissions, cross-role collision, malformed input,
-  and combined fail-closed capacity behavior.
-- Browser credential/control helpers and the mounted pending-to-terminal status
-  flow pass their tests, and the web production bundle builds.
-- `/api/health`, `/api/topology`, and `/metrics` respond. An unauthenticated
-  pause is rejected; bearer- and HMAC-authenticated pause/resume is delivered and acknowledged.
-  The real TCP generator's sent counter stops while paused and advances again
-  after resume.
-- `/api/topology` reflects the nodes, edges, transport details, and network paths
-  in `GRAPHX_CONFIG`; a silent node transitions to `offline` after its configured
-  heartbeat timeout.
-- Node heartbeats update measured process CPU in `/api/topology`, the node cards,
-  and the `graphx_node_cpu_percent` Prometheus gauge.
-- Edge telemetry keeps sent/received message and wire-byte counters separate,
-  derives five-second message/byte rates, exports a valid latency histogram, and
-  counts errors, drops, rejections, reconnects and backpressure independently.
-- The finite TCP pipeline writes valid non-empty PCAPNG files for all three
-  nodes, retains trace IDs in capture metadata, and passes a byte-for-byte
-  validating-extcap and HTTP-download check. Binary unit tests verify USER0
-  (147) for GraphX frames, Ethernet (1) for actual Ethernet-frame capture,
-  byte/packet limits, complete-block failure, and symlink refusal. When TShark
-  is installed, CTest loads the Lua plugin, decodes v1/v2 fixture packets,
-  exercises display filters, and verifies malformed expert output, including
-  mandatory zero v2 identities and duplicate keys while allowing a zero parent.
-- Adversarial capture tests verify that FIFO, socket, device, symlink, and
-  multiply linked writer targets are rejected promptly without modifying their
-  contents; valid oversized metadata falls back to a bounded comment and does
-  not stop subsequent capture.
-- Extcap tests reject unsupported section versions/lengths, additional sections
-  or interfaces, packets before the interface, nonzero packet interface IDs,
-  unknown blocks, truncation, oversized blocks, bad trailers, and symlinks.
-- Telemetry tests prove capture limits are reported and a writable capture
-  volume cannot turn a capture-name symlink or hard link into a collector file
-  download, FIFO validation does not block, and descriptor validation remains
-  bound to the inode actually streamed across a pathname replacement. They also
-  prove entry/file catalog bounds, sorted truncation metadata, cached snapshot
-  bounds, direct download outside a truncated catalog, and valid initial
-  PCAPNG blocks larger than 512 bytes.
-- The AJV Draft 2020-12 regression test exercises the same capture provider,
-  directory, scalar-type, and numeric-boundary cases as the native loader tests.
-- The container job runs `scripts/test-container-hardening.sh` after image builds
-  to prove both fresh-volume initialization orders allow native capture writes,
-  while the collector can read but cannot write the mounted volume.
-
-For a focused rerun:
+Before a pull request or broad acceptance decision, run:
 
 ```sh
-ctest --test-dir build/dev --output-on-failure
-ctest --test-dir build/dev -R 'graphx-(extcap|wireshark-dissector)' --output-on-failure
-examples/shared-memory/run.sh
-examples/udp-unicast/run.sh
-examples/udp-multicast/run.sh
+scripts/verify.sh full
 ```
 
-Run `examples/udp-broadcast/run.sh` separately with Docker. It uses an internal,
-fixed subnet and must never be rewritten to auto-select a physical interface.
-For Phase 11 acceptance on a native Linux host, run
-`GRAPHX_VERIFY_LIVE_CAPTURE=1 examples/udp-broadcast/run-native-linux.sh`
-(when `dumpcap` and `tshark` are installed), followed twice by
-`examples/udp-broadcast/down-native-linux.sh`. This creates only two disposable
-network namespaces and an unattached temporary bridge; Docker Desktop is not
-accepted as evidence for this gate. The live-capture option observes only the
-disposable publisher veth, decodes the result with the checked-in Lua dissector,
-and requires GraphX sequences 1 through 5. The privileged Linux feature suite
-runs the capture check automatically when its tools are present and otherwise
-prints an explicit skip before running the delivery gate.
-
-The dissector test is configured only when `tshark` is found. CI installs
-TShark in the Linux native matrix; a local configure without TShark prints an
-explicit unavailable message rather than representing the dissector as tested.
-
-## 3. Observe the live TCP pipeline
-
-Start the telemetry service and the three nodes in separate terminals:
+On a dedicated native Linux test host, review the network operations in
+[`test-reference.md`](test-reference.md#6-native-linux-network-drivers), then run
+as the normal login user:
 
 ```sh
-npm ci --prefix apps/telemetry
-npm ci --prefix web
-npm run build --prefix web
-node apps/telemetry/server.mjs
+GRAPHX_ALLOW_PRIVILEGED_TESTS=1 scripts/verify.sh native-linux
 ```
+
+The example scripts request sudo only for the operations that require it. Do not
+run the entire verification command as root. The profile requires dumpcap and
+tshark so a successful result includes Phase 11 live-capture and dissector
+evidence. Teardown helpers are safe to run twice.
+
+For a clean release commit:
 
 ```sh
-export GRAPHX_CONFIG="$PWD/graphx.yaml"
-export GRAPHX_OVERRIDES='transport.tcp.samples.host=127.0.0.1;transport.tcp.transformed.host=127.0.0.1'
-./build/dev/graphx-sink
+scripts/verify.sh release
 ```
 
-Run the transform with the same exports, then the generator. Open
-`http://localhost:8080`. Verify that:
+The release profile creates uniquely named build and output directories. It
+does not publish anything and does not permit the development-only
+`--allow-dirty` override.
 
-1. application and network-path views both render;
-2. selecting `samples` highlights macvlan → OVS → router → OVS → ipvlan;
-3. edge connection state changes to connected; sent/received values advance and
-   rates replace unavailable markers;
-4. mean and p95 receive latency appear, while metric provenance identifies
-   counters as measured and five-second rates as derived;
-5. recent messages retain the same trace ID through the transform;
-6. `curl http://localhost:8080/metrics` exposes directional counters, latency
-   histogram buckets/sum/count, errors, drops, rejections, connection, reconnect
-   and backpressure series.
+## Independent verification
 
-Set `GRAPHX_MAX_MESSAGES=20` on the generator for a finite run.
-
-When returning to configuration validation or another example in the same
-shell, clear the TCP-only settings:
+An independent verifier should test the exact candidate commit, record the host
+and tool versions, and use new build directories. For portable verification:
 
 ```sh
-unset GRAPHX_CONFIG GRAPHX_OVERRIDES GRAPHX_MAX_MESSAGES GRAPHX_INTERVAL_MS
+run_id=$(date -u +%Y%m%dT%H%M%SZ)
+GRAPHX_BUILD_DIR="$PWD/build/verify-$run_id-cxx23" \
+GRAPHX_CXX20_BUILD_DIR="$PWD/build/verify-$run_id-cxx20" \
+  scripts/verify.sh portable
 ```
 
-CTest and `scripts/test-features.sh` isolate themselves from these variables,
-but a direct `graphx validate` command intentionally honors exported overrides.
+Record the final `PASS` or `FAIL`, the log path printed by the wrapper, and any
+explicitly unavailable platform gate. Code inspection and container results
+must not be reported as native runtime verification.
 
-## 4. OTLP/HTTP trace export
+## Organization certificates
 
-Run any OTLP/HTTP collector that accepts JSON on port 4318, then add these
-variables to each node:
-
-```sh
-export GRAPHX_OTLP_HOST=127.0.0.1
-export GRAPHX_OTLP_PORT=4318
-export GRAPHX_OTLP_PATH=/v1/traces
-```
-
-GraphX emits bounded asynchronous send, receive and processing spans using the
-envelope trace ID as the trace identity. Collector failure does not stop graph
-processing; when the bounded queue is full, new export records are dropped.
-Verify that one envelope produces correlated `graphx.send`, `graphx.receive`,
-and `graphx.process` spans; that every operation has a distinct, valid non-zero
-span ID even across node processes; and that `graphx.sequence`,
-`graphx.subject`, status, and wire-byte attributes are present.
-
-The native test suite also initializes GraphX identity state before `fork()`,
-exports one parent and one child span for the same trace, and requires distinct
-span IDs. This guards prefork worker lifecycles that same-process exporter tests
-cannot exercise.
-
-Native direct export intentionally accepts loopback collectors only. To verify
-the secure telemetry-service path, configure `GRAPHX_OTLP_ENDPOINT` with an
-HTTPS collector and optionally `GRAPHX_OTLP_AUTH_TOKEN_FILE`,
-`GRAPHX_OTLP_CA_FILE`, and the `GRAPHX_OTLP_CERT_FILE` / `GRAPHX_OTLP_KEY_FILE`
-pair. Confirm `/metrics` advances `graphx_otlp_exports_total`, failure does not
-interrupt the graph, the queue never exceeds its configured item or byte cap,
-and tokens and payloads do not appear in logs or metrics. The telemetry unit
-suite includes live UDP-to-authenticated-OTLP and private-CA/mTLS integration
-tests plus transient/permanent retry classification, `Retry-After`, absolute
-slow-drip deadline, shutdown-during-backoff, collector refusal followed by
-recovery, queue pressure during retry backoff, oversized-response, byte-cap,
-and forced all-zero identifier failure tests.
-
-For the hardened Compose projection, set host paths and validate both overlays:
-
-```sh
-export GRAPHX_OTLP_ENDPOINT=https://otel-collector.example:4318
-export GRAPHX_OTLP_AUTH_TOKEN_FILE=/host/secrets/otlp-token
-export GRAPHX_OTLP_CA_FILE=/host/secrets/otlp-ca.pem
-export GRAPHX_OTLP_CERT_FILE=/host/secrets/otlp-client.pem
-export GRAPHX_OTLP_KEY_FILE=/host/secrets/otlp-client-key.pem
-docker compose -f compose.yaml -f compose.otlp-secure.yaml \
-  -f compose.otlp-mtls.yaml config --quiet
-```
-
-Verify operational endpoints independently:
-
-```sh
-curl -f http://127.0.0.1:8080/api/live
-curl -f http://127.0.0.1:8080/api/ready
-curl -i http://127.0.0.1:8080/api/graph/ready
-curl http://127.0.0.1:8080/api/slo
-```
-
-Before nodes start, graph readiness must be 503 while service readiness is 200.
-After the graph is live, graph readiness must become 200. Stop a node and
-confirm it returns to 503 after the heartbeat deadline without restarting the
-telemetry service. The SLO is `warming` for its configured minimum window, then
-reports `met` or `violated` from measured rolling data.
-
-Validate the provisioned dashboard and alert assets with:
-
-```sh
-docker compose -f compose.yaml -f compose.observability.yaml config --quiet
-docker run --rm --entrypoint /bin/promtool \
-  -v "$PWD/deploy/observability:/etc/prometheus:ro" \
-  prom/prometheus:v3.13.0@sha256:c6b27ea434f8389bfe233fbc7be381cf50587c286e871bc842008f5a1b1908a7 \
-  check config /etc/prometheus/prometheus.yml
-docker run --rm --entrypoint /bin/promtool \
-  -v "$PWD/deploy/observability:/etc/prometheus:ro" \
-  -w /etc/prometheus \
-  prom/prometheus:v3.13.0@sha256:c6b27ea434f8389bfe233fbc7be381cf50587c286e871bc842008f5a1b1908a7 \
-  test rules alerts.test.yml
-```
-
-Static validation is not sufficient. Start the exact combined stack under an
-isolated Compose project, require both telemetry and Prometheus to become
-healthy, verify Prometheus reports the GraphX target `up`, query
-`graphx_service_ready`, and confirm Grafana returns dashboard UID
-`graphx-operations`. Then stop that isolated project. The operations regression
-script polls every condition under one bounded deadline, rather than assuming
-the first Prometheus scrape has completed when its process becomes ready. On a
-timeout it emits bounded container, target, and log diagnostics before cleanup.
-The checked-in regression scripts perform both the operations-stack and
-secure-export checks:
-
-```sh
-scripts/test-phase6-operations.sh
-scripts/test-phase6-secure-otlp.sh
-```
-
-## Phase 7 durable history acceptance
-
-The telemetry test suite covers strict history configuration, unknown/empty
-value rejection at full service startup, and query parsing,
-bounded queues, count retention, stable pagination, reduced database-cap
-startup, a shutdown deadline under a real SQLite writer lock, schema and graph-
-ownership rejection, observation authentication, degraded-backend isolation,
-abrupt process restart, and record persistence:
-
-```sh
-npm test --prefix apps/telemetry
-```
-
-The history tests also reduce age/count policies across a database reopen,
-verify query-time non-disclosure and idle pruning without a long sleep, and
-force an idle maintenance lock failure to confirm isolated degradation.
-
-The web suite mounts the real history component to verify stable, deduplicated
-backward pages, paused polling, return-to-newest behavior, token changes, and
-stale-response suppression in addition to credential handling:
-
-```sh
-npm test --prefix web
-```
-
-Validate both the default-disabled projection and the persistent-volume overlay:
-
-```sh
-docker compose config --quiet
-docker compose -f compose.yaml -f compose.history.yaml config --quiet
-```
-
-Then run the isolated live test:
-
-```sh
-scripts/test-phase7-history.sh
-```
-
-It builds and starts only an isolated telemetry service with an observation
-token, waits for service and history readiness, requires an unauthenticated 401,
-injects a valid UDP event, retrieves it through the authenticated bounded
-history API, restarts that container, and requires an authenticated reread from
-the named volume. Its cleanup is scoped to the generated Compose project and
-volume.
-This proves local SQLite/volume persistence; it does not certify a remote
-backend, distributed durability, or end-to-end delivery of best-effort UDP.
-
-## 5. Docker bridge deployment
-
-The user-level smoke test is:
-
-```sh
-scripts/demo.sh start
-scripts/demo.sh logs       # Ctrl-C leaves the demo running
-scripts/demo.sh verify
-scripts/demo.sh stop
-```
-
-`verify` fails unless all four services run, both TCP edges report connected,
-and received counters on both edges increase during a two-second observation.
-
-For exhaustive automated coverage, run `scripts/test-features.sh docker`. For
-raw manual inspection:
-
-```sh
-docker compose up --build
-docker compose ps
-curl http://localhost:8080/api/topology
-curl http://localhost:8080/metrics
-docker compose down --remove-orphans
-```
-
-All services should be running while the generator is active, sink logs should
-show doubled values, and the telemetry snapshot should mark all three nodes as
-running.
-
-## 6. Native Linux network drivers
-
-Review each generated plan before opting in:
-
-```sh
-./build/dev/graphx infra create examples/macvlan/graphx.yaml --dry-run
-./build/dev/graphx infra create examples/ipvlan-l2/graphx.yaml --dry-run
-./build/dev/graphx infra create examples/ipvlan-l3/graphx.yaml --dry-run
-./build/dev/graphx infra create examples/mixed-network/graphx.yaml --dry-run
-```
-
-Then run the privileged tier:
-
-```sh
-GRAPHX_ALLOW_PRIVILEGED_TESTS=1 scripts/test-features.sh linux-network
-```
-
-The standalone macvlan demo verifies explicit container MAC addresses. The
-IPvlan L2 demo verifies three independent Docker domains routed through their
-OVS attachments. The IPvlan L3 demo verifies three independent node subnets in
-one external, multi-subnet IPvlan L3 network on the shared parent path. Docker
-rejects multiple IPvlan network objects that claim the same parent, so
-subnet/IPAM domains—not duplicate parent claims—provide the per-node L3
-separation. The mixed demo verifies macvlan-to-ipvlan routing through
-10.10.0.1 and 10.20.0.1, forwarding, nftables policy, OVS mirrors and a netem
-apply/clear cycle.
-
-During a manual run, use each example's `scripts/status.sh`. Confirm Docker
-networks are external and owned by the infrastructure layer, and confirm the
-node Compose projects have different project names. Do not interpret failed
-host-to-macvlan-container pings as a routing failure: parent-host reachability is
-blocked by macvlan design unless a host macvlan shim is added.
-
-## 7. OVS mirrors, capture and fault behavior
-
-With the mixed network running:
-
-```sh
-examples/mixed-network/scripts/fault.sh apply
-examples/mixed-network/scripts/fault.sh clear
-examples/mixed-network/scripts/capture.sh mac
-examples/mixed-network/scripts/capture.sh ipv
-```
-
-In another terminal, inspect OVS bridge/port/mirror state and router interface
-qdiscs. A faulted run should show the configured delay/loss on the selected
-router interface and increased application latency or loss. Clearing the fault
-must remove the netem qdisc. Capture hooks should receive traffic mirrored from
-both bridge domains; stop the capture explicitly after collecting a short sample.
-
-OVS capture remains real network-packet capture. Separately, the application
-PCAPNG sink correlates GraphX frames by message ID (or the documented v1
-fallback), packet index, and byte offset.
-The current acceptance criterion does not require automatic matching between
-those two independent capture files.
-
-## 8. macOS userspace-OVS simulation
-
-On Docker Desktop:
-
-### Local Linux verifier container on macOS
-
-Docker Desktop runs Linux containers inside its Linux VM, so the repository's
-Linux verifier image can reproduce Linux process, OpenSSL, socket, and SIGPIPE
-behavior while keeping build products out of the macOS checkout.
-
-Run the focused TLS security test first:
-
-```sh
-scripts/test-linux-container.sh tls
-```
-
-Additional modes are cumulative CTest builds for C++23 and C++20, the portable
-Phase 1–8 feature suite, and the pinned quality/fuzz gates:
-
-```sh
-scripts/test-linux-container.sh ctest
-scripts/test-linux-container.sh portable
-scripts/test-linux-container.sh sanitizers
-GRAPHX_FUZZ_SECONDS=30 scripts/test-linux-container.sh fuzz
-scripts/test-linux-container.sh quality
-```
-
-Logs are written under `outputs/linux-container/`. The image uses Ubuntu 24.04,
-Node 24, OpenSSL 3, and Clang 18. To install organization trust globally for
-GraphX builds without adding it to the repository, export the absolute path to
-a root CA, a reviewed installer, or both before invoking any repository test
-script:
+To add organization trust to all Docker builds used by the profiles, export an
+absolute path to a public root CA, a reviewed installer, or both:
 
 ```sh
 export GRAPHX_CA_CERT=/absolute/path/to/company-root-ca.crt
 export GRAPHX_CERT_INSTALL_SCRIPT=/absolute/path/to/install-certs.sh
-
-scripts/test-linux-container.sh tls
-scripts/test-features.sh docker
+scripts/verify.sh full
 ```
 
-Either variable may be omitted. The same variables flow through the standard
-Compose deployment, telemetry build, OVS simulation, and native Linux example
-builds. Repository entry-point scripts calculate a non-secret content
-fingerprint so rotating either file invalidates the BuildKit trust layer instead
-of silently reusing its cache. For a manual Compose command, initialize that
-fingerprint in the current shell first:
+The installer runs noninteractively in the image trust-bootstrap stage. It must
+not use sudo and must not contain private keys, registry passwords, or npm
+tokens. See the
+[`certificate bootstrap reference`](test-reference.md#local-linux-verifier-container-on-macos)
+for the complete trust model.
 
-```sh
-source scripts/configure-build-trust.sh
-docker compose up -d --build
-```
+## If a test fails
 
-The installer runs noninteractively as root in a Debian/Ubuntu trust-bootstrap
-stage with `bash`, `curl`, `apt-get`, and `update-ca-certificates` available. It
-must be reviewed, must not use `sudo`, and should restrict its changes to the
-system certificate store. The resulting CA bundle is copied into Alpine-based
-telemetry stages before `npm ci`. The source CA and installer remain BuildKit
-secrets and are not copied into an image layer; the resulting public trust
-anchors necessarily remain in the image certificate bundle. Never use these
-global inputs for client private keys, registry passwords, or npm tokens.
+1. Read the final failing gate and log path printed by `scripts/verify.sh`.
+2. Fix the first substantive failure before interpreting later missing results.
+3. For Docker failures, inspect service status and logs, then use the matching
+   teardown command.
+4. For an interrupted native network run, use the example's `down.sh`,
+   `linux-down.sh`, or `down-native-linux.sh` before retrying.
+5. Preserve the log with the verification report.
 
-Do not use this container as proof of native macvlan, IPvlan, physical-parent,
-OVS, namespace-router, nftables, or netem behavior. Those acceptance gates still
-require a dedicated native Linux host. Docker documents macvlan as unsupported
-on Docker Desktop for Mac and Windows.
-
-```sh
-examples/mixed-network/scripts/macos-up.sh
-examples/mixed-network/scripts/status.sh
-docker logs gx-ovs-ovs-router-1
-examples/mixed-network/scripts/fault.sh apply
-examples/mixed-network/scripts/fault.sh clear
-examples/mixed-network/scripts/macos-down.sh
-```
-
-This checks the OVS/router/control shape in a privileged container using bridge
-networks. It does not certify macvlan or ipvlan behavior.
-
-## Cleanup and failure triage
-
-Always use the matching `down.sh`/`linux-down.sh`/`macos-down.sh` before deleting
-external networks. If a run stops unexpectedly, inspect `docker compose ls`,
-`docker network ls`, `ip netns list`, and `ovs-vsctl show`, then rerun that
-example's teardown helper. Shared-memory listeners unlink their segments during
-normal shutdown and replace stale names on the next start.
-
-For the mixed native-Linux lab, `RTNETLINK answers: File exists` means an earlier
-run left one or more named interfaces behind; a dry run never creates them. Run
-`examples/mixed-network/scripts/linux-down.sh` and then retry `linux-up.sh`. The
-startup helper now detects this state before making changes and rolls back only
-resources created by its own failed attempt.
-
-For a failure, retain the failing CTest output, node logs, `graphx inspect`
-output, Docker service status, infrastructure status, OVS state and router
-routes/qdiscs. That evidence distinguishes a model-validation problem from a
-transport, container, or host-networking problem.
-
-## 9. Release-candidate verification
-
-This test builds but does not publish. Use new empty output paths; the release
-tool deliberately refuses to mix old and new artifacts.
-
-```sh
-python3 scripts/release/validate_version.py --tag "v$(tr -d '\n' < VERSION)"
-python3 scripts/release/build_release.py \
-  --build-dir build/release-local \
-  --output-dir outputs/release-local \
-  --tag "v$(tr -d '\n' < VERSION)" \
-  --allow-dirty
-python3 scripts/release/verify_release.py outputs/release-local --source .
-```
-
-`--allow-dirty` is appropriate only while testing uncommitted implementation
-work. Omit it for an actual release candidate. The build runs the complete CTest
-suite, installs into a temporary prefix, runs `graphx --version`, compiles and
-runs an external `find_package(GraphX)` consumer, creates the TGZ, and verifies
-safe paths. The final verifier independently checks trusted tag/commit/platform/
-epoch identity, manifest sizes/digests/media types, artifact-scoped SPDX 2.3
-content and namespace (GraphX, bundled yaml-cpp, and the configure-time OpenSSL
-version), exact checksum membership, the archived version, and the complete
-canonical package layout. The package test compares the real installed regular-
-file set and modes against the authoritative contract, then mutates the real CPack
-archive by removing each promised file and stripping each executable in turn.
-Each mutation must be rejected. It also rejects unexpected files; portable modes
-are exactly `0755` for programs/extcap and `0644` for all other regular files.
-Archive work is bounded before/during processing to 512 MiB compressed, 10,000
-members, 256 MiB per regular member, and 512 MiB total expanded regular-file
-content. macOS packaging is additionally checked for AppleDouble metadata drift.
-
-Negative regression coverage is included in `graphx-release-contract`. It rejects
-noncanonical versions, mismatched identities/media types, malformed JSON,
-oversized lockfiles, semantically incorrect SBOMs, and unsafe, duplicate, or
-special archive members. It also exercises injectable archive limits, rejects
-file/descendant collisions in both orders, tests wrong modes and unexpected
-files, and checks both accepted GHCR version-input forms. The real-output package
-test provides the independent remove-every-file and strip-every-program coverage.
-CI also builds the candidate twice and compares all
-four outputs byte-for-byte. A release decision additionally requires Linux and macOS
-workflow results, production npm audits, OCI multi-architecture builds, and the
-capability-gated native-Linux network results appropriate to that release. Local
-macOS or Linux-container results are not substitutes for those external gates.
+Focused reruns, expected results, manual telemetry checks, capture diagnostics,
+native cleanup, and every acceptance criterion remain in
+[`test-reference.md`](test-reference.md). Release policy is documented in
+[`release-process.md`](release-process.md).

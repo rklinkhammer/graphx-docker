@@ -45,24 +45,19 @@ first configure when yaml-cpp 0.9.0 is not already installed. The fallback
 download is version-pinned and SHA-256 verified; see `THIRD_PARTY.md`.
 
 ```sh
-cmake --preset dev --fresh
-cmake --build --preset dev
-ctest --preset dev
+scripts/verify.sh quick
 ```
 
 To exercise the complete portable feature surface (including C++20, finite TCP
 and shared-memory pipelines, the browser build, telemetry API, Prometheus output,
-and infrastructure dry-runs), run `scripts/test-features.sh portable`. Docker and
-privileged native-Linux tiers are documented in
+and infrastructure dry-runs), run `scripts/verify.sh portable`. Docker, quality,
+release, and privileged native-Linux profiles are documented in
 [`docs/test-procedure.md`](docs/test-procedure.md).
 
-Phase 4 quality gates are available as ordinary repository commands:
+Before a pull request, run the combined local quality and Docker profile:
 
 ```sh
-scripts/check-format.sh
-scripts/run-static-analysis.sh
-GRAPHX_FUZZ_SECONDS=30 scripts/run-fuzz.sh
-cmake --preset sanitizers && cmake --build --preset sanitizers && ctest --preset sanitizers
+scripts/verify.sh full
 ```
 
 The GitHub Actions workflow runs C++20 and C++23 on Linux and macOS, ASan/UBSan
