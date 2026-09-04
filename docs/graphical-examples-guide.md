@@ -42,8 +42,10 @@ For examples that use native executables, also build GraphX:
 scripts/verify.sh quick
 ```
 
-The console is served at <http://127.0.0.1:8080>. Port 8080 must be free. Use a
-different `PORT` and matching browser URL if another service owns it.
+The console is served at <http://127.0.0.1:8080>; the standard Compose demo also
+allows <http://localhost:8080>. Port 8080 must be free. Use a different `PORT`
+and matching browser URL if another service owns it, and include that exact
+origin in `GRAPHX_ALLOWED_ORIGINS` for a Compose deployment.
 
 ## 2. Understand the three credentials
 

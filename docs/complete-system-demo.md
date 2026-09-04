@@ -32,7 +32,9 @@ for telemetry and then samples the live counters twice. A healthy run ends with
 five `PASS` lines, including both TCP edges connected and both message counters
 advancing.
 
-Open <http://localhost:8080>. The top status bar should say **Traffic flowing**.
+Open <http://localhost:8080> or <http://127.0.0.1:8080>. Both documented
+loopback origins support live WebSocket updates. The top status bar should say
+**Traffic flowing**.
 The application view shows generator → transform → sink. Each edge displays a
 non-zero message rate. Select either edge to see sent/received messages and
 bytes, five-second message/byte rates, mean and p95 latency, errors/drops,
@@ -130,6 +132,7 @@ Common causes:
 |---|---|
 | Port 8080 is already allocated | Stop the other service using the port, then rerun `scripts/demo.sh start`. |
 | A service repeatedly exits | Read that service's logs; stale local images can be rebuilt with `docker compose build --no-cache`. |
+| Counts change only after a refresh | Recreate the telemetry container after updating `compose.yaml`; both `localhost` and `127.0.0.1` are allowed WebSocket origins. |
 | Console says connecting | Verify `curl http://localhost:8080/api/health`, then reload the page. |
 | Console connects but waits for samples | Run `scripts/demo.sh verify`; inspect generator and transform logs for connection errors. |
 | Counters move but sink output is absent | Inspect the `transformed` edge and sink logs; the verify command reports this edge separately. |

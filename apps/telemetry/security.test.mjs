@@ -9,7 +9,7 @@ import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { RateLimiter, ReplayCache, parseRequestUrl, readSecret, sanitizeControlAcknowledgement,
-  sanitizeTelemetryEvent, signEnvelope, tokenMatches, validateTelemetryEvent, verifyEnvelope,
+  sanitizeTelemetryEvent, signEnvelope, tokenMatches, originAllowed, validateTelemetryEvent, verifyEnvelope,
   webSocketBearer } from './security.mjs'
 
 const secret = '0123456789abcdef0123456789abcdef'
@@ -97,6 +97,13 @@ test('browser WebSocket bearer subprotocol is decoded', () => {
   const encoded = Buffer.from(secret).toString('base64url')
   assert.equal(webSocketBearer([`graphx-auth.${encoded}`], secret), secret)
   assert.equal(webSocketBearer([], ''), null)
+})
+
+test('documented loopback browser origins are independently allow-listed', () => {
+  const allowed = new Set(['http://127.0.0.1:8080', 'http://localhost:8080'])
+  assert.equal(originAllowed('http://127.0.0.1:8080', allowed), true)
+  assert.equal(originAllowed('http://localhost:8080', allowed), true)
+  assert.equal(originAllowed('http://example.test:8080', allowed), false)
 })
 
 test('rate limiter enforces capacity, isolation, expiry, and request counts', () => {
