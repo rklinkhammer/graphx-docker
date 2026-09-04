@@ -10,3 +10,4 @@ __pycache__/
 /outputs/linux-container/
 /outputs/verification/
 /captures/
+/.graphx/

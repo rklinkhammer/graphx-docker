@@ -430,8 +430,9 @@ Enable optional features one at a time:
 
 - Metrics and tracing may use console, UDP JSON, or bounded OTLP export.
 - History is disabled by default and requires a protected SQLite volume.
-- Runtime control requires distinct observation, control, and per-node HMAC
-  credentials projected as files or secrets.
+- Runtime control requires distinct control and runtime HMAC credentials;
+  observation credentials are optional unless read-only access must also be
+  protected. Production credentials should be projected as files or secrets.
 - PCAPNG capture contains full envelope payloads and attributes. Treat captures
   as sensitive operational evidence and set byte and packet limits.
 

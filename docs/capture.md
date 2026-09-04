@@ -115,12 +115,16 @@ omitted from a truncated catalog remains downloadable by its known name.
 
 ## Docker demo
 
-The standard Compose topology has a shared named capture volume. Enable capture
-for all three nodes and the telemetry service with:
+The standard Compose topology has a shared named capture volume. The guided
+demo enables capture for all three nodes and the telemetry service by default:
 
 ```sh
-GRAPHX_CAPTURE_ENABLED=true scripts/demo.sh start
+scripts/demo.sh start
 ```
+
+Use `scripts/demo.sh start --no-capture` to opt out. Direct `docker compose`
+invocations retain the configuration value and remain disabled unless enabled
+explicitly.
 
 Open the console and select an edge. Once a file exists, **Download PCAPNG**
 downloads the source-side capture. The same listing is available at:

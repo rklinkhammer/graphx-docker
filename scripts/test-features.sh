@@ -67,6 +67,23 @@ portable() {
   # user may have exported while manually running the TCP demo.
   unset GRAPHX_CONFIG GRAPHX_OVERRIDES GRAPHX_MAX_MESSAGES GRAPHX_INTERVAL_MS
 
+  step "Verify guided demo credential bootstrap"
+  local first_demo_token second_demo_token stored_runtime
+  first_demo_token=$(GRAPHX_DEMO_STATE_DIR="$TMP_DIR/demo-state" "$ROOT/scripts/demo.sh" token)
+  second_demo_token=$(GRAPHX_DEMO_STATE_DIR="$TMP_DIR/demo-state" "$ROOT/scripts/demo.sh" token)
+  stored_runtime=$(sed -n 's/^GRAPHX_TELEMETRY_SHARED_SECRET=//p' "$TMP_DIR/demo-state/demo.env")
+  [[ "$first_demo_token" =~ ^[0-9a-f]{64}$ ]]
+  test "$second_demo_token" = "$first_demo_token"
+  [[ "$stored_runtime" =~ ^[0-9a-f]{64}$ ]]
+  test "$stored_runtime" != "$first_demo_token"
+  ls -l "$TMP_DIR/demo-state/demo.env" | grep -q '^-rw-------'
+  first_demo_token=$(GRAPHX_CONTROL_TOKEN=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+    GRAPHX_TELEMETRY_SHARED_SECRET=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb \
+    GRAPHX_DEMO_STATE_DIR="$TMP_DIR/demo-state" "$ROOT/scripts/demo.sh" token)
+  second_demo_token=$(GRAPHX_DEMO_STATE_DIR="$TMP_DIR/demo-state" "$ROOT/scripts/demo.sh" token)
+  test "$first_demo_token" = aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  test "$second_demo_token" = "$first_demo_token"
+
   step "Configure, build, and run the C++23 suite"
   if test "$BUILD_DIR" = "$ROOT/build/dev"; then
     cmake --preset dev -S "$ROOT"

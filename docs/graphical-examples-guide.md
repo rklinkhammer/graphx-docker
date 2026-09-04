@@ -61,20 +61,18 @@ GraphX keeps observation, operator control, and runtime authentication separate:
   acknowledgements in the simple, single-operator demo. It is not entered into
   the browser.
 
-Generate three distinct values. Reusing one value for multiple roles is rejected:
+The guided Docker demo automatically generates distinct control and runtime
+credentials in `.graphx/demo.env`. Retrieve the browser value with:
+
+```sh
+scripts/demo.sh token
+```
+
+The observation token remains optional for the loopback-only demo. To test a
+protected read-only console, generate it separately before startup:
 
 ```sh
 export GRAPHX_OBSERVATION_TOKEN="$(openssl rand -hex 32)"
-export GRAPHX_CONTROL_TOKEN="$(openssl rand -hex 32)"
-export GRAPHX_TELEMETRY_SHARED_SECRET="$(openssl rand -hex 32)"
-```
-
-For a local demonstration, display the two browser values so they can be copied
-into the password fields. Do not print the runtime shared secret:
-
-```sh
-printf 'Observation token: %s\nControl token: %s\n' \
-  "$GRAPHX_OBSERVATION_TOKEN" "$GRAPHX_CONTROL_TOKEN"
 ```
 
 These are local demonstration credentials. For multi-operator policy files,
@@ -86,36 +84,35 @@ per-node runtime identities, rotation, and audit authorization, follow
 This is the primary graphical example and the only example in this guide with
 live browser metrics and runtime controls.
 
-1. Generate the three credentials as shown above.
-2. Enable bounded application capture and start the stack:
+1. Start the stack. Bounded application capture and SQLite history are enabled
+   by default, and the generated control token is printed after verification:
 
    ```sh
-   export GRAPHX_CAPTURE_ENABLED=true
    scripts/demo.sh start
    ```
 
-3. Open <http://127.0.0.1:8080>.
-4. Enter `GRAPHX_OBSERVATION_TOKEN` in **Observation token**. The topology and
-   live updates should appear.
-5. Enter `GRAPHX_CONTROL_TOKEN` in **Control token**.
-6. Select **Application**, then select `samples` or `transformed`. Confirm that
+2. Open <http://127.0.0.1:8080>.
+3. If you explicitly configured `GRAPHX_OBSERVATION_TOKEN`, enter it in
+   **Observation token**. Otherwise leave that field empty.
+4. Paste the value printed by `scripts/demo.sh token` into **Control token**.
+5. Select **Application**, then select `samples` or `transformed`. Confirm that
    message counts and rates increase and recent message identities appear.
-7. Select **Network path**. The selected logical edge is shown through the
+6. Select **Network path**. The selected logical edge is shown through the
    configured Docker bridge.
-8. Select **Pause source**. Wait for the command status to become `accepted` and
+7. Select **Pause source**. Wait for the command status to become `accepted` and
    confirm the counters stop after in-flight work drains.
-9. Select **Resume**. Confirm that counters continue without sequence reset.
-10. Select **Reset counters**. This clears collector aggregation but does not
+8. Select **Resume**. Confirm that counters continue without sequence reset.
+9. Select **Reset counters**. This clears collector aggregation but does not
     stop the graph.
-11. Select an application edge and use **Download GraphX** to save a source or
+10. Select an application edge and use **Download GraphX** to save a source or
     destination PCAPNG file.
-12. Re-run the command-line health check from the same credential-bearing shell:
+11. Re-run the command-line health check from the same credential-bearing shell:
 
     ```sh
     scripts/demo.sh verify
     ```
 
-13. Stop the stack:
+12. Stop the stack:
 
     ```sh
     scripts/demo.sh stop

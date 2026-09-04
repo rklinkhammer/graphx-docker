@@ -3,18 +3,25 @@ set -euo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 source "$ROOT/scripts/configure-build-trust.sh"
-COMPOSE=(docker compose -f "$ROOT/compose.yaml")
+COMPOSE=(docker compose -f "$ROOT/compose.yaml" -f "$ROOT/compose.history.yaml")
 URL=${GRAPHX_DEMO_URL:-http://127.0.0.1:8080}
+DEMO_STATE_DIR=${GRAPHX_DEMO_STATE_DIR:-"$ROOT/.graphx"}
+DEMO_ENV_FILE="$DEMO_STATE_DIR/demo.env"
 
 usage() {
   cat <<'EOF'
-Usage: scripts/demo.sh <start|verify|status|logs|stop>
+Usage: scripts/demo.sh <start|verify|status|logs|token|stop> [options]
 
-  start   Build and start the complete Docker demo, then verify data flow
+  start   Start with bounded capture/history and generated local credentials
   verify  Prove that services, TCP edges, samples, and telemetry are live
   status  Show container status and the latest sink output
   logs    Follow generator, transform, sink, and telemetry output
+  token   Print the browser control token
   stop    Stop the demo and remove its containers and private bridge network
+
+Start options:
+  --no-capture  Disable application PCAPNG capture
+  --no-history  Disable durable SQLite telemetry history
 EOF
 }
 
@@ -23,6 +30,71 @@ require() {
     echo "Missing prerequisite: $1" >&2
     exit 2
   }
+}
+
+valid_demo_credential() {
+  local value=$1
+  test "${#value}" -ge 32 && test "${#value}" -le 4096 || return 1
+  case "$value" in *[![:graph:]]*) return 1 ;; esac
+}
+
+ensure_demo_credentials() {
+  local stored_control stored_runtime temporary
+  if ! test -f "$DEMO_ENV_FILE"; then
+    require openssl
+    mkdir -p "$DEMO_STATE_DIR"
+    chmod 0700 "$DEMO_STATE_DIR"
+    temporary="$DEMO_ENV_FILE.tmp.$$"
+    umask 077
+    printf 'GRAPHX_CONTROL_TOKEN=%s\nGRAPHX_TELEMETRY_SHARED_SECRET=%s\n' \
+      "$(openssl rand -hex 32)" "$(openssl rand -hex 32)" >"$temporary"
+    chmod 0600 "$temporary"
+    mv "$temporary" "$DEMO_ENV_FILE"
+  fi
+  chmod 0600 "$DEMO_ENV_FILE"
+  stored_control=$(sed -n 's/^GRAPHX_CONTROL_TOKEN=//p' "$DEMO_ENV_FILE")
+  stored_runtime=$(sed -n 's/^GRAPHX_TELEMETRY_SHARED_SECRET=//p' "$DEMO_ENV_FILE")
+  if ! valid_demo_credential "$stored_control" ||
+      ! valid_demo_credential "$stored_runtime" ||
+      test "$stored_control" = "$stored_runtime"; then
+    echo "Invalid demo credential file: $DEMO_ENV_FILE" >&2
+    echo "Move it aside and rerun this command to generate a replacement." >&2
+    return 1
+  fi
+  if test -z "${GRAPHX_CONTROL_TOKEN:-}"; then
+    export GRAPHX_CONTROL_TOKEN="$stored_control"
+  fi
+  if test -z "${GRAPHX_TELEMETRY_SHARED_SECRET:-}"; then
+    export GRAPHX_TELEMETRY_SHARED_SECRET="$stored_runtime"
+  fi
+  if test "$GRAPHX_CONTROL_TOKEN" = "$GRAPHX_TELEMETRY_SHARED_SECRET"; then
+    echo "The demo control token and runtime secret must be distinct." >&2
+    return 1
+  fi
+  if ! valid_demo_credential "$GRAPHX_CONTROL_TOKEN" ||
+      ! valid_demo_credential "$GRAPHX_TELEMETRY_SHARED_SECRET"; then
+    echo "Demo credentials must contain 32-4096 printable non-space characters." >&2
+    return 1
+  fi
+  if test "$GRAPHX_CONTROL_TOKEN" != "$stored_control" ||
+      test "$GRAPHX_TELEMETRY_SHARED_SECRET" != "$stored_runtime"; then
+    temporary="$DEMO_ENV_FILE.tmp.$$"
+    umask 077
+    printf 'GRAPHX_CONTROL_TOKEN=%s\nGRAPHX_TELEMETRY_SHARED_SECRET=%s\n' \
+      "$GRAPHX_CONTROL_TOKEN" "$GRAPHX_TELEMETRY_SHARED_SECRET" >"$temporary"
+    chmod 0600 "$temporary"
+    mv "$temporary" "$DEMO_ENV_FILE"
+  fi
+}
+
+configure_demo_features() {
+  export GRAPHX_CAPTURE_ENABLED=${GRAPHX_CAPTURE_ENABLED:-true}
+  export GRAPHX_CAPTURE_MAX_FILE_BYTES=${GRAPHX_CAPTURE_MAX_FILE_BYTES:-67108864}
+  export GRAPHX_CAPTURE_MAX_PACKETS=${GRAPHX_CAPTURE_MAX_PACKETS:-100000}
+  export GRAPHX_HISTORY_ENABLED=${GRAPHX_HISTORY_ENABLED:-true}
+  export GRAPHX_HISTORY_RETENTION_SECONDS=${GRAPHX_HISTORY_RETENTION_SECONDS:-86400}
+  export GRAPHX_HISTORY_MAX_RECORDS=${GRAPHX_HISTORY_MAX_RECORDS:-50000}
+  export GRAPHX_HISTORY_MAX_DATABASE_BYTES=${GRAPHX_HISTORY_MAX_DATABASE_BYTES:-67108864}
 }
 
 observed_get() {
@@ -118,12 +190,38 @@ verify() {
   echo "Stop cleanly: scripts/demo.sh stop"
 }
 
-case ${1:-} in
+demo_command=${1:-}
+if test -n "$demo_command"; then shift; fi
+disable_capture=false
+disable_history=false
+while test "$#" -gt 0; do
+  case "$1" in
+    --no-capture) disable_capture=true ;;
+    --no-history) disable_history=true ;;
+    *) usage; exit 64 ;;
+  esac
+  shift
+done
+if test "$demo_command" != start &&
+    { test "$disable_capture" = true || test "$disable_history" = true; }; then
+  usage
+  exit 64
+fi
+
+case "$demo_command" in
   start)
     require docker
     require curl
+    ensure_demo_credentials
+    configure_demo_features
+    if test "$disable_capture" = true; then export GRAPHX_CAPTURE_ENABLED=false; fi
+    if test "$disable_history" = true; then export GRAPHX_HISTORY_ENABLED=false; fi
     "${COMPOSE[@]}" up -d --build
     verify
+    echo
+    echo "Capture: $GRAPHX_CAPTURE_ENABLED · History: $GRAPHX_HISTORY_ENABLED"
+    echo "Control token (paste into the console): $GRAPHX_CONTROL_TOKEN"
+    echo "Local credentials: $DEMO_ENV_FILE (mode 0600)"
     ;;
   verify)
     verify
@@ -138,6 +236,10 @@ case ${1:-} in
   logs)
     require docker
     "${COMPOSE[@]}" logs -f --tail=30 generator transform sink telemetry
+    ;;
+  token)
+    ensure_demo_credentials
+    printf '%s\n' "$GRAPHX_CONTROL_TOKEN"
     ;;
   stop)
     require docker

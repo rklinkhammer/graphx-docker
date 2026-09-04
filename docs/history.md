@@ -2,8 +2,9 @@
 
 Phase 7 adds an optional, local SQLite history backend to the telemetry service.
 It retains bounded operational telemetry and one-second SLO evaluations across
-collector restarts. History is disabled by default, does not change the GraphX
-wire protocol, and never participates in the graph data path.
+collector restarts. History is disabled by default in the core configuration
+but enabled with smaller limits by `scripts/demo.sh start`; it does not change
+the GraphX wire protocol and never participates in the graph data path.
 
 ## Architecture and failure isolation
 

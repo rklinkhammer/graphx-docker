@@ -17,11 +17,14 @@ cd ~/workspace/graphx-docker
 scripts/demo.sh start
 ```
 
-The command builds and starts the complete portable system, waits for telemetry,
-and proves that both TCP message counters advance. A healthy run prints five
-`PASS` lines. Open [http://localhost:8080](http://localhost:8080); the console
+The command creates reusable local demo credentials in the ignored
+`.graphx/demo.env` file, enables bounded PCAPNG capture and SQLite history,
+builds and starts the complete portable system, and proves that both TCP message
+counters advance. A healthy run prints five `PASS` lines and the control token
+to paste into the console. Open [http://localhost:8080](http://localhost:8080); the console
 should show **Traffic flowing**, all three nodes running, and increasing sample
-counts. To see the doubled values arriving at the sink:
+counts. Use `scripts/demo.sh token` to print the same control token later. To see
+the doubled values arriving at the sink:
 
 ```sh
 scripts/demo.sh logs
@@ -162,6 +165,9 @@ status and cursor APIs. Enable the persistent Compose volume with:
 docker compose -f compose.yaml -f compose.history.yaml up -d --build
 ```
 
+The guided `scripts/demo.sh start` command includes this overlay by default with
+smaller demo limits. Use `scripts/demo.sh start --no-history` to opt out.
+
 The console's **History** view reads the same observation-protected API; paging
 older records pauses live refresh until the operator returns to the newest page.
 `scripts/test-phase7-history.sh` proves authentication denial/success plus a
@@ -226,9 +232,10 @@ Three focused native-Linux examples isolate each driver/mode:
 examples/capture/run.sh
 ```
 
-This portable demo writes one correlated PCAPNG file per node. For the standard
-Docker demo, use `GRAPHX_CAPTURE_ENABLED=true scripts/demo.sh start` and download
-captures from the selected edge in the console. See
+This portable demo writes one correlated PCAPNG file per node. The guided
+Docker demo enables smaller bounded captures by default; use
+`scripts/demo.sh start --no-capture` to opt out. Download captures from the
+selected edge in the console. See
 [`docs/capture.md`](docs/capture.md) for the file representation, Wireshark
 dissector/extcap setup, resource limits, and USER0 limitations.
 
