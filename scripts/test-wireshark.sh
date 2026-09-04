@@ -13,20 +13,21 @@ TEST_DIR=$(mktemp -d "${TMPDIR:-/tmp}/graphx-wireshark.XXXXXX")
 cleanup() { find "$TEST_DIR" -type f -delete; rmdir "$TEST_DIR"; }
 trap cleanup EXIT INT TERM
 
+# Always stage executable Lua outside the source tree.  Some Linux tshark
+# packages or confinement profiles reject user scripts below a private home
+# directory even when the invoking user can read them normally.  The staged
+# file is also reachable after the root-only privilege drop below.
+chmod 0755 "$TEST_DIR"
+cp "$DISSECTOR" "$TEST_DIR/graphx.lua"
+chmod 0644 "$TEST_DIR/graphx.lua"
+DISSECTOR="$TEST_DIR/graphx.lua"
+
 TSHARK_COMMAND=("$TSHARK")
 if ((EUID == 0)); then
   command -v runuser >/dev/null || {
     echo "tshark disables Lua as root and runuser is unavailable" >&2
     exit 2
   }
-  chmod 0755 "$TEST_DIR"
-  # The source tree may be below a mode-0700 home directory.  tshark runs as
-  # nobody when this test starts as root, so stage the dissector beside the
-  # world-readable capture fixtures instead of requiring nobody to traverse
-  # the caller's home directory.
-  cp "$DISSECTOR" "$TEST_DIR/graphx.lua"
-  chmod 0644 "$TEST_DIR/graphx.lua"
-  DISSECTOR="$TEST_DIR/graphx.lua"
   TSHARK_COMMAND=(runuser -u nobody -- env HOME=/tmp "$TSHARK")
 fi
 
