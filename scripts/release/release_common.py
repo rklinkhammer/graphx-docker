@@ -92,6 +92,7 @@ ARCHIVE_DOCUMENTATION_FILES = frozenset({
     "share/doc/graphx/docs/compatibility-policy.md",
     "share/doc/graphx/docs/complete-system-demo.md",
     "share/doc/graphx/docs/control-plane.md",
+    "share/doc/graphx/docs/graphical-examples-guide.md",
     "share/doc/graphx/docs/history.md",
     "share/doc/graphx/docs/in-process-transport.md",
     "share/doc/graphx/docs/network-infrastructure.md",

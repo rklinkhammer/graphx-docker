@@ -5,6 +5,10 @@ ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 source "$ROOT/scripts/configure-build-trust.sh"
 COMPOSE=(docker compose -f "$ROOT/compose.yaml")
 URL=${GRAPHX_DEMO_URL:-http://127.0.0.1:8080}
+OBSERVATION_HEADERS=()
+if test -n "${GRAPHX_OBSERVATION_TOKEN:-}"; then
+  OBSERVATION_HEADERS=(-H "Authorization: Bearer $GRAPHX_OBSERVATION_TOKEN")
+fi
 
 usage() {
   cat <<'EOF'
@@ -72,11 +76,11 @@ verify() {
     }
   done
 
-  metrics_before=$(curl -fsS "$URL/metrics")
+  metrics_before=$(curl -fsS "${OBSERVATION_HEADERS[@]}" "$URL/metrics")
   first_samples=$(received_count samples <<<"$metrics_before")
   first_transformed=$(received_count transformed <<<"$metrics_before")
   sleep 2
-  metrics_after=$(curl -fsS "$URL/metrics")
+  metrics_after=$(curl -fsS "${OBSERVATION_HEADERS[@]}" "$URL/metrics")
   second_samples=$(received_count samples <<<"$metrics_after")
   second_transformed=$(received_count transformed <<<"$metrics_after")
 

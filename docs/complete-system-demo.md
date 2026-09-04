@@ -41,13 +41,17 @@ The **Network path** view shows the portable demo's Docker bridge path.
 Node cards show measured process CPU; this lightweight demo commonly uses less
 than 1%, so the console retains two decimal places for those readings.
 
-To enable authenticated source pause/resume, choose a token before startup:
+To enable authenticated source pause/resume, choose distinct operator and
+runtime-authentication values of at least 32 bytes before startup:
 
 ```sh
-GRAPHX_CONTROL_TOKEN='choose-a-local-demo-token' scripts/demo.sh start
+export GRAPHX_CONTROL_TOKEN="$(openssl rand -hex 32)"
+export GRAPHX_TELEMETRY_SHARED_SECRET="$(openssl rand -hex 32)"
+scripts/demo.sh start
 ```
 
-Enter that same value in the console's **Control token** field. **Pause source**
+Enter the value of `GRAPHX_CONTROL_TOKEN` in the console's **Control token**
+field. **Pause source**
 stops the generator after any in-flight envelope drains; **Resume** starts it
 again without resetting sequence numbers and remains available as a recovery
 action after a collector restart. The controls remain disabled when
@@ -55,6 +59,11 @@ the server has no token, no live runtime, or the browser token field is empty.
 The server returns an explicit error for invalid credentials. Reset only clears
 accumulated counters and does not stop traffic. Fault injection remains a native
 network-lab operation.
+
+For an observation-protected console, also export a third distinct value with
+`GRAPHX_OBSERVATION_TOKEN="$(openssl rand -hex 32)"` before startup and enter it
+in the console's **Observation token** field. Keep the exports in the shell when
+running `scripts/demo.sh verify` so its metrics request is authenticated.
 
 To include correlated application-frame capture, start with
 `GRAPHX_CAPTURE_ENABLED=true scripts/demo.sh start`. Selecting an edge then
@@ -140,3 +149,5 @@ profile is a userspace-OVS simulation.
 
 For exhaustive developer acceptance after this user-level walkthrough, see
 [`test-procedure.md`](test-procedure.md).
+For a task-oriented guide to the console, credentials, and captures across all
+examples, see [`graphical-examples-guide.md`](graphical-examples-guide.md).

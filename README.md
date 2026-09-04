@@ -38,6 +38,10 @@ are in [`docs/complete-system-demo.md`](docs/complete-system-demo.md). Start the
 before running the privileged network laboratories or the exhaustive developer
 test suite.
 
+For step-by-step use of the browser topology, observation/control credentials,
+and application or Ethernet capture across the examples, see
+[`docs/graphical-examples-guide.md`](docs/graphical-examples-guide.md).
+
 ## Build and test locally
 
 Requirements: CMake 3.25+, Ninja, OpenSSL 3 development files, a C++20/23 compiler, and network access on the
