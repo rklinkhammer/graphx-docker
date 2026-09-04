@@ -9,7 +9,8 @@ sudo -v
 if sudo ip link show gx-l3-parent >/dev/null 2>&1 ||
    docker network inspect gx-ipvl3-domains >/dev/null 2>&1; then
   echo "IPvlan L3 infrastructure already exists or a previous run was interrupted." >&2
-  echo "Run examples/ipvlan-l3/scripts/down.sh, then retry." >&2
+  printf 'Run GRAPHX_BUILD_DIR=%q examples/ipvlan-l3/scripts/down.sh, then retry.\n' \
+    "$(dirname "$graphx")" >&2
   exit 2
 fi
 
