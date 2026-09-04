@@ -68,6 +68,7 @@ case "$MODE" in
       -DGRAPHX_BUILD_TESTS=ON \
       -DGRAPHX_ENABLE_SANITIZERS=ON
     cmake --build "$build" -j "$GRAPHX_BUILD_JOBS"
+    ASAN_SYMBOLIZER_PATH=/usr/bin/llvm-symbolizer-18 \
     ASAN_OPTIONS=detect_leaks=1:strict_string_checks=1 \
     UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1 \
       ctest --test-dir "$build" --output-on-failure

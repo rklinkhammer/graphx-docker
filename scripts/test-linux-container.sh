@@ -46,6 +46,7 @@ echo "Running Linux verifier mode: $MODE"
 echo "Evidence directory: $EVIDENCE_DIR"
 run=(docker run --rm --init \
   --name "graphx-linux-${MODE}-$$" \
+  --shm-size 512m \
   --mount "type=bind,src=$EVIDENCE_DIR,dst=/evidence")
 if test -n "${GRAPHX_FUZZ_SECONDS:-}"; then
   run+=(--env "GRAPHX_FUZZ_SECONDS=$GRAPHX_FUZZ_SECONDS")
