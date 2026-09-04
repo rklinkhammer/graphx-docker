@@ -6,6 +6,8 @@ All notable GraphX changes are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-09-04
+
 ### Added
 
 - One authoritative `VERSION`, generated C++ version API, and `graphx --version`.
@@ -17,5 +19,11 @@ All notable GraphX changes are recorded here. The format follows
   exact-version OCI image tags.
 - Compatibility, release, upgrade, support, contribution, and security policy.
 
-No release has been published from this worktree. A maintainer moves these
-entries to a dated version section as part of an approved release.
+### Fixed
+
+- Applied optional organization CA and reviewed installer trust consistently to
+  verifier, runtime, telemetry, OVS, Compose, and native-network image builds.
+- Hardened the Linux verification workflow for native build discovery, TLS and
+  Wireshark checks, package installation, sanitizer diagnostics, and fuzzing.
+- Made privileged macvlan and ipvlan lab cleanup resilient after interrupted or
+  partially completed runs.

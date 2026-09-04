@@ -2,6 +2,7 @@
 set -Eeuo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+source "$ROOT/scripts/configure-build-trust.sh"
 MODE=${1:-tls}
 IMAGE=${GRAPHX_LINUX_VERIFIER_IMAGE:-graphx-linux-verifier:local}
 EVIDENCE_DIR=${GRAPHX_LINUX_EVIDENCE_DIR:-"$ROOT/outputs/linux-container"}
@@ -23,6 +24,7 @@ docker info >/dev/null
 mkdir -p "$EVIDENCE_DIR"
 
 build=(docker build --progress=plain -f "$ROOT/docker/linux-verifier.Dockerfile" -t "$IMAGE")
+build+=(--build-arg "GRAPHX_BUILD_TRUST_FINGERPRINT=$GRAPHX_BUILD_TRUST_FINGERPRINT")
 if test -n "${GRAPHX_CA_CERT:-}"; then
   test -r "$GRAPHX_CA_CERT" || {
     echo "GRAPHX_CA_CERT is not readable: $GRAPHX_CA_CERT" >&2

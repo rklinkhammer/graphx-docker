@@ -16,26 +16,15 @@ RUN apt-get update \
       libclang-rt-18-dev python3 tshark \
  && rm -rf /var/lib/apt/lists/*
 
-# A public/private-organization root CA may be supplied at build time with:
+# A private-organization root CA may be supplied at build time with:
 #   --secret id=graphx_ca,src=/absolute/path/to/company-root-ca.crt
-# The CA is intentionally copied into this local verifier image because npm,
-# CMake FetchContent, and other verification tools may need it at runtime.
-RUN --mount=type=secret,id=graphx_ca,required=false \
-    if test -f /run/secrets/graphx_ca; then \
-      install -m 0644 /run/secrets/graphx_ca \
-        /usr/local/share/ca-certificates/graphx-local-root-ca.crt; \
-      update-ca-certificates; \
-    fi
-
-# Existing organization installers can instead be supplied as a local file:
+# Existing organization installers may also be supplied as a reviewed local file:
 #   --secret id=graphx_cert_installer,src=/absolute/path/to/install-certs.sh
-# The script is never copied into an image layer. Only its intended certificate
-# store changes remain in this local verifier image.
-RUN --mount=type=secret,id=graphx_cert_installer,required=false \
-    if test -f /run/secrets/graphx_cert_installer; then \
-      /usr/bin/bash /run/secrets/graphx_cert_installer; \
-      update-ca-certificates; \
-    fi
+COPY docker/install-build-trust.sh /usr/local/libexec/graphx-install-build-trust
+ARG GRAPHX_BUILD_TRUST_FINGERPRINT=graphx-trust-v1-none
+RUN --mount=type=secret,id=graphx_ca,required=false \
+    --mount=type=secret,id=graphx_cert_installer,required=false \
+    /usr/bin/bash /usr/local/libexec/graphx-install-build-trust
 
 ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
 ENV GRAPHX_BUILD_JOBS=4

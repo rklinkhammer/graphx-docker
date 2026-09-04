@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 example_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+repo_dir="$(cd "$example_dir/../.." && pwd)"
+source "$repo_dir/scripts/configure-build-trust.sh"
 docker network inspect gx-mac-sim >/dev/null 2>&1 || \
   docker network create --driver bridge --subnet 10.10.0.0/24 --gateway 10.10.0.254 gx-mac-sim
 docker network inspect gx-ipv-sim >/dev/null 2>&1 || \

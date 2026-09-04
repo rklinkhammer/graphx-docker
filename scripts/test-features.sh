@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+source "$ROOT/scripts/configure-build-trust.sh"
 MODE=${1:-portable}
 BUILD_DIR=${GRAPHX_BUILD_DIR:-"$ROOT/build/dev"}
 CXX20_BUILD_DIR=${GRAPHX_CXX20_BUILD_DIR:-"$ROOT/build/cxx20-features"}

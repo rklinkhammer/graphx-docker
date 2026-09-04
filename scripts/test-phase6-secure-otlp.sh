@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+source "$ROOT/scripts/configure-build-trust.sh"
 PROJECT=${GRAPHX_PHASE6_OTLP_PROJECT:-"graphx-phase6-otlp-$$"}
 PORT=${GRAPHX_PHASE6_OTLP_PORT:-18438}
 TEMP=$(mktemp -d "${TMPDIR:-/tmp}/graphx-phase6-otlp.XXXXXX")

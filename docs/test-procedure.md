@@ -493,23 +493,39 @@ scripts/test-linux-container.sh quality
 ```
 
 Logs are written under `outputs/linux-container/`. The image uses Ubuntu 24.04,
-Node 24, OpenSSL 3, and Clang 18. To install an organization root CA into this
-local verifier image without adding it to the repository, provide its absolute
-path as a BuildKit secret:
+Node 24, OpenSSL 3, and Clang 18. To install organization trust globally for
+GraphX builds without adding it to the repository, export the absolute path to
+a root CA, a reviewed installer, or both before invoking any repository test
+script:
 
 ```sh
-GRAPHX_CA_CERT=/absolute/path/to/company-root-ca.crt \
-  scripts/test-linux-container.sh tls
+export GRAPHX_CA_CERT=/absolute/path/to/company-root-ca.crt
+export GRAPHX_CERT_INSTALL_SCRIPT=/absolute/path/to/install-certs.sh
+
+scripts/test-linux-container.sh tls
+scripts/test-features.sh docker
 ```
 
-If the organization supplies a certificate installation script instead, save
-and inspect it locally, then pass that file without piping network content into
-the image build:
+Either variable may be omitted. The same variables flow through the standard
+Compose deployment, telemetry build, OVS simulation, and native Linux example
+builds. Repository entry-point scripts calculate a non-secret content
+fingerprint so rotating either file invalidates the BuildKit trust layer instead
+of silently reusing its cache. For a manual Compose command, initialize that
+fingerprint in the current shell first:
 
 ```sh
-GRAPHX_CERT_INSTALL_SCRIPT=/absolute/path/to/install-certs.sh \
-  scripts/test-linux-container.sh tls
+source scripts/configure-build-trust.sh
+docker compose up -d --build
 ```
+
+The installer runs noninteractively as root in a Debian/Ubuntu trust-bootstrap
+stage with `bash`, `curl`, `apt-get`, and `update-ca-certificates` available. It
+must be reviewed, must not use `sudo`, and should restrict its changes to the
+system certificate store. The resulting CA bundle is copied into Alpine-based
+telemetry stages before `npm ci`. The source CA and installer remain BuildKit
+secrets and are not copied into an image layer; the resulting public trust
+anchors necessarily remain in the image certificate bundle. Never use these
+global inputs for client private keys, registry passwords, or npm tokens.
 
 Do not use this container as proof of native macvlan, IPvlan, physical-parent,
 OVS, namespace-router, nftables, or netem behavior. Those acceptance gates still

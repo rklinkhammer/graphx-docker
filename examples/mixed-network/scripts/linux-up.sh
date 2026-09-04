@@ -2,6 +2,7 @@
 set -euo pipefail
 example_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 repo_dir="$(cd "$example_dir/../.." && pwd)"
+source "$repo_dir/scripts/configure-build-trust.sh"
 graphx="${GRAPHX_BUILD_DIR:-$repo_dir/build/dev}/graphx"
 [[ "$(uname -s)" == Linux ]] || { echo "native profile requires Linux" >&2; exit 2; }
 

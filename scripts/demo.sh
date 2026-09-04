@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+source "$ROOT/scripts/configure-build-trust.sh"
 COMPOSE=(docker compose -f "$ROOT/compose.yaml")
 URL=${GRAPHX_DEMO_URL:-http://127.0.0.1:8080}
 

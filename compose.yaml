@@ -1,7 +1,10 @@
 name: graphx
 services:
   sink:
-    build: .
+    build:
+      context: .
+      secrets: [graphx_ca, graphx_cert_installer]
+      args: { GRAPHX_BUILD_TRUST_FINGERPRINT: "${GRAPHX_BUILD_TRUST_FINGERPRINT:-graphx-trust-v1-none}" }
     image: graphx-demo:latest
     entrypoint: ["/usr/local/bin/graphx-sink"]
     environment:
@@ -24,7 +27,10 @@ services:
     pids_limit: 128
     init: true
   transform:
-    build: .
+    build:
+      context: .
+      secrets: [graphx_ca, graphx_cert_installer]
+      args: { GRAPHX_BUILD_TRUST_FINGERPRINT: "${GRAPHX_BUILD_TRUST_FINGERPRINT:-graphx-trust-v1-none}" }
     image: graphx-demo:latest
     entrypoint: ["/usr/local/bin/graphx-transform"]
     environment:
@@ -47,7 +53,10 @@ services:
     pids_limit: 128
     init: true
   generator:
-    build: .
+    build:
+      context: .
+      secrets: [graphx_ca, graphx_cert_installer]
+      args: { GRAPHX_BUILD_TRUST_FINGERPRINT: "${GRAPHX_BUILD_TRUST_FINGERPRINT:-graphx-trust-v1-none}" }
     image: graphx-demo:latest
     entrypoint: ["/usr/local/bin/graphx-generator"]
     environment:
@@ -74,6 +83,8 @@ services:
     build:
       context: .
       dockerfile: docker/telemetry.Dockerfile
+      secrets: [graphx_ca, graphx_cert_installer]
+      args: { GRAPHX_BUILD_TRUST_FINGERPRINT: "${GRAPHX_BUILD_TRUST_FINGERPRINT:-graphx-trust-v1-none}" }
     image: graphx-telemetry:latest
     ports: ["127.0.0.1:8080:8080"]
     expose: ["9000/udp"]
@@ -140,3 +151,9 @@ networks:
 
 volumes:
   captures:
+
+secrets:
+  graphx_ca:
+    file: ${GRAPHX_CA_CERT:-/dev/null}
+  graphx_cert_installer:
+    file: ${GRAPHX_CERT_INSTALL_SCRIPT:-/dev/null}

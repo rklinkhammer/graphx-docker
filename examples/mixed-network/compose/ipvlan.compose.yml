@@ -1,13 +1,19 @@
 services:
   transform:
-    build: ../../..
+    build:
+      context: ../../..
+      secrets: [graphx_ca, graphx_cert_installer]
+      args: { GRAPHX_BUILD_TRUST_FINGERPRINT: "${GRAPHX_BUILD_TRUST_FINGERPRINT:-graphx-trust-v1-none}" }
     image: graphx-demo:latest
     entrypoint: ["/usr/local/bin/graphx-transform"]
     volumes: ["../graphx.yaml:/etc/graphx/graphx.yaml:ro"]
     networks:
       ipv-domain: { ipv4_address: 10.20.0.20 }
   sink:
-    build: ../../..
+    build:
+      context: ../../..
+      secrets: [graphx_ca, graphx_cert_installer]
+      args: { GRAPHX_BUILD_TRUST_FINGERPRINT: "${GRAPHX_BUILD_TRUST_FINGERPRINT:-graphx-trust-v1-none}" }
     image: graphx-demo:latest
     entrypoint: ["/usr/local/bin/graphx-sink"]
     volumes: ["../graphx.yaml:/etc/graphx/graphx.yaml:ro"]
@@ -15,3 +21,6 @@ services:
       ipv-domain: { ipv4_address: 10.20.0.30 }
 networks:
   ipv-domain: { name: gx-ipv-domain, external: true }
+secrets:
+  graphx_ca: { file: "${GRAPHX_CA_CERT:-/dev/null}" }
+  graphx_cert_installer: { file: "${GRAPHX_CERT_INSTALL_SCRIPT:-/dev/null}" }

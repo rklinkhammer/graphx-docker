@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+source "$ROOT/scripts/configure-build-trust.sh"
 PROJECT=${GRAPHX_PHASE6_TEST_PROJECT:-"graphx-phase6-test-$$"}
 FILES=(-f "$ROOT/compose.yaml" -f "$ROOT/compose.observability.yaml")
 

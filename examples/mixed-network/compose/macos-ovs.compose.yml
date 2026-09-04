@@ -3,6 +3,8 @@ services:
     build:
       context: ../../..
       dockerfile: docker/ovs/Dockerfile
+      secrets: [graphx_ca, graphx_cert_installer]
+      args: { GRAPHX_BUILD_TRUST_FINGERPRINT: "${GRAPHX_BUILD_TRUST_FINGERPRINT:-graphx-trust-v1-none}" }
     image: graphx-ovs:latest
     privileged: true
     devices: ["/dev/net/tun:/dev/net/tun"]
@@ -12,3 +14,6 @@ services:
 networks:
   mac-sim: { name: gx-mac-sim, external: true }
   ipv-sim: { name: gx-ipv-sim, external: true }
+secrets:
+  graphx_ca: { file: "${GRAPHX_CA_CERT:-/dev/null}" }
+  graphx_cert_installer: { file: "${GRAPHX_CERT_INSTALL_SCRIPT:-/dev/null}" }

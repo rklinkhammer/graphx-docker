@@ -149,15 +149,23 @@ or a reviewed installer as a BuildKit secret:
 
 ```bash
 export GRAPHX_CA_CERT=/secure/company-root-ca.crt
-# Or, if policy requires a reviewed installer:
+# Optionally also run a reviewed organization installer:
 export GRAPHX_CERT_INSTALL_SCRIPT=/secure/install-company-ca.sh
 scripts/test-linux-container.sh ctest
 ```
 
-The Linux verifier image contains `bash`, `curl`, and `apt-get`. The telemetry
-runtime is Alpine-based and intentionally does not contain `apt-get`; certificates
-must be installed in its build stage using Alpine-compatible tooling or a direct
-CA secret, not a Debian installer.
+These exports apply to every repository-managed Docker build, including the
+standard deployment, telemetry, OVS, macvlan, IPvlan, and mixed-network tests.
+Both inputs are optional and may be used together. Repository entry-point scripts
+also derive `GRAPHX_BUILD_TRUST_FINGERPRINT` from their contents so certificate
+rotation invalidates cached trust layers.
+
+The installer runs in a Debian/Ubuntu trust-bootstrap stage containing `bash`,
+`curl`, `apt-get`, and `update-ca-certificates`. The resulting trust bundle is
+copied into the Alpine telemetry build before npm runs. For manual Compose
+commands, run `source scripts/configure-build-trust.sh` after exporting the paths.
+Do not pipe an installer from the network, use `sudo` inside it, or use this
+global mechanism for private keys or authentication tokens.
 
 ## 5 Create the evidence record
 
