@@ -20,6 +20,13 @@ if ((EUID == 0)); then
     exit 2
   }
   chmod 0755 "$TEST_DIR"
+  # The source tree may be below a mode-0700 home directory.  tshark runs as
+  # nobody when this test starts as root, so stage the dissector beside the
+  # world-readable capture fixtures instead of requiring nobody to traverse
+  # the caller's home directory.
+  cp "$DISSECTOR" "$TEST_DIR/graphx.lua"
+  chmod 0644 "$TEST_DIR/graphx.lua"
+  DISSECTOR="$TEST_DIR/graphx.lua"
   TSHARK_COMMAND=(runuser -u nobody -- env HOME=/tmp "$TSHARK")
 fi
 
