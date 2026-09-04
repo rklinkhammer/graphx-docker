@@ -3,6 +3,9 @@
 /apps/telemetry/node_modules/
 /web/dist/
 /.DS_Store
+__pycache__/
+*.pyc
 /outputs/*.zip
+/outputs/release*/
 /outputs/linux-container/
 /captures/

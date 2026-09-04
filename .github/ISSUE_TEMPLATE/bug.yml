@@ -1,0 +1,40 @@
+name: Bug report
+description: Report a reproducible GraphX defect (not a security vulnerability)
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Security vulnerabilities must be reported privately using SECURITY.md.
+  - type: input
+    id: version
+    attributes:
+      label: GraphX version or commit
+      description: Include the output of graphx --version and the commit when known.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, architecture, compiler/runtime, Docker version, and relevant Linux capabilities.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Remove credentials and sensitive capture payloads.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Logs and validation evidence
+      description: Include exact failing checks and sanitize secrets.

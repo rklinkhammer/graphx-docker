@@ -12,6 +12,24 @@ first accepts an installed compatible package and otherwise downloads the
 versioned archive while verifying the hash above. The upstream license is
 included with its source archive and build output.
 
+Native release archives include the yaml-cpp license under
+`share/doc/graphx/licenses`. Each native release candidate contains an SPDX 2.3
+inventory of GraphX, this pinned yaml-cpp library, and the OpenSSL version linked
+by that build. npm dependencies and container base-image layers are represented
+only in the corresponding OCI-image SBOM attestations, not in this native archive
+SBOM.
+
+## OpenSSL
+
+- Version: discovered from the required OpenSSL 3 package at configure time
+- Source: <https://www.openssl.org/source/>
+- License: Apache-2.0
+
+GraphX links OpenSSL SSL and Crypto for authenticated transport. OpenSSL is a
+platform dependency and is not bundled in the native archive. The native SPDX
+document records the exact version CMake selected so consumers can reconcile the
+archive with its build environment.
+
 ## Optional operations images
 
 The optional `compose.observability.yaml` projection uses immutable image

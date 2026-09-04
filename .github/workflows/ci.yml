@@ -169,3 +169,34 @@ jobs:
         run: docker compose -f compose.yaml build
       - name: Verify capture-volume identity and collector read-only access
         run: bash scripts/test-container-hardening.sh
+
+  release-contract:
+    name: No-publish release candidate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install packaging tools
+        run: >-
+          sudo apt-get update &&
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y
+          ninja-build libssl-dev python3 tshark
+      - name: Build and verify candidate without publishing
+        run: |
+          version="$(tr -d '\n' < VERSION)"
+          python3 scripts/release/validate_version.py --tag "v${version}"
+          python3 scripts/release/build_release.py \
+            --build-dir build/release-contract \
+            --output-dir outputs/release-contract \
+            --tag "v${version}"
+          python3 scripts/release/verify_release.py outputs/release-contract --source .
+          python3 scripts/release/build_release.py \
+            --build-dir build/release-reproducibility \
+            --output-dir outputs/release-reproducibility \
+            --tag "v${version}"
+          for candidate in outputs/release-contract/*; do
+            cmp "$candidate" "outputs/release-reproducibility/$(basename "$candidate")"
+          done

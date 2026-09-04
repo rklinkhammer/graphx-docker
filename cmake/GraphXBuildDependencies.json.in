@@ -1,0 +1,4 @@
+{
+  "openssl": "@OPENSSL_VERSION@",
+  "yamlCpp": "0.9.0"
+}

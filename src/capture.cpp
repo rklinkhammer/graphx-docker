@@ -295,8 +295,10 @@ class WriterState {
     try {
       write_all(descriptor_, bytes);
     } catch (...) {
-      static_cast<void>(::ftruncate(descriptor_, position));
-      static_cast<void>(::lseek(descriptor_, position, SEEK_SET));
+      const auto truncate_result = ::ftruncate(descriptor_, position);
+      const auto seek_result = ::lseek(descriptor_, position, SEEK_SET);
+      static_cast<void>(truncate_result);
+      static_cast<void>(seek_result);
       throw;
     }
     bytes_written_ += bytes.size();

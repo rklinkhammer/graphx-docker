@@ -7,9 +7,9 @@ IMAGE=${GRAPHX_LINUX_VERIFIER_IMAGE:-graphx-linux-verifier:local}
 EVIDENCE_DIR=${GRAPHX_LINUX_EVIDENCE_DIR:-"$ROOT/outputs/linux-container"}
 
 case "$MODE" in
-  tls|ctest|portable|quality|fuzz|shell) ;;
+  tls|ctest|portable|quality|sanitizers|fuzz|shell) ;;
   *)
-    echo "usage: $0 {tls|ctest|portable|quality|fuzz|shell}" >&2
+    echo "usage: $0 {tls|ctest|portable|quality|sanitizers|fuzz|shell}" >&2
     exit 64
     ;;
 esac

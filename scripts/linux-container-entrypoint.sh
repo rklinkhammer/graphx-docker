@@ -59,6 +59,19 @@ case "$MODE" in
     GRAPHX_FUZZ_SECONDS="${GRAPHX_FUZZ_SECONDS:-30}" \
       "$ROOT/scripts/run-fuzz.sh"
     ;;
+  sanitizers)
+    build=/tmp/graphx-linux-sanitizers
+    CC=clang-18 CXX=clang++-18 cmake -S "$ROOT" -B "$build" -G Ninja \
+      -DCMAKE_BUILD_TYPE=Debug \
+      -DCMAKE_CXX_STANDARD=23 \
+      -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+      -DGRAPHX_BUILD_TESTS=ON \
+      -DGRAPHX_ENABLE_SANITIZERS=ON
+    cmake --build "$build" -j "$GRAPHX_BUILD_JOBS"
+    ASAN_OPTIONS=detect_leaks=1:strict_string_checks=1 \
+    UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1 \
+      ctest --test-dir "$build" --output-on-failure
+    ;;
   fuzz)
     GRAPHX_FUZZ_BUILD_DIR=/tmp/graphx-linux-fuzz \
     GRAPHX_FUZZ_SECONDS="${GRAPHX_FUZZ_SECONDS:-30}" \
@@ -68,7 +81,7 @@ case "$MODE" in
     exec /usr/bin/bash
     ;;
   *)
-    echo "usage: $0 {tls|ctest|portable|quality|fuzz|shell}" >&2
+    echo "usage: $0 {tls|ctest|portable|quality|sanitizers|fuzz|shell}" >&2
     exit 64
     ;;
 esac

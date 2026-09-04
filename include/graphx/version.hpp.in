@@ -1,0 +1,12 @@
+#pragma once
+
+#include <string_view>
+
+namespace graphx {
+
+inline constexpr std::string_view version = "@GRAPHX_VERSION@";
+inline constexpr unsigned version_major = @PROJECT_VERSION_MAJOR@;
+inline constexpr unsigned version_minor = @PROJECT_VERSION_MINOR@;
+inline constexpr unsigned version_patch = @PROJECT_VERSION_PATCH@;
+
+}  // namespace graphx

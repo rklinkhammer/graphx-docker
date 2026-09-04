@@ -1,0 +1,11 @@
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+find_dependency(Threads)
+find_dependency(OpenSSL 3)
+if(NOT @GRAPHX_BUNDLED_YAML_CPP@)
+  find_dependency(yaml-cpp 0.9 CONFIG)
+endif()
+
+include("${CMAKE_CURRENT_LIST_DIR}/GraphXTargets.cmake")
+check_required_components(GraphX)

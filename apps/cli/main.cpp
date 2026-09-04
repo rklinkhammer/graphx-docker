@@ -1,5 +1,6 @@
 #include "graphx/config.hpp"
 #include "graphx/infra.hpp"
+#include "graphx/version.hpp"
 
 #include <cstdlib>
 #include <filesystem>
@@ -11,6 +12,7 @@ namespace {
 
 void usage(std::ostream& output) {
   output << "usage:\n"
+         << "  graphx --version\n"
          << "  graphx <validate|inspect> [config.yaml] [--set path=value]\n"
          << "  graphx infra <create|destroy|status> [config.yaml] [--dry-run]\n"
          << "  graphx infra fault <apply|clear> [config.yaml] --router ID --interface ID\n"
@@ -212,6 +214,11 @@ int infrastructure_command(int argc, char** argv) {
 }  // namespace
 
 int main(int argc, char** argv) {
+  if (argc == 2 &&
+      (std::string_view(argv[1]) == "--version" || std::string_view(argv[1]) == "version")) {
+    std::cout << "graphx " << graphx::version << '\n';
+    return 0;
+  }
   if (argc < 2 || std::string_view(argv[1]) == "--help") {
     usage(argc < 2 ? std::cerr : std::cout);
     return argc < 2 ? 64 : 0;

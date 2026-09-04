@@ -72,6 +72,41 @@ builds. It never opts into privileged macvlan/ipvlan/OVS host mutation.
 
 The library uses C++23 by default but only relies on broadly available C++20-era facilities. Set `CMAKE_CXX_STANDARD=20` if your toolchain needs it.
 
+## Versioned packages and releases
+
+`VERSION` is the authoritative product version. Confirm a binary with
+`./build/dev/graphx --version`. A local release candidate can be built and fully
+verified without publication authority:
+
+```sh
+python3 scripts/release/build_release.py \
+  --build-dir build/release-local \
+  --output-dir outputs/release-local \
+  --tag "v$(tr -d '\n' < VERSION)" \
+  --allow-dirty
+python3 scripts/release/verify_release.py outputs/release-local --source .
+```
+
+The development-only `--allow-dirty` flag is never permitted for a published
+release. Each platform candidate contains an installable native archive, an
+artifact-scoped SPDX 2.3 SBOM, a release manifest, and a strict SHA-256 checksum
+set. The verifier binds these files to trusted tag, commit, platform, and source
+epoch values, requires the complete canonical package layout, and bounds both
+compressed and expanded archive work. The archive contract is an exact regular-
+file inventory: programs use mode `0755`, data/libraries/headers/documentation use
+`0644`, and missing, extra, or mode-altered entries are rejected. The native SBOM
+describes GraphX, bundled yaml-cpp, and the externally linked OpenSSL version
+selected by CMake. Exact
+version tags drive an approval-gated workflow that stages
+both multi-architecture images by run identity, attaches provenance and SBOM
+attestations, and only then promotes non-replaceable version tags; it does not
+publish `latest`.
+
+See [`docs/release-process.md`](docs/release-process.md),
+[`docs/compatibility-policy.md`](docs/compatibility-policy.md),
+[`docs/upgrade.md`](docs/upgrade.md), [`SUPPORT.md`](SUPPORT.md), and
+[`SECURITY.md`](SECURITY.md).
+
 ## Secure deployment boundary
 
 Phase 5 adds optional TLS 1.3/mTLS to TCP graph edges, HTTPS/mTLS for telemetry,
@@ -414,10 +449,12 @@ example helpers.
 ├── docker/                 telemetry and userspace-OVS images
 ├── examples/               mixed, macvlan, IPvlan L2, and IPvlan L3 labs
 ├── include/graphx/         public C++ contracts
+├── scripts/release/        candidate creation and offline verification
 ├── src/                    envelope, framing, and transports
 ├── tests/                  dependency-free unit/integration test runner
 ├── web/                    React + React Flow + ELK console
 ├── graphx.yaml             source topology model
+├── VERSION                 authoritative product version
 ├── compose.yaml            static Docker deployment
 └── CMakeLists.txt
 ```
@@ -492,6 +529,7 @@ portable suite:
 ```sh
 scripts/test-linux-container.sh tls
 scripts/test-linux-container.sh portable
+scripts/test-linux-container.sh sanitizers
 GRAPHX_FUZZ_SECONDS=30 scripts/test-linux-container.sh fuzz
 ```
 
@@ -554,7 +592,8 @@ production-hardening phase forward.
 8. **Control plane** — authorized control and real runtime controls (implemented).
 9. **Wireshark** — bounded PCAPNG, v1/v2 Lua dissector, and validated extcap
    implementation (implemented).
-10. **Release engineering** — compatibility policy, packaging, and support processes.
+10. **Release engineering** — compatibility policy, packaging, and support processes
+    (implemented; publication remains an explicit maintainer action).
 
 ## Design boundaries
 

@@ -1,0 +1,298 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    name: Release quality gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - name: Validate immutable release identity
+        run: python3 scripts/release/validate_version.py --tag "${GITHUB_REF_NAME}"
+      - name: Reject an existing release identity before any build
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          owner="$(printf '%s' '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
+          version="$(tr -d '\n' < VERSION)"
+          python3 scripts/release/ghcr_release.py assert-absent \
+            --repository "${{ github.repository }}" --owner "$owner" \
+            --owner-type "${{ github.event.repository.owner.type }}" --tag "$version" \
+            --package graphx-runtime --package graphx-telemetry
+      - name: Run portable Linux acceptance
+        run: scripts/test-linux-container.sh portable
+      - name: Run pinned static analysis and fuzz smoke
+        env:
+          GRAPHX_FUZZ_SECONDS: '30'
+        run: scripts/test-linux-container.sh quality
+      - name: Run sanitizer suite
+        run: scripts/test-linux-container.sh sanitizers
+      - name: Audit production JavaScript dependencies
+        run: |
+          npm audit --prefix apps/telemetry --omit=dev
+          npm audit --prefix web --omit=dev
+
+  native:
+    name: Package ${{ matrix.os }}
+    needs: gate
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            platform: linux-x86_64
+          - os: macos-15
+            platform: darwin-aarch64
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install release tools on Linux
+        if: runner.os == 'Linux'
+        run: >-
+          sudo apt-get update &&
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y
+          ninja-build libssl-dev python3 tshark
+      - name: Install release tools on macOS
+        if: runner.os == 'macOS'
+        run: brew install ninja openssl@3 wireshark
+      - name: Build, test, and package release candidate
+        run: >-
+          python3 scripts/release/build_release.py
+          --build-dir build/release
+          --output-dir outputs/release
+          --tag "${GITHUB_REF_NAME}"
+      - name: Verify release candidate
+        run: python3 scripts/release/verify_release.py outputs/release --source .
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: graphx-${{ matrix.platform }}
+          path: outputs/release/*
+          if-no-files-found: error
+          retention-days: 14
+
+  containers:
+    name: Publish multi-architecture containers
+    needs: [gate, native]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: release
+    permissions:
+      contents: read
+      packages: write
+      attestations: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Read validated version
+        id: version
+        run: |
+          python3 scripts/release/validate_version.py --tag "${GITHUB_REF_NAME}"
+          echo "version=$(tr -d '\n' < VERSION)" >> "$GITHUB_OUTPUT"
+          echo "owner=$(printf '%s' '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9f # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and stage runtime image by unique run identity
+        id: runtime
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ghcr.io/${{ steps.version.outputs.owner }}/graphx-runtime:staging-${{ github.run_id }}-${{ github.run_attempt }}
+          provenance: mode=max
+          sbom: generator=docker/buildkit-syft-scanner@sha256:ae4f3b554449e7e25548e7d8ccc029d17357348e30c6e3df01b92bc93654d6a9
+          build-args: |
+            GRAPHX_VERSION=${{ steps.version.outputs.version }}
+            GRAPHX_REVISION=${{ github.sha }}
+      - name: Attest runtime image
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
+        with:
+          subject-name: ghcr.io/${{ steps.version.outputs.owner }}/graphx-runtime
+          subject-digest: ${{ steps.runtime.outputs.digest }}
+          push-to-registry: true
+      - name: Build and stage telemetry image by unique run identity
+        id: telemetry
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: docker/telemetry.Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ghcr.io/${{ steps.version.outputs.owner }}/graphx-telemetry:staging-${{ github.run_id }}-${{ github.run_attempt }}
+          provenance: mode=max
+          sbom: generator=docker/buildkit-syft-scanner@sha256:ae4f3b554449e7e25548e7d8ccc029d17357348e30c6e3df01b92bc93654d6a9
+          build-args: |
+            GRAPHX_VERSION=${{ steps.version.outputs.version }}
+            GRAPHX_REVISION=${{ github.sha }}
+      - name: Attest telemetry image
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
+        with:
+          subject-name: ghcr.io/${{ steps.version.outputs.owner }}/graphx-telemetry
+          subject-digest: ${{ steps.telemetry.outputs.digest }}
+          push-to-registry: true
+      - name: Validate staged platform SBOM inventories
+        run: |
+          runtime="ghcr.io/${{ steps.version.outputs.owner }}/graphx-runtime@${{ steps.runtime.outputs.digest }}"
+          telemetry="ghcr.io/${{ steps.version.outputs.owner }}/graphx-telemetry@${{ steps.telemetry.outputs.digest }}"
+          for platform in linux/amd64 linux/arm64; do
+            docker buildx imagetools inspect "$runtime" \
+              --format "{{ json (index .SBOM \"${platform}\").SPDX }}" | \
+              python3 scripts/release/validate_oci_sbom.py --artifact "runtime-${platform}"
+            docker buildx imagetools inspect "$telemetry" \
+              --format "{{ json (index .SBOM \"${platform}\").SPDX }}" | \
+              python3 scripts/release/validate_oci_sbom.py --artifact "telemetry-${platform}" \
+                --expected-package ws
+          done
+      - name: Promote both staged images without replacing a version
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          OWNER: ${{ steps.version.outputs.owner }}
+          OWNER_TYPE: ${{ github.event.repository.owner.type }}
+          VERSION: ${{ steps.version.outputs.version }}
+          RUNTIME_DIGEST: ${{ steps.runtime.outputs.digest }}
+          TELEMETRY_DIGEST: ${{ steps.telemetry.outputs.digest }}
+        run: |
+          set -euo pipefail
+          promoted=()
+          cleanup_on_error() {
+            status=$?
+            trap - EXIT
+            if test "$status" -ne 0; then
+              for package in "${promoted[@]}"; do
+                python3 scripts/release/ghcr_release.py delete-tag \
+                  --repository "${{ github.repository }}" --owner "$OWNER" \
+                  --owner-type "$OWNER_TYPE" --tag "$VERSION" --package "$package" \
+                  --companion-prefix "staging-${{ github.run_id }}-${{ github.run_attempt }}" || true
+              done
+            fi
+            exit "$status"
+          }
+          trap cleanup_on_error EXIT
+          python3 scripts/release/ghcr_release.py assert-absent \
+            --repository "${{ github.repository }}" --owner "$OWNER" \
+            --owner-type "$OWNER_TYPE" --tag "$VERSION" \
+            --package graphx-runtime --package graphx-telemetry
+          runtime="ghcr.io/${OWNER}/graphx-runtime"
+          telemetry="ghcr.io/${OWNER}/graphx-telemetry"
+          docker buildx imagetools create --tag "${runtime}:${VERSION}" \
+            "${runtime}@${RUNTIME_DIGEST}"
+          promoted+=(graphx-runtime)
+          test "$(docker buildx imagetools inspect "${runtime}:${VERSION}" \
+            --format '{{.Manifest.Digest}}')" = "$RUNTIME_DIGEST"
+          docker buildx imagetools create --tag "${telemetry}:${VERSION}" \
+            "${telemetry}@${TELEMETRY_DIGEST}"
+          promoted+=(graphx-telemetry)
+          test "$(docker buildx imagetools inspect "${telemetry}:${VERSION}" \
+            --format '{{.Manifest.Digest}}')" = "$TELEMETRY_DIGEST"
+          trap - EXIT
+
+  publish:
+    name: Publish GitHub release
+    needs: [gate, native, containers]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: release
+    permissions:
+      contents: write
+      packages: read
+      attestations: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          path: release-assets
+          pattern: graphx-*
+      - name: Verify every downloaded candidate
+        run: |
+          version="$(tr -d '\n' < VERSION)"
+          epoch="$(git show -s --format=%ct HEAD)"
+          python3 scripts/release/verify_release.py \
+            release-assets/graphx-linux-x86_64 \
+            --expected-tag "v${version}" --expected-commit "${{ github.sha }}" \
+            --expected-platform linux-x86_64 --expected-epoch "$epoch"
+          python3 scripts/release/verify_release.py \
+            release-assets/graphx-darwin-aarch64 \
+            --expected-tag "v${version}" --expected-commit "${{ github.sha }}" \
+            --expected-platform darwin-aarch64 --expected-epoch "$epoch"
+      - name: Stage uniquely named release assets
+        run: |
+          mkdir release-upload
+          find release-assets -type f -exec cp {} release-upload/ \;
+          test "$(find release-upload -type f | wc -l)" -eq 8
+      - name: Attest native archives
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
+        with:
+          subject-path: release-upload/*.tar.gz
+      - name: Publish immutable GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh release create "${GITHUB_REF_NAME}" release-upload/*
+          --verify-tag --title "GraphX ${GITHUB_REF_NAME}"
+          --generate-notes
+
+  rollback-containers:
+    name: Remove promoted image identities after publication failure
+    needs: [containers, publish]
+    if: ${{ always() && needs.containers.result == 'success' && needs.publish.result != 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Compensate both exact-version tags
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -u
+          status=0
+          owner="$(printf '%s' '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
+          version="$(tr -d '\n' < VERSION)"
+          for package in graphx-runtime graphx-telemetry; do
+            python3 scripts/release/ghcr_release.py delete-tag \
+              --repository "${{ github.repository }}" --owner "$owner" \
+              --owner-type "${{ github.event.repository.owner.type }}" --tag "$version" \
+              --package "$package" --companion-prefix \
+              "staging-${{ github.run_id }}-${{ github.run_attempt }}" \
+              --allow-absent || status=1
+          done
+          exit "$status"

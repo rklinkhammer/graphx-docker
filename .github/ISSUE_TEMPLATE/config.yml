@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Private security report
+    url: https://github.com/rklinkhammer/graphx-docker/security/advisories/new
+    about: Report suspected vulnerabilities privately.

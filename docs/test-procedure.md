@@ -487,6 +487,7 @@ Phase 1–8 feature suite, and the pinned quality/fuzz gates:
 ```sh
 scripts/test-linux-container.sh ctest
 scripts/test-linux-container.sh portable
+scripts/test-linux-container.sh sanitizers
 GRAPHX_FUZZ_SECONDS=30 scripts/test-linux-container.sh fuzz
 scripts/test-linux-container.sh quality
 ```
@@ -545,3 +546,48 @@ For a failure, retain the failing CTest output, node logs, `graphx inspect`
 output, Docker service status, infrastructure status, OVS state and router
 routes/qdiscs. That evidence distinguishes a model-validation problem from a
 transport, container, or host-networking problem.
+
+## 9. Release-candidate verification
+
+This test builds but does not publish. Use new empty output paths; the release
+tool deliberately refuses to mix old and new artifacts.
+
+```sh
+python3 scripts/release/validate_version.py --tag "v$(tr -d '\n' < VERSION)"
+python3 scripts/release/build_release.py \
+  --build-dir build/release-local \
+  --output-dir outputs/release-local \
+  --tag "v$(tr -d '\n' < VERSION)" \
+  --allow-dirty
+python3 scripts/release/verify_release.py outputs/release-local --source .
+```
+
+`--allow-dirty` is appropriate only while testing uncommitted implementation
+work. Omit it for an actual release candidate. The build runs the complete CTest
+suite, installs into a temporary prefix, runs `graphx --version`, compiles and
+runs an external `find_package(GraphX)` consumer, creates the TGZ, and verifies
+safe paths. The final verifier independently checks trusted tag/commit/platform/
+epoch identity, manifest sizes/digests/media types, artifact-scoped SPDX 2.3
+content and namespace (GraphX, bundled yaml-cpp, and the configure-time OpenSSL
+version), exact checksum membership, the archived version, and the complete
+canonical package layout. The package test compares the real installed regular-
+file set and modes against the authoritative contract, then mutates the real CPack
+archive by removing each promised file and stripping each executable in turn.
+Each mutation must be rejected. It also rejects unexpected files; portable modes
+are exactly `0755` for programs/extcap and `0644` for all other regular files.
+Archive work is bounded before/during processing to 512 MiB compressed, 10,000
+members, 256 MiB per regular member, and 512 MiB total expanded regular-file
+content. macOS packaging is additionally checked for AppleDouble metadata drift.
+
+Negative regression coverage is included in `graphx-release-contract`. It rejects
+noncanonical versions, mismatched identities/media types, malformed JSON,
+oversized lockfiles, semantically incorrect SBOMs, and unsafe, duplicate, or
+special archive members. It also exercises injectable archive limits, rejects
+file/descendant collisions in both orders, tests wrong modes and unexpected
+files, and checks both accepted GHCR version-input forms. The real-output package
+test provides the independent remove-every-file and strip-every-program coverage.
+CI also builds the candidate twice and compares all
+four outputs byte-for-byte. A release decision additionally requires Linux and macOS
+workflow results, production npm audits, OCI multi-architecture builds, and the
+capability-gated native-Linux network results appropriate to that release. Local
+macOS or Linux-container results are not substitutes for those external gates.

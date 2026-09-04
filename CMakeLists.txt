@@ -1,11 +1,24 @@
 cmake_minimum_required(VERSION 3.25)
-project(graphx VERSION 0.1.0 LANGUAGES CXX)
+file(SIZE "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" GRAPHX_VERSION_FILE_SIZE)
+if(GRAPHX_VERSION_FILE_SIZE GREATER 64)
+  message(FATAL_ERROR "VERSION must be no larger than 64 bytes")
+endif()
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" GRAPHX_VERSION)
+string(STRIP "${GRAPHX_VERSION}" GRAPHX_VERSION)
+if(NOT GRAPHX_VERSION MATCHES "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$")
+  message(FATAL_ERROR "VERSION must contain one canonical MAJOR.MINOR.PATCH release version")
+endif()
+project(graphx VERSION "${GRAPHX_VERSION}" LANGUAGES CXX)
+
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
 
 option(GRAPHX_BUILD_TESTS "Build GraphX tests" ON)
 option(GRAPHX_BUILD_FUZZERS "Build libFuzzer targets" OFF)
 option(GRAPHX_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
 option(GRAPHX_ENABLE_CLANG_TIDY "Run clang-tidy while compiling GraphX targets" OFF)
 option(GRAPHX_ENABLE_CPPCHECK "Run cppcheck while compiling GraphX targets" OFF)
+option(GRAPHX_FORCE_BUNDLED_YAML_CPP "Use the pinned yaml-cpp source archive" OFF)
 set(CMAKE_CXX_STANDARD 23 CACHE STRING "C++ language standard (20 or 23)")
 set_property(CACHE CMAKE_CXX_STANDARD PROPERTY STRINGS 20 23)
 if(NOT CMAKE_CXX_STANDARD STREQUAL "20" AND NOT CMAKE_CXX_STANDARD STREQUAL "23")
@@ -60,8 +73,12 @@ endfunction()
 
 find_package(Threads REQUIRED)
 find_package(OpenSSL 3 REQUIRED)
-find_package(yaml-cpp 0.9 QUIET CONFIG)
+if(NOT GRAPHX_FORCE_BUNDLED_YAML_CPP)
+  find_package(yaml-cpp 0.9 QUIET CONFIG)
+endif()
+set(GRAPHX_BUNDLED_YAML_CPP OFF)
 if(NOT yaml-cpp_FOUND)
+  set(GRAPHX_BUNDLED_YAML_CPP ON)
   include(FetchContent)
   set(YAML_CPP_BUILD_CONTRIB OFF CACHE BOOL "" FORCE)
   set(YAML_CPP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
@@ -88,7 +105,14 @@ add_library(graphx
   src/unix_domain_socket_transport.cpp
   src/transport_factory.cpp
 )
-target_include_directories(graphx PUBLIC include)
+configure_file(include/graphx/version.hpp.in generated/graphx/version.hpp @ONLY)
+configure_file(cmake/GraphXBuildDependencies.json.in
+  generated/graphx-build-dependencies.json @ONLY)
+target_include_directories(graphx PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/generated>
+  $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+target_compile_features(graphx PUBLIC cxx_std_20)
 target_link_libraries(graphx PUBLIC Threads::Threads yaml-cpp::yaml-cpp OpenSSL::SSL OpenSSL::Crypto)
 graphx_enable_analysis(graphx)
 graphx_enable_sanitizers(graphx)
@@ -111,8 +135,80 @@ target_link_libraries(graphx-cli PRIVATE graphx)
 graphx_enable_analysis(graphx-cli)
 graphx_enable_sanitizers(graphx-cli)
 
-install(TARGETS graphx graphx-cli graphx-generator graphx-transform graphx-sink)
-install(FILES config/schema/graphx.schema.json DESTINATION share/graphx/schema)
+install(TARGETS graphx EXPORT GraphXTargets
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT development
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT runtime
+  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT runtime
+  INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+if(GRAPHX_BUNDLED_YAML_CPP)
+  install(TARGETS yaml-cpp EXPORT GraphXTargets
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT development
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT runtime
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT runtime
+    INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+  install(FILES "${yaml-cpp_SOURCE_DIR}/LICENSE"
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/doc/graphx/licenses
+    RENAME yaml-cpp-LICENSE COMPONENT documentation)
+endif()
+install(TARGETS graphx-cli graphx-generator graphx-transform graphx-sink
+  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT runtime)
+install(DIRECTORY include/graphx DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+  COMPONENT development FILES_MATCHING PATTERN "*.hpp")
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/generated/graphx/version.hpp"
+  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/graphx COMPONENT development)
+install(EXPORT GraphXTargets FILE GraphXTargets.cmake NAMESPACE GraphX::
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/GraphX COMPONENT development)
+configure_package_config_file(cmake/GraphXConfig.cmake.in
+  "${CMAKE_CURRENT_BINARY_DIR}/GraphXConfig.cmake"
+  INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/GraphX)
+write_basic_package_version_file(
+  "${CMAKE_CURRENT_BINARY_DIR}/GraphXConfigVersion.cmake"
+  VERSION "${GRAPHX_VERSION}" COMPATIBILITY SameMajorVersion)
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/GraphXConfig.cmake"
+  "${CMAKE_CURRENT_BINARY_DIR}/GraphXConfigVersion.cmake"
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/GraphX COMPONENT development)
+install(FILES config/schema/graphx.schema.json
+  DESTINATION ${CMAKE_INSTALL_DATADIR}/graphx/schema COMPONENT runtime)
+install(FILES graphx.yaml DESTINATION ${CMAKE_INSTALL_DATADIR}/graphx COMPONENT runtime)
+install(PROGRAMS tools/graphx-extcap
+  DESTINATION ${CMAKE_INSTALL_LIBEXECDIR}/graphx COMPONENT tools)
+install(FILES wireshark/graphx.lua wireshark/README.md
+  DESTINATION ${CMAKE_INSTALL_DATADIR}/graphx/wireshark COMPONENT tools)
+install(FILES LICENSE THIRD_PARTY.md README.md VERSION CHANGELOG.md SECURITY.md SUPPORT.md
+  CONTRIBUTING.md
+  DESTINATION ${CMAKE_INSTALL_DATADIR}/doc/graphx COMPONENT documentation)
+install(DIRECTORY docs/ DESTINATION ${CMAKE_INSTALL_DATADIR}/doc/graphx/docs
+  COMPONENT documentation FILES_MATCHING PATTERN "*.md")
+if(APPLE)
+  set(CPACK_POST_BUILD_SCRIPTS
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/GraphXCpackCanonicalize.cmake")
+endif()
+
+set(CPACK_PACKAGE_NAME graphx)
+set(CPACK_PACKAGE_VENDOR "GraphX contributors")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Transport-neutral processing graph runtime and tools")
+set(CPACK_PACKAGE_VERSION "${GRAPHX_VERSION}")
+string(TOLOWER "${CMAKE_SYSTEM_NAME}" GRAPHX_PACKAGE_SYSTEM)
+string(TOLOWER "${CMAKE_SYSTEM_PROCESSOR}" GRAPHX_PACKAGE_PROCESSOR)
+if(GRAPHX_PACKAGE_PROCESSOR MATCHES "^(arm64|aarch64)$")
+  set(GRAPHX_PACKAGE_PROCESSOR aarch64)
+elseif(GRAPHX_PACKAGE_PROCESSOR MATCHES "^(amd64|x86_64)$")
+  set(GRAPHX_PACKAGE_PROCESSOR x86_64)
+endif()
+set(CPACK_PACKAGE_FILE_NAME
+  "graphx-${GRAPHX_VERSION}-${GRAPHX_PACKAGE_SYSTEM}-${GRAPHX_PACKAGE_PROCESSOR}")
+set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
+set(CPACK_RESOURCE_FILE_README "${CMAKE_CURRENT_SOURCE_DIR}/README.md")
+set(CPACK_GENERATOR TGZ)
+set(CPACK_ARCHIVE_THREADS 1)
+set(CPACK_INCLUDE_TOPLEVEL_DIRECTORY ON)
+set(CPACK_VERBATIM_VARIABLES YES)
+set(CPACK_SOURCE_GENERATOR TGZ)
+set(CPACK_SOURCE_PACKAGE_FILE_NAME "graphx-${GRAPHX_VERSION}-source")
+set(CPACK_SOURCE_IGNORE_FILES
+  "/\\.git/" "/build[^/]*/" "/web/node_modules/" "/apps/telemetry/node_modules/"
+  "/outputs/" "/captures/" "/\\.DS_Store$")
+include(CPack)
 
 if(GRAPHX_BUILD_TESTS)
   enable_testing()
@@ -159,6 +255,21 @@ if(GRAPHX_BUILD_TESTS)
   endif()
   add_test(NAME graphx-config-cli
     COMMAND graphx-cli validate ${CMAKE_SOURCE_DIR}/graphx.yaml)
+  add_test(NAME graphx-version COMMAND graphx-cli --version)
+  set_tests_properties(graphx-version PROPERTIES
+    PASS_REGULAR_EXPRESSION "^graphx ${GRAPHX_VERSION}")
+  add_test(NAME graphx-release-contract COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/test_release.py ${CMAKE_SOURCE_DIR} $<TARGET_FILE:graphx-cli>)
+  add_test(NAME graphx-package COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/test_package.py ${CMAKE_SOURCE_DIR} ${CMAKE_BINARY_DIR})
+  set_tests_properties(graphx-release-contract PROPERTIES TIMEOUT 30)
+  set_tests_properties(graphx-package PROPERTIES TIMEOUT 120 RUN_SERIAL TRUE)
+  if(GRAPHX_ENABLE_SANITIZERS)
+    # A sanitizer-instrumented static archive requires the external consumer to
+    # link the same sanitizer runtimes. Release archives are never built this
+    # way, so keep this packaging-only test in the ordinary Release/Debug gates.
+    set_tests_properties(graphx-package PROPERTIES DISABLED TRUE)
+  endif()
   set(graphx_config_cli_tests graphx-config-cli)
   foreach(example mixed-network macvlan ipvlan-l2 ipvlan-l3 shared-memory)
     add_test(NAME graphx-config-${example}
