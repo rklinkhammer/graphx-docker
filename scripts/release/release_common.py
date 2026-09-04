@@ -70,6 +70,8 @@ ARCHIVE_PUBLIC_HEADERS = frozenset({
 })
 
 ARCHIVE_DOCUMENTATION_FILES = frozenset({
+    "share/doc/graphx/docs/GraphX_New_Graph_Example_User_Guide.md",
+    "share/doc/graphx/docs/GraphX_Phases_1_to_10_Linux_Implementation_and_Verification_Runbook.md",
     "share/doc/graphx/docs/GraphX_Phases_1_to_7_Linux_Implementation_and_Verification_Runbook.md",
     "share/doc/graphx/docs/adr/0001-authoritative-configuration.md",
     "share/doc/graphx/docs/adr/0002-network-infrastructure-layer.md",
