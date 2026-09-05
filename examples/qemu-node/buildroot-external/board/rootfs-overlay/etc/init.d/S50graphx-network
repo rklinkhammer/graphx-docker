@@ -1,0 +1,16 @@
+#!/bin/sh
+
+case "$1" in
+  start)
+    ip link set lo up
+    ip link set eth0 up
+    ip address add 10.0.2.15/24 dev eth0 2>/dev/null || true
+    ip route add default via 10.0.2.2 dev eth0 2>/dev/null || true
+    ;;
+  stop)
+    ;;
+  *)
+    echo "Usage: $0 {start|stop}" >&2
+    exit 1
+    ;;
+esac

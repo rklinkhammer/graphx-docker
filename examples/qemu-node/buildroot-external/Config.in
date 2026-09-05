@@ -1,0 +1,1 @@
+source "$BR2_EXTERNAL_GRAPHX_QEMU_PATH/package/graphx-qemu-node/Config.in"

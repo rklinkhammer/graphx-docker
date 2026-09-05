@@ -1,0 +1,50 @@
+version: 1
+graph:
+  id: qemu-external-node
+  nodes:
+    - id: host-origin
+      kind: external-host-source
+      ports:
+        - { name: tcp_out, direction: output, schema: RawTcpBytes }
+        - { name: udp_out, direction: output, schema: RawUdpDatagram }
+    - id: qemu-node
+      kind: external-vm
+      ports:
+        - { name: tcp_in, direction: input, schema: RawTcpBytes }
+        - { name: tcp_out, direction: output, schema: RawTcpBytes }
+        - { name: udp_in, direction: input, schema: RawUdpDatagram }
+        - { name: udp_out, direction: output, schema: RawUdpDatagram }
+    - id: host-receiver
+      kind: external-host-sink
+      ports:
+        - { name: tcp_in, direction: input, schema: RawTcpBytes }
+        - { name: udp_in, direction: input, schema: RawUdpDatagram }
+  edges:
+    - { id: host-to-qemu-tcp, from: host-origin.tcp_out, to: qemu-node.tcp_in, transport: tcp }
+    - { id: qemu-to-host-tcp, from: qemu-node.tcp_out, to: host-receiver.tcp_in, transport: tcp }
+    - { id: host-to-qemu-udp, from: host-origin.udp_out, to: qemu-node.udp_in, transport: udp }
+    - { id: qemu-to-host-udp, from: qemu-node.udp_out, to: host-receiver.udp_in, transport: udp }
+transport:
+  tcp:
+    host-to-qemu-tcp: { host: 127.0.0.1, bind: 0.0.0.0, port: 18001, framing: u32be }
+    qemu-to-host-tcp: { host: 10.0.2.2, bind: 0.0.0.0, port: 19001, framing: u32be }
+  udp:
+    host-to-qemu-udp: { mode: unicast, destination: 127.0.0.1, bind: 0.0.0.0, port: 18001, max_datagram_bytes: 1400, framing: u32be }
+    qemu-to-host-udp: { mode: unicast, destination: 10.0.2.2, bind: 0.0.0.0, port: 19001, max_datagram_bytes: 1400, framing: u32be }
+network:
+  networks:
+    - { id: qemu-usernet, driver: bridge, subnet: 10.0.2.0/24, gateway: 10.0.2.2, external: true }
+  interfaces:
+    host-origin: [{ id: host-forward, network: qemu-usernet, address: 10.0.2.2/24 }]
+    qemu-node: [{ id: e1000, network: qemu-usernet, address: 10.0.2.15/24 }]
+    host-receiver: [{ id: host-alias, network: qemu-usernet, address: 10.0.2.2/24 }]
+  edge_paths:
+    host-to-qemu-tcp: [host-origin, qemu-usernet, qemu-node]
+    qemu-to-host-tcp: [qemu-node, qemu-usernet, host-receiver]
+    host-to-qemu-udp: [host-origin, qemu-usernet, qemu-node]
+    qemu-to-host-udp: [qemu-node, qemu-usernet, host-receiver]
+observability:
+  metrics: { enabled: false, exporters: [console] }
+  tracing: { enabled: false, exporters: [console] }
+  capture: { enabled: false, provider: pcapng, directory: captures }
+  history: { enabled: false, backend: sqlite, database_file: .graphx/qemu-history.sqlite }

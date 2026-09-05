@@ -11,3 +11,5 @@ __pycache__/
 /outputs/verification/
 /captures/
 /.graphx/
+/examples/qemu-node/output/
+/examples/qemu-node/dl/

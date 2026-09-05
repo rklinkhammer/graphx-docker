@@ -1,0 +1,21 @@
+#!/bin/sh
+
+pid_file=/var/run/qemu-network-node.pid
+
+case "$1" in
+  start)
+    echo "Starting external raw TCP/UDP node"
+    start-stop-daemon -S -b -m -p "$pid_file" -x /usr/bin/qemu-network-node
+    ;;
+  stop)
+    start-stop-daemon -K -p "$pid_file" -x /usr/bin/qemu-network-node
+    ;;
+  restart)
+    "$0" stop
+    "$0" start
+    ;;
+  *)
+    echo "Usage: $0 {start|stop|restart}" >&2
+    exit 1
+    ;;
+esac
