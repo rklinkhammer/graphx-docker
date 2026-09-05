@@ -10,7 +10,7 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-cc -std=c11 -Wall -Wextra -Werror -D_POSIX_C_SOURCE=200809L \
+"${CC:-cc}" -std=c11 -Wall -Wextra -Werror -D_POSIX_C_SOURCE=200809L \
   "$example_dir/guest/src/qemu_network_node.c" -o "$test_dir/qemu-network-node"
 python3 -m py_compile "$example_dir/host/peer.py" \
   "$example_dir/tools/capture_history.py" "$example_dir/tools/query_history.py"
@@ -46,7 +46,9 @@ with open(output, "wb") as capture:
 PY
 
 python3 "$example_dir/tools/capture_history.py" "$test_dir/fixture.pcap" \
-  "$test_dir/history.sqlite" --max-records 3 --preview-bytes 8
+  "$test_dir/history.sqlite" --max-records 3 --preview-bytes 8 \
+  --pcapng "$test_dir/qemu-node.pcapng"
+[[ -s "$test_dir/qemu-node.pcapng" ]]
 count="$(python3 - "$test_dir/history.sqlite" <<'PY'
 import sqlite3
 import sys

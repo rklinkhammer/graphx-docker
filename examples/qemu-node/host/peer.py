@@ -17,7 +17,7 @@ stop = threading.Event()
 def udp_server() -> None:
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as server:
         server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        server.bind(("0.0.0.0", HOST_SERVICE_PORT))
+        server.bind(("127.0.0.1", HOST_SERVICE_PORT))
         server.settimeout(0.5)
         while not stop.is_set():
             try:
@@ -31,7 +31,7 @@ def udp_server() -> None:
 def tcp_server() -> None:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
         server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        server.bind(("0.0.0.0", HOST_SERVICE_PORT))
+        server.bind(("127.0.0.1", HOST_SERVICE_PORT))
         server.listen(8)
         server.settimeout(0.5)
         while not stop.is_set():

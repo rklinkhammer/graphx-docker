@@ -16,7 +16,7 @@ the important distinction between network history and GraphX envelope history.
 - Guest architecture: x86_64 (`qemu-system-x86_64`)
 - Guest builder: Buildroot 2025.02.17 LTS, pinned by SHA-256
 - Guest C library/toolchain: Buildroot musl cross-toolchain
-- Emulated NIC: Intel E1000
+- Emulated NIC: VirtIO network PCI
 - Recommended QEMU: 11.1.1; the launcher accepts QEMU 8.2 or newer
 - Networking: QEMU user-mode networking, requiring no TAP device or root access
 
@@ -98,6 +98,7 @@ Each run creates a timestamped directory under
 `outputs/qemu-node/` containing:
 
 - `qemu-node.pcap`: raw Ethernet packets captured by QEMU;
+- `qemu-node.pcapng`: equivalent Ethernet PCAPNG accepted by GraphX's capture catalog;
 - `packet-history.sqlite`: bounded searchable packet history;
 - `guest-console.log`: Linux boot and application logs;
 - `host-peer.log` and `probe.log`: peer and connectivity-test logs.
@@ -110,7 +111,8 @@ Re-index with different limits using:
 python3 examples/qemu-node/tools/capture_history.py \
   outputs/qemu-node/RUN/qemu-node.pcap \
   outputs/qemu-node/RUN/packet-history.sqlite \
-  --max-records 5000 --preview-bytes 32
+  --max-records 5000 --preview-bytes 32 \
+  --pcapng outputs/qemu-node/RUN/qemu-node.pcapng
 ```
 
 Inspect the history:
@@ -120,7 +122,9 @@ python3 examples/qemu-node/tools/query_history.py \
   outputs/qemu-node/RUN/packet-history.sqlite --limit 20
 ```
 
-Open `qemu-node.pcap` directly in Wireshark. Useful display filters are
+Open either capture directly in Wireshark. To expose the PCAPNG through a
+running local telemetry service, copy `qemu-node.pcapng` into that service's
+configured `GRAPHX_CAPTURE_DIR`; it will be cataloged as Ethernet DLT 1. Useful display filters are
 `tcp.port == 18001 || tcp.port == 19001` and
 `udp.port == 18001 || udp.port == 19001`.
 
@@ -151,6 +155,7 @@ guest, but it must not claim those packets are GraphX envelopes.
 - User-mode networking isolates the guest and exposes only loopback forwards.
 - Captures contain complete packet payloads and may contain sensitive data.
 - The SQLite index stores bounded payload previews, not full payloads.
-- QEMU filter-dump writes classic PCAP rather than PCAPNG.
+- QEMU filter-dump writes classic PCAP; the indexing tool creates the equivalent
+  PCAPNG used by GraphX's capture catalog.
 - The current GraphX deployment schema cannot formally mix managed services and
   externally managed VMs; omitting deployment is the honest representation.

@@ -19,6 +19,32 @@ MAGIC = {
 MAX_PACKET_BYTES = 16 * 1024 * 1024
 
 
+def pcapng_block(block_type: int, body: bytes) -> bytes:
+    length = len(body) + 12
+    return struct.pack("<II", block_type, length) + body + struct.pack("<I", length)
+
+
+def write_pcapng(capture: Path, output: Path) -> int:
+    output.parent.mkdir(parents=True, exist_ok=True)
+    section = struct.pack("<IHHq", 0x1A2B3C4D, 1, 0, -1)
+    interface = struct.pack("<HHI", 1, 0, 65535)
+    count = 0
+    with output.open("wb") as destination:
+        destination.write(pcapng_block(0x0A0D0D0A, section))
+        destination.write(pcapng_block(1, interface))
+        for timestamp, original, packet in packets(capture):
+            microseconds = int(timestamp * 1_000_000)
+            padding = b"\0" * ((-len(packet)) % 4)
+            enhanced = struct.pack(
+                "<IIIII", 0, microseconds >> 32, microseconds & 0xFFFFFFFF,
+                len(packet), original,
+            )
+            destination.write(pcapng_block(6, enhanced + packet + padding))
+            count += 1
+    os.chmod(output, 0o600)
+    return count
+
+
 def decode_packet(packet: bytes) -> tuple[str, str, str, int, int, bytes] | None:
     if len(packet) < 14:
         return None
@@ -35,19 +61,26 @@ def decode_packet(packet: bytes) -> tuple[str, str, str, int, int, bytes] | None
     ihl = (version_ihl & 0x0F) * 4
     if ihl < 20 or len(packet) < offset + ihl:
         return None
+    total_length = struct.unpack_from("!H", packet, offset + 2)[0]
+    if total_length < ihl:
+        return None
+    packet_end = min(len(packet), offset + total_length)
     protocol_number = packet[offset + 9]
     source = str(ipaddress.ip_address(packet[offset + 12 : offset + 16]))
     destination = str(ipaddress.ip_address(packet[offset + 16 : offset + 20]))
     transport = offset + ihl
-    if protocol_number == 17 and len(packet) >= transport + 8:
-        source_port, destination_port = struct.unpack_from("!HH", packet, transport)
-        return "UDP", source, destination, source_port, destination_port, packet[transport + 8 :]
-    if protocol_number == 6 and len(packet) >= transport + 20:
+    if protocol_number == 17 and packet_end >= transport + 8:
+        source_port, destination_port, udp_length = struct.unpack_from("!HHH", packet, transport)
+        if udp_length < 8:
+            return None
+        udp_end = min(packet_end, transport + udp_length)
+        return "UDP", source, destination, source_port, destination_port, packet[transport + 8 : udp_end]
+    if protocol_number == 6 and packet_end >= transport + 20:
         source_port, destination_port = struct.unpack_from("!HH", packet, transport)
         tcp_header = (packet[transport + 12] >> 4) * 4
-        if tcp_header < 20 or len(packet) < transport + tcp_header:
+        if tcp_header < 20 or packet_end < transport + tcp_header:
             return None
-        return "TCP", source, destination, source_port, destination_port, packet[transport + tcp_header :]
+        return "TCP", source, destination, source_port, destination_port, packet[transport + tcp_header : packet_end]
     return None
 
 
@@ -78,13 +111,13 @@ def packets(path: Path):
 
 def index_capture(capture: Path, database: Path, max_records: int, preview_bytes: int) -> int:
     database.parent.mkdir(parents=True, exist_ok=True)
-    if database.exists() and not database.is_file():
+    if database.is_symlink() or (database.exists() and not database.is_file()):
         raise ValueError("database path is not a regular file")
     connection = sqlite3.connect(database)
     try:
         connection.executescript(
             """
-            PRAGMA journal_mode=WAL;
+            PRAGMA journal_mode=DELETE;
             CREATE TABLE IF NOT EXISTS packet_history (
               id INTEGER PRIMARY KEY,
               captured_at REAL NOT NULL,
@@ -139,7 +172,6 @@ def index_capture(capture: Path, database: Path, max_records: int, preview_bytes
         )
         connection.commit()
         retained = connection.execute("SELECT COUNT(*) FROM packet_history").fetchone()[0]
-        connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
     finally:
         connection.close()
     os.chmod(database, 0o600)
@@ -152,6 +184,7 @@ def main() -> None:
     parser.add_argument("database", type=Path)
     parser.add_argument("--max-records", type=int, default=10_000)
     parser.add_argument("--preview-bytes", type=int, default=64)
+    parser.add_argument("--pcapng", type=Path, help="also write GraphX-catalog-compatible Ethernet PCAPNG")
     args = parser.parse_args()
     if not 1 <= args.max_records <= 1_000_000:
         parser.error("--max-records must be from 1 through 1000000")
@@ -161,9 +194,12 @@ def main() -> None:
         parser.error("capture must be a readable regular file")
     try:
         retained = index_capture(args.capture, args.database, args.max_records, args.preview_bytes)
+        converted = write_pcapng(args.capture, args.pcapng) if args.pcapng else None
     except (OSError, sqlite3.Error, ValueError) as error:
         parser.error(str(error))
     print(f"indexed {retained} TCP/UDP packets in {args.database}")
+    if args.pcapng:
+        print(f"converted {converted} Ethernet packets to {args.pcapng}")
 
 
 if __name__ == "__main__":

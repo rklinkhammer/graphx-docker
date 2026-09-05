@@ -34,6 +34,9 @@ docker run --rm \
       BR2_EXTERNAL="$example/buildroot-external" graphx_qemu_x86_64_defconfig
     make -C /opt/buildroot O="$example/output" \
       BR2_EXTERNAL="$example/buildroot-external" \
+      BR2_DL_DIR="$example/dl" graphx-qemu-node-dirclean
+    make -C /opt/buildroot O="$example/output" \
+      BR2_EXTERNAL="$example/buildroot-external" \
       BR2_DL_DIR="$example/dl" "-j${GRAPHX_QEMU_BUILD_JOBS:-4}"
   '
 

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+umask 077
 
 example_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 repo_dir="$(cd "$example_dir/../.." && pwd)"
@@ -55,7 +56,8 @@ cleanup() {
   done
   if [[ -s "$capture" ]]; then
     python3 "$example_dir/tools/capture_history.py" "$capture" \
-      "$run_dir/packet-history.sqlite" --max-records 10000 --preview-bytes 64 || status=$?
+      "$run_dir/packet-history.sqlite" --max-records 10000 --preview-bytes 64 \
+      --pcapng "$run_dir/qemu-node.pcapng" || status=$?
   fi
   echo "QEMU run artifacts: $run_dir"
   exit "$status"
@@ -73,7 +75,7 @@ qemu-system-x86_64 \
   -append "console=ttyS0 panic=1" \
   -no-reboot -nographic \
   -netdev "user,id=net0,hostfwd=tcp:127.0.0.1:18001-:18001,hostfwd=udp:127.0.0.1:18001-:18001" \
-  -device e1000,netdev=net0 \
+  -device virtio-net-pci,netdev=net0 \
   -object "filter-dump,id=capture0,netdev=net0,file=$capture" \
   >"$run_dir/guest-console.log" 2>&1 &
 qemu_pid=$!

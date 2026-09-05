@@ -9,6 +9,7 @@ __pycache__/
 /outputs/release*/
 /outputs/linux-container/
 /outputs/verification/
+/outputs/qemu-node/
 /captures/
 /.graphx/
 /examples/qemu-node/output/

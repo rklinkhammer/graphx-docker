@@ -282,7 +282,7 @@ if(GRAPHX_BUILD_TESTS)
   endif()
   set(graphx_config_cli_tests graphx-config-cli)
   foreach(example mixed-network macvlan ipvlan-l2 ipvlan-l3 shared-memory udp-unicast
-                  udp-broadcast udp-multicast)
+                  udp-broadcast udp-multicast qemu-node)
     add_test(NAME graphx-config-${example}
       COMMAND graphx-cli validate ${CMAKE_SOURCE_DIR}/examples/${example}/graphx.yaml)
     list(APPEND graphx_config_cli_tests graphx-config-${example})
@@ -309,6 +309,9 @@ if(GRAPHX_BUILD_TESTS)
     COMMAND ${CMAKE_SOURCE_DIR}/examples/udp-multicast/run.sh)
   set_tests_properties(graphx-udp-unicast-example graphx-udp-multicast-example
     PROPERTIES TIMEOUT 15 ENVIRONMENT "GRAPHX_BUILD_DIR=${CMAKE_BINARY_DIR}")
+  add_test(NAME graphx-qemu-node-static
+    COMMAND ${CMAKE_SOURCE_DIR}/examples/qemu-node/scripts/test.sh)
+  set_tests_properties(graphx-qemu-node-static PROPERTIES TIMEOUT 15)
   if(GRAPHX_ENABLE_SANITIZERS)
     add_test(NAME graphx-sanitizer-coverage
       COMMAND ${CMAKE_COMMAND}

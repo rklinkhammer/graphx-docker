@@ -36,7 +36,7 @@ network:
     - { id: qemu-usernet, driver: bridge, subnet: 10.0.2.0/24, gateway: 10.0.2.2, external: true }
   interfaces:
     host-origin: [{ id: host-forward, network: qemu-usernet, address: 10.0.2.2/24 }]
-    qemu-node: [{ id: e1000, network: qemu-usernet, address: 10.0.2.15/24 }]
+    qemu-node: [{ id: virtio-net, network: qemu-usernet, address: 10.0.2.15/24 }]
     host-receiver: [{ id: host-alias, network: qemu-usernet, address: 10.0.2.2/24 }]
   edge_paths:
     host-to-qemu-tcp: [host-origin, qemu-usernet, qemu-node]
