@@ -897,6 +897,100 @@ void udp_configuration_loads_and_validates() {
   }
 }
 
+void external_data_plane_and_mixed_runtime_load() {
+  TemporaryConfig valid(R"yaml(
+version: 1
+graph:
+  id: external-runtime
+  nodes:
+    - id: origin
+      kind: source
+      runtime: docker
+      execution: container
+      lifecycle: managed
+      control: origin
+      ports: [{ name: out, direction: output, schema: RawBytes }]
+    - id: guest
+      kind: virtual-machine
+      runtime: qemu
+      execution: host
+      lifecycle: external
+      control: none
+      accelerator: auto
+      architecture: x86_64
+      ports: [{ name: in, direction: input, schema: RawBytes }]
+  edges:
+    - { id: raw, from: origin.out, to: guest.in, transport: tcp, data_plane: external }
+transport:
+  tcp:
+    raw: { host: 127.0.0.1, bind: 0.0.0.0, port: 18001, framing: none }
+deployment:
+  network: qemu-demo
+  services:
+    origin: { image: qemu-origin:latest, command: origin }
+)yaml");
+  const auto config = graphx::load_config(valid.path());
+  expect(config.node("origin").runtime == "docker" &&
+             config.node("origin").execution == "container" &&
+             config.node("origin").control == "origin",
+         "managed runtime metadata");
+  expect(config.node("guest").runtime == "qemu" &&
+             config.node("guest").execution == "host" &&
+             config.node("guest").lifecycle == "external" &&
+             config.node("guest").control == "none" &&
+             config.node("guest").accelerator == "auto" &&
+             config.node("guest").architecture == "x86_64",
+         "external runtime metadata");
+  expect(config.edge("raw").data_plane == "external" &&
+             config.edge("raw").transport.framing == "none",
+         "raw data-plane metadata");
+
+  graphx::TransportFactory factory;
+  try {
+    [[maybe_unused]] auto ignored =
+        factory.create(config.edge("raw"), graphx::ConnectionMode::connect);
+    throw std::runtime_error("external raw edge entered the transport factory");
+  } catch (const std::invalid_argument& error) {
+    expect(std::string(error.what()).find("external data-plane") != std::string::npos,
+           "external factory rejection is actionable");
+  }
+
+  const auto changed = [](std::string source, std::string_view from, std::string_view to) {
+    const auto position = source.find(from);
+    if (position == std::string::npos) throw std::runtime_error("raw fixture edit failed");
+    source.replace(position, from.size(), to);
+    return source;
+  };
+  std::ifstream input(valid.path());
+  const std::string source((std::istreambuf_iterator<char>(input)),
+                           std::istreambuf_iterator<char>());
+  const std::pair<std::string, std::string> invalid[] = {
+      {changed(source, "framing: none", "framing: u32be"), ".framing"},
+      {changed(source, ", data_plane: external", ""), ".framing"},
+      {changed(source, "data_plane: external", "data_plane: invalid"), ".data_plane"},
+      {changed(source, "runtime: qemu", "runtime: invalid"), ".runtime"},
+      {changed(source, "execution: host", "execution: invalid"), ".execution"},
+      {changed(source, "lifecycle: external", "lifecycle: invalid"), ".lifecycle"},
+      {changed(source, "control: none", "control: invalid"), ".control"},
+      {changed(source, "accelerator: auto", "accelerator: invalid"), ".accelerator"},
+      {changed(source, "architecture: x86_64", "architecture: arm64"), ".architecture"},
+      {changed(source, "lifecycle: external", "lifecycle: managed"),
+       "missing placement for node 'guest'"},
+      {changed(source, "services:\n    origin:",
+               "services:\n    guest: { image: qemu-guest:latest, command: guest }\n    origin:"),
+       "cannot manage a node whose lifecycle is 'external'"},
+  };
+  for (const auto& [contents, expected] : invalid) {
+    TemporaryConfig file(contents);
+    try {
+      [[maybe_unused]] const auto ignored = graphx::load_config(file.path());
+      throw std::runtime_error("invalid external data-plane configuration was accepted");
+    } catch (const graphx::ConfigError& error) {
+      expect(diagnostic_contains(error, expected), "external data-plane diagnostic");
+    }
+  }
+}
+
 void factory_rejects_unvalidated_settings() {
   graphx::TransportFactory factory;
   graphx::EdgeConfig edge;
@@ -1043,6 +1137,7 @@ int main() {
       {"Unix socket deadline config", unix_socket_deadline_config_loads_and_validates},
       {"TCP TLS config", tcp_tls_config_loads_and_validates},
       {"UDP config", udp_configuration_loads_and_validates},
+      {"external data plane", external_data_plane_and_mixed_runtime_load},
       {"in-process factory", in_process_factory_shares_named_channel},
       {"factory validation", factory_rejects_unvalidated_settings},
       {"TCP factory", tcp_factory_round_trip},

@@ -35,7 +35,34 @@ export function pcapngLinkType(descriptor, fileSize, maximumBytes) {
   return descriptorBlock ? descriptorBlock.readUInt16LE(8) : null
 }
 
-export function openValidatedCapture(path, maximumBytes) {
+export function completePcapng(descriptor, fileSize, maximumBytes, maximumBlocks) {
+  let position = 0
+  let blocks = 0
+  while (position < fileSize) {
+    if (blocks >= maximumBlocks) return false
+    const header = positionedRead(descriptor, 8, position)
+    if (!header) return false
+    const type = header.readUInt32LE(0)
+    const length = header.readUInt32LE(4)
+    if (length < 12 || length % 4 !== 0 || length > maximumBytes ||
+        position + length > fileSize) return false
+    const trailer = positionedRead(descriptor, 4, position + length - 4)
+    if (!trailer || trailer.readUInt32LE(0) !== length) return false
+    if (type === 6) {
+      if (length < 32) return false
+      const packetFields = positionedRead(descriptor, 20, position + 8)
+      if (!packetFields) return false
+      const captured = packetFields.readUInt32LE(12)
+      const original = packetFields.readUInt32LE(16)
+      if (captured > original || Math.ceil(captured / 4) * 4 > length - 32) return false
+    }
+    position += length
+    blocks += 1
+  }
+  return position === fileSize && blocks >= 2
+}
+
+export function openValidatedCapture(path, maximumBytes, maximumBlocks = 1_000_002) {
   let descriptor
   try {
     descriptor = openSync(path, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK)
@@ -44,6 +71,8 @@ export function openValidatedCapture(path, maximumBytes) {
       throw new Error('invalid capture')
     const linkType = pcapngLinkType(descriptor, details.size, maximumBytes)
     if (linkType !== 1 && linkType !== 147) throw new Error('invalid capture')
+    if (!completePcapng(descriptor, details.size, maximumBytes, maximumBlocks))
+      throw new Error('incomplete capture')
     return { descriptor, details, linkType }
   } catch (error) {
     if (descriptor != null) closeSync(descriptor)
@@ -51,7 +80,7 @@ export function openValidatedCapture(path, maximumBytes) {
   }
 }
 
-export function listValidatedCaptures(directory, maximumBytes, { maxFiles, maxEntries }) {
+export function listValidatedCaptures(directory, maximumBytes, { maxFiles, maxEntries, maxBlocks = 1_000_002 }) {
   const candidates = []
   let scannedEntries = 0
   let truncated = false
@@ -77,7 +106,7 @@ export function listValidatedCaptures(directory, maximumBytes, { maxFiles, maxEn
     if (captures.length === maxFiles) { truncated = true; break }
     let capture
     try {
-      capture = openValidatedCapture(join(directory, name), maximumBytes)
+      capture = openValidatedCapture(join(directory, name), maximumBytes, maxBlocks)
       captures.push({ name, details: capture.details, linkType: capture.linkType })
     } catch { /* Ignore invalid or concurrently removed directory entries. */ }
     finally { if (capture) closeSync(capture.descriptor) }

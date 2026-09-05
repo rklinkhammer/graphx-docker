@@ -217,6 +217,24 @@ test('capture validation accepts bounded initial blocks larger than 512 bytes', 
   try { assert.equal(capture.linkType, 147) } finally { closeSync(capture.descriptor) }
 })
 
+test('capture validation rejects incomplete and inconsistent packet blocks', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'graphx-capture-completeness-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const fields = Buffer.alloc(20)
+  fields.writeUInt32LE(32, 12)
+  fields.writeUInt32LE(1, 16)
+  const inconsistent = join(directory, 'inconsistent.pcapng')
+  await writeFile(inconsistent, Buffer.concat([minimalPcapng(1), block(6,
+    Buffer.concat([fields, Buffer.alloc(32)]))]))
+  assert.throws(() => openValidatedCapture(inconsistent, 65536), /incomplete capture/)
+
+  const complete = Buffer.concat([minimalPcapng(1), block(6,
+    Buffer.concat([Buffer.alloc(20), Buffer.alloc(4)]))])
+  const partial = join(directory, 'partial.pcapng')
+  await writeFile(partial, complete.subarray(0, complete.length - 2))
+  assert.throws(() => openValidatedCapture(partial, 65536), /incomplete capture/)
+})
+
 test('capture catalog bounds directory work and returns sorted truncation metadata', async t => {
   const directory = await mkdtemp(join(tmpdir(), 'graphx-capture-catalog-'))
   t.after(() => rm(directory, { recursive: true, force: true }))

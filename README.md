@@ -270,6 +270,24 @@ see `examples/udp-broadcast/README.md`.
 See [`docs/udp-transport.md`](docs/udp-transport.md) for delivery semantics,
 limits, interface selection, MTU guidance, observability, and security limits.
 
+## Run the QEMU graphical demos
+
+One x86_64 guest and raw TCP/UDP application are available in two deployment
+profiles. The portable profile runs QEMU on the host; the Linux profile runs it
+as a KVM- or TCG-backed Docker service:
+
+```sh
+examples/qemu-node/scripts/build.sh
+examples/qemu-node/external/scripts/demo.sh start --accel auto
+# Or, on native Linux:
+examples/qemu-node/container/scripts/demo.sh start --accel kvm
+```
+
+Both profiles provide the live GUI, bounded Ethernet capture, separate packet
+history, and origin pause/resume. See
+[`examples/qemu-node/README.md`](examples/qemu-node/README.md) and
+[`docs/qemu-demos.md`](docs/qemu-demos.md).
+
 ## Run the web console during development
 
 ```sh

@@ -61,12 +61,19 @@ struct TransportConfig {
 struct NodeConfig {
   std::string id;
   std::string kind;
+  std::string runtime{"process"};
+  std::string execution{"local"};
+  std::string lifecycle{"managed"};
+  std::string control{"graphx"};
+  std::string accelerator;
+  std::string architecture;
   std::vector<Port> ports;
 };
 
 struct EdgeConfig {
   Edge edge;
   TransportConfig transport;
+  std::string data_plane{"graphx"};
 };
 
 struct DeploymentService {

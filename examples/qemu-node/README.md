@@ -1,50 +1,34 @@
-# External x86_64 QEMU TCP/UDP node
+# Unified QEMU demonstrations
 
-This project builds a small x86_64 Linux guest that exchanges ordinary text
-messages over TCP and UDP. It does **not** link GraphX, serialize GraphX
-envelopes, emit GraphX telemetry, or implement GraphX control commands.
+This suite models the same three-node application twice:
 
-GraphX references the VM as an external node in [`graphx.yaml`](graphx.yaml).
-The host peer is shown as origin and receiver facets because configuration
-version 1 requires a directed acyclic graph; both facets are one host process.
-QEMU captures its virtual Ethernet traffic as PCAP, and `capture_history.py`
-indexes bounded packet metadata and payload previews in SQLite. This preserves
-the important distinction between network history and GraphX envelope history.
-
-## Selected platform
-
-- Guest architecture: x86_64 (`qemu-system-x86_64`)
-- Guest builder: Buildroot 2025.02.17 LTS, pinned by SHA-256
-- Guest C library/toolchain: Buildroot musl cross-toolchain
-- Emulated NIC: VirtIO network PCI
-- Recommended QEMU: 11.1.1; the launcher accepts QEMU 8.2 or newer
-- Networking: QEMU user-mode networking, requiring no TAP device or root access
-
-The Docker build environment works on x86_64 Linux and on Apple Silicon through
-Docker's `linux/amd64` platform support. Buildroot produces the kernel,
-initramfs, and the guest program with its own target cross-compiler.
-
-## Prerequisites
-
-- Docker with Linux containers
-- QEMU 8.2 or newer with `qemu-system-x86_64`
-- Python 3
-- Optional: Wireshark or tshark for interactive PCAP inspection
-- A built GraphX CLI if you want to validate or inspect the topology
-
-On macOS with Homebrew:
-
-```sh
-brew install qemu
+```text
+host-origin -- raw TCP/UDP --> qemu-node -- raw TCP/UDP --> host-receiver
 ```
 
-On Debian or Ubuntu:
+The guest exchanges ordinary network messages. It does not link GraphX and its
+application traffic is not a GraphX envelope. GraphX supplies configuration,
+orchestration, passive packet observation, bounded PCAPNG and packet history,
+the browser console, and control of the origin traffic generator.
 
-```sh
-sudo apt-get install qemu-system-x86 python3
-```
+## Shared implementation
 
-## 1. Build the guest
+Both profiles use the same:
+
+- x86_64 Buildroot guest and `qemu-network-node` application;
+- `host/peer.py` origin, receiver, probe, and out-of-band control adapter;
+- `tools/packet_observer.py` passive observer and packet-history service;
+- GraphX telemetry server and browser GUI;
+- TCP/UDP ports, deterministic payloads, history schema, and capture limits.
+
+Only the QEMU deployment boundary changes.
+
+| Profile | QEMU location | Platforms | Acceleration |
+|---|---|---|---|
+| [external](external/README.md) | Host process | macOS and Linux | HVF on Intel macOS, KVM on Linux, or TCG |
+| [container](container/README.md) | Docker service | Linux x86_64 | KVM or TCG |
+
+## Build the shared guest
 
 From the repository root:
 
@@ -52,110 +36,52 @@ From the repository root:
 examples/qemu-node/scripts/build.sh
 ```
 
-Build artifacts are written beneath `examples/qemu-node/output/images/` and
-downloads beneath `examples/qemu-node/dl/`; both are ignored by Git. The build
-does not modify the host toolchain.
+The build uses Buildroot 2025.02.17 and writes ignored artifacts beneath
+`examples/qemu-node/output/images`. Optional organizational trust uses the
+project-wide `GRAPHX_CA_CERT` and `GRAPHX_CERT_INSTALL_SCRIPT` inputs.
 
-Private organization trust uses the same optional inputs as the other GraphX
-container builds:
+## Common user interface
 
-```sh
-export GRAPHX_CA_CERT=/absolute/path/to/company-root-ca.crt
-export GRAPHX_CERT_INSTALL_SCRIPT=/absolute/path/to/install-certs.sh
-examples/qemu-node/scripts/build.sh
+Each profile supports:
+
+```text
+demo.sh start [--accel auto|kvm|tcg|hvf] [--no-capture] [--no-history]
+demo.sh verify
+demo.sh status
+demo.sh logs
+demo.sh token
+demo.sh stop
 ```
 
-The certificate and installer are mounted as Docker BuildKit secrets and are
-not copied into the resulting guest.
+Set `GRAPHX_QEMU_GUI_PORT` for `start` to choose another console port. The
+validated value is saved in private state, so later commands do not depend on
+the invoking shell environment.
 
-## 2. Validate the topology
+Capture and packet history are enabled by default and bounded to 64 MiB,
+100,000 capture packets, 50,000 history records, and one day unless overridden.
+The source PCAP is also guarded at 64 MiB; reaching that safety limit stops QEMU
+and leaves a clear diagnostic rather than allowing unbounded host storage.
 
-```sh
-build/dev/graphx validate examples/qemu-node/graphx.yaml
-build/dev/graphx inspect examples/qemu-node/graphx.yaml
-```
+The default console is <http://127.0.0.1:8080/>. Its Application view shows the
+shared logical graph. Network view shows whether QEMU is host-managed or nested
+inside a Docker service. History displays packet metadata separately from
+GraphX message history. Pause/resume affects only `host-origin`; it does not
+pause the VM.
 
-The configuration intentionally has no `deployment.services` section: GraphX
-does not start or stop the VM. The TCP/UDP entries describe the four logical
-external flows for visualization and operator reference; GraphX transports
-must not be attached to these raw payloads.
+QMP proves VM liveness and acceleration but leaves the node `booting`. An
+independent bounded TCP-and-UDP probe promotes the guest application to
+`ready`; continuous monitoring refreshes QMP state and demotes lost or stale
+readiness. A paused VM is reported separately from its unavailable guest and
+down TCP/UDP probes, and the monitor remains active so a resumed VM can recover
+without restarting the demo. The GUI Network view displays those VM, guest,
+and protocol states on their distinct deployment nodes.
 
-## 3. Run and capture
+## Compatibility entry points
 
-```sh
-examples/qemu-node/scripts/run.sh
-```
+The older `scripts/run.sh` remains a bounded, host-only QEMU smoke test. New
+interactive use should select one of the two profile `demo.sh` scripts. The
+root `graphx.yaml` remains a topology-only compatibility model and now marks
+all four edges as external data-plane traffic with `framing: none`.
 
-The default run lasts 30 seconds. It starts a host peer, boots the guest, tests
-host-to-guest and guest-to-host TCP and UDP, and records the virtual Ethernet
-traffic. Press `Ctrl-C` to stop early. Override the bounded run when needed:
-
-```sh
-examples/qemu-node/scripts/run.sh --duration 120 --max-capture-bytes 67108864
-```
-
-Each run creates a timestamped directory under
-`outputs/qemu-node/` containing:
-
-- `qemu-node.pcap`: raw Ethernet packets captured by QEMU;
-- `qemu-node.pcapng`: equivalent Ethernet PCAPNG accepted by GraphX's capture catalog;
-- `packet-history.sqlite`: bounded searchable packet history;
-- `guest-console.log`: Linux boot and application logs;
-- `host-peer.log` and `probe.log`: peer and connectivity-test logs.
-
-The launcher stops the VM if the PCAP reaches the configured byte ceiling.
-History defaults to 10,000 records and 64 payload-preview bytes per record.
-Re-index with different limits using:
-
-```sh
-python3 examples/qemu-node/tools/capture_history.py \
-  outputs/qemu-node/RUN/qemu-node.pcap \
-  outputs/qemu-node/RUN/packet-history.sqlite \
-  --max-records 5000 --preview-bytes 32 \
-  --pcapng outputs/qemu-node/RUN/qemu-node.pcapng
-```
-
-Inspect the history:
-
-```sh
-python3 examples/qemu-node/tools/query_history.py \
-  outputs/qemu-node/RUN/packet-history.sqlite --limit 20
-```
-
-Open either capture directly in Wireshark. To expose the PCAPNG through a
-running local telemetry service, copy `qemu-node.pcapng` into that service's
-configured `GRAPHX_CAPTURE_DIR`; it will be cataloged as Ethernet DLT 1. Useful display filters are
-`tcp.port == 18001 || tcp.port == 19001` and
-`udp.port == 18001 || udp.port == 19001`.
-
-## Network behavior
-
-The guest uses QEMU's conventional `10.0.2.0/24` user network:
-
-| Endpoint | TCP | UDP | Purpose |
-|---|---:|---:|---|
-| guest `10.0.2.15` | 18001 | 18001 | raw echo services |
-| host alias `10.0.2.2` | 19001 | 19001 | host peer echo services |
-| host loopback forward | 18001 | 18001 | host-initiated guest tests |
-
-The guest periodically initiates TCP and UDP requests to `10.0.2.2:19001`.
-The host probes the guest through QEMU forwards on `127.0.0.1:18001`.
-
-## What appears in GraphX
-
-The topology and its four directed network paths can be displayed. There are
-no GraphX message counters, traces, control actions, or application PCAPNG
-records because the payload is intentionally not GraphX. Standard PCAP and the
-SQLite packet index are the source of truth for this node. A later telemetry
-adapter could publish packet summaries to the console without modifying the
-guest, but it must not claim those packets are GraphX envelopes.
-
-## Security and limitations
-
-- User-mode networking isolates the guest and exposes only loopback forwards.
-- Captures contain complete packet payloads and may contain sensitive data.
-- The SQLite index stores bounded payload previews, not full payloads.
-- QEMU filter-dump writes classic PCAP; the indexing tool creates the equivalent
-  PCAPNG used by GraphX's capture catalog.
-- The current GraphX deployment schema cannot formally mix managed services and
-  externally managed VMs; omitting deployment is the honest representation.
+See [the complete QEMU demo guide](../../docs/qemu-demos.md) for architecture,
+capture/history, GUI, control, and operator verification details.

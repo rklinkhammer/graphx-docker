@@ -14,3 +14,4 @@ __pycache__/
 /.graphx/
 /examples/qemu-node/output/
 /examples/qemu-node/dl/
+/examples/qemu-node/.state/

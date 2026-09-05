@@ -333,12 +333,44 @@ class ConfigParser {
       const auto path = "graph.nodes[" + std::to_string(index) + "]";
       const auto value = nodes[index];
       if (!require_map(value, path)) continue;
-      strict_keys(value, path, {"id", "kind", "ports"});
+      strict_keys(value, path,
+                  {"id", "kind", "runtime", "execution", "lifecycle", "control",
+                   "accelerator", "architecture", "ports"});
       NodeConfig node;
       node.id = text(value["id"], path + ".id", 64);
       identifier(node.id, path + ".id");
       node.kind = text(value["kind"], path + ".kind", 64);
       identifier(node.kind, path + ".kind");
+      if (value["runtime"])
+        node.runtime = text(value["runtime"], path + ".runtime", 32);
+      if (node.runtime != "process" && node.runtime != "docker" && node.runtime != "qemu")
+        error(path + ".runtime", "must be 'process', 'docker', or 'qemu'");
+      if (value["execution"])
+        node.execution = text(value["execution"], path + ".execution", 32);
+      if (node.execution != "local" && node.execution != "host" &&
+          node.execution != "container")
+        error(path + ".execution", "must be 'local', 'host', or 'container'");
+      if (value["lifecycle"])
+        node.lifecycle = text(value["lifecycle"], path + ".lifecycle", 32);
+      if (node.lifecycle != "managed" && node.lifecycle != "external")
+        error(path + ".lifecycle", "must be 'managed' or 'external'");
+      if (value["control"])
+        node.control = text(value["control"], path + ".control", 32);
+      if (node.control != "graphx" && node.control != "origin" && node.control != "none")
+        error(path + ".control", "must be 'graphx', 'origin', or 'none'");
+      if (value["accelerator"])
+        node.accelerator = text(value["accelerator"], path + ".accelerator", 16);
+      if (!node.accelerator.empty() && node.accelerator != "auto" && node.accelerator != "kvm" &&
+          node.accelerator != "tcg" && node.accelerator != "hvf")
+        error(path + ".accelerator", "must be 'auto', 'kvm', 'tcg', or 'hvf'");
+      if (!node.accelerator.empty() && node.runtime != "qemu")
+        error(path + ".accelerator", "is supported only for runtime 'qemu'");
+      if (value["architecture"])
+        node.architecture = text(value["architecture"], path + ".architecture", 32);
+      if (!node.architecture.empty() && node.architecture != "x86_64")
+        error(path + ".architecture", "must be 'x86_64'");
+      if (!node.architecture.empty() && node.runtime != "qemu")
+        error(path + ".architecture", "is supported only for runtime 'qemu'");
       if (!node.id.empty() && !ids.insert(node.id).second)
         error(path + ".id", "duplicate node id '" + node.id + "'");
       parse_ports(value["ports"], path + ".ports", node);
@@ -390,7 +422,7 @@ class ConfigParser {
       const auto path = "graph.edges[" + std::to_string(index) + "]";
       const auto value = edges[index];
       if (!require_map(value, path)) continue;
-      strict_keys(value, path, {"id", "from", "to", "transport"});
+      strict_keys(value, path, {"id", "from", "to", "transport", "data_plane"});
       EdgeConfig edge;
       edge.edge.id = text(value["id"], path + ".id", 64);
       identifier(edge.edge.id, path + ".id");
@@ -404,6 +436,10 @@ class ConfigParser {
       if (edge.edge.to_node.empty()) error(path + ".to", "must be 'node.port'");
       const auto transport = text(value["transport"], path + ".transport", 32);
       edge.edge.transport = transport;
+      if (value["data_plane"])
+        edge.data_plane = text(value["data_plane"], path + ".data_plane", 16);
+      if (edge.data_plane != "graphx" && edge.data_plane != "external")
+        error(path + ".data_plane", "must be 'graphx' or 'external'");
       if (transport == "tcp")
         edge.transport.kind = TransportKind::tcp;
       else if (transport == "udp")
@@ -656,8 +692,15 @@ class ConfigParser {
         if (edge.transport.connect_timeout_ms == 0 || edge.transport.connect_timeout_ms > 600000)
           error(path + ".connect_timeout_ms", "must be between 1 and 600000");
       }
-      if (edge.transport.kind != TransportKind::in_process && edge.transport.framing != "u32be")
-        error(path + ".framing", "version 1 supports only 'u32be'");
+      if (edge.data_plane == "external") {
+        if (edge.transport.kind != TransportKind::tcp && edge.transport.kind != TransportKind::udp)
+          error(path, "external data-plane edges support only TCP or UDP");
+        if (edge.transport.framing != "none")
+          error(path + ".framing", "external data-plane edges require 'none'");
+      } else if (edge.transport.kind != TransportKind::in_process &&
+                 edge.transport.framing != "u32be") {
+        error(path + ".framing", "GraphX data-plane edges require 'u32be'");
+      }
     }
     for (const auto section_name : sections) {
       const auto section = transports[std::string(section_name)];
@@ -1412,7 +1455,10 @@ class ConfigParser {
           error("deployment.services." + service.node_id, "references an unknown graph node");
       }
       for (const auto& node : config.nodes)
-        if (!placed.contains(node.id))
+        if (node.lifecycle == "external" && placed.contains(node.id))
+          error("deployment.services." + node.id,
+                "cannot manage a node whose lifecycle is 'external'");
+        else if (node.lifecycle != "external" && !placed.contains(node.id))
           error("deployment.services", "missing placement for node '" + node.id + "'");
     }
     validate_network_infrastructure(config);

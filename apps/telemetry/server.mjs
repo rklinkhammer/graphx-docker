@@ -1,5 +1,5 @@
 import dgram from 'node:dgram'
-import { closeSync, createReadStream, existsSync, readFileSync } from 'node:fs'
+import { closeSync, createReadStream, existsSync, readFileSync, statSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { createServer as createSecureServer } from 'node:https'
 import { dirname, extname, join, normalize, resolve } from 'node:path'
@@ -28,6 +28,8 @@ const config = parse(readFileSync(configPath, 'utf8'))
 const graph = config.graph || { id: 'graphx', nodes: [], edges: [] }
 const deployment = config.deployment?.services || {}
 const transport = config.transport || {}
+const packetHistoryUrl = process.env.GRAPHX_PACKET_HISTORY_URL || ''
+const qemuEvidenceFile = process.env.GRAPHX_QEMU_EVIDENCE_FILE || ''
 const heartbeatTimeout = Number(process.env.GRAPHX_HEARTBEAT_TIMEOUT_MS || config.observability?.telemetry?.heartbeat_timeout_ms || 5000)
 const websocketPath = config.observability?.telemetry?.websocket || '/ws'
 const configuredCapture = config.observability?.capture || { enabled: false, provider: '' }
@@ -109,8 +111,18 @@ const rateWindowSeconds = 5
 const latencyBoundsUs = [10, 50, 100, 500, 1000, 5000, 10000]
 
 function topologyModel() {
+  const requestedQemuAccelerator = process.env.GRAPHX_QEMU_REQUESTED_ACCEL || ''
+  const selectedQemuAccelerator = process.env.GRAPHX_QEMU_ACCEL || ''
   const graphNodes = graph.nodes.map(node => ({
     id: node.id, label: node.id, role: node.kind, image: deployment[node.id]?.image || 'local process',
+    runtime: node.runtime || (deployment[node.id] ? 'docker' : 'process'),
+    execution: node.execution || (deployment[node.id] ? 'container' : 'local'),
+    lifecycle: node.lifecycle || 'managed', control: node.control || 'graphx',
+    accelerator: node.runtime === 'qemu' ? selectedQemuAccelerator || node.accelerator || 'unknown' : null,
+    requestedAccelerator: node.runtime === 'qemu' ? requestedQemuAccelerator || node.accelerator || 'unknown' : null,
+    selectedAccelerator: node.runtime === 'qemu' ? selectedQemuAccelerator || 'unknown' : null,
+    actualAccelerator: null, acceleratorEvidence: null,
+    guestArchitecture: node.runtime === 'qemu' ? node.architecture || 'unknown' : null,
     input: node.ports.some(port => port.direction === 'input'),
     output: node.ports.some(port => port.direction === 'output'),
   }))
@@ -121,6 +133,8 @@ function topologyModel() {
     const schema = targetNode?.ports.find(port => port.name === targetPort)?.schema || 'unknown'
     const settings = transport[edge.transport]?.[edge.id] || {}
     return { id: edge.id, source, target, transport: edge.transport,
+      dataPlane: edge.data_plane || 'graphx', framing: settings.framing || 'u32be',
+      observationSource: edge.data_plane === 'external' ? 'qemu-pcap' : 'runtime',
       port: settings.port || null, schema }
   })
   const network = config.network || {}
@@ -139,11 +153,87 @@ function topologyModel() {
     image: item.forwarding === false ? 'forwarding off' : 'IPv4 forwarding',
     input: true, output: true,
   })
+  const qemu = graphNodes.find(node => node.runtime === 'qemu')
+  const paths = structuredClone(network.edge_paths || {})
+  if (qemu) {
+    const boundary = qemu.execution === 'container'
+      ? { id: `${qemu.id}-container`, label: `${qemu.id} container`, role: 'Docker container',
+          image: qemu.image, hierarchy: 'container', input: true, output: true }
+      : { id: `${qemu.id}-host-runtime`, label: 'Host QEMU process', role: 'Host runtime',
+          image: 'externally managed', hierarchy: 'host', input: true, output: true }
+    infrastructure.set(boundary.id, boundary)
+    infrastructure.set(`${qemu.id}-guest-app`, { id: `${qemu.id}-guest-app`,
+      label: 'Raw TCP/UDP guest application', role: 'Guest application', image: qemu.guestArchitecture,
+      hierarchy: 'guest', parent: qemu.id, input: true, output: true })
+    infrastructure.set(qemu.id, { ...infrastructure.get(qemu.id), hierarchy: 'virtual-machine',
+      parent: boundary.id })
+    for (const edge of graphEdges) {
+      const path = paths[edge.id]
+      if (!Array.isArray(path)) continue
+      const replacement = edge.source === qemu.id
+        ? [`${qemu.id}-guest-app`, qemu.id, boundary.id]
+        : [boundary.id, qemu.id, `${qemu.id}-guest-app`]
+      paths[edge.id] = path.flatMap(id => id === qemu.id ? replacement : [id])
+    }
+  }
   return { graph: graph.id, nodes: graphNodes, edges: graphEdges,
-    networkNodes: [...infrastructure.values()], edgePaths: network.edge_paths || {} }
+    networkNodes: [...infrastructure.values()], edgePaths: paths }
 }
 
 const topology = topologyModel()
+const qemuStates = new Set(['not-started', 'booting', 'ready', 'degraded', 'stopped', 'unavailable'])
+const qemuAccelerators = new Set(['auto', 'kvm', 'tcg', 'hvf'])
+function qemuEvidence() {
+  if (!qemuEvidenceFile) return null
+  try {
+    if (statSync(qemuEvidenceFile).size > 64 * 1024) return null
+    const value = JSON.parse(readFileSync(qemuEvidenceFile, 'utf8'))
+    if (!value || typeof value !== 'object' || !qemuStates.has(value.state) ||
+        !Number.isSafeInteger(value.updatedAt)) return null
+    if (value.actualAccelerator != null && !qemuAccelerators.has(value.actualAccelerator)) return null
+    if (value.selectedAccelerator != null && !qemuAccelerators.has(value.selectedAccelerator)) return null
+    if (value.requestedAccelerator != null && !qemuAccelerators.has(value.requestedAccelerator)) return null
+    if (value.evidenceSource != null && value.evidenceSource !== 'QMP query-status + query-kvm') return null
+    if (value.state === 'ready' && (value.evidenceSource == null ||
+        typeof value.qmpStatus?.running !== 'boolean' ||
+        typeof value.kvm?.present !== 'boolean' || typeof value.kvm?.enabled !== 'boolean' ||
+        value.vmState !== 'running' || value.guestState !== 'ready' ||
+        value.guestProtocols?.tcp !== true || value.guestProtocols?.udp !== true ||
+        !Number.isSafeInteger(value.guestReadinessAt))) return null
+    if (value.state === 'ready' && Date.now() - value.guestReadinessAt > 10_000) {
+      return { ...value, state: 'degraded', guestState: 'unavailable',
+        reason: 'guest application readiness evidence is stale' }
+    }
+    return value
+  } catch { return null }
+}
+
+function topologyView(evidence) {
+  if (!evidence) return topology
+  const qemuNode = topology.nodes.find(node => node.runtime === 'qemu')
+  const runtimeFields = { requestedAccelerator: evidence.requestedAccelerator || 'unknown',
+    selectedAccelerator: evidence.selectedAccelerator || 'unknown',
+    actualAccelerator: evidence.actualAccelerator || null,
+    accelerator: evidence.actualAccelerator || evidence.selectedAccelerator || 'unknown',
+    acceleratorEvidence: evidence.evidenceSource || null,
+    vmState: evidence.vmState || null, guestState: evidence.guestState || null,
+    guestProtocols: evidence.guestProtocols || null }
+  const boundaryState = evidence.state === 'stopped' ? 'stopped'
+    : evidence.vmState === 'unavailable' ? 'unavailable' : 'running'
+  return { ...topology,
+    nodes: topology.nodes.map(node => node.runtime === 'qemu' ? { ...node, ...runtimeFields } : node),
+    networkNodes: topology.networkNodes.map(node => {
+      if (!qemuNode) return node
+      if (node.id === qemuNode.id) return { ...node, ...runtimeFields,
+        status: evidence.vmState || evidence.state, runtimeLayer: 'vm' }
+      if (node.id === `${qemuNode.id}-guest-app`) return { ...node,
+        status: evidence.guestState || evidence.state, runtimeLayer: 'guest',
+        guestState: evidence.guestState || null, guestProtocols: evidence.guestProtocols || null }
+      if (node.id === `${qemuNode.id}-${qemuNode.execution === 'container' ? 'container' : 'host-runtime'}`)
+        return { ...node, status: boundaryState, runtimeLayer: 'boundary' }
+      return node
+    }) }
+}
 let state = { paused: false, fault: false, updatedAt: new Date().toISOString() }
 const recent = []
 const captureReferences = []
@@ -153,7 +243,8 @@ const nodes = Object.fromEntries(topology.nodes.map(node => [node.id, {
   status: 'starting', lastSeen: null, cpuPercent: null,
 }]))
 const nodeIds = new Set(Object.keys(nodes))
-const controllableNodeIds = new Set(graph.nodes.filter(node => node.kind === 'source').map(node => node.id))
+const controllableNodeIds = new Set(graph.nodes.filter(node =>
+  node.control === 'origin' || (node.control == null && node.kind === 'source')).map(node => node.id))
 const runtimeIdentities = new RuntimeIdentityStore({ manifestFile: runtimeIdentityFile, nodeIds })
 const controlAuthorizer = new ControlAuthorizer({ policyFile: controlPolicyFile,
   legacyToken: controlToken, nodeIds })
@@ -261,7 +352,8 @@ function captureCatalog() {
   if (captureCatalogCache.catalog && captureCatalogCache.expiresAt > now)
     return captureCatalogCache.catalog
   const listed = listValidatedCaptures(captureDirectory, captureConfig.maxFileBytes,
-    { maxFiles: captureCatalogMaxFiles, maxEntries: captureCatalogMaxEntries })
+    { maxFiles: captureCatalogMaxFiles, maxEntries: captureCatalogMaxEntries,
+      maxBlocks: captureConfig.maxPackets + 2 })
   const catalog = { scannedEntries: listed.scannedEntries, truncated: listed.truncated,
     files: listed.captures.map(({ name, details, linkType }) => ({
       name, nodeId: name.slice(0, -7), size: details.size,
@@ -289,8 +381,13 @@ function snapshot() {
   const liveEndpoints = [...controlEndpoints.values()].filter(endpoint =>
     timestamp - endpoint.lastSeen <= heartbeatTimeout)
   const catalog = captureCatalog()
+  const evidence = qemuEvidence()
+  const nodeViews = { ...nodes }
+  const qemuNode = topology.nodes.find(node => node.runtime === 'qemu')
+  if (qemuNode && evidence) nodeViews[qemuNode.id] = { ...nodeViews[qemuNode.id],
+    status: evidence.state, runtimeEvidenceAt: evidence.updatedAt || null }
   const readiness = graphReadiness(nodes, edges, timestamp, heartbeatTimeout)
-  return { kind: 'snapshot', graph: graph.id, topology,
+  return { kind: 'snapshot', graph: graph.id, topology: topologyView(evidence),
     telemetry: { websocket: websocketPath, heartbeatTimeoutMs: heartbeatTimeout,
       rateWindowSeconds, latencyBoundsUs }, state,
     control: { available: credentialRegistry.lastError == null && controlAuthorizer.available &&
@@ -305,7 +402,9 @@ function snapshot() {
         !serviceState.shuttingDown && credentialRegistry.lastError == null,
       graph: readiness }, slo, otlp: { enabled: configuredOtlp.enabled, ...otlpExporter.stats },
     history: { ...historyStore.stats },
-    nodes, edges: edgeViews,
+    packetHistory: { enabled: Boolean(packetHistoryUrl), backend: 'sqlite',
+      status: packetHistoryUrl ? 'configured' : 'disabled' },
+    nodes: nodeViews, edges: edgeViews,
     capture: { enabled: Boolean(captureConfig.enabled), provider: captureConfig.provider || null,
       format: catalog.files.length ? 'pcapng' : null,
       limits: { snaplen: captureConfig.snaplen, maxFileBytes: captureConfig.maxFileBytes,
@@ -647,7 +746,7 @@ const handleRequest = (request, response) => {
   }
   if (!withinRateLimit(request, 120)) return json(response, 429, { error: 'rate limit exceeded' }, { 'retry-after': '60' })
   const observed = ['/api/topology', '/api/captures', '/api/graph/ready', '/api/slo',
-    '/api/history', '/api/history/status', '/metrics'].includes(url.pathname) ||
+    '/api/history', '/api/history/status', '/api/packet-history', '/metrics'].includes(url.pathname) ||
     url.pathname.startsWith('/captures/')
   if (observed && observationToken && !authorized(request, observationToken))
     return json(response, 401, { error: 'invalid observation token' }, { 'www-authenticate': 'Bearer realm="graphx-observation"' })
@@ -679,6 +778,31 @@ const handleRequest = (request, response) => {
       .catch(error => json(response, error.message.includes('capacity') ? 429 : 503,
         { error: String(error.message).slice(0, 256) },
         error.message.includes('capacity') ? { 'retry-after': '1' } : {}))
+    return
+  }
+  if (url.pathname === '/api/packet-history') {
+    if (request.method !== 'GET') return json(response, 405, { error: 'method not allowed' }, { allow: 'GET' })
+    if (!packetHistoryUrl) return json(response, 503, { error: 'packet history is disabled' })
+    const permitted = new Set(['limit', 'before', 'protocol'])
+    if ([...url.searchParams.keys()].some(key => !permitted.has(key)))
+      return json(response, 400, { error: 'unknown packet history query parameter' })
+    const limit = url.searchParams.get('limit') || '100'
+    const before = url.searchParams.get('before')
+    const protocol = url.searchParams.get('protocol')
+    if (!/^[1-9][0-9]{0,2}$/.test(limit) || Number(limit) > 500 ||
+        (before != null && !/^[1-9][0-9]{0,18}$/.test(before)) ||
+        (protocol != null && !['TCP', 'UDP'].includes(protocol)))
+      return json(response, 400, { error: 'invalid packet history query' })
+    const target = new URL('/history', packetHistoryUrl)
+    target.searchParams.set('limit', limit)
+    if (before) target.searchParams.set('before', before)
+    if (protocol) target.searchParams.set('protocol', protocol)
+    fetch(target, { signal: AbortSignal.timeout(2000) })
+      .then(async upstream => {
+        const body = await upstream.json()
+        if (!response.headersSent) json(response, upstream.ok ? 200 : 503, body)
+      })
+      .catch(() => { if (!response.headersSent) json(response, 503, { error: 'packet history is unavailable' }) })
     return
   }
   if (url.pathname === '/api/captures') {
@@ -779,7 +903,8 @@ const handleRequest = (request, response) => {
     const capturePath = join(captureDirectory, name)
     let descriptor
     try {
-      descriptor = openValidatedCapture(capturePath, captureConfig.maxFileBytes).descriptor
+      descriptor = openValidatedCapture(capturePath, captureConfig.maxFileBytes,
+        captureConfig.maxPackets + 2).descriptor
     } catch {
       if (descriptor != null) closeSync(descriptor)
       return json(response, 404, { error: 'capture not found' })
@@ -878,7 +1003,7 @@ udp.on('message', (data, remote) => {
       broadcast()
       return
     }
-    if (configuredHistory.enabled)
+    if (configuredHistory.enabled && event.kind !== 'network_packet')
       historyStore.enqueue(telemetryHistoryRecord(event, graph.id, receivedAt))
     if (configuredOtlp.enabled && event.kind === 'trace')
       otlpExporter.enqueue(configuredOtlp.tracesPath, otlpTraceRequest(event))
@@ -889,8 +1014,9 @@ udp.on('message', (data, remote) => {
       return
     }
     if (nodes[event.nodeId]) {
-      controlEndpoints.set(event.nodeId, { address: remote.address, port: remote.port,
-        lastSeen: receivedAt })
+      if (event.kind === 'trace' && controllableNodeIds.has(event.nodeId))
+        controlEndpoints.set(event.nodeId, { address: remote.address, port: remote.port,
+          lastSeen: receivedAt })
       const cpuPercent = Number(event.cpuPercent)
       nodes[event.nodeId] = {
         ...nodes[event.nodeId], status: 'running', lastSeen: receivedAt,
@@ -910,7 +1036,23 @@ udp.on('message', (data, remote) => {
         edge.sentWireBytes += wireBytes
         recordRate(edge, receivedAt, wireBytes)
       }
-      if (event.event === 'receive') {
+      if (event.kind === 'network_packet') {
+        edge.connection = 'connected'
+        const wireBytes = Math.max(0, Number(event.wireBytes) || 0)
+        edge.sent += 1
+        edge.received += 1
+        edge.sentWireBytes += wireBytes
+        edge.receivedWireBytes += wireBytes
+        recordRate(edge, receivedAt, wireBytes)
+        const definition = topology.edges.find(value => value.id === event.edgeId)
+        for (const nodeId of [definition?.source, definition?.target]) {
+          if (nodeId && nodes[nodeId]) nodes[nodeId] = {
+            ...nodes[nodeId], status: 'running', lastSeen: receivedAt,
+          }
+        }
+        recent.unshift(event)
+        if (recent.length > 100) recent.length = 100
+      } else if (event.event === 'receive') {
         edge.connection = 'connected'
         edge.received += 1
         edge.receivedWireBytes += Math.max(0, Number(event.wireBytes) || 0)

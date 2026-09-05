@@ -73,3 +73,30 @@ test('UDP JSON schema enforces scalar types and numeric boundaries', () => {
       `${field}=${value} unexpectedly valid`)
   }
 })
+
+test('raw external edge and runtime metadata pass structural schema checks', () => {
+  const configuration = structuredClone(base)
+  configuration.graph.nodes[0] = { ...configuration.graph.nodes[0], runtime: 'docker',
+    execution: 'container', lifecycle: 'managed', control: 'origin' }
+  configuration.graph.nodes[1] = { ...configuration.graph.nodes[1], runtime: 'qemu',
+    execution: 'host', lifecycle: 'external', control: 'none', accelerator: 'auto',
+    architecture: 'x86_64' }
+  configuration.graph.edges[0] = { ...configuration.graph.edges[0], data_plane: 'external' }
+  configuration.transport.tcp[configuration.graph.edges[0].id].framing = 'none'
+  assert.equal(validate(configuration), true, JSON.stringify(validate.errors))
+
+  for (const [field, value] of [['runtime', 'podman'], ['execution', 'remote'],
+    ['lifecycle', 'automatic'], ['control', 'guest']]) {
+    const invalid = structuredClone(configuration)
+    invalid.graph.nodes[0][field] = value
+    assert.equal(validate(invalid), false, `${field}=${value} unexpectedly valid`)
+  }
+  for (const [field, value] of [['accelerator', 'metal'], ['architecture', 'arm64']]) {
+    const invalid = structuredClone(configuration)
+    invalid.graph.nodes[1][field] = value
+    assert.equal(validate(invalid), false, `${field}=${value} unexpectedly valid`)
+  }
+  const invalidPlane = structuredClone(configuration)
+  invalidPlane.graph.edges[0].data_plane = 'raw'
+  assert.equal(validate(invalidPlane), false, 'unknown data plane unexpectedly valid')
+})

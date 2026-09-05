@@ -19,9 +19,12 @@ says otherwise.
 | IPvlan L2 | Yes, including OVS/router path | No | No | OVS Ethernet mirror |
 | IPvlan L3 | Yes, including network path | No | No | External tools only |
 | Mixed macvlan/IPvlan | Yes, including OVS/router path | No | No | OVS Ethernet mirrors |
+| External QEMU | Yes, including host/VM path | Yes, passive packets | Origin only | Ethernet PCAPNG |
+| Linux containerized QEMU | Yes, including container/VM path | Yes, passive packets | Origin only | Ethernet PCAPNG |
 
-Only the standard Docker demo currently connects every node to the telemetry
-collector and authenticated control plane. For the remaining examples, the
+The standard Docker demo and both QEMU demos connect to the telemetry collector
+and authenticated control plane. The QEMU controls apply only to their raw
+traffic origin, not the guest. For the remaining examples, the
 console accurately renders `graphx.yaml`, but node cards remain starting/offline
 and counters remain zero or unavailable. Their launch helpers intentionally test
 the transport or network laboratory without adding a management network.
@@ -121,7 +124,39 @@ live browser metrics and runtime controls.
 The named capture volume survives `stop`. After downloading required evidence,
 delete it deliberately with `docker compose down -v` if retention is unnecessary.
 
-## 4. Reusable topology-only console
+## 4. QEMU demos: raw traffic with live graphics
+
+Build the common x86_64 guest once:
+
+```sh
+examples/qemu-node/scripts/build.sh
+```
+
+For macOS or portable host-managed QEMU:
+
+```sh
+examples/qemu-node/external/scripts/demo.sh start --accel auto
+```
+
+For native Linux with QEMU in Docker:
+
+```sh
+examples/qemu-node/container/scripts/demo.sh start --accel kvm
+```
+
+Open <http://127.0.0.1:8080/>. Application shows the same origin → QEMU →
+receiver graph in both demos. Network shows the profile-specific host or nested
+container/VM boundary. Counters come from passive Ethernet observation and
+update over WebSocket. History shows bounded packet metadata rather than GraphX
+envelope history. Downloaded QEMU captures use Ethernet link type 1.
+
+Retrieve the profile's token, paste it into **Control token**, and use Pause or
+Resume to control `host-origin`. The QEMU guest remains explicitly
+uncontrollable. Use the matching profile script's `verify`, `status`, `logs`,
+and `stop` commands. The complete guide and Linux operator acceptance procedure
+are in [`qemu-demos.md`](qemu-demos.md).
+
+## 5. Reusable topology-only console
 
 Use this recipe for examples whose launch scripts are not wired to the telemetry
 collector. Replace `CONFIG` and `CAPTURE_DIR` with the values in the relevant
@@ -150,7 +185,7 @@ observation token. Stop the topology console with `Ctrl-C`. Do not set a control
 token for these examples: their runtime processes are not connected to this
 collector, so pause/resume would not be meaningful.
 
-## 5. Standalone application-capture example
+## 6. Standalone application-capture example
 
 This finite TCP example produces GraphX-framed PCAPNG files and then displays
 them in the console catalog.
@@ -184,7 +219,7 @@ them in the console catalog.
 The console shows the files from a completed run, but it has no historical
 telemetry events with which to correlate the displayed packet numbers.
 
-## 6. Shared-memory example
+## 7. Shared-memory example
 
 1. In the topology-console recipe, set:
 
@@ -201,7 +236,7 @@ telemetry events with which to correlate the displayed packet numbers.
 The run is observable in its terminal; it does not publish live events to the
 browser console and does not create capture files.
 
-## 7. UDP unicast example
+## 8. UDP unicast example
 
 1. Set `CONFIG="$PWD/examples/udp-unicast/graphx.yaml"` in the topology-console
    recipe and start it.
@@ -213,7 +248,7 @@ browser console and does not create capture files.
 The current UDP example uses console logging rather than telemetry WebSocket
 export, so browser counters remain unavailable.
 
-## 8. UDP multicast example
+## 9. UDP multicast example
 
 1. Set `CONFIG="$PWD/examples/udp-multicast/graphx.yaml"` in the topology-console
    recipe and start it.
@@ -224,7 +259,7 @@ export, so browser counters remain unavailable.
 The browser represents one logical publisher-to-subscriber edge. The diagnostic
 second subscriber is network fan-out and is intentionally not a second graph edge.
 
-## 9. UDP broadcast example
+## 10. UDP broadcast example
 
 1. Set `CONFIG="$PWD/examples/udp-broadcast/graphx.yaml"` in the topology-console
    recipe and start it.
@@ -247,7 +282,7 @@ GRAPHX_BUILD_DIR="$PWD/build/dev" GRAPHX_VERIFY_LIVE_CAPTURE=1 \
 examples/udp-broadcast/down-native-linux.sh
 ```
 
-## 10. Macvlan example
+## 11. Macvlan example
 
 Native Linux is required for the runtime lab.
 
@@ -267,7 +302,7 @@ Native Linux is required for the runtime lab.
 
 This example has no SPAN capture helper and no live console telemetry connection.
 
-## 11. IPvlan L2 example
+## 12. IPvlan L2 example
 
 Native Linux is required. This is the richest native network-path display after
 the mixed example.
@@ -306,7 +341,7 @@ the mixed example.
    catalog refreshes at most once per second.
 8. Stop with `examples/ipvlan-l2/scripts/down.sh`.
 
-## 12. IPvlan L3 example
+## 13. IPvlan L3 example
 
 Native Linux is required.
 
@@ -325,7 +360,7 @@ Native Linux is required.
 
 IPvlan L3 has no L2 broadcast and this example has no OVS SPAN capture helper.
 
-## 13. Mixed macvlan/IPvlan and OVS example
+## 14. Mixed macvlan/IPvlan and OVS example
 
 This example provides the most detailed network visualization and two Ethernet
 mirror points.
@@ -380,7 +415,7 @@ mirror points.
 The macOS profile validates the userspace OVS/routing shape; it does not certify
 native macvlan or IPvlan semantics.
 
-## 14. Inspect captures in Wireshark
+## 15. Inspect captures in Wireshark
 
 GraphX application captures and OVS Ethernet captures use different link types:
 
@@ -403,7 +438,7 @@ them as sensitive evidence, limit access, and delete or archive them according
 to the applicable retention policy. See [`capture.md`](capture.md) for format,
 extcap, validation, size limits, and security details.
 
-## 15. Clean up credentials and generated data
+## 16. Clean up credentials and generated data
 
 After completing the examples:
 

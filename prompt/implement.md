@@ -6,236 +6,367 @@ You are the implementation agent for the GraphX project located at:
 
 ## Assignment
 
-Implement **Phase 11: UDP edges**, including IPv4 unicast, broadcast, and multicast transports and small runnable examples.
+Implement **Phase 12: unified QEMU demonstrations**. Provide two runnable demonstrations of the same logical raw-network topology:
 
-This phase follows the completed production-readiness sequence:
+1. **External QEMU demo** — QEMU runs as a host process and is represented by GraphX as an externally managed node. This is the portable profile for macOS, Linux, and other hosts supported by the selected QEMU/guest artifacts.
+2. **Containerized QEMU demo** — QEMU runs inside a Docker container and is represented by GraphX as a Docker-managed QEMU node. This profile is Linux-only and uses KVM when available, with an explicit TCG fallback for development and smoke testing.
 
-1. Configuration schema, loader, validation, and transport factory.
-2. Runtime lifecycle, bounded queues, cancellation, reconnect, and graceful shutdown.
-3. Protocol specification, compatibility rules, and message/trace identities.
-4. CI, sanitizers, fuzzing, static analysis, and expanded transport tests.
-5. Authentication, TLS, API validation, and container hardening.
-6. OpenTelemetry integration, health checks, SLOs, and operational dashboards.
-7. Durable or backend-driven telemetry history.
-8. Authorized control plane and real runtime controls.
-9. PCAPNG, Wireshark dissector, and extcap implementation.
-10. Release engineering, compatibility policy, packaging, and support processes.
-11. UDP unicast, broadcast, and multicast edges.
+Both demos must reuse the same guest image, guest application, host endpoint implementations, packet-observation pipeline, GUI behavior, topology semantics, capture/history formats, documentation structure, and acceptance vocabulary. The deployment boundary is the intentional difference.
 
-Do not implement the proposed SDR topology in this phase. Phase 11 provides the transport foundation and simple examples that the SDR example will use later.
+This phase builds on the existing prototype under `examples/qemu-node` and the user experience of the standard GraphX demo implemented by root `compose.yaml`, `compose.history.yaml`, `scripts/demo.sh`, and `docs/complete-system-demo.md`. There is no canonical `examples/demo` directory; do not create or document one as though it exists.
 
 ## Objective
 
-Add a production-quality UDP transport without weakening existing GraphX behavior. A UDP datagram carries exactly one complete GraphX framed envelope. UDP loss, duplication, and reordering must be observable and documented, and malformed traffic must not terminate a healthy receiver.
+Deliver two understandable demonstrations of this logical topology:
 
-Initial protocol scope is IPv4. Support:
+```text
+host-origin -- ordinary TCP and UDP --> qemu-node
+qemu-node   -- ordinary TCP and UDP --> host-receiver
+```
 
-- unicast between one sender and one receiver;
-- limited or directed IPv4 broadcast;
-- IPv4 multicast group transmission and membership;
-- explicit interface selection, socket buffers, multicast TTL, and multicast loopback;
-- deterministic receive timeout, cancellation, and resource cleanup;
-- packet capture and Wireshark inspection;
-- minimal unicast, broadcast, and multicast examples.
+The QEMU guest sends and receives normal network traffic. Application packets are not GraphX envelopes and do not use GraphX length framing. GraphX provides topology, deployment description, orchestration, passive observation, bounded packet history, capture access, GUI display, and narrowly scoped control of the host-origin traffic generator.
 
-IPv6, reliable UDP, retransmission, forward-error correction, message fragmentation/reassembly, DTLS, native one-to-many graph edges, and the SDR application are explicitly out of scope.
+The two demonstrations must look and behave alike from the user's perspective:
+
+```text
+demo.sh start [options]
+demo.sh status
+demo.sh verify
+demo.sh logs
+demo.sh token
+demo.sh stop
+```
 
 ## Working rules
 
-- Treat the repository as authoritative. Inspect `AGENTS.md`, repository status, build instructions, configuration, tests, packaging, and transport implementations before editing.
-- Preserve unrelated user changes and the behavior of TCP, Unix-domain, in-process, and shared-memory transports.
-- Keep GraphX independent of Docker, Compose, Open vSwitch, telemetry vendors, and GUI frameworks.
-- Do not silently change the envelope wire format or configuration version.
-- Do not treat UDP timeout, cancellation, malformed input, or socket failure as equivalent outcomes.
-- Do not add fake behavior or claim delivery guarantees UDP cannot provide.
-- Keep memory, datagram size, logging, error reporting, and malformed-packet processing bounded.
-- Add dependencies only when justified; prefer the platform socket API and existing project facilities.
-- Do not commit, push, publish, deploy, or contact external systems unless explicitly instructed.
+- Treat the repository and current working tree as authoritative. Inspect `AGENTS.md`, repository status, the existing QEMU prototype, standard demo, configuration schema, telemetry service, GUI, tests, and documentation before editing.
+- Preserve unrelated user changes. Do not reset, discard, overwrite, commit, push, publish, or deploy unless explicitly instructed.
+- Refactor the existing QEMU prototype rather than copying divergent guest source, host peers, capture logic, or test helpers.
+- Keep the logical topology and application payload contract identical between the two demos.
+- Keep platform/deployment differences in thin launch, Compose, and configuration overlays.
+- Do not label ordinary TCP/UDP packets as GraphX envelopes or reuse GraphX message history for packet history.
+- Capture and history are enabled and bounded by default. Support explicit `--no-capture` and `--no-history` options.
+- Do not require `privileged: true` for the default Linux container demo.
+- Do not claim that a running QEMU process means the guest application is ready.
+- Keep all waits, files, queues, payload previews, database growth, packet counts, log volume, shutdown periods, and retries bounded.
+- Do not expose QMP, receiver ports, control endpoints, captures, or telemetry externally by default. Host-published services must bind to loopback unless the user explicitly opts into another address.
+- Record design changes and unavoidable platform differences. Do not hide a platform limitation behind an unconditional success message.
 
-## Required design decisions and invariants
+## Required directory and reuse model
 
-1. A UDP edge uses the existing `ConnectionMode`: `connect` creates a sender and `listen` creates a receiver. The name `connect` does not imply a session or delivery guarantee.
-2. Each UDP datagram contains exactly one existing `u32be` GraphX frame: the four-byte frame length followed by one serialized envelope.
-3. GraphX does not divide an envelope among datagrams and does not reassemble IP or application fragments.
-4. The encoded frame must not exceed `max_datagram_bytes` or the IPv4 UDP maximum of 65,507 bytes.
-5. A receiver detects kernel-reported truncation, length mismatch, malformed envelopes, unsupported envelope versions, and trailing bytes before publishing a message.
-6. Invalid datagrams are dropped, counted, and reported through bounded diagnostics; the receiver remains usable.
-7. UDP has no reconnect, acknowledgement, retransmission, backpressure, TLS, or end-of-stream semantics.
-8. `close()` is idempotent and promptly wakes a blocked receiver. Destructors and move operations must not leak resources or throw.
-9. A multicast GraphX edge remains one logical producer-to-consumer edge. A diagnostic second listener may demonstrate network fan-out, but native graph fan-out is deferred.
-10. Socket buffer configuration records the requested value and tolerates platform-specific kernel adjustment rather than requiring an exact read-back value.
-11. Tests must not send broadcast traffic onto the developer's physical network. Use loopback where valid and isolated Linux namespaces or container networks for broadcast tests.
+Evolve `examples/qemu-node` into one example suite with shared assets and two deployment profiles. A repository-compatible equivalent is acceptable, but the resulting structure must make duplication and ownership clear. Preferred layout:
 
-## Configuration contract
-
-Add `udp` to `TransportKind`, `to_string()`, the strict configuration schema, CLI inspection, the transport factory, public headers, build/install manifests, and package-consumer validation.
-
-The intended YAML form is:
-
-```yaml
-graph:
-  edges:
-    - { id: messages, from: sender.out, to: receiver.in, transport: udp }
-
-transport:
-  udp:
-    messages:
-      mode: unicast
-      destination: 127.0.0.1
-      bind: 0.0.0.0
-      port: 7101
-      interface: ""
-      ttl: 1
-      loopback: true
-      reuse_address: false
-      receive_buffer_bytes: 4194304
-      send_buffer_bytes: 4194304
-      max_datagram_bytes: 65507
-      framing: u32be
+```text
+examples/qemu-node/
+  README.md
+  common/
+    guest/
+    buildroot-external/
+    host/
+    observer/
+    scripts/
+    tests/
+  external/
+    graphx.yaml
+    compose.yaml
+    compose.history.yaml
+    scripts/demo.sh
+    README.md
+  container/
+    graphx.yaml
+    compose.yaml
+    compose.history.yaml
+    Dockerfile.qemu-runtime
+    scripts/demo.sh
+    README.md
 ```
 
-Required fields are `mode`, `destination`, `bind`, and `port`. Other fields have documented defaults. If repository conventions justify slightly different names, record the reason in an ADR and update every example, test, and document consistently.
+Existing paths may remain as compatibility wrappers when removal would break documentation or tests. Wrappers must warn or forward deterministically and must not contain a second implementation.
 
-Validation must reject:
+## Shared topology and data-plane contract
 
-- unknown UDP keys or modes;
-- missing or invalid IPv4 destinations and bind addresses;
-- port zero or a port above 65,535;
-- multicast mode with a non-multicast destination;
-- unicast mode with a multicast or broadcast destination;
-- broadcast mode with a multicast destination;
-- TTL outside 0 through 255;
-- unreasonable or overflowing socket-buffer values;
-- `max_datagram_bytes` outside the supported framed-envelope range;
-- any framing other than `u32be`;
-- TCP-only settings such as reconnect, retry, and TLS;
-- UDP entries that do not correspond to UDP graph edges.
+Both configurations must describe the same logical nodes and four directed edges:
 
-The `interface` value is optional. When present, resolve either a valid interface name or IPv4 interface address consistently on Linux and macOS. A multicast receiver joins `destination` on that interface; a multicast sender uses it for outbound traffic. Invalid or unavailable interfaces must produce an actionable error.
+- `origin-qemu-udp`
+- `origin-qemu-tcp`
+- `qemu-receiver-udp`
+- `qemu-receiver-tcp`
 
-## Implementation requirements
+The graph must remain acyclic. `host-origin` and `host-receiver` are distinct real services, not fictitious aliases for one process.
 
-### UDP transport
+All four edges carry raw application traffic:
 
-Create a public `UdpTransport` and options type following the existing transport conventions. Integrate it through `TransportFactory` rather than constructing it directly in normal applications.
+```yaml
+transport: udp # or tcp
+framing: none
+data_plane: external
+```
 
-Sender requirements:
+If repository conventions justify different field names, document the decision and apply it consistently. The following invariants are mandatory:
 
-- serialize one framed envelope into one bounded buffer;
-- reject oversize frames before calling the network;
-- use one datagram send operation and reject a partial result;
-- enable `SO_BROADCAST` only in broadcast mode;
-- configure multicast interface, TTL, and loopback in multicast mode;
-- provide useful errors containing the edge ID and operation without exposing payload data;
-- emit existing send/error observability events.
+1. `framing: none` is accepted only for explicitly raw/external data-plane edges.
+2. Raw edges are validated, visualized, and observed but are never constructed by the GraphX transport factory.
+3. Existing GraphX TCP and UDP edges continue to require their existing framing and behavior.
+4. Existing configuration remains compatible.
+5. The topology API distinguishes protocol, framing, observation source, deployment runtime, lifecycle ownership, and control capability.
 
-Receiver requirements:
+## Shared guest and endpoint contract
 
-- set reuse and buffer options before binding where the platform requires it;
-- join and leave multicast membership correctly;
-- receive in a way that detects `MSG_TRUNC` or its portable equivalent;
-- validate the outer frame length before allocating or deserializing;
-- use a bounded buffer no larger than the configured datagram maximum;
-- continue safely after invalid traffic while respecting the original receive deadline;
-- avoid an unbounded CPU/logging loop under a flood of malformed datagrams;
-- return only `message`, `timeout`, or `cancelled`; UDP does not return `end_of_stream`;
-- unblock promptly on `close()` without relying on an arbitrary long polling delay.
+Use exactly one x86_64 guest build and one guest application for both profiles. The guest application must:
 
-### Observability
+- listen for ordinary TCP and UDP on a documented guest port;
+- send ordinary TCP and UDP to a documented peer endpoint;
+- use deterministic, inspectable test payloads with bounded sizes;
+- expose a bounded readiness signal that proves the application, not merely the kernel, is ready;
+- shut down or tolerate forced termination without corrupting host-side artifacts;
+- require no GraphX library or GraphX wire protocol.
 
-Extend observability with low-cardinality UDP counters or equivalent evidence for:
+Use one implementation each for `host-origin` and `host-receiver`. Deployment-specific destinations are supplied through validated environment/configuration values, not source forks.
 
-- datagrams and bytes sent;
-- valid datagrams and bytes received;
-- malformed datagrams;
-- truncated datagrams;
-- oversized outbound frames;
-- socket errors;
-- sequence gaps, duplicates, and out-of-order envelopes when those can be inferred from envelope metadata.
+Preserve one guest networking contract where practical. For example:
 
-If the `TraceSink` interface is extended, use default no-op virtual methods or another source-compatible mechanism. Rate-limit repetitive error text while continuing to increment counters. Document that sequence-gap metrics are estimates because delayed or reordered packets can arrive later.
+- guest listens on TCP/UDP `8001`;
+- QEMU exposes TCP/UDP `18001` to the environment containing QEMU;
+- guest sends TCP/UDP to the slirp gateway `10.0.2.2:19001`;
+- external profile publishes the receiver on host loopback `19001`;
+- container profile provides a bounded TCP/UDP relay in the QEMU container namespace from `10.0.2.2:19001` to the `host-receiver` Compose service.
 
-### Capture and Wireshark
+The exact ports may change to avoid current repository conflicts, but the same guest image must run unchanged in both profiles. Do not rely on a changing Docker container IP. Verify TCP and UDP separately; a TCP-only `guestfwd` solution is insufficient.
 
-Make UDP GraphX envelopes inspectable with the existing capture strategy. Update the Lua dissector and its tests as needed to support UDP `Decode As`, a configurable port/range preference, or a conservative magic-based heuristic. The dissector must reject datagrams whose framed length does not match the UDP payload length. Do not register broad UDP ranges by default in a way that misclassifies unrelated protocols.
+## Common build and artifact model
 
-### Examples
+- Use the existing pinned Buildroot release and x86_64 guest definition unless an evidence-backed compatibility change is required.
+- Build guest artifacts once and make both profiles consume the same versioned outputs.
+- Separate a heavyweight guest builder image from the Linux QEMU runtime image.
+- Keep toolchains and Buildroot sources out of the QEMU runtime image.
+- Record guest artifact hashes and build metadata so the two profiles can prove they ran equivalent artifacts.
+- Continue supporting the project's global organizational certificate and install-script mechanism in affected Docker builds without embedding private certificates in images or source control.
+- Generated images, captures, databases, sockets, PID files, and logs must be ignored or placed under the established bounded output structure.
 
-Provide three small examples. Reuse one publisher/subscriber implementation when practical rather than copying application logic.
+## Demo A — external QEMU profile
 
-1. `examples/udp-unicast`: a counter publisher sends numbered messages to one loopback subscriber.
-2. `examples/udp-broadcast`: a discovery beacon sends small announcements to a listener on an isolated Docker or Linux-namespace subnet. Scripts must refuse unsafe ambiguous targets and clean up after interruption.
-3. `examples/udp-multicast`: a publisher sends to an administratively scoped group such as `239.255.42.1`; a GraphX subscriber and optional diagnostic subscriber demonstrate group delivery with local loopback enabled.
+The external profile is the portable baseline.
 
-Each example requires a minimal `graphx.yaml`, README, bounded runtime, deterministic success condition, nonzero exit on failure, and cleanup instructions. Privileged Linux requirements must be explicit. Examples must not require internet access.
+### Deployment
+
+- Run `host-origin`, `host-receiver`, packet observer, telemetry, and GUI as Docker services where Docker is available.
+- Run QEMU on the host under the demo script's lifecycle control.
+- Represent `qemu-node` with runtime `qemu`, execution `host`, and lifecycle `external` (or equivalent explicit metadata).
+- Permit a mixed deployment in which Docker-managed services have images but the external QEMU node does not.
+- On Docker Desktop use `host.docker.internal`; on native Linux external mode add or derive the supported host-gateway mapping.
+- Bind QEMU forwarding, receiver publication, QMP, telemetry, and GUI only as broadly as documented. Default to loopback.
+
+### Lifecycle
+
+- Validate QEMU, Docker, free ports, artifacts, writable output paths, and supported host architecture before mutation.
+- Start supporting containers, start QEMU, wait for the guest application, then start traffic.
+- Use a private Unix QMP socket when supported; never publish QMP on an external TCP address.
+- Track only the QEMU process owned by this run. Refuse unsafe stale PID reuse.
+- On stop, request graceful guest/QEMU shutdown, wait for a bounded interval, then terminate only the verified owned process.
+- Clean sockets and PID files idempotently while applying documented retention to captures and history.
+
+### Platform behavior
+
+- On macOS select HVF only when the host and guest combination supports it; otherwise use TCG and report the choice.
+- On Linux external mode select KVM when accessible, otherwise TCG according to `--accel auto|kvm|tcg`.
+- Never silently report hardware acceleration when QEMU actually used TCG.
+
+## Demo B — Linux containerized QEMU profile
+
+The container profile is Linux-only.
+
+### QEMU runtime image
+
+- Use a small Linux QEMU runtime image consuming the shared guest artifacts.
+- Run QEMU as a supervised foreground process with correct signal propagation.
+- Prefer a non-root runtime user. Grant only the group/device access required for `/dev/kvm`.
+- Mount `/dev/kvm` only for KVM mode.
+- Do not mount the Docker socket.
+- Do not use `privileged: true` in the default profile.
+- Do not require `/dev/net/tun` or `NET_ADMIN` for the default user-network profile.
+
+### Compose deployment
+
+- Run `host-origin`, `qemu-node`, `host-receiver`, observer, telemetry, and GUI as managed services.
+- Keep data ports internal to the Compose network unless a verifier/debug option explicitly publishes them to loopback.
+- Use service DNS rather than fixed container addresses.
+- Mount the capture/output volume read-write only where necessary and read-only elsewhere.
+- Determine the host KVM group safely and pass the required group membership without assuming one fixed GID.
+- Provide `--accel auto|kvm|tcg`. `kvm` must fail clearly when unavailable; `auto` may fall back to TCG but must say so.
+
+### Readiness and shutdown
+
+- A container health check must prove that the guest application responds over both required protocol paths, not simply that QEMU has a PID.
+- Use QMP or an equivalent private mechanism for orderly shutdown.
+- Flush packet capture and history state before the service is considered stopped.
+- Preserve useful QEMU/guest diagnostics when readiness fails.
+
+## Passive observation, capture, and packet history
+
+Use one common observation implementation for both profiles. It must consume a QEMU Ethernet capture stream/file without changing the guest application.
+
+### Live observation
+
+- Safely tail classic PCAP while QEMU is writing it, including partial global headers and partial packet records.
+- Decode bounded Ethernet/IPv4/TCP/UDP metadata.
+- Emit a distinct low-cardinality `network_packet` event or equivalent packet observation, not a fabricated GraphX message event.
+- Attribute packets to topology edges using documented endpoint/direction rules and surface unknown/unattributed packets honestly.
+- Publish live packet/byte/rate/error counters over the existing API/WebSocket path.
+- Recover from QEMU restart, file replacement, truncation, and supported rotation.
+
+### Capture
+
+- Enable capture by default.
+- Retain the source PCAP and produce valid Ethernet PCAPNG with link type 1.
+- Catalog and download only validated, bounded capture files.
+- Preserve path traversal, symlink, file-type, incomplete-file, and size protections.
+- Do not apply the GraphX Lua dissector to raw traffic as though it contained GraphX envelopes.
+
+### Packet history
+
+- Enable packet history by default and store it separately from GraphX message history.
+- Include timestamp, direction, edge attribution, protocol, addresses, ports, original/captured length, truncation, and a bounded payload preview or hash according to policy.
+- Apply defaults aligned with the standard demo unless repository limits are stricter: one day, 50,000 records, and a 64 MiB database.
+- Apply capture defaults aligned with the standard demo unless stricter: 100,000 packets and 64 MiB aggregate storage.
+- Enforce age, record, packet, and byte bounds during normal operation and restart recovery.
+- Treat malformed packets as bounded diagnostic records or drops; never crash or allocate from an untrusted length without validation.
+
+## GUI and control requirements
+
+Use the same GUI implementation for both demos.
+
+### GUI
+
+- Render the same application topology and raw TCP/UDP edges in both profiles.
+- Render a network/deployment view that accurately differs:
+  - external profile: Docker services plus host-managed QEMU VM;
+  - container profile: Docker QEMU container containing a QEMU VM and guest application.
+- Remove hard-coded claims that every node is a Docker container or every observed packet is GraphX-framed traffic.
+- Show runtime, execution owner, accelerator, guest architecture, guest readiness, observation source, and control capability.
+- Update counters over WebSocket without browser refresh.
+- Keep Application, Network, History, and Capture navigation functional in every order, including returning from History.
+- Clearly distinguish not started, booting, ready, degraded, stopped, and unavailable observation.
+
+### Control
+
+- Pause/resume controls only `host-origin` traffic generation.
+- Reset clears live observer counters and documents whether it begins a new capture/history segment.
+- Do not claim to pause or control the guest unless a separate guest-control feature is actually implemented and verified.
+- Display the QEMU guest as not application-controllable in this phase.
+- Use the existing generated control-token mechanism for mutations.
+- Permit default loopback observation without a control token unless repository security policy explicitly requires one.
+
+## CLI behavior and diagnostics
+
+Both profile scripts must support the same verbs and common options. Profile-specific unsupported options must fail with help rather than being ignored.
+
+`start` must print:
+
+- selected profile and platform;
+- selected accelerator and evidence source;
+- guest artifact identity;
+- capture/history enabled state and limits;
+- GUI/API URLs;
+- how to retrieve the control token;
+- deterministic readiness outcome.
+
+`verify` must run non-destructive profile-specific smoke checks and print individually attributable PASS/FAIL/SKIP results. `status` must distinguish service state, QEMU state, guest readiness, live traffic, capture, and history. `logs` must cover containers and, for external mode, host QEMU/guest logs. `stop` must be idempotent.
 
 ## Acceptance requirements
 
-Use these identifiers unchanged in the handoff and tests:
+Use these identifiers unchanged in implementation tests, handoff, and verifier report:
 
-- **UDP-001 — Configuration:** Valid unicast, broadcast, and multicast configurations load; invalid mode/address/port/interface/buffer/size/framing combinations fail with precise paths.
-- **UDP-002 — Unicast:** A factory-created sender and receiver exchange framed envelopes over IPv4 loopback with correct content and observability.
-- **UDP-003 — Broadcast:** An isolated Linux acceptance test proves a broadcast sender reaches a listener without using the physical network.
-- **UDP-004 — Multicast:** A multicast publisher sends one datagram that is received by at least two joined listeners in a supported test environment.
-- **UDP-005 — Datagram integrity:** Oversize, truncated, malformed, unknown-version, length-mismatch, and trailing-data packets are rejected without delivering partial messages or permanently disabling the receiver.
-- **UDP-006 — Lifecycle:** Timeout, cancellation, repeated close, destruction, and move behavior are deterministic and leak-free; blocked receive is promptly cancelled.
-- **UDP-007 — UDP semantics:** No retry, reconnect, TLS, end-of-stream, or delivery guarantee is exposed; behavior under loss, duplication, and reordering is documented and tested where controllable.
-- **UDP-008 — Observability:** Required counters and bounded diagnostics distinguish valid traffic, drops, truncation, oversize sends, sequence anomalies, and socket failures.
-- **UDP-009 — Capture:** A captured UDP frame is decoded correctly by the GraphX Wireshark dissector, and malformed length cases are rejected.
-- **UDP-010 — Examples:** All three examples validate, run according to their documented environment requirements, terminate deterministically, and clean up.
-- **UDP-011 — Compatibility:** Existing configuration, public API, wire fixtures, transports, applications, packaging, and tests remain compatible.
-- **UDP-012 — Quality gates:** Clean build, complete CTest, configured sanitizer/static-analysis/format checks, package consumer test, and affected container checks pass, or environmental restrictions are recorded without claiming success.
-- **UDP-013 — Documentation:** README, configuration reference, protocol/operations guidance, and example documentation accurately state UDP limits, MTU/fragmentation risk, socket-buffer behavior, firewall/broadcast/multicast requirements, and platform limitations.
+- **QEMU-001 — Shared logical topology:** Both profiles expose the same valid acyclic three-node, four-edge TCP/UDP topology and endpoint semantics.
+- **QEMU-002 — Raw protocol integrity:** Application traffic is ordinary TCP/UDP with `framing: none`; raw edges never enter the GraphX transport factory and existing GraphX transports remain unchanged.
+- **QEMU-003 — Shared artifacts and code:** Both profiles use the same guest image, guest application, host endpoint implementations, observer, GUI, and test payload contract; artifact identity is verifiable.
+- **QEMU-004 — External deployment model:** The portable profile models and operates QEMU as an externally managed host node while Docker services remain managed.
+- **QEMU-005 — External runtime:** A supported macOS or Linux host boots the guest, proves bidirectional TCP and UDP, reports the actual accelerator, and stops cleanly.
+- **QEMU-006 — Container deployment model:** The Linux profile models QEMU as a Docker-managed service and accurately exposes the nested container/VM runtime.
+- **QEMU-007 — Container runtime and KVM:** Linux boots the guest in the QEMU container, proves bidirectional TCP and UDP, verifies KVM when selected, supports explicit TCG, and requires no privileged container in the default profile.
+- **QEMU-008 — Lifecycle and readiness:** Both profiles provide bounded, idempotent startup, guest-application readiness, failure rollback, restart, and shutdown without unrelated process termination or orphaned resources.
+- **QEMU-009 — Passive live observation:** Packet-derived node/edge counters update through the API and WebSocket without representing packets as GraphX messages.
+- **QEMU-010 — Capture:** Capture is enabled by default, bounded, valid as Ethernet PCAP/PCAPNG, cataloged/downloadable, secure against unsafe paths, and disableable.
+- **QEMU-011 — Packet history:** Separate packet history is enabled by default, queryable, persistent according to policy, bounded by time/count/bytes, and disableable.
+- **QEMU-012 — GUI parity and accuracy:** Both demos use one GUI, render topology and deployment boundaries accurately, update live, and remain functional across all tab transitions.
+- **QEMU-013 — Scoped control:** Authenticated pause/resume affects only host-origin, reset semantics are accurate, observation remains appropriately accessible, and unsupported guest control is not implied.
+- **QEMU-014 — Unified CLI:** Both profiles implement the shared start/status/verify/logs/token/stop workflow with actionable diagnostics and deterministic exits.
+- **QEMU-015 — Security and resource bounds:** Default exposure is loopback/private, QMP is private, no Docker socket or privileged container is required, and all storage, parsing, retries, waits, payloads, and diagnostics are bounded.
+- **QEMU-016 — Compatibility and quality:** Existing builds, tests, packaging, standard demo, UDP examples, telemetry security, GUI, capture/history, documentation, and supported platform workflows remain compatible.
+- **QEMU-017 — Documentation:** A common guide plus profile-specific guides explain prerequisites, architecture, operation, capture/history, GUI, controls, acceleration, limitations, cleanup, and troubleshooting without conflating inspection and runtime proof.
 
 ## Required tests
 
-At minimum add:
+At minimum add automated tests for:
 
-- parser positive and negative cases for every UDP field and mode;
-- factory validation and round trips;
-- zero/small/maximum configured payload boundaries;
-- timeout and close-during-receive tests without long sleeps;
-- malformed, truncated, length-mismatch, unknown-version, and trailing-data injection using raw sockets;
-- recovery by receiving a valid packet after each invalid case;
-- multicast join/leave, explicit interface, loopback, and two-listener delivery;
-- isolated broadcast delivery and teardown on Linux;
-- metrics and trace assertions;
-- repeated construction/destruction and file-descriptor leak checks where practical;
-- Wireshark field/decoding regression tests;
-- installation and external consumer compilation using the new public header.
+- shared topology equivalence with an explicit allowlist for deployment-only differences;
+- raw-edge schema positive and adversarial negative cases;
+- factory rejection/non-construction of raw edges;
+- existing framed TCP/UDP compatibility;
+- guest artifact identity across profiles;
+- origin/receiver TCP and UDP behavior, reconnect, timeouts, bounded payloads, and deterministic exit;
+- QEMU command construction and accelerator selection;
+- stale PID/socket protection in external mode;
+- signal propagation, health checks, and QMP shutdown in container mode;
+- partial, truncated, replaced, rotated, malformed, and oversized PCAP input;
+- packet attribution, counters, WebSocket updates, and reconnect;
+- PCAP/PCAPNG link type, capture limits, download validation, traversal, and symlink rejection;
+- packet-history age/count/byte bounds and restart recovery;
+- GUI rendering for external and nested-container runtime models;
+- History-to-Network/Application/Capture tab regression;
+- control token, unauthorized mutation, pause/resume traffic cessation/restart, and reset semantics;
+- repeated start/status/verify/stop and interrupted startup cleanup;
+- Compose validation and image hardening;
+- affected installation/package consumer and standard demo regressions.
 
-Keep timing assertions tolerant enough for CI but bounded tightly enough to detect cancellation regressions.
+Do not make timing tests depend on long arbitrary sleeps. Use bounded readiness polling and tolerant but meaningful deadlines.
+
+## Implementation sequence
+
+1. Audit and preserve the working tree; baseline existing tests and the QEMU prototype.
+2. Record the shared topology, guest endpoint contract, deployment overlay strategy, raw-edge schema, and packet-observation boundary in an ADR.
+3. Refactor shared guest, endpoint, build, and observer assets without changing behavior.
+4. Add raw/external edge and runtime metadata support with compatibility tests.
+5. Complete the external profile lifecycle and cross-platform host-gateway/accelerator handling.
+6. Build the small QEMU runtime image and Linux Compose profile with KVM/TCG selection.
+7. Implement the common passive observation, bounded capture, and separate packet-history pipeline.
+8. Generalize the telemetry topology API and GUI for both runtime models.
+9. Implement narrowly scoped controls and shared CLI behavior.
+10. Add automated verification, documentation, and full regression evidence.
+
+Do not implement the optional TAP/bridge, multicast/broadcast-through-guest, physical SDR, or arbitrary external-node orchestration extensions in this phase. Record them as later work.
 
 ## Verification before handoff
 
-Run every feasible project check, including:
+Run every feasible project check and distinguish actual execution from inspection:
 
-- clean CMake configure and native build;
-- complete CTest suite;
-- targeted UDP tests repeatedly;
-- ASan/UBSan and other configured sanitizers;
-- clang-tidy and explicit project formatting tools;
-- package installation and consumer build;
-- Compose validation and affected container builds;
-- unprivileged unicast and multicast examples;
-- privileged isolated broadcast/network tests on Linux;
-- capture and `tshark` dissector verification.
+- clean native configure/build and complete CTest;
+- targeted configuration, raw-edge, observer, capture, history, telemetry, GUI, and lifecycle tests;
+- formatting, static analysis, configured sanitizers, and fuzz targets;
+- package installation and external consumer tests;
+- standard demo and Phase 11 UDP regressions;
+- Compose validation and all affected image builds;
+- external-QEMU runtime on the available supported host;
+- containerized QEMU TCG runtime on Linux;
+- containerized QEMU KVM runtime on a KVM-capable Linux host;
+- `tshark` validation of real PCAP and PCAPNG artifacts;
+- browser/API/WebSocket live-update and tab-navigation checks.
 
-Do not report a skipped check as passing. Distinguish code inspection, simulated testing, Docker testing, and actual privileged Linux runtime verification.
+A macOS result does not prove Linux container behavior. A TCG result does not prove KVM. A mounted `/dev/kvm` does not prove that QEMU activated KVM. A process/container state does not prove guest readiness. Do not report skipped checks as passing.
 
 ## Deliverables and handoff
 
-Create `phase_11_handoff.md` containing:
+Create `phase_12_handoff.md` in the repository with:
 
-1. Outcome summary.
-2. A UDP-001 through UDP-013 matrix with implementation evidence and test evidence.
-3. Architecture and compatibility decisions.
-4. Files and public interfaces changed.
-5. Exact commands and results.
-6. Tests skipped and the precise environmental reason.
-7. Known limitations and deferred scope.
-8. Security and denial-of-service considerations.
-9. Risks the verifier should examine closely.
-10. Confirmation that the SDR topology was not implemented in this phase.
+1. Outcome and scope summary.
+2. QEMU-001 through QEMU-017 traceability matrix containing implementation evidence, test evidence, platform/profile, and status.
+3. Shared architecture and explicit profile differences.
+4. Raw data-plane, observation-plane, and control-plane separation.
+5. Configuration/schema and compatibility decisions.
+6. Files, public interfaces, images, volumes, ports, and commands added or changed.
+7. Exact commands, results, durations, and environment information.
+8. Runtime-verified, inspection-only, skipped, and unavailable checks.
+9. Security, resource-bound, lifecycle, and failure-recovery assessment.
+10. Known limitations and deferred TAP/L2/SDR work.
+11. Risks and targeted areas for the independent verifier.
 
-The phase is complete only when all acceptance requirements are met and the handoff accurately distinguishes verified runtime behavior from inspection or unavailable tests.
+Phase 12 is complete only when both profiles share the intended implementation, all applicable acceptance requirements are satisfied, and unavailable platform runtime evidence is reported honestly.

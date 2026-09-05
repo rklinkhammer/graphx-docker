@@ -11,6 +11,9 @@ namespace graphx {
 
 TransportPtr TransportFactory::create(const EdgeConfig& edge, ConnectionMode mode,
                                       TraceSink* trace_sink) {
+  if (edge.data_plane == "external")
+    throw std::invalid_argument("external data-plane edge '" + edge.edge.id +
+                                "' is observed but not managed by TransportFactory");
   const auto& transport = edge.transport;
   switch (transport.kind) {
     case TransportKind::tcp: {

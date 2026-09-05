@@ -22,9 +22,11 @@ build+=("$repo_dir")
 "${build[@]}"
 
 mkdir -p "$example_dir/output" "$example_dir/dl"
+source_date_epoch=${SOURCE_DATE_EPOCH:-$(git -C "$repo_dir" log -1 --format=%ct)}
 docker run --rm \
   --user "$(id -u):$(id -g)" \
   --env HOME=/tmp \
+  --env "SOURCE_DATE_EPOCH=$source_date_epoch" \
   --volume "$repo_dir:/workspace" \
   --workdir /workspace \
   "$builder_image" -lc '
@@ -46,4 +48,8 @@ for image in bzImage rootfs.cpio.gz; do
     exit 1
   }
 done
+buildroot_version=$(docker run --rm "$builder_image" -lc 'make -s -C /opt/buildroot print-version')
+python3 "$example_dir/tools/artifact_manifest.py" create \
+  --images "$example_dir/output/images" --guest "$example_dir/guest" \
+  --buildroot-version "$buildroot_version" --source-date-epoch "$source_date_epoch"
 echo "QEMU guest images: $example_dir/output/images"

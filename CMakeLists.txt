@@ -310,8 +310,14 @@ if(GRAPHX_BUILD_TESTS)
   set_tests_properties(graphx-udp-unicast-example graphx-udp-multicast-example
     PROPERTIES TIMEOUT 15 ENVIRONMENT "GRAPHX_BUILD_DIR=${CMAKE_BINARY_DIR}")
   add_test(NAME graphx-qemu-node-static
-    COMMAND ${CMAKE_SOURCE_DIR}/examples/qemu-node/scripts/test.sh)
-  set_tests_properties(graphx-qemu-node-static PROPERTIES TIMEOUT 15)
+    COMMAND ${CMAKE_SOURCE_DIR}/examples/qemu-node/scripts/test.sh $<TARGET_FILE:graphx-cli>)
+  set_tests_properties(graphx-qemu-node-static PROPERTIES TIMEOUT 30)
+  add_test(NAME graphx-config-qemu-external
+    COMMAND graphx-cli validate ${CMAKE_SOURCE_DIR}/examples/qemu-node/external/graphx.yaml)
+  add_test(NAME graphx-config-qemu-container
+    COMMAND graphx-cli validate ${CMAKE_SOURCE_DIR}/examples/qemu-node/container/graphx.yaml)
+  set_tests_properties(graphx-config-qemu-external graphx-config-qemu-container
+    PROPERTIES ENVIRONMENT "GRAPHX_OVERRIDES=")
   if(GRAPHX_ENABLE_SANITIZERS)
     add_test(NAME graphx-sanitizer-coverage
       COMMAND ${CMAKE_COMMAND}

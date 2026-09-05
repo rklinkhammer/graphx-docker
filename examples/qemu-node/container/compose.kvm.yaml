@@ -1,0 +1,4 @@
+services:
+  qemu-node:
+    devices: ["/dev/kvm:/dev/kvm"]
+    group_add: ["${GRAPHX_KVM_GID:?set by demo.sh}"]

@@ -17,6 +17,11 @@ const TELEMETRY_KEYS = new Set([
   'parentMessageId', 'traceId', 'spanId', 'captureFile', 'direction', 'capturePacket',
   'captureOffset',
 ])
+const NETWORK_PACKET_KEYS = new Set([...TELEMETRY_KEYS,
+  'protocol', 'sourceAddress', 'destinationAddress', 'sourcePort', 'destinationPort',
+  'observationSource'])
+const PACKET_ONLY_KEYS = ['protocol', 'sourceAddress', 'destinationAddress', 'sourcePort',
+  'destinationPort', 'observationSource']
 const CONTROL_ACK_KEYS = new Set([
   'kind', 'nodeId', 'action', 'accepted', 'commandId', 'state', 'error',
 ])
@@ -72,7 +77,8 @@ export function sanitizeTelemetryEvent(event, credentials = []) {
   if (!event || typeof event !== 'object') return event
   const sanitized = {}
   const allowedKeys = event.kind === 'control_ack' ? CONTROL_ACK_KEYS :
-    event.kind === 'capture' ? CAPTURE_KEYS : TELEMETRY_KEYS
+    event.kind === 'capture' ? CAPTURE_KEYS :
+      event.kind === 'network_packet' ? NETWORK_PACKET_KEYS : TELEMETRY_KEYS
   const secrets = [...new Set(credentials.filter(value => typeof value === 'string' && value))]
     .sort((left, right) => right.length - left.length)
   for (const [key, value] of Object.entries(event)) {
@@ -154,8 +160,9 @@ const boundedNumber = (value, maximum = Number.MAX_SAFE_INTEGER) =>
 
 export function validateTelemetryEvent(event, nodeIds, edgeIds) {
   if (!event || typeof event !== 'object' || Array.isArray(event) ||
-      !['trace', 'capture', 'control_ack'].includes(event.kind) ||
+      !['trace', 'capture', 'control_ack', 'network_packet'].includes(event.kind) ||
       typeof event.nodeId !== 'string' || !nodeIds.has(event.nodeId)) return false
+  if (event.kind !== 'network_packet' && PACKET_ONLY_KEYS.some(key => key in event)) return false
   if (event.kind === 'control_ack')
     return ['pause', 'resume'].includes(event.action) && typeof event.accepted === 'boolean' &&
       typeof event.commandId === 'string' &&
@@ -171,6 +178,14 @@ export function validateTelemetryEvent(event, nodeIds, edgeIds) {
       !boundedText(event.message, 256) || !boundedNumber(event.wireVersion, 255) ||
       !boundedNumber(event.payloadBytes, 64 * 1024 * 1024) ||
       (event.edgeId && !edgeIds.has(event.edgeId))) return false
+  if (event.kind === 'network_packet')
+    return event.event === 'receive' && ['TCP', 'UDP'].includes(event.protocol) &&
+      typeof event.sourceAddress === 'string' && boundedText(event.sourceAddress, 45) &&
+      typeof event.destinationAddress === 'string' && boundedText(event.destinationAddress, 45) &&
+      Number.isSafeInteger(event.sourcePort) && event.sourcePort >= 0 && event.sourcePort <= 65535 &&
+      Number.isSafeInteger(event.destinationPort) && event.destinationPort >= 0 &&
+      event.destinationPort <= 65535 && event.observationSource === 'qemu-pcap' &&
+      event.direction === 'observed'
   if (event.kind === 'capture')
     return event.event === 'frame' && typeof event.captureFile === 'string' &&
       /^[A-Za-z][A-Za-z0-9_-]{0,63}\.pcapng$/.test(event.captureFile) &&

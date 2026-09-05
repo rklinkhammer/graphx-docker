@@ -58,6 +58,22 @@ test('telemetry validation rejects unknown identities and unbounded values', () 
     edgeId: 'generator', timestamp: Date.now(), message: 'ok' }, nodes, edges), false)
 })
 
+test('passive network packet events are bounded and explicitly identified', () => {
+  const nodes = new Set(['qemu-node'])
+  const edges = new Set(['origin-qemu-udp'])
+  const valid = { kind: 'network_packet', event: 'receive', nodeId: 'qemu-node',
+    edgeId: 'origin-qemu-udp', timestamp: Date.now(), sequence: 1, wireBytes: 80,
+    payloadBytes: 24, protocol: 'UDP', sourceAddress: '10.0.2.2',
+    destinationAddress: '10.0.2.15', sourcePort: 51000, destinationPort: 18001,
+    direction: 'observed', observationSource: 'qemu-pcap' }
+  assert.equal(validateTelemetryEvent(valid, nodes, edges), true)
+  assert.equal(validateTelemetryEvent({ ...valid, kind: 'trace' }, nodes, edges), false)
+  assert.equal(validateTelemetryEvent({ ...valid, protocol: 'ICMP' }, nodes, edges), false)
+  assert.equal(validateTelemetryEvent({ ...valid, destinationPort: 65536 }, nodes, edges), false)
+  assert.equal(validateTelemetryEvent({ ...valid, observationSource: 'claimed-runtime' }, nodes, edges), false)
+  assert.equal(validateTelemetryEvent({ ...valid, sourceAddress: 'x'.repeat(46) }, nodes, edges), false)
+})
+
 test('control acknowledgements require correlated bounded command identity and state', () => {
   const nodes = new Set(['generator'])
   const edges = new Set(['samples'])

@@ -1,0 +1,73 @@
+version: 1
+graph:
+  id: qemu-container-demo
+  nodes:
+    - id: host-origin
+      kind: source
+      runtime: docker
+      execution: container
+      lifecycle: managed
+      control: origin
+      ports:
+        - { name: tcp_out, direction: output, schema: RawTcpBytes }
+        - { name: udp_out, direction: output, schema: RawUdpDatagram }
+    - id: qemu-node
+      kind: virtual-machine
+      runtime: qemu
+      execution: container
+      lifecycle: managed
+      control: none
+      accelerator: auto
+      architecture: x86_64
+      ports:
+        - { name: tcp_in, direction: input, schema: RawTcpBytes }
+        - { name: tcp_out, direction: output, schema: RawTcpBytes }
+        - { name: udp_in, direction: input, schema: RawUdpDatagram }
+        - { name: udp_out, direction: output, schema: RawUdpDatagram }
+    - id: host-receiver
+      kind: sink
+      runtime: docker
+      execution: container
+      lifecycle: managed
+      control: none
+      ports:
+        - { name: tcp_in, direction: input, schema: RawTcpBytes }
+        - { name: udp_in, direction: input, schema: RawUdpDatagram }
+  edges:
+    - { id: origin-qemu-tcp, from: host-origin.tcp_out, to: qemu-node.tcp_in, transport: tcp, data_plane: external }
+    - { id: qemu-receiver-tcp, from: qemu-node.tcp_out, to: host-receiver.tcp_in, transport: tcp, data_plane: external }
+    - { id: origin-qemu-udp, from: host-origin.udp_out, to: qemu-node.udp_in, transport: udp, data_plane: external }
+    - { id: qemu-receiver-udp, from: qemu-node.udp_out, to: host-receiver.udp_in, transport: udp, data_plane: external }
+transport:
+  tcp:
+    origin-qemu-tcp: { host: qemu-node, bind: 0.0.0.0, port: 18001, framing: none }
+    qemu-receiver-tcp: { host: host-receiver, bind: 0.0.0.0, port: 19001, framing: none }
+  udp:
+    origin-qemu-udp: { mode: unicast, destination: 10.0.2.15, bind: 0.0.0.0, port: 18001, max_datagram_bytes: 1400, framing: none }
+    qemu-receiver-udp: { mode: unicast, destination: 10.0.2.2, bind: 0.0.0.0, port: 19001, max_datagram_bytes: 1400, framing: none }
+network:
+  networks:
+    - { id: docker-qemu-demo, driver: bridge, subnet: 172.30.12.0/24, gateway: 172.30.12.1, external: true }
+    - { id: qemu-usernet, driver: bridge, subnet: 10.0.2.0/24, gateway: 10.0.2.2, external: true }
+  interfaces:
+    host-origin: [{ id: docker-origin, network: docker-qemu-demo }]
+    qemu-node: [{ id: virtio-net, network: qemu-usernet, address: 10.0.2.15/24 }]
+    host-receiver: [{ id: docker-receiver, network: docker-qemu-demo }]
+  edge_paths:
+    origin-qemu-tcp: [host-origin, docker-qemu-demo, qemu-usernet, qemu-node]
+    qemu-receiver-tcp: [qemu-node, qemu-usernet, docker-qemu-demo, host-receiver]
+    origin-qemu-udp: [host-origin, docker-qemu-demo, qemu-usernet, qemu-node]
+    qemu-receiver-udp: [qemu-node, qemu-usernet, docker-qemu-demo, host-receiver]
+deployment:
+  network: qemu-container
+  services:
+    host-origin: { image: graphx-qemu-services:latest, command: host/peer.py --origin }
+    qemu-node: { image: graphx-qemu-runtime:latest, command: qemu-entrypoint }
+    host-receiver: { image: graphx-qemu-services:latest, command: host/peer.py --receiver }
+  telemetry: { service: telemetry, port: 9000 }
+observability:
+  metrics: { enabled: true, exporters: [console, udp-json] }
+  tracing: { enabled: false, exporters: [console] }
+  telemetry: { host: telemetry, port: 9000, websocket: /ws, heartbeat_interval_ms: 1000, heartbeat_timeout_ms: 60000 }
+  capture: { enabled: true, provider: pcapng, directory: captures, max_file_bytes: 67108864, max_packets: 100000 }
+  history: { enabled: true, backend: sqlite, database_file: .graphx/history.sqlite, retention_seconds: 86400, max_records: 50000, max_database_bytes: 67108864 }

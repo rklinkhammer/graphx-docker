@@ -29,7 +29,12 @@ export function applicationNodes(topology) {
   if (!topology?.nodes?.length) return initialNodes
   return topology.nodes.map(node => ({ id: node.id, data: {
     label: node.label, role: node.role, status: 'starting', cpu: null,
-    image: node.image, input: node.input, output: node.output,
+    image: node.image, runtime: node.runtime, execution: node.execution,
+    lifecycle: node.lifecycle, control: node.control, accelerator: node.accelerator,
+    requestedAccelerator: node.requestedAccelerator, selectedAccelerator: node.selectedAccelerator,
+    actualAccelerator: node.actualAccelerator, acceleratorEvidence: node.acceleratorEvidence,
+    vmState: node.vmState, guestState: node.guestState, guestProtocols: node.guestProtocols,
+    guestArchitecture: node.guestArchitecture, input: node.input, output: node.output,
   }}))
 }
 
@@ -39,14 +44,22 @@ export function applicationEdges(topology) {
     type: 'telemetry', data: { label: edge.id, rate: '—', byteRate: '—', messages: '—', latency: '—',
       p95Latency: '—', bytes: '—', errors: '—', drops: '—', rejected: '—',
       connection: 'unavailable', reconnects: '—', backpressure: '—',
-      port: edge.port, schema: edge.schema, transport: edge.transport } }))
+      port: edge.port, schema: edge.schema, transport: edge.transport,
+      framing: edge.framing, dataPlane: edge.dataPlane,
+      observationSource: edge.observationSource } }))
 }
 
 export function infrastructureNodes(topology) {
   if (!topology?.networkNodes?.length) return networkNodes
   return topology.networkNodes.map(node => ({ id: node.id, data: {
-    label: node.label, role: node.role, status: 'modeled', cpu: null,
-    image: node.image, input: node.input, output: node.output,
+    label: node.label, role: node.role, status: node.status || 'modeled', cpu: null,
+    image: node.image, runtime: node.runtime, execution: node.execution,
+    lifecycle: node.lifecycle, control: node.control, accelerator: node.accelerator,
+    requestedAccelerator: node.requestedAccelerator, selectedAccelerator: node.selectedAccelerator,
+    actualAccelerator: node.actualAccelerator, acceleratorEvidence: node.acceleratorEvidence,
+    hierarchy: node.hierarchy, parent: node.parent, runtimeLayer: node.runtimeLayer,
+    vmState: node.vmState, guestState: node.guestState, guestProtocols: node.guestProtocols,
+    guestArchitecture: node.guestArchitecture, input: node.input, output: node.output,
   }}))
 }
 

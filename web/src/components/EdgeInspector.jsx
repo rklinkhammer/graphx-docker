@@ -2,7 +2,7 @@ import { Activity, Clock3, Database, Radio, Search, Waves } from 'lucide-react'
 import { bearerHeaders } from '../auth'
 
 export function EdgeInspector({ edge, networkPath, observationToken }) {
-  if (!edge) return <aside className="inspector empty"><Radio size={28}/><h2>Select an edge</h2><p>Choose a live connection to inspect its framing, metrics, and recent messages.</p></aside>
+  if (!edge) return <aside className="inspector empty"><Radio size={28}/><h2>Select an edge</h2><p>Choose a live connection to inspect its protocol, metrics, and recent observations.</p></aside>
   const d = edge.data
   return <aside className="inspector">
     <div className="eyebrow">EDGE INSPECTOR</div>
@@ -11,7 +11,8 @@ export function EdgeInspector({ edge, networkPath, observationToken }) {
     <dl className="facts">
       <div><dt>Destination</dt><dd>{edge.target}:{d.port}</dd></div>
       <div><dt>Schema</dt><dd>{d.schema}</dd></div>
-      <div><dt>Framing</dt><dd>u32 big-endian</dd></div>
+      <div><dt>Framing</dt><dd>{d.framing === 'none' ? 'None · raw application traffic' : 'u32 big-endian'}</dd></div>
+      <div><dt>Observation</dt><dd>{d.observationSource || 'runtime telemetry'}</dd></div>
     </dl>
     <div className="metric-grid">
       <div><Waves/><span>Throughput</span><strong>{d.rate}</strong></div>
@@ -26,14 +27,14 @@ export function EdgeInspector({ edge, networkPath, observationToken }) {
       <div><Activity/><span>Rejected</span><strong>{d.rejected ?? '—'}</strong></div>
     </div>
     <p className="metric-basis">Counters and latency are measured · rates are derived over 5 s · unavailable values are shown as —</p>
-    <h3>Recent messages</h3>
+    <h3>{d.dataPlane === 'external' ? 'Recent packets' : 'Recent messages'}</h3>
     <div className="messages">
       {d.recent?.length ? d.recent.slice(0, 6).map(message => {
         const capture = message.captures?.[0]
-        return <div key={message.messageId || `${message.nodeId}-${message.sequence}-${message.timestamp}`}><span><Search size={13}/> {message.sequence}</span><span>{message.type || 'unknown'}</span><span>{message.latencyUs} µs</span><span title={`Message: ${message.messageId || 'unavailable'}\nTrace: ${message.traceId || 'unavailable'}`}>{message.messageId ? message.messageId.slice(0, 8) : message.traceId ? message.traceId.slice(0, 8) : '—'}</span><span title={capture ? `${capture.captureFile} byte ${capture.captureOffset}` : 'Capture unavailable'}>{capture ? `#${capture.capturePacket}` : '—'}</span></div>
+        return <div key={message.messageId || `${message.nodeId}-${message.sequence}-${message.timestamp}`}><span><Search size={13}/> {message.sequence}</span><span>{message.protocol || message.type || 'unknown'}</span><span>{Number.isFinite(message.latencyUs) ? `${message.latencyUs} µs` : 'observed'}</span><span title={message.sourceAddress ? `${message.sourceAddress}:${message.sourcePort} → ${message.destinationAddress}:${message.destinationPort}` : `Message: ${message.messageId || 'unavailable'}\nTrace: ${message.traceId || 'unavailable'}`}>{message.sourceAddress || (message.messageId ? message.messageId.slice(0, 8) : message.traceId ? message.traceId.slice(0, 8) : '—')}</span><span title={capture ? `${capture.captureFile} byte ${capture.captureOffset}` : message.observationSource || 'Capture unavailable'}>{capture ? `#${capture.capturePacket}` : message.observationSource || '—'}</span></div>
       }) : <div><span>—</span><span>Waiting for traffic</span><span>—</span><span>—</span><span>—</span></div>}
     </div>
-    <div className="placeholder"><strong>Identity + capture correlation</strong><p>Message IDs correlate telemetry with exact PCAPNG records; trace IDs group causal work. GraphX frames use LINKTYPE_USER0 and are not labeled as Ethernet packets.</p></div>
+    <div className="placeholder"><strong>{d.dataPlane === 'external' ? 'Passive packet observation' : 'Identity + capture correlation'}</strong><p>{d.dataPlane === 'external' ? 'Counters come from bounded Ethernet capture metadata. These ordinary packets are not represented as GraphX envelopes.' : 'Message IDs correlate telemetry with exact PCAPNG records; trace IDs group causal work. GraphX frames use LINKTYPE_USER0 and are not labeled as Ethernet packets.'}</p></div>
     <h3>Network path</h3>
     <div className="network-path">{networkPath?.map((hop, index) => <span key={hop}>{index > 0 && <i>→</i>}{hop}</span>)}</div>
     <div className="actions"><button>Inspect messages</button>{d.captureFiles?.length ? d.captureFiles.slice(0, 2).map(file => <button key={file.name} title={file.name} onClick={async () => {

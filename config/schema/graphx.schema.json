@@ -66,6 +66,12 @@
       "properties": {
         "id": { "$ref": "#/$defs/id" },
         "kind": { "$ref": "#/$defs/id" },
+        "runtime": { "enum": ["process", "docker", "qemu"] },
+        "execution": { "enum": ["local", "host", "container"] },
+        "lifecycle": { "enum": ["managed", "external"] },
+        "control": { "enum": ["graphx", "origin", "none"] },
+        "accelerator": { "enum": ["auto", "kvm", "tcg", "hvf"] },
+        "architecture": { "enum": ["x86_64"] },
         "ports": { "type": "array", "maxItems": 256, "items": { "$ref": "#/$defs/port" } }
       }
     },
@@ -76,7 +82,8 @@
         "id": { "$ref": "#/$defs/id" },
         "from": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}\\.[A-Za-z][A-Za-z0-9_-]{0,63}$" },
         "to": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}\\.[A-Za-z][A-Za-z0-9_-]{0,63}$" },
-        "transport": { "enum": ["tcp", "udp", "unix", "in_process", "shared_memory"] }
+        "transport": { "enum": ["tcp", "udp", "unix", "in_process", "shared_memory"] },
+        "data_plane": { "enum": ["graphx", "external"] }
       }
     },
     "tcp": {
@@ -86,7 +93,7 @@
         "host": { "type": "string", "minLength": 1, "maxLength": 253 },
         "bind": { "type": "string", "minLength": 1, "maxLength": 253 },
         "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
-        "framing": { "const": "u32be" },
+        "framing": { "enum": ["u32be", "none"] },
         "connect_timeout_ms": { "type": "integer", "minimum": 1, "maximum": 600000 },
         "send_timeout_ms": { "type": "integer", "minimum": 1, "maximum": 600000 },
         "reconnect": { "type": "boolean" },
@@ -129,7 +136,7 @@
         "receive_buffer_bytes": { "type": "integer", "minimum": 4096, "maximum": 268435456 },
         "send_buffer_bytes": { "type": "integer", "minimum": 4096, "maximum": 268435456 },
         "max_datagram_bytes": { "type": "integer", "minimum": 64, "maximum": 65507 },
-        "framing": { "const": "u32be" }
+        "framing": { "enum": ["u32be", "none"] }
       }
     },
     "unix": {

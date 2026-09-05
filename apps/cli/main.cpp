@@ -57,7 +57,12 @@ int topology_command(const std::string& command, int argc, char** argv) {
   }
   std::cout << "graph " << config.id << " (version " << config.version << ")\n";
   for (const auto& node : config.nodes) {
-    std::cout << "node " << node.id << " kind=" << node.kind << '\n';
+    std::cout << "node " << node.id << " kind=" << node.kind << " runtime=" << node.runtime
+              << " execution=" << node.execution << " lifecycle=" << node.lifecycle
+              << " control=" << node.control;
+    if (!node.accelerator.empty()) std::cout << " accelerator=" << node.accelerator;
+    if (!node.architecture.empty()) std::cout << " architecture=" << node.architecture;
+    std::cout << '\n';
     for (const auto& port : node.ports)
       std::cout << "  port " << port.name << " direction=" << direction(port.direction)
                 << " schema=" << port.schema << '\n';
@@ -65,7 +70,8 @@ int topology_command(const std::string& command, int argc, char** argv) {
   for (const auto& edge : config.edges) {
     std::cout << "edge " << edge.edge.id << ' ' << edge.edge.from_node << '.' << edge.edge.from_port
               << " -> " << edge.edge.to_node << '.' << edge.edge.to_port
-              << " transport=" << to_string(edge.transport.kind);
+              << " transport=" << to_string(edge.transport.kind)
+              << " data-plane=" << edge.data_plane << " framing=" << edge.transport.framing;
     if (edge.transport.kind == graphx::TransportKind::tcp)
       std::cout << " connect=" << edge.transport.host << ':' << edge.transport.port
                 << " listen=" << edge.transport.bind << ':' << edge.transport.port
