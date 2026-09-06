@@ -13,6 +13,12 @@ Project version: `1.0.0`
 retained as historical evidence. Its UDP-003 environmental blocker is resolved
 by the native Linux results in Section 12.
 
+### Historical macOS verdict narrative (superseded)
+
+The following macOS-only narrative through Section 10 is retained to preserve
+the original evidence and blocker. Its `cannot receive ACCEPTED` language is
+superseded by Sections 11 and 12.
+
 All Phase 11 requirements that can be executed safely on the available macOS/OrbStack host pass.
 The two findings from the preceding verification are independently confirmed fixed:
 

@@ -41,8 +41,20 @@ Retained run evidence:
 - full Linux log: `outputs/verification/20260906T202636Z-full.log`
 - native network log: `outputs/verification/20260906T203237Z-native-linux.log`
 
+The operator subsequently confirmed the Phase 12 capture-inspection correction
+on the same supported Linux host. The retained PCAPNG was host-readable and the
+new `examples/qemu-node/scripts/inspect-capture.sh` stdin path decoded it with
+TShark. The QEMU static regression for that path also passes. This closes the
+post-acceptance capture-inspection defect without changing the accepted verdict.
+
 No Phase 12 Linux acceptance item remains. The later sections describe the
 original 2026-09-05 macOS verification and should not be read as current status.
+
+## Historical macOS verification report (superseded)
+
+Sections 1 through 14 below preserve the original macOS-only verification
+record. Their `BLOCKED`, pending-operator, and do-not-proceed statements are
+historical and are superseded by the Linux acceptance update above.
 
 ## 1. Executive summary
 

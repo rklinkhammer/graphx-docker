@@ -11,6 +11,12 @@ Repository: `/Users/rklinkhammer/workspace/graphx-docker`
 Work package: Phase 5 — authentication, TLS, API validation, and container hardening  
 Verifier basis: `prompt/verifier.md`, `prompt/implement.md`, repository inspection, clean builds, tests, and independent adversarial checks
 
+## Historical macOS baseline report (superseded)
+
+Sections 1 through 9 and Appendix A preserve the original 2026-09-01 finding
+record. Statements there that Phase 5 is not acceptable are historical and are
+superseded by the accepted Linux remediation evidence in Appendix B.
+
 ## 1. Executive summary
 
 Phase 5 contains substantial, generally well-factored security work. Optional TLS 1.3/mTLS is additive to TCP edges; telemetry datagrams have HMAC, freshness, and replay checks; observation and control credentials are separated; unsafe remote plaintext requires an explicit opt-in; the portable containers drop capabilities and run non-root; configuration version 1 and the existing frame/envelope formats are preserved. Clean C++20 and C++23 builds, all 12 native tests, all 13 sanitizer checks, the complete portable feature suite, telemetry security tests, dependency audits, Compose validation, both affected image builds, and cppcheck passed independently.
@@ -287,4 +293,3 @@ Current Linux evidence is `outputs/verification/20260906T202636Z-full.log`.
 That run passed C++20/C++23, 28 CTests, TLS/security, telemetry 76/76, web
 13/13, container hardening, ASan/UBSan, format, static analysis, fuzz, package,
 portable, and Docker gates on Ubuntu 26.04.1 LTS.
-
