@@ -1,5 +1,48 @@
-# Projection of graphx.yaml: logical compute graph.
-nodes: [generator, transform, sink]
+# Generated from ../graphx.yaml by `graphx project`.
+# Non-authoritative view: edit graphx.yaml, then regenerate.
+graph_id: sample-pipeline
+nodes:
+  - id: generator
+    kind: source
+    runtime: process
+    execution: local
+    lifecycle: managed
+    control: graphx
+    ports:
+      - name: samples
+        direction: output
+        schema: Sample
+  - id: transform
+    kind: transform
+    runtime: process
+    execution: local
+    lifecycle: managed
+    control: graphx
+    ports:
+      - name: samples
+        direction: input
+        schema: Sample
+      - name: transformed
+        direction: output
+        schema: TransformedSample
+  - id: sink
+    kind: sink
+    runtime: process
+    execution: local
+    lifecycle: managed
+    control: graphx
+    ports:
+      - name: transformed
+        direction: input
+        schema: TransformedSample
 edges:
-  - { id: samples, from: generator.samples, to: transform.samples }
-  - { id: transformed, from: transform.transformed, to: sink.transformed }
+  - id: samples
+    from: generator.samples
+    to: transform.samples
+    transport: tcp
+    data_plane: graphx
+  - id: transformed
+    from: transform.transformed
+    to: sink.transformed
+    transport: tcp
+    data_plane: graphx

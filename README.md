@@ -2,11 +2,30 @@
 
 [![CI](https://github.com/rklinkhammer/graphx-docker/actions/workflows/ci.yml/badge.svg)](https://github.com/rklinkhammer/graphx-docker/actions/workflows/ci.yml)
 
-GraphX is a small, educational framework for describing a processing graph once, running its nodes in separate processes or containers, and inspecting what crosses each edge. This scaffold starts with a C++23 runtime, framed TCP and in-process transports, a three-stage demo, and a React Flow development console.
+GraphX is an educational framework for describing a processing graph once,
+running its nodes in processes, containers, or external runtimes, and inspecting
+what crosses each edge.
 
-> Status: framework scaffold. The demo path, live telemetry, five baseline
-> transports, bounded correlated PCAPNG application capture, a GraphX
-> Wireshark dissector, and a validated live-follow extcap adapter work.
+> Status: GraphX 1.0.0 is a validated educational framework with a C++ runtime,
+> five GraphX-aware transports, raw external-edge modeling, live telemetry and
+> control, bounded history and PCAPNG capture, a React Flow console,
+> native-Linux network laboratories, and portable and Linux QEMU demonstrations.
+> Phases 3–12 have accepted independent verification reports. Phase 1 has no
+> checked-in independent report, and Phase 2 has an implementation handoff but
+> no separate independent report. Native-Linux claims rely on the evidence
+> recorded in the relevant reports. See [`verification_status.md`](verification_status.md).
+
+## Architecture and decisions
+
+[`docs/GraphX_Architecture.md`](docs/GraphX_Architecture.md) is the maintained
+architecture source; [`docs/GraphX_Architecture.docx`](docs/GraphX_Architecture.docx)
+is its editable distribution form. The canonical decision register is
+[`docs/adr/README.md`](docs/adr/README.md).
+
+Focused operational references cover
+[`network infrastructure`](docs/network-infrastructure.md),
+[`observability`](docs/observability.md), [`capture`](docs/capture.md), and
+[`QEMU demonstrations`](docs/qemu-demos.md).
 
 ## Run the complete demo
 
@@ -327,7 +346,7 @@ container addresses. TCP retry, exponential backoff, connect/send deadlines, and
 reconnect behavior are configured per edge. Listeners retain their listening
 socket and accept a replacement client after disconnect.
 
-## Architecture
+## Runtime architecture
 
 The core contracts stay deliberately small:
 
@@ -387,7 +406,13 @@ Logical nodes contain only GraphX identity, kind, and ports. Container image and
 command hints belong under `deployment.services`, so runtime semantics remain
 independent of Docker and other schedulers.
 
-The `graphx validate` command checks syntax, limits, identifiers, duplicate definitions, endpoint directions, schemas, transport settings, and cycles. `graphx inspect` prints the normalized model. A future `graphx generate` command may derive Compose/Kubernetes projections; until then, update `graphx.yaml` first and keep static projections aligned.
+The `graphx validate` command checks syntax, limits, identifiers, duplicate
+definitions, endpoint directions, schemas, transport settings, and cycles.
+`graphx inspect` prints the normalized model. `graphx project` deterministically
+regenerates the four non-authoritative views under `config/`, and
+`graphx project --check` detects drift without changing files. Compose remains a
+separately reviewed static deployment artifact; no Compose or Kubernetes
+manifests are generated.
 
 Network validation additionally checks IPv4 subnet membership, node/router
 references, MAC syntax, VLAN ranges, mirror output ports, and logical-edge path
@@ -399,6 +424,8 @@ path; selecting a logical edge highlights its macvlan/OVS/router/OVS/ipvlan path
 ```sh
 ./build/dev/graphx validate graphx.yaml
 ./build/dev/graphx inspect graphx.yaml
+./build/dev/graphx project graphx.yaml --output-dir config
+./build/dev/graphx project graphx.yaml --check --output-dir config
 ./build/dev/graphx inspect graphx.yaml \
   --set transport.tcp.samples.host=127.0.0.1
 ./build/dev/graphx infra status examples/mixed-network/graphx.yaml --dry-run

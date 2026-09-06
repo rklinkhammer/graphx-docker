@@ -305,6 +305,6 @@ and orphan checks. A device mount alone is not KVM proof.
 - `examples/qemu-node/tools/qmp_control.py`
 - `examples/qemu-node/tools/artifact_manifest.py`
 - `docs/qemu-demos.md`
-- `docs/adr/0012-unified-qemu-profiles.md`
+- `docs/adr/0013-unified-qemu-profiles.md`
 - `web/src/components/CapturePanel.jsx`
 - `apps/telemetry/qemu.integration.test.mjs`

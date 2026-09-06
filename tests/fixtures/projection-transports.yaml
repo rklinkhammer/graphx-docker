@@ -1,0 +1,42 @@
+version: 1
+graph:
+  id: projection-transport-fixture
+  nodes:
+    - { id: n0, kind: source, ports: [{ name: out, direction: output, schema: S }] }
+    - { id: n1, kind: transform, ports: [{ name: in, direction: input, schema: S }, { name: out, direction: output, schema: S }] }
+    - { id: n2, kind: transform, ports: [{ name: in, direction: input, schema: S }, { name: out, direction: output, schema: S }] }
+    - { id: n3, kind: transform, ports: [{ name: in, direction: input, schema: S }, { name: out, direction: output, schema: S }] }
+    - { id: n4, kind: transform, ports: [{ name: in, direction: input, schema: S }, { name: out, direction: output, schema: S }] }
+    - { id: n5, kind: sink, ports: [{ name: in, direction: input, schema: S }] }
+  edges:
+    - { id: local, from: n0.out, to: n1.in, transport: in_process }
+    - { id: socket, from: n1.out, to: n2.in, transport: unix }
+    - { id: memory, from: n2.out, to: n3.in, transport: shared_memory }
+    - { id: secure, from: n3.out, to: n4.in, transport: tcp }
+    - { id: datagram, from: n4.out, to: n5.in, transport: udp }
+transport:
+  in_process:
+    local: { channel: quoted-channel, capacity: 7, backpressure: reject, send_timeout_ms: 25 }
+  unix:
+    socket: { path: /tmp/graphx-projection.sock, connect_timeout_ms: 30, send_timeout_ms: 40 }
+  shared_memory:
+    memory: { segment: gx-projection, capacity: 8, max_message_bytes: 4096, backpressure: block, connect_timeout_ms: 50, send_timeout_ms: 60 }
+  tcp:
+    secure:
+      host: 127.0.0.1
+      bind: 0.0.0.0
+      port: 7443
+      connect_timeout_ms: 70
+      send_timeout_ms: 80
+      reconnect: true
+      retry: { max_attempts: 9, initial_backoff_ms: 10, max_backoff_ms: 20 }
+      tls:
+        enabled: true
+        verify_peer: true
+        require_client_certificate: true
+        ca_file: /run/secrets/ca.pem
+        certificate_file: /run/secrets/peer.pem
+        private_key_file: /run/secrets/peer.key
+        server_name: peer.internal
+  udp:
+    datagram: { mode: multicast, destination: 239.255.42.1, bind: 0.0.0.0, port: 47101, interface: 127.0.0.1, ttl: 3, loopback: false, reuse_address: true, receive_buffer_bytes: 65536, send_buffer_bytes: 131072, max_datagram_bytes: 1400 }

@@ -1,7 +1,16 @@
-# Projection of graphx.yaml: container placement.
+# Generated from ../graphx.yaml by `graphx project`.
+# Non-authoritative view: edit graphx.yaml, then regenerate.
 network: graphx
 services:
-  generator: { image: graphx-demo:latest, command: graphx-generator }
-  transform: { image: graphx-demo:latest, command: graphx-transform }
-  sink: { image: graphx-demo:latest, command: graphx-sink }
-  telemetry: { image: graphx-telemetry:latest, http_port: 8080, udp_port: 9000 }
+  - node: generator
+    image: graphx-demo:latest
+    command: graphx-generator
+  - node: transform
+    image: graphx-demo:latest
+    command: graphx-transform
+  - node: sink
+    image: graphx-demo:latest
+    command: graphx-sink
+telemetry:
+  service: telemetry
+  port: 8080

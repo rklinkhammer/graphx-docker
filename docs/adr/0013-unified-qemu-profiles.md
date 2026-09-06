@@ -1,4 +1,4 @@
-# ADR 0012: Unified external and containerized QEMU profiles
+# ADR 0013: Unified external and containerized QEMU profiles
 
 ## Status
 

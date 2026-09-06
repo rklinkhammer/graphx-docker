@@ -1,6 +1,7 @@
 #include "graphx/config.hpp"
 #include "graphx/infra.hpp"
 #include "graphx/version.hpp"
+#include "projection.hpp"
 
 #include <cstdlib>
 #include <filesystem>
@@ -14,6 +15,7 @@ void usage(std::ostream& output) {
   output << "usage:\n"
          << "  graphx --version\n"
          << "  graphx <validate|inspect> [config.yaml] [--set path=value]\n"
+         << "  graphx project [config.yaml] [--check] [--output-dir DIR]\n"
          << "  graphx infra <create|destroy|status> [config.yaml] [--dry-run]\n"
          << "  graphx infra fault <apply|clear> [config.yaml] --router ID --interface ID\n"
          << "                    [--delay 20ms] [--jitter 3ms] [--loss 1%] [--rate 50mbit]\n";
@@ -148,6 +150,31 @@ int topology_command(const std::string& command, int argc, char** argv) {
   return 0;
 }
 
+int project_command(int argc, char** argv) {
+  auto path = default_config();
+  std::filesystem::path output_dir{"config"};
+  bool path_set{}, output_set{}, check{};
+  for (int index = 2; index < argc; ++index) {
+    const std::string argument = argv[index];
+    if (argument == "--check") {
+      check = true;
+    } else if (argument == "--output-dir") {
+      if (++index == argc) throw std::invalid_argument("--output-dir requires a directory");
+      output_dir = argv[index];
+      output_set = true;
+    } else if (!path_set) {
+      path = argument;
+      path_set = true;
+    } else {
+      throw std::invalid_argument("unexpected argument '" + argument + "'");
+    }
+  }
+  if (!output_set && !std::filesystem::exists(".git"))
+    throw std::invalid_argument("--output-dir is required outside a repository checkout");
+  const auto config = graphx::load_config(path);
+  return graphx::cli::project_config(config, path, output_dir, check, std::cout, std::cerr);
+}
+
 int infrastructure_command(int argc, char** argv) {
   if (argc < 3) throw std::invalid_argument("infra requires an action");
   const std::string action = argv[2];
@@ -244,6 +271,7 @@ int main(int argc, char** argv) {
   try {
     const std::string command = argv[1];
     if (command == "validate" || command == "inspect") return topology_command(command, argc, argv);
+    if (command == "project") return project_command(argc, argv);
     if (command == "infra") return infrastructure_command(argc, argv);
     throw std::invalid_argument("unknown command '" + command + "'");
   } catch (const graphx::ConfigError& error) {

@@ -1,41 +1,39 @@
-# Projection of graphx.yaml: runtime links.
+# Generated from ../graphx.yaml by `graphx project`.
+# Non-authoritative view: edit graphx.yaml, then regenerate.
 links:
   - edge: samples
     type: tcp
-    host: transform
-    port: 7001
+    data_plane: graphx
     framing: u32be
+    host: transform
+    bind: 0.0.0.0
+    port: 7001
     connect_timeout_ms: 2000
     send_timeout_ms: 5000
     reconnect: true
-    retry: { max_attempts: 60, initial_backoff_ms: 100, max_backoff_ms: 2000 }
+    retry:
+      max_attempts: 60
+      initial_backoff_ms: 100
+      max_backoff_ms: 2000
+    tls:
+      enabled: false
+      verify_peer: true
+      require_client_certificate: false
   - edge: transformed
     type: tcp
-    host: sink
-    port: 7002
+    data_plane: graphx
     framing: u32be
+    host: sink
+    bind: 0.0.0.0
+    port: 7002
     connect_timeout_ms: 2000
     send_timeout_ms: 5000
     reconnect: true
-    retry: { max_attempts: 60, initial_backoff_ms: 100, max_backoff_ms: 2000 }
-local_profiles:
-  in_process:
-    type: in_process
-    channel: sample-pipeline
-    capacity: 64
-    backpressure: block
-    send_timeout_ms: 5000
-  unix_socket:
-    type: unix
-    path: /tmp/graphx-samples.sock
-    framing: u32be
-    connect_timeout_ms: 5000
-    send_timeout_ms: 5000
-  shared_memory:
-    type: shared_memory
-    segment: gx-shm-samples
-    capacity: 8
-    max_message_bytes: 4096
-    backpressure: block
-    connect_timeout_ms: 5000
-    send_timeout_ms: 2000
+    retry:
+      max_attempts: 60
+      initial_backoff_ms: 100
+      max_backoff_ms: 2000
+    tls:
+      enabled: false
+      verify_peer: true
+      require_client_certificate: false

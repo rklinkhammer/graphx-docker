@@ -14,6 +14,9 @@ All notable GraphX changes are recorded here. The format follows
 
 ### Fixed
 
+- Canonicalized the unified QEMU profiles decision as ADR 0013 after its
+  original number collided with the existing UDP ADR 0012, and added a
+  maintained decision index.
 - Made concurrent UDP close retain socket and cancellation descriptors until
   active operations finish, preflighted configured datagram limits before
   serialization, bounded repeated socket-error diagnostics, and added an

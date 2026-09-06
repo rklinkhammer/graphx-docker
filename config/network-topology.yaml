@@ -1,10 +1,30 @@
-# Projection of graphx.yaml: network infrastructure and logical-edge paths.
+# Generated from ../graphx.yaml by `graphx project`.
+# Non-authoritative view: edit graphx.yaml, then regenerate.
 networks:
-  - { id: graphx, driver: bridge, subnet: 172.30.0.0/24, gateway: 172.30.0.1 }
+  - id: graphx
+    driver: bridge
+    subnets:
+      - 172.30.0.0/24
+    gateway: 172.30.0.1
+    external: false
 interfaces:
-  generator: [{ id: data, network: graphx }]
-  transform: [{ id: data, network: graphx }]
-  sink: [{ id: data, network: graphx }]
+  - id: data
+    owner: generator
+    network: graphx
+  - id: data
+    owner: transform
+    network: graphx
+  - id: data
+    owner: sink
+    network: graphx
 edge_paths:
-  samples: [generator, graphx, transform]
-  transformed: [transform, graphx, sink]
+  - edge: samples
+    hops:
+      - generator
+      - graphx
+      - transform
+  - edge: transformed
+    hops:
+      - transform
+      - graphx
+      - sink

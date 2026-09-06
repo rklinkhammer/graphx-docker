@@ -62,7 +62,10 @@ The present design evolved through the following accepted decisions.
 | Bounded IPv4 UDP edges | Added unicast, broadcast, and multicast while retaining framing and bounds | UDP transport, typed anomaly counters, three focused examples |
 | Unified QEMU profiles | Modeled raw network nodes consistently across host and Linux-container execution | Shared guest/observer/UI, external and container profiles, QMP and probe evidence |
 
-Two records currently share ADR number 0012 (UDP and QEMU). This is a documentation identifier collision, not an implementation conflict; a future documentation cleanup should renumber the QEMU ADR without rewriting its historical content.
+The UDP decision is canonical ADR 0012 and the unified QEMU profiles decision is
+canonical ADR 0013. The decision index records that QEMU was initially assigned
+0012, preserving the historical mapping without retaining two current records
+with the same number.
 
 ## 3. System context and architectural planes
 
@@ -481,11 +484,11 @@ Credential rotation uses atomic current snapshots plus a bounded redaction-only 
 - QEMU user networking does not model TAP, physical L2, multicast/broadcast through the guest, or guest control.
 - Docker Desktop network labs are simulations, not native-Linux acceptance evidence.
 
-### 11.2 Documentation and model drift to address
+### 11.2 Documentation and model consistency
 
-- The two accepted ADRs numbered `0012` should be disambiguated.
-- Top-level projection files under `config/` are useful views but must remain explicitly non-authoritative; generated projections would further reduce drift risk.
-- The root README still describes the project as a “framework scaffold” even though the repository identifies itself as version 1.0.0 and has accepted verification through Phase 12.
+- The UDP decision is canonical ADR 0012 and the QEMU decision is canonical ADR 0013; the ADR index retains the historical collision note.
+- Top-level projection files under `config/` are explicitly non-authoritative and are generated or checked with `graphx project` from validated `graphx.yaml`.
+- Root documentation identifies GraphX 1.0.0 and distinguishes accepted Phase 3–12 reports from the Phase 1 and Phase 2 documentary gaps.
 - Some examples provide live GUI metrics while topology-only examples provide only static visualization; the distinction should remain visible in every example README.
 - Infrastructure `routes` exist in the model but most checked-in network labs rely on directly connected router subnets and policies. A focused static-route example would improve coverage.
 
@@ -525,12 +528,12 @@ Recommended staging:
 
 ## 13. Recommended architectural roadmap
 
-### Immediate documentation and consistency
+### Completed documentation and consistency foundation
 
-1. Renumber the duplicate QEMU ADR while retaining an alias or note for historical links.
-2. Update the root maturity wording to match 1.0.0 and the accepted Phase 3–12 status.
-3. Add this architecture document to the root README and contributor documentation.
-4. Generate or verify the projection files under `config/` from authoritative `graphx.yaml` in CI.
+1. The QEMU decision is ADR 0013, with its former number recorded in the canonical ADR index.
+2. Root maturity wording matches 1.0.0 and qualifies the accepted Phase 3–12 verification record.
+3. Root and contributor documentation link the architecture source, editable DOCX, ADR index, and focused references.
+4. `graphx project` generates or verifies the four projections under `config/`; CTest enforces the drift check in local and Linux/macOS CI builds.
 
 ### Near-term architectural examples
 
@@ -551,7 +554,7 @@ Recommended staging:
 
 | Concern | Primary implementation or documentation evidence |
 |---|---|
-| Architecture decisions | `docs/adr/0001-*.md` through `docs/adr/0012-*.md` |
+| Architecture decisions | `docs/adr/README.md`, with records `docs/adr/0001-*.md` through `docs/adr/0013-*.md` |
 | Configuration model | `include/graphx/config.hpp`, `include/graphx/network.hpp`, `src/config.cpp`, `config/schema/graphx.schema.json` |
 | CLI/infrastructure | `apps/cli/main.cpp`, `include/graphx/infra.hpp`, `src/infra.cpp` |
 | Envelope/framing | `include/graphx/envelope.hpp`, `src/envelope.cpp`, `src/framing.cpp`, `docs/protocol.md` |

@@ -143,7 +143,7 @@ foreach(app udp_publisher udp_subscriber)
   graphx_enable_sanitizers(graphx-${app_name})
 endforeach()
 
-add_executable(graphx-cli apps/cli/main.cpp)
+add_executable(graphx-cli apps/cli/main.cpp apps/cli/projection.cpp)
 set_target_properties(graphx-cli PROPERTIES OUTPUT_NAME graphx)
 target_link_libraries(graphx-cli PRIVATE graphx)
 graphx_enable_analysis(graphx-cli)
@@ -270,6 +270,14 @@ if(GRAPHX_BUILD_TESTS)
   endif()
   add_test(NAME graphx-config-cli
     COMMAND graphx-cli validate ${CMAKE_SOURCE_DIR}/graphx.yaml)
+  add_test(NAME graphx-config-projections
+    COMMAND graphx-cli project ${CMAKE_SOURCE_DIR}/graphx.yaml --check
+            --output-dir ${CMAKE_SOURCE_DIR}/config)
+  add_test(NAME graphx-config-projection-behavior COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/test_projections.py $<TARGET_FILE:graphx-cli>
+    ${CMAKE_SOURCE_DIR})
+  add_test(NAME graphx-documentation-consistency COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/test_documentation_consistency.py ${CMAKE_SOURCE_DIR})
   add_test(NAME graphx-version COMMAND graphx-cli --version)
   set_tests_properties(graphx-version PROPERTIES
     PASS_REGULAR_EXPRESSION "^graphx ${GRAPHX_VERSION}")
