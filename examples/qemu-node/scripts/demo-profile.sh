@@ -15,6 +15,7 @@ state_dir="$example_dir/.state"
 state_file="$state_dir/$profile.env"
 requested_gui_port=${GRAPHX_QEMU_GUI_PORT:-8080}
 GRAPHX_QEMU_GUI_PORT=$requested_gui_port
+GRAPHX_QEMU_HOST_GATEWAY=${GRAPHX_QEMU_HOST_GATEWAY:-host-gateway}
 url=""
 GRAPHX_HOST_UID=$(id -u)
 GRAPHX_HOST_GID=$(id -g)
@@ -84,6 +85,7 @@ load_state() {
   source "$state_file"
   GRAPHX_QEMU_REQUESTED_ACCEL=${GRAPHX_QEMU_REQUESTED_ACCEL:-$GRAPHX_QEMU_ACCEL}
   GRAPHX_QEMU_GUI_PORT=${GRAPHX_QEMU_GUI_PORT:-8080}
+  GRAPHX_QEMU_HOST_GATEWAY=${GRAPHX_QEMU_HOST_GATEWAY:-host-gateway}
   [[ "$GRAPHX_QEMU_GUI_PORT" =~ ^[0-9]+$ ]] &&
     test "$GRAPHX_QEMU_GUI_PORT" -ge 1 && test "$GRAPHX_QEMU_GUI_PORT" -le 65535 || {
       echo "Invalid QEMU GUI port in demo state" >&2; return 2;
@@ -92,10 +94,13 @@ load_state() {
   valid_credential "$GRAPHX_CONTROL_TOKEN" && valid_credential "$GRAPHX_TELEMETRY_SHARED_SECRET" || {
     echo "Invalid QEMU demo credential state" >&2; return 2;
   }
+  case "$GRAPHX_QEMU_HOST_GATEWAY" in host-gateway|172.30.12.1) ;; *)
+    echo "Invalid QEMU host gateway in demo state" >&2; return 2 ;; esac
   case "$GRAPHX_QEMU_RUN_DIR" in "$repo_dir"/outputs/qemu-node/"$profile"/*) ;; *)
     echo "Unsafe QEMU run directory in state" >&2; return 2 ;; esac
   export GRAPHX_CONTROL_TOKEN GRAPHX_TELEMETRY_SHARED_SECRET GRAPHX_QEMU_RUN_ID GRAPHX_QEMU_RUN_DIR
   export GRAPHX_QEMU_ACCEL GRAPHX_QEMU_REQUESTED_ACCEL GRAPHX_QEMU_GUI_PORT
+  export GRAPHX_QEMU_HOST_GATEWAY
   export GRAPHX_CAPTURE_ENABLED GRAPHX_HISTORY_ENABLED
   if test "$GRAPHX_HISTORY_ENABLED" = true; then
     if test "$profile" = external; then GRAPHX_PACKET_HISTORY_URL=http://host.docker.internal:9100
@@ -117,14 +122,15 @@ create_state() {
   GRAPHX_CONTROL_TOKEN=$(openssl rand -hex 32)
   GRAPHX_TELEMETRY_SHARED_SECRET=$(openssl rand -hex 32)
   temporary="$state_file.tmp.$$"
-  printf 'GRAPHX_CONTROL_TOKEN=%q\nGRAPHX_TELEMETRY_SHARED_SECRET=%q\nGRAPHX_QEMU_RUN_ID=%q\nGRAPHX_QEMU_RUN_DIR=%q\nGRAPHX_QEMU_ACCEL=%q\nGRAPHX_QEMU_REQUESTED_ACCEL=%q\nGRAPHX_QEMU_GUI_PORT=%q\nGRAPHX_CAPTURE_ENABLED=%q\nGRAPHX_HISTORY_ENABLED=%q\n' \
+  printf 'GRAPHX_CONTROL_TOKEN=%q\nGRAPHX_TELEMETRY_SHARED_SECRET=%q\nGRAPHX_QEMU_RUN_ID=%q\nGRAPHX_QEMU_RUN_DIR=%q\nGRAPHX_QEMU_ACCEL=%q\nGRAPHX_QEMU_REQUESTED_ACCEL=%q\nGRAPHX_QEMU_GUI_PORT=%q\nGRAPHX_QEMU_HOST_GATEWAY=%q\nGRAPHX_CAPTURE_ENABLED=%q\nGRAPHX_HISTORY_ENABLED=%q\n' \
     "$GRAPHX_CONTROL_TOKEN" "$GRAPHX_TELEMETRY_SHARED_SECRET" "$GRAPHX_QEMU_RUN_ID" "$GRAPHX_QEMU_RUN_DIR" \
-    "$GRAPHX_QEMU_ACCEL" "$GRAPHX_QEMU_REQUESTED_ACCEL" "$GRAPHX_QEMU_GUI_PORT" \
+    "$GRAPHX_QEMU_ACCEL" "$GRAPHX_QEMU_REQUESTED_ACCEL" "$GRAPHX_QEMU_GUI_PORT" "$GRAPHX_QEMU_HOST_GATEWAY" \
     "$GRAPHX_CAPTURE_ENABLED" "$GRAPHX_HISTORY_ENABLED" >"$temporary"
   chmod 0600 "$temporary"
   mv "$temporary" "$state_file"
   export GRAPHX_CONTROL_TOKEN GRAPHX_TELEMETRY_SHARED_SECRET GRAPHX_QEMU_RUN_ID GRAPHX_QEMU_RUN_DIR
   export GRAPHX_QEMU_ACCEL GRAPHX_QEMU_REQUESTED_ACCEL GRAPHX_QEMU_GUI_PORT
+  export GRAPHX_QEMU_HOST_GATEWAY
   export GRAPHX_CAPTURE_ENABLED GRAPHX_HISTORY_ENABLED
   if test "$GRAPHX_HISTORY_ENABLED" = true; then
     if test "$profile" = external; then GRAPHX_PACKET_HISTORY_URL=http://host.docker.internal:9100
@@ -168,6 +174,17 @@ select_accel() {
   esac
   GRAPHX_QEMU_REQUESTED_ACCEL=$requested_accel
   export GRAPHX_QEMU_REQUESTED_ACCEL
+}
+
+configure_host_access() {
+  GRAPHX_QEMU_HOST_GATEWAY=host-gateway
+  if test "$profile" = external && test "$(uname -s)" = Linux; then
+    # The observer and QEMU host forwards bind only to this private Compose
+    # bridge gateway. Map the portable hostname to the same address so Linux
+    # containers never depend on Docker's unrelated default-bridge gateway.
+    GRAPHX_QEMU_HOST_GATEWAY=172.30.12.1
+  fi
+  export GRAPHX_QEMU_HOST_GATEWAY
 }
 
 compose_files() {
@@ -267,12 +284,13 @@ start_external_observer() {
 
 start_external_qemu() {
   require qemu-system-x86_64
-  local machine cpu
+  local machine cpu bind_address=127.0.0.1
   case "$GRAPHX_QEMU_ACCEL" in
     kvm) machine=kvm; cpu=host ;;
     hvf) machine=hvf; cpu=host ;;
     tcg) machine=tcg; cpu=qemu64 ;;
   esac
+  if test "$(uname -s)" = Linux; then bind_address=172.30.12.1; fi
   rm -f "$state_dir/external.qmp"
   qemu-system-x86_64 \
     -machine "q35,accel=$machine" -cpu "$cpu" -m 256M -smp 1 \
@@ -282,7 +300,7 @@ start_external_qemu() {
     -serial "file:$GRAPHX_QEMU_RUN_DIR/guest-console.log" \
     -daemonize -pidfile "$GRAPHX_QEMU_RUN_DIR/qemu.pid" \
     -qmp "unix:$state_dir/external.qmp,server=on,wait=off" \
-    -netdev "user,id=net0,hostfwd=tcp:127.0.0.1:18001-:18001,hostfwd=udp:127.0.0.1:18001-:18001" \
+    -netdev "user,id=net0,hostfwd=tcp:$bind_address:18001-:18001,hostfwd=udp:$bind_address:18001-:18001" \
     -device virtio-net-pci,netdev=net0 \
     -object "filter-dump,id=capture0,netdev=net0,file=$GRAPHX_QEMU_RUN_DIR/qemu-node.pcap"
   (
@@ -330,16 +348,27 @@ wait_http() {
   return 1
 }
 
-packet_total() {
-  python3 -c 'import json,sys; d=json.load(sys.stdin); print(sum(v.get("received",0) for v in d.get("edges",{}).values()))'
+edge_counters() {
+  python3 -c 'import json,sys; d=json.load(sys.stdin); print(" ".join(str(d.get("edges", {}).get(edge, {}).get("received", 0)) for edge in ("origin-qemu-tcp", "origin-qemu-udp", "qemu-receiver-tcp", "qemu-receiver-udp")))'
+}
+
+all_edge_counters_advanced() {
+  local before=$1 after=$2
+  GRAPHX_QEMU_BEFORE="$before" GRAPHX_QEMU_AFTER="$after" python3 - <<'PY'
+import os
+before = [int(value) for value in os.environ["GRAPHX_QEMU_BEFORE"].split()]
+after = [int(value) for value in os.environ["GRAPHX_QEMU_AFTER"].split()]
+raise SystemExit(0 if len(before) == len(after) == 4 and
+                 all(current > previous for previous, current in zip(before, after)) else 1)
+PY
 }
 
 verify_demo() {
   require curl
   require python3
-  wait_http
-  local first second snapshot running container_id
-  running=$("${COMPOSE[@]}" ps --status running --services)
+  wait_http || return 1
+  local first second snapshot running container_id history_snapshot
+  running=$("${COMPOSE[@]}" ps --status running --services) || return 1
   local services=(host-origin host-receiver telemetry)
   if test "$profile" = container; then services+=(packet-observer); fi
   for service in "${services[@]}"; do
@@ -347,15 +376,16 @@ verify_demo() {
   done
   if test "$profile" = container; then
     grep -qx qemu-node <<<"$running" || { echo "FAIL: qemu-node is not running" >&2; return 1; }
-    container_id=$("${COMPOSE[@]}" ps -q qemu-node)
+    container_id=$("${COMPOSE[@]}" ps -q qemu-node) || return 1
     test -n "$container_id" && test "$(docker inspect --format '{{.State.Health.Status}}' "$container_id")" = healthy || {
       echo "FAIL: qemu guest application is not healthy" >&2; return 1; }
   else
     owned_external_pid || { echo "FAIL: owned external QEMU process is not running" >&2; return 1; }
     owned_observer_pid || { echo "FAIL: owned host packet observer is not running" >&2; return 1; }
   fi
-  snapshot=$(curl -fsS "$url/api/topology")
-  GRAPHX_QEMU_SNAPSHOT="$snapshot" python3 - "$GRAPHX_QEMU_ACCEL" <<'PY'
+  snapshot=$(curl -fsS "$url/api/topology") || {
+    echo "FAIL: telemetry topology is unavailable" >&2; return 1; }
+  if ! GRAPHX_QEMU_SNAPSHOT="$snapshot" python3 - "$GRAPHX_QEMU_ACCEL" <<'PY'
 import json, os, sys
 value = json.loads(os.environ["GRAPHX_QEMU_SNAPSHOT"])
 qemu = next(node for node in value["topology"]["nodes"] if node["id"] == "qemu-node")
@@ -368,24 +398,34 @@ assert qemu.get("guestProtocols") == {"tcp": True, "udp": True}
 if expected == "kvm":
     assert qemu.get("acceleratorEvidence") == "QMP query-status + query-kvm"
 PY
-  first=$(packet_total <<<"$snapshot")
+  then
+    echo "FAIL: QEMU runtime evidence is not ready" >&2
+    return 1
+  fi
+  first=$(edge_counters <<<"$snapshot") || return 1
   second=$first
   for _ in {1..35}; do
     sleep 1
-    snapshot=$(curl -fsS "$url/api/topology")
-    second=$(packet_total <<<"$snapshot")
-    test "$second" -gt "$first" && break
+    snapshot=$(curl -fsS "$url/api/topology") || continue
+    second=$(edge_counters <<<"$snapshot") || continue
+    all_edge_counters_advanced "$first" "$second" && break
   done
-  test "$second" -gt "$first" || { echo "FAIL: packet counters did not advance ($first -> $second)" >&2; return 1; }
+  all_edge_counters_advanced "$first" "$second" || {
+    echo "FAIL: all four raw edge counters did not advance ($first -> $second)" >&2; return 1; }
   if test "$GRAPHX_CAPTURE_ENABLED" = true; then
-    python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["capture"]["enabled"] and any(f["format"] == "ethernet" for f in d["capture"]["files"])' <<<"$snapshot"
+    python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["capture"]["enabled"] and any(f["format"] == "ethernet" for f in d["capture"]["files"])' <<<"$snapshot" || {
+      echo "FAIL: bounded Ethernet PCAPNG is not cataloged" >&2; return 1; }
     echo "PASS: bounded Ethernet PCAPNG is cataloged"
   else
-    python3 -c 'import json,sys; assert not json.load(sys.stdin)["capture"]["enabled"]' <<<"$snapshot"
+    python3 -c 'import json,sys; assert not json.load(sys.stdin)["capture"]["enabled"]' <<<"$snapshot" || {
+      echo "FAIL: cataloged capture remains enabled" >&2; return 1; }
     echo "PASS: cataloged capture is disabled as requested"
   fi
   if test "$GRAPHX_HISTORY_ENABLED" = true; then
-    curl -fsS "$url/api/packet-history?limit=1" | python3 -c 'import json,sys; assert json.load(sys.stdin)["records"]'
+    history_snapshot=$(curl -fsS "$url/api/packet-history?limit=1") || {
+      echo "FAIL: bounded packet history is unavailable from telemetry" >&2; return 1; }
+    python3 -c 'import json,sys; assert json.load(sys.stdin)["records"]' <<<"$history_snapshot" || {
+      echo "FAIL: bounded packet history has no records" >&2; return 1; }
     echo "PASS: bounded packet history is queryable"
   else
     test "$(curl -sS -o /dev/null -w '%{http_code}' "$url/api/packet-history?limit=1")" = 503 || {
@@ -393,7 +433,7 @@ PY
     echo "PASS: packet history is disabled as requested"
   fi
   echo "PASS: $profile services and guest application are running"
-  echo "PASS: raw TCP/UDP packet counters advanced $first -> $second"
+  echo "PASS: all four raw TCP/UDP edge counters advanced ($first -> $second)"
   echo "PASS: GUI and telemetry API are available at $url"
 }
 
@@ -423,6 +463,7 @@ start_demo() {
   python3 "$example_dir/tools/artifact_manifest.py" verify --images "$example_dir/output/images" \
     --guest "$example_dir/guest" || return 2
   select_accel
+  configure_host_access
   GRAPHX_CAPTURE_ENABLED=true
   GRAPHX_HISTORY_ENABLED=true
   test "$disable_capture" = false || GRAPHX_CAPTURE_ENABLED=false
@@ -440,11 +481,15 @@ start_demo() {
     start_external_qemu || { echo "External QEMU did not start" >&2; stop_demo; return 1; }
     probe_qemu || { echo "QMP accelerator verification failed" >&2; stop_demo; return 1; }
     start_external_readiness || { echo "Guest did not become ready on both TCP and UDP" >&2; logs_demo; stop_demo; return 1; }
-    "${COMPOSE[@]}" up -d host-origin
+    if ! "${COMPOSE[@]}" up -d host-origin; then stop_demo; return 1; fi
   else
     if ! "${COMPOSE[@]}" up -d --build; then stop_demo; return 1; fi
   fi
-  verify_demo
+  if ! verify_demo; then
+    echo "Demo verification failed; cleaning up owned runtime resources" >&2
+    stop_demo
+    return 1
+  fi
   printf '\nProfile: %s · platform: %s/%s\n' "$profile" "$(uname -s)" "$(uname -m)"
   python3 - "$GRAPHX_QEMU_RUN_DIR/accelerator-evidence.json" <<'PY'
 import json, sys

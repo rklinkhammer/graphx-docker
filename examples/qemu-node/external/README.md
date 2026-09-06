@@ -40,6 +40,16 @@ readiness: a separate host monitor requires TCP and UDP guest echoes and
 refreshes bounded evidence continuously. The evidence JSON is retained with
 run artifacts.
 
+On native Linux, `host.docker.internal` is pinned to the private QEMU demo
+bridge gateway `172.30.12.1`; both the QEMU forwards and observer history API
+bind to that same private address. This is intentionally not the Docker default
+bridge gateway and is not exposed on a physical interface. macOS retains the
+Docker Desktop hostname mapping and loopback-only host listeners.
+
+Startup verifies all four edges independently. If startup verification fails,
+the launcher tears down its containers and owned host processes while retaining
+the diagnostic run directory. Run `stop` before retrying an interrupted run.
+
 Output for each run is retained beneath `outputs/qemu-node/external/TIMESTAMP`.
 The state file containing generated local credentials and the verified QEMU
 PID is stored with mode 0600 beneath `examples/qemu-node/.state`.

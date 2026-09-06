@@ -52,7 +52,7 @@ services:
       - ${GRAPHX_QEMU_RUN_DIR:?set by demo.sh}:/captures:ro
       - ./graphx.yaml:/app/qemu-graphx.yaml:ro
     networks: [qemu-demo]
-    extra_hosts: ["host.docker.internal:host-gateway"]
+    extra_hosts: ["host.docker.internal:${GRAPHX_QEMU_HOST_GATEWAY:-host-gateway}"]
     read_only: true
     tmpfs: [/tmp]
     cap_drop: [ALL]
@@ -74,7 +74,7 @@ services:
       GRAPHX_TELEMETRY_PORT: "9000"
       GRAPHX_TELEMETRY_SHARED_SECRET: ${GRAPHX_TELEMETRY_SHARED_SECRET:-}
       GRAPHX_ORIGIN_INTERVAL_SECONDS: "0.25"
-    extra_hosts: ["host.docker.internal:host-gateway"]
+    extra_hosts: ["host.docker.internal:${GRAPHX_QEMU_HOST_GATEWAY:-host-gateway}"]
     depends_on: [telemetry]
     networks: [qemu-demo]
     read_only: true

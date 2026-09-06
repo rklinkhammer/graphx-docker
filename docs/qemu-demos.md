@@ -18,8 +18,11 @@ GraphX observes packets passively. Raw edges use `data_plane: external` and
 The portable profile runs the shared observer beside host QEMU so live PCAP
 tailing does not depend on Docker Desktop bind-mount cache timing. Telemetry
 and the GUI remain containerized. On native Linux the observer binds its
-history API only to the private demo bridge gateway; on macOS it binds to
-loopback. The Linux QEMU profile runs the same observer code as a container.
+history API and QEMU's TCP/UDP forwards only to the private `172.30.12.1` demo
+bridge gateway. The containers' `host.docker.internal` name is pinned to that
+same gateway instead of Docker's unrelated default-bridge gateway. On macOS,
+Docker Desktop supplies the hostname and the host services bind to loopback.
+The Linux QEMU profile runs the same observer code as a container.
 
 ## Build once
 
@@ -58,6 +61,11 @@ examples/qemu-node/external/scripts/demo.sh status
 examples/qemu-node/external/scripts/demo.sh logs
 examples/qemu-node/external/scripts/demo.sh stop
 ```
+
+`start` checks each of the four TCP/UDP edges independently, plus capture and
+history. A failed startup check automatically removes its containers and owned
+QEMU/observer processes, but preserves the run directory for diagnosis. It is
+still safe to run `stop` before retrying.
 
 To use another console port, set it for `start`; the validated value is retained
 in private run state for every later command:

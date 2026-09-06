@@ -423,14 +423,36 @@ if docker compose version >/dev/null 2>&1; then
   export GRAPHX_TELEMETRY_SHARED_SECRET=0123456789abcdef0123456789abcdef
   export GRAPHX_CONTROL_TOKEN=abcdef0123456789abcdef0123456789
   export GRAPHX_QEMU_ACCEL=tcg
+  export GRAPHX_QEMU_HOST_GATEWAY=172.30.12.1
   mkdir -p "$GRAPHX_QEMU_RUN_DIR"
   docker compose -f "$example_dir/external/compose.yaml" \
-    -f "$example_dir/external/compose.history.yaml" config --quiet
+    -f "$example_dir/external/compose.history.yaml" config --format json \
+    >"$test_dir/external-compose.json"
+  python3 - "$test_dir/external-compose.json" <<'PY'
+import json
+import sys
+
+services = json.load(open(sys.argv[1], encoding="utf-8"))["services"]
+for name in ("host-origin", "telemetry"):
+    aliases = services[name]["extra_hosts"]
+    if isinstance(aliases, list):
+        assert any(value in aliases for value in (
+            "host.docker.internal:172.30.12.1",
+            "host.docker.internal=172.30.12.1",
+        )), (name, aliases)
+    else:
+        assert aliases["host.docker.internal"] == "172.30.12.1", (name, aliases)
+PY
   docker compose -f "$example_dir/container/compose.yaml" \
     -f "$example_dir/container/compose.history.yaml" config --quiet
 else
   echo "SKIP QEMU Compose validation: docker compose is unavailable"
 fi
+
+grep -q 'hostfwd=tcp:\$bind_address:18001-:18001' "$example_dir/scripts/demo-profile.sh"
+grep -q 'Demo verification failed; cleaning up owned runtime resources' \
+  "$example_dir/scripts/demo-profile.sh"
+grep -q 'all four raw TCP/UDP edge counters advanced' "$example_dir/scripts/demo-profile.sh"
 
 if test "$(uname -s)" != Linux; then
   set +e

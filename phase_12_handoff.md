@@ -1,5 +1,26 @@
 # Phase 12 implementation handoff
 
+## Post-verification Linux external-profile correction
+
+A native-Linux operator run exposed a routing mismatch after the earlier phase
+report: the observer correctly listened on the private `172.30.12.1` Compose
+gateway, while `host.docker.internal` still resolved to Docker's default bridge
+gateway. Telemetry therefore returned 503 for packet history, and the same
+mapping could prevent the origin container from reaching QEMU's loopback-bound
+TCP/UDP forwards.
+
+The external launcher now pins `host.docker.internal` to `172.30.12.1` on Linux
+and binds both QEMU forwards and the observer to that address. macOS keeps its
+Docker Desktop mapping and loopback listeners. Startup verification now requires
+all four edge counters to advance independently, reports history transport and
+empty-history failures separately, and automatically rolls back owned runtime
+resources on failure. Static Compose expansion covers the Linux mapping. A new
+macOS/arm64 external-TCG lifecycle rerun passed with all four edge counters
+advancing (`1 2 1 1 -> 4 5 2 2` at startup and `21 21 3 3 -> 24 24 4 4` on an
+independent verify), capture/history available, and no owned runtime resources
+left after stop. A new native-Linux external run remains required to convert the
+Linux bridge correction from code inspection to runtime verification.
+
 ## Verification-round remediation (2026-09-05, live VM/guest state)
 
 The current implementation addresses F-012-06, F-012-07, and F-012-08 from
