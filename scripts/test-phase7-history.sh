@@ -5,10 +5,13 @@ ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 source "$ROOT/scripts/configure-build-trust.sh"
 PROJECT=${GRAPHX_PHASE7_TEST_PROJECT:-"graphx-phase7-test-$$"}
 OBSERVATION_TOKEN=${GRAPHX_PHASE7_OBSERVATION_TOKEN:-"phase7-observation-token-0123456789abcdef"}
+HTTP_PORT=${GRAPHX_PHASE7_HTTP_PORT:-38080}
+BASE_URL="http://127.0.0.1:$HTTP_PORT"
 FILES=(-f "$ROOT/compose.yaml" -f "$ROOT/compose.history.yaml")
 
 compose() {
-  GRAPHX_OBSERVATION_TOKEN="$OBSERVATION_TOKEN" docker compose -p "$PROJECT" "${FILES[@]}" "$@"
+  GRAPHX_OBSERVATION_TOKEN="$OBSERVATION_TOKEN" GRAPHX_PUBLISHED_HTTP_PORT="$HTTP_PORT" \
+    docker compose -p "$PROJECT" "${FILES[@]}" "$@"
 }
 
 cleanup() {
@@ -30,7 +33,7 @@ wait_for_history() {
   while ((SECONDS < deadline)); do
     if [[ $(docker inspect -f '{{.State.Health.Status}}' "$telemetry" 2>/dev/null || true) == healthy ]] &&
        curl -fsS -H "Authorization: Bearer $OBSERVATION_TOKEN" \
-         'http://127.0.0.1:8080/api/history/status' 2>/dev/null | node -e '
+         "$BASE_URL/api/history/status" 2>/dev/null | node -e '
 let input=""; process.stdin.on("data", value => input += value).on("end", () => {
   try { if (JSON.parse(input).status !== "ready") process.exit(1) } catch { process.exit(1) }
 })'; then
@@ -48,7 +51,7 @@ let input=""; process.stdin.on("data", value => input += value).on("end", () => 
 
 history_contains_sequence() {
   curl -fsS -H "Authorization: Bearer $OBSERVATION_TOKEN" \
-    'http://127.0.0.1:8080/api/history?limit=100&node=generator' 2>/dev/null | node -e '
+    "$BASE_URL/api/history?limit=100&node=generator" 2>/dev/null | node -e '
 let input=""; process.stdin.on("data", value => input += value).on("end", () => {
   try {
     if (!JSON.parse(input).records.some(record => record.data.sequence === 7007)) process.exit(1)
@@ -58,7 +61,7 @@ let input=""; process.stdin.on("data", value => input += value).on("end", () => 
 
 wait_for_history
 unauthorized_status=$(curl -sS -o /dev/null -w '%{http_code}' \
-  'http://127.0.0.1:8080/api/history/status')
+  "$BASE_URL/api/history/status")
 [[ "$unauthorized_status" == 401 ]] || {
   echo "history status without an observation credential returned $unauthorized_status, expected 401" >&2
   exit 1

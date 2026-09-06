@@ -1,0 +1,9 @@
+ Network graphx-phase6-otlp-28792_graphx Creating 
+ Network graphx-phase6-otlp-28792_graphx Created 
+ Volume graphx-phase6-otlp-28792_captures Creating 
+ Volume graphx-phase6-otlp-28792_captures Created 
+ Container graphx-phase6-otlp-28792-telemetry-1 Creating 
+ Container graphx-phase6-otlp-28792-telemetry-1 Created 
+ Container graphx-phase6-otlp-28792-telemetry-1 Starting 
+ Container graphx-phase6-otlp-28792-telemetry-1 Started 
+Phase 6 secure Compose token, private-CA, and mTLS export passed

@@ -16,9 +16,9 @@ tier. The privileged tier is deliberately never selected automatically.
 
 | Tier | Host | Coverage | Command |
 |---|---|---|---|
-| Quality | macOS or Linux | Repository formatting, clang-tidy, cppcheck | `scripts/check-format.sh && scripts/run-static-analysis.sh` |
-| Sanitizers | macOS or Linux | Complete CTest under LLVM 21 ASan and UBSan | Select LLVM 21 with `CC`/`CXX`, then run `cmake --preset sanitizers && cmake --build --preset sanitizers && ctest --preset sanitizers` |
-| Fuzz | Clang host | Envelope and frame libFuzzer targets under ASan/UBSan | `GRAPHX_FUZZ_SECONDS=30 scripts/run-fuzz.sh` |
+| Quality | macOS or Linux | Repository formatting, clang-tidy, cppcheck | `scripts/verify.sh quality` |
+| Sanitizers | macOS or Linux | Complete CTest under LLVM 21 ASan/UBSan, or UBSan on macOS 26 | `scripts/verify.sh sanitizers` |
+| Fuzz | Clang host | Envelope and frame libFuzzer targets under ASan/UBSan, or UBSan on macOS 26 | `scripts/verify.sh fuzz` |
 | Portable | macOS or Linux | C++20/23, unit/integration tests, config/infra dry-runs, TCP and shared-memory process pipelines, graceful SIGTERM, web build, configuration-driven telemetry, heartbeat expiry, API and Prometheus output | `scripts/test-features.sh portable` |
 | Docker | macOS or Linux with Docker | Portable tier plus the standard bridge-network Compose deployment | `scripts/test-features.sh docker` |
 | Native network | Linux only | Portable tier plus real macvlan, IPvlan L2/L3, OVS, namespace routing, nftables and netem | `GRAPHX_ALLOW_PRIVILEGED_TESTS=1 scripts/test-features.sh linux-network` |
@@ -67,13 +67,14 @@ cancelled.
 Run the same focused gates locally:
 
 ```sh
-scripts/check-format.sh
-scripts/run-static-analysis.sh
-CC=clang-21 CXX=clang++-21 cmake --preset sanitizers
-cmake --build --preset sanitizers
-ASAN_OPTIONS=detect_leaks=1 UBSAN_OPTIONS=halt_on_error=1 ctest --preset sanitizers
-GRAPHX_FUZZ_SECONDS=30 scripts/run-fuzz.sh
+scripts/verify.sh quality
+scripts/verify.sh sanitizers
+scripts/verify.sh fuzz
 ```
+
+These profiles select the platform's LLVM 21 paths, SDK, sanitizer runtime
+options, and macOS 26 workaround. Use the lower-level commands only when
+diagnosing a gate and preserve the same platform settings.
 
 LeakSanitizer is not supported by the LLVM runtime on every macOS release. The
 CI macOS 15 job disables leak detection explicitly while retaining LLVM 21
@@ -411,7 +412,8 @@ token, waits for service and history readiness, requires an unauthenticated 401,
 injects a valid UDP event, retrieves it through the authenticated bounded
 history API, restarts that container, and requires an authenticated reread from
 the named volume. Its cleanup is scoped to the generated Compose project and
-volume.
+volume. It publishes telemetry on host port 38080 by default; override that port
+with `GRAPHX_PHASE7_HTTP_PORT`.
 This proves local SQLite/volume persistence; it does not certify a remote
 backend, distributed durability, or end-to-end delivery of best-effort UDP.
 

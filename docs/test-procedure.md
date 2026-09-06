@@ -10,6 +10,9 @@ coverage, rationale, and manual diagnostics are in
 | Profile | Use it when | Coverage | Host |
 |---|---|---|---|
 | `quick` | Editing C++ code | Fresh development build and CTest | macOS or Linux |
+| `quality` | Investigating a quality failure | Formatting, clang-tidy, and cppcheck | macOS or Linux |
+| `sanitizers` | Investigating a sanitizer failure | Platform-safe LLVM 21 sanitizer build and CTest | macOS or Linux |
+| `fuzz` | Investigating a fuzzer failure | Bounded LLVM 21 envelope and frame fuzzing | macOS or Linux |
 | `portable` | Preparing a normal change | C++20/23, configurations, process pipelines, telemetry, web, and portable examples | macOS or Linux |
 | `full` | Preparing a pull request | Formatting, static analysis, sanitizers, fuzzing, portable acceptance, and Docker acceptance | macOS or Linux with Docker |
 | `native-linux` | Certifying network behavior | Portable acceptance plus UDP broadcast, macvlan, IPvlan, OVS, namespaces, nftables, netem, and live packet capture | Native Linux only |
@@ -70,8 +73,9 @@ sanitizer and fuzz acceptance; `GRAPHX_SANITIZER_CC`,
 explicit paths when Homebrew is installed in a nonstandard location.
 
 Homebrew LLVM 21 AddressSanitizer has an [upstream runtime initialization hang
-on macOS 26](https://github.com/llvm/llvm-project/issues/200447). On that release, `verify.sh full` reports the limitation and runs
-LLVM 21 UBSan plus libFuzzer locally. Linux and the supported macOS 15 CI runner
+on macOS 26](https://github.com/llvm/llvm-project/issues/200447). On that release, the `sanitizers`, `fuzz`, and `full` profiles and the direct
+`run-fuzz.sh` entry point report the limitation and use LLVM 21 UBSan for local
+sanitizer instrumentation. Linux and the supported macOS 15 CI runner
 retain LLVM 21 ASan+UBSan, so ASan remains a required acceptance gate. Set
 `GRAPHX_SANITIZERS=address,undefined` only to retest macOS 26 after its LLVM
 runtime is fixed; affected runtimes will hang before GraphX `main()` starts.
@@ -109,6 +113,7 @@ should be absolute when the command may start Docker builds or child scripts.
 | `GRAPHX_SANITIZERS` | Compiler sanitizer set | `address,undefined`; `undefined` automatically on macOS 26 |
 | `GRAPHX_TEST_HTTP_PORT` | Portable telemetry HTTP port | `18080` |
 | `GRAPHX_DOCKER_TEST_HTTP_PORT` | Published telemetry port used by Docker acceptance | `28080` |
+| `GRAPHX_PHASE7_HTTP_PORT` | Published telemetry port used by the isolated history test | `38080` |
 | `GRAPHX_TEST_UDP_PORT` | Portable telemetry UDP port | `19000` |
 | `GRAPHX_VERIFY_LOG_DIR` | Persistent verification-log directory | `outputs/verification` |
 | `GRAPHX_CA_CERT` | Public organization CA used by all participating Docker builds | unset |

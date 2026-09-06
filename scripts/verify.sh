@@ -10,6 +10,9 @@ usage: scripts/verify.sh <profile>
 
 Profiles:
   quick         Configure, build, and run the development CTest suite
+  quality       Run formatting and static analysis
+  sanitizers    Run the platform-safe LLVM 21 sanitizer suite
+  fuzz          Run bounded LLVM 21 libFuzzer smoke tests
   portable      Run complete non-Docker acceptance for C++20 and C++23
   full          Run quality, sanitizers, fuzzing, portable, and Docker acceptance
   native-linux  Run portable and privileged native Linux network acceptance
@@ -24,7 +27,7 @@ case "$PROFILE" in
     usage
     exit 0
     ;;
-  quick|portable|full|native-linux|release) ;;
+  quick|quality|sanitizers|fuzz|portable|full|native-linux|release) ;;
   *)
     echo "unknown verification profile: $PROFILE" >&2
     usage >&2
@@ -182,6 +185,21 @@ run_release() {
 case "$PROFILE" in
   quick)
     run_quick
+    ;;
+  quality)
+    select_llvm21_sanitizer_toolchain
+    gate "format"
+    scripts/check-format.sh
+    gate "static analysis"
+    scripts/run-static-analysis.sh
+    ;;
+  sanitizers)
+    run_sanitizers
+    ;;
+  fuzz)
+    select_llvm21_sanitizer_toolchain
+    gate "bounded fuzz smoke tests"
+    GRAPHX_FUZZ_SECONDS=${GRAPHX_FUZZ_SECONDS:-30} scripts/run-fuzz.sh
     ;;
   portable)
     gate "portable acceptance"

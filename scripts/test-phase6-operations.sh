@@ -48,7 +48,7 @@ rules_are_loaded() {
 let input=""; process.stdin.on("data", value => input += value).on("end", () => {
   try {
     const groups = JSON.parse(input).data.groups
-    if (groups.reduce((count, group) => count + group.rules.length, 0) !== 6) process.exit(1)
+    if (groups.reduce((count, group) => count + group.rules.length, 0) !== 8) process.exit(1)
   } catch { process.exit(1) }
 })'
 }

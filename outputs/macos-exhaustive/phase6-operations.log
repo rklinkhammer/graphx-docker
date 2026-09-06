@@ -1,0 +1,221 @@
+ Image graphx-telemetry:latest Building 
+#1 [internal] load local bake definitions
+#1 reading from stdin 814B done
+#1 DONE 0.0s
+
+#2 [internal] load build definition from telemetry.Dockerfile
+#2 transferring dockerfile: 2.74kB done
+#2 DONE 0.0s
+
+#3 resolve image config for docker-image://docker.io/docker/dockerfile:1.7
+#3 DONE 0.2s
+
+#4 docker-image://docker.io/docker/dockerfile:1.7@sha256:a57df69d0ea827fb7266491f2813635de6f17269be881f696fbfdf2d83dda33e
+#4 CACHED
+
+#5 [internal] load metadata for docker.io/library/node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32
+#5 DONE 0.0s
+
+#6 [internal] load metadata for docker.io/library/debian:bookworm-slim@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171
+#6 DONE 0.0s
+
+#7 [internal] load .dockerignore
+#7 transferring context: 222B done
+#7 DONE 0.0s
+
+#8 [web 1/7] FROM docker.io/library/node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32
+#8 DONE 0.0s
+
+#9 [trust 1/4] FROM docker.io/library/debian:bookworm-slim@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171
+#9 DONE 0.0s
+
+#10 [internal] load build context
+#10 transferring context: 1.82kB 0.0s done
+#10 DONE 0.0s
+
+#11 [trust 4/4] RUN --mount=type=secret,id=graphx_ca,required=false     --mount=type=secret,id=graphx_cert_installer,required=false     /usr/bin/bash /usr/local/libexec/graphx-install-build-trust
+#11 CACHED
+
+#12 [stage-2 4/9] RUN addgroup -S -g 65532 graphx-capture && addgroup node graphx-capture  && mkdir /captures /var/lib/graphx /var/lib/graphx/history  && chown 65532:65532 /captures && chmod 0770 /captures  && chown -R node:node /var/lib/graphx && chmod 0750 /var/lib/graphx /var/lib/graphx/history
+#12 CACHED
+
+#13 [web 7/7] RUN npm run build
+#13 CACHED
+
+#14 [trust 2/4] RUN apt-get update && apt-get install -y --no-install-recommends bash ca-certificates curl  && rm -rf /var/lib/apt/lists/*
+#14 CACHED
+
+#15 [trust 3/4] COPY docker/install-build-trust.sh /usr/local/libexec/graphx-install-build-trust
+#15 CACHED
+
+#16 [stage-2 7/9] COPY --chown=node:node apps/telemetry/server.mjs apps/telemetry/security.mjs apps/telemetry/control.mjs apps/telemetry/operations.mjs   apps/telemetry/history.mjs apps/telemetry/history-worker.mjs apps/telemetry/capture-files.mjs ./
+#16 CACHED
+
+#17 [web 6/7] COPY web/ ./
+#17 CACHED
+
+#18 [stage-2 8/9] COPY graphx.yaml ./graphx.yaml
+#18 CACHED
+
+#19 [web 2/7] COPY --from=trust /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+#19 CACHED
+
+#20 [web 4/7] COPY web/package*.json ./
+#20 CACHED
+
+#21 [stage-2 3/9] WORKDIR /app
+#21 CACHED
+
+#22 [web 5/7] RUN npm ci
+#22 CACHED
+
+#23 [stage-2 5/9] COPY apps/telemetry/package*.json ./
+#23 CACHED
+
+#24 [stage-2 6/9] RUN npm ci --omit=dev
+#24 CACHED
+
+#25 [web 3/7] WORKDIR /app/web
+#25 CACHED
+
+#26 [stage-2 9/9] COPY --from=web /app/web/dist ./web/dist
+#26 CACHED
+
+#27 exporting to image
+#27 exporting layers done
+#27 writing image sha256:947eb1995ec1fd8378d124b4796018537fd51efd63dc90b454c765692549dcae done
+#27 naming to docker.io/library/graphx-telemetry:latest done
+#27 DONE 0.0s
+
+#28 resolving provenance for metadata file
+#28 DONE 0.0s
+ Image graphx-telemetry:latest Built 
+ Network graphx-phase6-test-21981_graphx Creating 
+ Network graphx-phase6-test-21981_graphx Created 
+ Volume graphx-phase6-test-21981_captures Creating 
+ Volume graphx-phase6-test-21981_captures Created 
+ Container graphx-phase6-test-21981-telemetry-1 Creating 
+ Container graphx-phase6-test-21981-prometheus-1 Creating 
+ Container graphx-phase6-test-21981-prometheus-1 Created 
+ Container graphx-phase6-test-21981-grafana-1 Creating 
+ Container graphx-phase6-test-21981-telemetry-1 Created 
+ Container graphx-phase6-test-21981-grafana-1 Created 
+ Container graphx-phase6-test-21981-telemetry-1 Starting 
+ Container graphx-phase6-test-21981-prometheus-1 Starting 
+ Container graphx-phase6-test-21981-prometheus-1 Started 
+ Container graphx-phase6-test-21981-prometheus-1 Waiting 
+ Container graphx-phase6-test-21981-telemetry-1 Started 
+ Container graphx-phase6-test-21981-prometheus-1 Healthy 
+ Container graphx-phase6-test-21981-grafana-1 Starting 
+ Container graphx-phase6-test-21981-grafana-1 Started 
+Phase 6 operations stack did not satisfy its acceptance checks before the deadline
+NAME                                    IMAGE                                                                                             COMMAND                  SERVICE      CREATED              STATUS                        PORTS
+graphx-phase6-test-21981-grafana-1      grafana/grafana:13.2.0@sha256:3fd54ae1214669f8355f065ec9f6445d5279a3d77095ab048ca045685272429b    "/run.sh"                grafana      About a minute ago   Up 59 seconds                 127.0.0.1:3000->3000/tcp
+graphx-phase6-test-21981-prometheus-1   prom/prometheus:v3.13.0@sha256:c6b27ea434f8389bfe233fbc7be381cf50587c286e871bc842008f5a1b1908a7   "/bin/prometheus --c…"   prometheus   About a minute ago   Up About a minute (healthy)   127.0.0.1:9090->9090/tcp
+graphx-phase6-test-21981-telemetry-1    graphx-telemetry:latest                                                                           "docker-entrypoint.s…"   telemetry    About a minute ago   Up About a minute (healthy)   127.0.0.1:8080->8080/tcp, 9000/udp
+{"health":"up","lastError":"","labels":{"instance":"telemetry:8080","job":"graphx"}}
+Last 80 log lines for graphx-phase6-test-21981-telemetry-1
+GraphX telemetry HTTP/WS 0.0.0.0:8080, UDP 0.0.0.0:9000
+Last 80 log lines for graphx-phase6-test-21981-prometheus-1
+time=2026-09-06T15:07:56.322Z level=INFO source=main.go:1724 msg="updated GOGC" old=100 new=75
+time=2026-09-06T15:07:56.323Z level=INFO source=main.go:789 msg="Leaving GOMAXPROCS=16: CPU quota undefined" component=automaxprocs
+time=2026-09-06T15:07:56.323Z level=INFO source=memlimit.go:198 msg="GOMEMLIMIT is updated" component=automemlimit package=github.com/KimMachineGun/automemlimit/memlimit GOMEMLIMIT=15136797081 previous=9223372036854775807
+time=2026-09-06T15:07:56.323Z level=INFO source=main.go:896 msg="Starting Prometheus Server" mode=server version="(version=3.13.0, branch=HEAD, revision=40af9c2cdc0eda00f3622e867a27f6359f7295f3)"
+time=2026-09-06T15:07:56.323Z level=INFO source=main.go:901 msg="operational information" build_context="(go=go1.26.4, platform=linux/arm64, user=root@4525cbec08c1, date=20260701-11:00:07, tags=netgo,builtinassets)" host_details="(Linux 7.0.14-orbstack-00380-ga7e0a2dc9535 #1 SMP PREEMPT Fri Aug  7 03:48:40 UTC 2026 aarch64 3bf9dc6ff28a (none))" fd_limits="(soft=1048575, hard=1048576)" vm_limits="(soft=unlimited, hard=unlimited)"
+time=2026-09-06T15:07:56.403Z level=INFO source=web.go:727 msg="Start listening for connections" component=web address=0.0.0.0:9090
+time=2026-09-06T15:07:56.409Z level=INFO source=main.go:1456 msg="Starting TSDB ..."
+time=2026-09-06T15:07:56.409Z level=INFO source=tls_config.go:354 msg="Listening on" component=web address=[::]:9090
+time=2026-09-06T15:07:56.409Z level=INFO source=tls_config.go:357 msg="TLS is disabled." component=web http2=false address=[::]:9090
+time=2026-09-06T15:07:56.411Z level=INFO source=head.go:709 msg="Replaying on-disk memory mappable chunks if any" component=tsdb
+time=2026-09-06T15:07:56.411Z level=INFO source=head.go:795 msg="On-disk memory mappable chunks replay completed" component=tsdb duration=916ns
+time=2026-09-06T15:07:56.411Z level=INFO source=head.go:803 msg="Replaying WAL, this may take a while" component=tsdb
+time=2026-09-06T15:07:56.412Z level=INFO source=head.go:898 msg="WAL segment loaded" component=tsdb segment=0 maxSegment=0 duration=220.668µs
+time=2026-09-06T15:07:56.412Z level=INFO source=head.go:935 msg="WAL replay completed" component=tsdb checkpoint_replay_duration=8.958µs wal_replay_duration=235.877µs wbl_replay_duration=83ns chunk_snapshot_load_duration=0s mmap_chunk_replay_duration=916ns total_replay_duration=256.252µs
+time=2026-09-06T15:07:56.413Z level=INFO source=main.go:1477 msg="filesystem information" fs_type=TMPFS_MAGIC
+time=2026-09-06T15:07:56.413Z level=INFO source=main.go:1480 msg="TSDB started"
+time=2026-09-06T15:07:56.413Z level=INFO source=main.go:1678 msg="Loading configuration file" filename=/etc/prometheus/prometheus.yml
+time=2026-09-06T15:07:56.414Z level=INFO source=main.go:1094 msg="TSDB retention updated" duration=1d size=0B percentage=0
+time=2026-09-06T15:07:56.414Z level=INFO source=main.go:1717 msg="Completed loading of configuration file" db_storage=43.917µs remote_storage=1.416µs web_handler=417ns query_engine=666ns scrape=120.96µs scrape_sd=11.334µs notify=625ns notify_sd=375ns rules=476.754µs tracing=2.459µs filename=/etc/prometheus/prometheus.yml totalDuration=986.384µs
+time=2026-09-06T15:07:56.414Z level=INFO source=main.go:1441 msg="Server is ready to receive web requests."
+time=2026-09-06T15:07:56.414Z level=INFO source=manager.go:211 msg="Starting rule manager..." component="rule manager"
+Last 80 log lines for graphx-phase6-test-21981-grafana-1
+logger=backgroundsvcs.managerAdapter t=2026-09-06T15:08:03.168546868Z level=info msg=starting module=*manager.ServiceAccountsService
+logger=backgroundsvcs.managerAdapter t=2026-09-06T15:08:03.168569326Z level=info msg=starting module=*service.DashboardServiceImpl
+logger=backgroundsvcs.managerAdapter t=2026-09-06T15:08:03.168581201Z level=info msg=starting module=*metric.Service
+logger=backgroundsvcs.managerAdapter t=2026-09-06T15:08:03.168672327Z level=info msg=starting module=*pushhttp.Gateway
+logger=backgroundsvcs.managerAdapter t=2026-09-06T15:08:03.168681952Z level=info msg=starting module=*rendering.RenderingService
+logger=backgroundsvcs.managerAdapter t=2026-09-06T15:08:03.168697619Z level=info msg=starting module=*updatemanager.PluginsService
+logger=backgroundsvcs.managerAdapter t=2026-09-06T15:08:03.168403658Z level=info msg=starting module=*ngalert.AlertNG
+logger=ngalert t=2026-09-06T15:08:03.168729369Z level=info msg="Primary node, alert rule evaluation enabled"
+logger=ngalert.state.manager t=2026-09-06T15:08:03.168736619Z level=info msg="Warming state cache for startup"
+logger=backgroundsvcs.managerAdapter t=2026-09-06T15:08:03.168819037Z level=info msg=starting module=*garbagecollectionworker.Worker
+logger=backgroundsvcs.managerAdapter t=2026-09-06T15:08:03.168829287Z level=info msg=starting module=*appregistry.Service
+logger=app-registry t=2026-09-06T15:08:03.16883787Z level=info msg="app registry initialized"
+logger=backgroundsvcs.managerAdapter t=2026-09-06T15:08:03.168842204Z level=info msg=starting module=*migrations.SecretMigrationProviderImpl
+logger=backgroundsvcs.managerAdapter t=2026-09-06T15:08:03.168867204Z level=info msg=starting module=*cleanup.CleanUpService
+logger=backgroundsvcs.managerAdapter t=2026-09-06T15:08:03.168884746Z level=info msg=starting module=*store.standardStorageService
+logger=grafanaStorageLogger t=2026-09-06T15:08:03.168889787Z level=info msg="Storage starting"
+logger=backgroundsvcs.managerAdapter t=2026-09-06T15:08:03.168899163Z level=info msg=starting module=*anonimpl.AnonDeviceService
+logger=backgroundsvcs.managerAdapter t=2026-09-06T15:08:03.168901413Z level=info msg=starting module=*supportbundlesimpl.Service
+logger=backgroundsvcs.managerAdapter t=2026-09-06T15:08:03.168907663Z level=info msg=starting module=*statscollector.Service
+logger=backgroundsvcs.managerAdapter t=2026-09-06T15:08:03.168916413Z level=info msg=starting module=*remotecache.RemoteCache
+logger=backgroundsvcs.managerAdapter t=2026-09-06T15:08:03.168926579Z level=info msg=starting module=*ssosettingsimpl.Service
+logger=backgroundsvcs.managerAdapter t=2026-09-06T15:08:03.168935038Z level=info msg=starting module=*updatemanager.GrafanaService
+logger=ngalert.multiorg.alertmanager t=2026-09-06T15:08:03.168934246Z level=info msg="Starting MultiOrg Alertmanager"
+logger=backgroundsvcs.managerAdapter t=2026-09-06T15:08:03.168399408Z level=info msg=starting module=*authz.EmbeddedZanzanaService
+logger=backgroundsvcs.managerAdapter t=2026-09-06T15:08:03.169001913Z level=info msg=starting module=*angulardetectorsprovider.Dynamic
+logger=backgroundsvcs.managerAdapter t=2026-09-06T15:08:03.169012955Z level=info msg=starting module=*live.GrafanaLive
+logger=backgroundsvcs.managerAdapter t=2026-09-06T15:08:03.169029705Z level=info msg=starting module=*authimpl.UserAuthTokenService
+logger=backgroundsvcs.managerAdapter t=2026-09-06T15:08:03.169055664Z level=info msg=starting module=*api.HTTPServer
+logger=backgroundsvcs.managerAdapter t=2026-09-06T15:08:03.169513585Z level=info msg=starting module=*notifications.NotificationService
+logger=backgroundsvcs.managerAdapter t=2026-09-06T15:08:03.168392241Z level=info msg=starting module=*pluginexternal.Service
+logger=backgroundsvcs.managerAdapter t=2026-09-06T15:08:03.169576294Z level=info msg="All modules healthy"
+logger=http.server t=2026-09-06T15:08:03.171863648Z level=info msg="HTTP Server Listen" address=[::]:3000 protocol=http subUrl= socket=
+logger=sqlstore.transactions t=2026-09-06T15:08:03.177457699Z level=info msg="Database locked, sleeping then retrying" error="database is locked (5) (SQLITE_BUSY)" retry=0 sleep=33.178246ms
+logger=ngalert.state.manager t=2026-09-06T15:08:03.179736512Z level=info msg="State cache has been initialized" rules=0 states=0 duration=11.000059ms
+logger=ngalert.scheduler t=2026-09-06T15:08:03.179767596Z level=info msg="Starting scheduler" tickInterval=10s maxAttempts=3
+logger=ngalert.scheduler t=2026-09-06T15:08:03.179790263Z level=info msg=starting component=ticker first_tick=2026-09-06T15:08:10Z
+t=2026-09-06T15:08:03.232330078Z level=info caller=logger.go:214 time=2026-09-06T15:08:03.232315828Z msg="Starting ConnectionController" logger=provisioning-connection-controller
+t=2026-09-06T15:08:03.232347162Z level=info caller=logger.go:214 time=2026-09-06T15:08:03.232343787Z msg="Starting workers" logger=provisioning-connection-controller count=1
+t=2026-09-06T15:08:03.232356829Z level=info caller=logger.go:214 time=2026-09-06T15:08:03.232355287Z msg="Started workers" logger=provisioning-connection-controller
+t=2026-09-06T15:08:03.23237387Z level=info caller=logger.go:214 time=2026-09-06T15:08:03.23236862Z msg="Starting RepositoryController" logger=provisioning-repository-controller
+t=2026-09-06T15:08:03.23237987Z level=info caller=logger.go:214 time=2026-09-06T15:08:03.232377579Z msg="Starting workers" logger=provisioning-repository-controller count=1
+t=2026-09-06T15:08:03.232383704Z level=info caller=logger.go:214 time=2026-09-06T15:08:03.23238212Z msg="Started workers" logger=provisioning-repository-controller
+logger=plugin.angulardetectorsprovider.dynamic t=2026-09-06T15:08:03.264639958Z level=info msg="Patterns update finished" duration=95.575294ms
+logger=grafana.update.checker t=2026-09-06T15:08:03.28516348Z level=info msg="Update check succeeded" duration=116.223567ms
+logger=plugins.update.checker t=2026-09-06T15:08:03.349960075Z level=info msg="flag evaluation succeeded" flag="{Value:false EvaluationDetails:{FlagKey:pluginsAutoUpdate FlagType:bool ResolutionDetail:{Variant:default Reason:STATIC ErrorCode: ErrorMessage: FlagMetadata:map[]}}}" details="{Value:false EvaluationDetails:{FlagKey:pluginsAutoUpdate FlagType:bool ResolutionDetail:{Variant:default Reason:STATIC ErrorCode: ErrorMessage: FlagMetadata:map[]}}}"
+logger=plugins.update.checker t=2026-09-06T15:08:03.350007992Z level=info msg="flag evaluation succeeded" flag="{Value:false EvaluationDetails:{FlagKey:pluginsAutoUpdate FlagType:bool ResolutionDetail:{Variant:default Reason:STATIC ErrorCode: ErrorMessage: FlagMetadata:map[]}}}" details="{Value:false EvaluationDetails:{FlagKey:pluginsAutoUpdate FlagType:bool ResolutionDetail:{Variant:default Reason:STATIC ErrorCode: ErrorMessage: FlagMetadata:map[]}}}"
+logger=plugins.update.checker t=2026-09-06T15:08:03.350019034Z level=info msg="Update check succeeded" duration=181.317873ms
+logger=plugins.update.checker t=2026-09-06T15:08:03.350023284Z level=info msg="flag evaluation succeeded" flag="{Value:false EvaluationDetails:{FlagKey:pluginsAutoUpdate FlagType:bool ResolutionDetail:{Variant:default Reason:STATIC ErrorCode: ErrorMessage: FlagMetadata:map[]}}}" details="{Value:false EvaluationDetails:{FlagKey:pluginsAutoUpdate FlagType:bool ResolutionDetail:{Variant:default Reason:STATIC ErrorCode: ErrorMessage: FlagMetadata:map[]}}}"
+logger=plugin.installer t=2026-09-06T15:08:03.562338525Z level=info msg="Installing plugin" pluginId=grafana-advisor-app version=
+logger=installer.fs t=2026-09-06T15:08:03.577915626Z level=info msg="Downloaded and extracted grafana-advisor-app v1.0.2 zip successfully to /var/lib/grafana/plugins/grafana-advisor-app"
+logger=plugins.registration t=2026-09-06T15:08:03.592061215Z level=info msg="Plugin registered" pluginId=grafana-advisor-app
+logger=plugin.backgroundinstaller t=2026-09-06T15:08:03.592138924Z level=info msg="Plugin successfully installed" pluginId=grafana-advisor-app version= duration=458.394292ms
+logger=plugin.backgroundinstaller t=2026-09-06T15:08:03.592160132Z level=info msg="Installing plugin" pluginId=grafana-lokiexplore-app version=
+logger=plugin.installer t=2026-09-06T15:08:03.856978439Z level=info msg="Installing plugin" pluginId=grafana-lokiexplore-app version=
+logger=installer.fs t=2026-09-06T15:08:03.958026658Z level=info msg="Downloaded and extracted grafana-lokiexplore-app v2.5.2 zip successfully to /var/lib/grafana/plugins/grafana-lokiexplore-app"
+logger=plugins.registration t=2026-09-06T15:08:03.972290456Z level=info msg="Plugin registered" pluginId=grafana-lokiexplore-app
+logger=plugin.backgroundinstaller t=2026-09-06T15:08:03.97232304Z level=info msg="Plugin successfully installed" pluginId=grafana-lokiexplore-app version= duration=380.157032ms
+logger=plugin.backgroundinstaller t=2026-09-06T15:08:04.082143881Z level=info msg="Installing plugin" pluginId=elasticsearch version=
+logger=plugin.installer t=2026-09-06T15:08:04.140168872Z level=info msg="Updating plugin" pluginId=elasticsearch from=12.8.0 to=12.8.1
+logger=plugin.elasticsearch t=2026-09-06T15:08:04.14101163Z level=info msg="plugin process exited" plugin=/usr/share/grafana/data/plugins-bundled/elasticsearch/gpx_grafana_elasticsearch_datasource_linux_arm64 id=29
+logger=plugin.backgroundinstaller t=2026-09-06T15:08:04.141052172Z level=error msg="Failed to install plugin" pluginId=elasticsearch version= error="unlinkat /usr/share/grafana/data/plugins-bundled/elasticsearch: read-only file system"
+logger=plugin.backgroundinstaller t=2026-09-06T15:08:04.309321051Z level=info msg="Installing plugin" pluginId=grafana-exploretraces-app version=
+logger=plugin.installer t=2026-09-06T15:08:04.510724983Z level=info msg="Installing plugin" pluginId=grafana-exploretraces-app version=
+logger=installer.fs t=2026-09-06T15:08:04.569107811Z level=info msg="Downloaded and extracted grafana-exploretraces-app v2.2.0 zip successfully to /var/lib/grafana/plugins/grafana-exploretraces-app"
+logger=plugins.registration t=2026-09-06T15:08:04.58096392Z level=info msg="Plugin registered" pluginId=grafana-exploretraces-app
+logger=plugin.backgroundinstaller t=2026-09-06T15:08:04.580992753Z level=info msg="Plugin successfully installed" pluginId=grafana-exploretraces-app version= duration=271.572993ms
+logger=plugin.backgroundinstaller t=2026-09-06T15:08:04.581018504Z level=info msg="Installing plugin" pluginId=grafana-pyroscope-app version=
+logger=plugin.installer t=2026-09-06T15:08:04.766462873Z level=info msg="Installing plugin" pluginId=grafana-pyroscope-app version=
+logger=installer.fs t=2026-09-06T15:08:04.822353761Z level=info msg="Downloaded and extracted grafana-pyroscope-app v2.3.0 zip successfully to /var/lib/grafana/plugins/grafana-pyroscope-app"
+logger=plugins.registration t=2026-09-06T15:08:04.833400571Z level=info msg="Plugin registered" pluginId=grafana-pyroscope-app
+logger=plugin.backgroundinstaller t=2026-09-06T15:08:04.833429821Z level=info msg="Plugin successfully installed" pluginId=grafana-pyroscope-app version= duration=252.405693ms
+logger=plugin.backgroundinstaller t=2026-09-06T15:08:04.889523211Z level=info msg="Installing plugin" pluginId=mysql version=
+logger=plugin.installer t=2026-09-06T15:08:04.945398141Z level=info msg="Updating plugin" pluginId=mysql from=13.0.2 to=13.1.0
+logger=plugin.mysql t=2026-09-06T15:08:04.946277399Z level=info msg="plugin process exited" plugin=/usr/share/grafana/data/plugins-bundled/mysql/gpx_grafana-mysql-datasource_linux_arm64 id=99
+logger=plugin.backgroundinstaller t=2026-09-06T15:08:04.946342858Z level=error msg="Failed to install plugin" pluginId=mysql version= error="unlinkat /usr/share/grafana/data/plugins-bundled/mysql: read-only file system"
+logger=plugin.backgroundinstaller t=2026-09-06T15:08:05.241019814Z level=info msg="Installing plugin" pluginId=grafana-metricsdrilldown-app version=
+logger=plugin.installer t=2026-09-06T15:08:05.446029154Z level=info msg="Installing plugin" pluginId=grafana-metricsdrilldown-app version=
+logger=installer.fs t=2026-09-06T15:08:05.508034932Z level=info msg="Downloaded and extracted grafana-metricsdrilldown-app v2.5.1 zip successfully to /var/lib/grafana/plugins/grafana-metricsdrilldown-app"
+logger=plugins.registration t=2026-09-06T15:08:05.519403536Z level=info msg="Plugin registered" pluginId=grafana-metricsdrilldown-app
+logger=plugin.backgroundinstaller t=2026-09-06T15:08:05.519471495Z level=info msg="Plugin successfully installed" pluginId=grafana-metricsdrilldown-app version= duration=278.42264ms

@@ -1,0 +1,108 @@
+ Image graphx-telemetry:latest Building 
+#1 [internal] load local bake definitions
+#1 reading from stdin 814B done
+#1 DONE 0.0s
+
+#2 [internal] load build definition from telemetry.Dockerfile
+#2 transferring dockerfile: 2.74kB done
+#2 DONE 0.0s
+
+#3 [auth] docker/dockerfile:pull token for registry-1.docker.io
+#3 DONE 0.0s
+
+#4 resolve image config for docker-image://docker.io/docker/dockerfile:1.7
+#4 DONE 0.3s
+
+#5 docker-image://docker.io/docker/dockerfile:1.7@sha256:a57df69d0ea827fb7266491f2813635de6f17269be881f696fbfdf2d83dda33e
+#5 CACHED
+
+#6 [internal] load metadata for docker.io/library/node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32
+#6 DONE 0.0s
+
+#7 [internal] load metadata for docker.io/library/debian:bookworm-slim@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171
+#7 DONE 0.0s
+
+#8 [internal] load .dockerignore
+#8 transferring context: 222B done
+#8 DONE 0.0s
+
+#9 [trust 1/4] FROM docker.io/library/debian:bookworm-slim@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171
+#9 DONE 0.0s
+
+#10 [web 1/7] FROM docker.io/library/node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32
+#10 DONE 0.0s
+
+#11 [internal] load build context
+#11 transferring context: 1.82kB 0.0s done
+#11 DONE 0.0s
+
+#12 [web 7/7] RUN npm run build
+#12 CACHED
+
+#13 [trust 4/4] RUN --mount=type=secret,id=graphx_ca,required=false     --mount=type=secret,id=graphx_cert_installer,required=false     /usr/bin/bash /usr/local/libexec/graphx-install-build-trust
+#13 CACHED
+
+#14 [web 2/7] COPY --from=trust /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+#14 CACHED
+
+#15 [stage-2 8/9] COPY graphx.yaml ./graphx.yaml
+#15 CACHED
+
+#16 [web 5/7] RUN npm ci
+#16 CACHED
+
+#17 [web 4/7] COPY web/package*.json ./
+#17 CACHED
+
+#18 [stage-2 6/9] RUN npm ci --omit=dev
+#18 CACHED
+
+#19 [stage-2 4/9] RUN addgroup -S -g 65532 graphx-capture && addgroup node graphx-capture  && mkdir /captures /var/lib/graphx /var/lib/graphx/history  && chown 65532:65532 /captures && chmod 0770 /captures  && chown -R node:node /var/lib/graphx && chmod 0750 /var/lib/graphx /var/lib/graphx/history
+#19 CACHED
+
+#20 [stage-2 3/9] WORKDIR /app
+#20 CACHED
+
+#21 [stage-2 5/9] COPY apps/telemetry/package*.json ./
+#21 CACHED
+
+#22 [stage-2 7/9] COPY --chown=node:node apps/telemetry/server.mjs apps/telemetry/security.mjs apps/telemetry/control.mjs apps/telemetry/operations.mjs   apps/telemetry/history.mjs apps/telemetry/history-worker.mjs apps/telemetry/capture-files.mjs ./
+#22 CACHED
+
+#23 [web 3/7] WORKDIR /app/web
+#23 CACHED
+
+#24 [trust 2/4] RUN apt-get update && apt-get install -y --no-install-recommends bash ca-certificates curl  && rm -rf /var/lib/apt/lists/*
+#24 CACHED
+
+#25 [trust 3/4] COPY docker/install-build-trust.sh /usr/local/libexec/graphx-install-build-trust
+#25 CACHED
+
+#26 [web 6/7] COPY web/ ./
+#26 CACHED
+
+#27 [stage-2 9/9] COPY --from=web /app/web/dist ./web/dist
+#27 CACHED
+
+#28 exporting to image
+#28 exporting layers done
+#28 writing image sha256:0ccd2f9ae03b85220b92f7d88468e1bbce53b7dc2d3129ea9e625568c5bb9cf3 done
+#28 naming to docker.io/library/graphx-telemetry:latest done
+#28 DONE 0.0s
+
+#29 resolving provenance for metadata file
+#29 DONE 0.0s
+ Image graphx-telemetry:latest Built 
+ Network graphx-phase7-test-31234_graphx Creating 
+ Network graphx-phase7-test-31234_graphx Created 
+ Volume graphx-phase7-test-31234_captures Creating 
+ Volume graphx-phase7-test-31234_captures Created 
+ Volume graphx-phase7-test-31234_graphx-history Creating 
+ Volume graphx-phase7-test-31234_graphx-history Created 
+ Container graphx-phase7-test-31234-telemetry-1 Creating 
+ Container graphx-phase7-test-31234-telemetry-1 Created 
+ Container graphx-phase7-test-31234-telemetry-1 Starting 
+ Container graphx-phase7-test-31234-telemetry-1 Started 
+ Container graphx-phase7-test-31234-telemetry-1 Restarting 
+ Container graphx-phase7-test-31234-telemetry-1 Started 
+Phase 7 durable history write, authenticated API path, restart persistence, and Compose volume checks passed

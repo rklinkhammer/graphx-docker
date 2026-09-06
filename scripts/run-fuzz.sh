@@ -16,6 +16,14 @@ if test "$(uname -s)" = Darwin; then
   SDKROOT=${SDKROOT:-$(xcrun --show-sdk-path)}
   test -d "$SDKROOT" || { echo "active macOS SDK not found: $SDKROOT" >&2; exit 2; }
   export SDKROOT
+  macos_major=$(sw_vers -productVersion | cut -d. -f1)
+  if test "$macos_major" -ge 26 && test -z "${GRAPHX_SANITIZERS:-}"; then
+    GRAPHX_SANITIZERS=undefined
+    export GRAPHX_SANITIZERS
+    echo "NOTE: macOS $macos_major uses LLVM 21 UBSan without ASan because the"
+    echo "Homebrew LLVM ASan runtime hangs during process initialization on macOS 26."
+    echo "Full LLVM 21 ASan+UBSan acceptance remains enabled on Linux."
+  fi
 fi
 
 if test -n "${GRAPHX_FUZZ_CC:-}"; then CC=$GRAPHX_FUZZ_CC; fi
