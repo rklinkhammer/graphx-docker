@@ -89,11 +89,16 @@ def create_diagrams():
     image, d = canvas("GraphX architectural planes")
     rounded_box(d, (70, 165, 410, 295), "Authoritative model", "graphx.yaml + strict validation", "#E8F5F2", "#16877A")
     plane_titles = ["Logical graph", "Transport", "Network", "Deployment", "Observability", "Control / GUI"]
+    # Paint connectors before their destination boxes so long diagonal routes
+    # cannot obscure labels inside the architectural-plane nodes.
+    for i, title in enumerate(plane_titles):
+        x = 500 + (i % 3) * 410
+        y = 155 + (i // 3) * 175
+        arrow(d, (410, 230), (x, y + 60))
     for i, title in enumerate(plane_titles):
         x = 500 + (i % 3) * 410
         y = 155 + (i // 3) * 175
         rounded_box(d, (x, y, x + 330, y + 120), title, "peer configuration view")
-        arrow(d, (410, 230), (x, y + 60))
     rounded_box(d, (110, 565, 470, 740), "Runtime data plane", "processes • containers • external nodes\nGraphX frames or raw protocols", "#F3F5F7", "#687482")
     rounded_box(d, (570, 565, 930, 740), "Infrastructure plane", "bridge • macvlan • ipvlan • OVS\nrouter • policy • mirror • netem", "#F3F5F7", "#687482")
     rounded_box(d, (1030, 565, 1390, 740), "Observation plane", "live state • metrics • OTLP\nhistory • PCAPNG", "#F3F5F7", "#687482")

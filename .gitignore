@@ -10,8 +10,10 @@ __pycache__/
 /outputs/linux-container/
 /outputs/verification/
 /outputs/qemu-node/
+/outputs/sdr-node/
 /captures/
 /.graphx/
 /examples/qemu-node/output/
 /examples/qemu-node/dl/
 /examples/qemu-node/.state/
+/examples/sdr-node/.state/

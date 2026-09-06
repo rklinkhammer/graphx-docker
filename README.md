@@ -9,7 +9,8 @@ what crosses each edge.
 > Status: GraphX 1.0.0 is a validated educational framework with a C++ runtime,
 > five GraphX-aware transports, raw external-edge modeling, live telemetry and
 > control, bounded history and PCAPNG capture, a React Flow console,
-> native-Linux network laboratories, and portable and Linux QEMU demonstrations.
+> native-Linux network laboratories, portable and Linux QEMU demonstrations,
+> and Phase 13 SDR profiles awaiting independent platform verification.
 > Phases 3–12 have accepted independent verification reports. Phase 1 has no
 > checked-in independent report, and Phase 2 has an implementation handoff but
 > no separate independent report. Native-Linux claims rely on the evidence
@@ -25,7 +26,9 @@ is its editable distribution form. The canonical decision register is
 Focused operational references cover
 [`network infrastructure`](docs/network-infrastructure.md),
 [`observability`](docs/observability.md), [`capture`](docs/capture.md), and
-[`QEMU demonstrations`](docs/qemu-demos.md).
+[`QEMU demonstrations`](docs/qemu-demos.md). The
+[`single-SDR suite`](examples/sdr-node/README.md) applies those raw-node,
+Ethernet-capture, history, and GUI patterns to a simulated or external radio.
 
 ## Run the complete demo
 

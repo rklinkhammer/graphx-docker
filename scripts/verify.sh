@@ -236,6 +236,12 @@ case "$PROFILE" in
     }
     gate "portable and privileged native Linux network acceptance"
     scripts/test-features.sh linux-network
+    gate "native Linux SDR OVS/SPAN acceptance"
+    trap 'examples/sdr-node/external/scripts/demo.sh stop >/dev/null 2>&1 || true' EXIT
+    examples/sdr-node/external/scripts/demo.sh start
+    examples/sdr-node/external/scripts/demo.sh verify
+    examples/sdr-node/external/scripts/demo.sh stop
+    trap - EXIT
     ;;
   release)
     run_release

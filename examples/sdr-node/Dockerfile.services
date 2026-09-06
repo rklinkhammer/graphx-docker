@@ -1,0 +1,20 @@
+# syntax=docker/dockerfile:1.7
+FROM debian:bookworm-slim@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171 AS trust
+RUN apt-get update && apt-get install -y --no-install-recommends bash ca-certificates curl \
+ && rm -rf /var/lib/apt/lists/*
+COPY docker/install-build-trust.sh /usr/local/libexec/graphx-install-build-trust
+ARG GRAPHX_BUILD_TRUST_FINGERPRINT=graphx-trust-v1-none
+RUN --mount=type=secret,id=graphx_ca,required=false \
+    --mount=type=secret,id=graphx_cert_installer,required=false \
+    /usr/bin/bash /usr/local/libexec/graphx-install-build-trust
+
+FROM python:3.13-alpine@sha256:7415fbc3c9e4979cc717d92377ab2bc7b2b4a2af1ac03cc52b5f3f88efedaf3a
+COPY --from=trust /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+RUN apk add --no-cache tcpdump
+RUN addgroup -S -g 65532 graphx && adduser -S -D -H -u 65532 -G graphx graphx
+WORKDIR /opt/graphx-sdr
+COPY examples/sdr-node/common/ ./common/
+COPY examples/qemu-node/tools/packet_observer.py ./observer/packet_observer.py
+USER 65532:65532
+CMD ["python3", "common/processor.py"]

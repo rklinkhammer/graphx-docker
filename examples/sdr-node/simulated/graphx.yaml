@@ -1,0 +1,69 @@
+version: 1
+graph:
+  id: sdr-simulated-demo
+  nodes:
+    - id: sdr-node
+      kind: radio
+      runtime: docker
+      execution: container
+      lifecycle: managed
+      control: none
+      ports:
+        - { name: samples, direction: output, schema: RawIqSamples }
+        - { name: control, direction: input, schema: RawSdrControl }
+    - id: processor
+      kind: transform
+      runtime: docker
+      execution: container
+      lifecycle: managed
+      control: origin
+      ports:
+        - { name: samples, direction: input, schema: RawIqSamples }
+        - { name: control, direction: output, schema: RawSdrControl }
+        - { name: results, direction: output, schema: RawPowerResult }
+    - id: sink
+      kind: sink
+      runtime: docker
+      execution: container
+      lifecycle: managed
+      control: none
+      ports: [{ name: results, direction: input, schema: RawPowerResult }]
+  edges:
+    - { id: sdr-samples, from: sdr-node.samples, to: processor.samples, transport: udp, data_plane: external }
+    - { id: processor-control, from: processor.control, to: sdr-node.control, transport: tcp, data_plane: external }
+    - { id: processed-results, from: processor.results, to: sink.results, transport: tcp, data_plane: external }
+transport:
+  udp:
+    sdr-samples: { mode: unicast, destination: 172.30.13.20, bind: 0.0.0.0, port: 18400, max_datagram_bytes: 1400, framing: none }
+  tcp:
+    processor-control:
+      host: 172.30.13.10
+      bind: 0.0.0.0
+      port: 18401
+      framing: none
+      tls: { enabled: true, verify_peer: true, require_client_certificate: true, ca_file: /run/sdr-tls/ca.pem, certificate_file: /run/sdr-tls/processor.pem, private_key_file: /run/sdr-tls/processor.key, server_name: sdr-node }
+    processed-results: { host: 172.30.13.30, bind: 0.0.0.0, port: 18402, framing: none }
+network:
+  networks:
+    - { id: sdr-ethernet, driver: bridge, subnet: 172.30.13.0/24, gateway: 172.30.13.1, external: true }
+  interfaces:
+    sdr-node: [{ id: data, network: sdr-ethernet, address: 172.30.13.10/24, mac: "02:13:00:00:00:10" }]
+    processor: [{ id: data, network: sdr-ethernet, address: 172.30.13.20/24, mac: "02:13:00:00:00:20" }]
+    sink: [{ id: data, network: sdr-ethernet, address: 172.30.13.30/24, mac: "02:13:00:00:00:30" }]
+  edge_paths:
+    sdr-samples: [sdr-node, sdr-ethernet, processor]
+    processor-control: [processor, sdr-ethernet, sdr-node]
+    processed-results: [processor, sdr-ethernet, sink]
+deployment:
+  network: sdr-ethernet
+  services:
+    sdr-node: { image: graphx-sdr-services:latest, command: python3 common/sdr_simulator.py }
+    processor: { image: graphx-sdr-services:latest, command: python3 common/processor.py }
+    sink: { image: graphx-sdr-services:latest, command: python3 common/sink.py }
+  telemetry: { service: telemetry, port: 9000 }
+observability:
+  metrics: { enabled: true, exporters: [console, udp-json] }
+  tracing: { enabled: false, exporters: [console] }
+  telemetry: { host: telemetry, port: 9000, websocket: /ws, heartbeat_interval_ms: 1000, heartbeat_timeout_ms: 10000 }
+  capture: { enabled: true, provider: pcapng, directory: captures, max_file_bytes: 67108864, max_packets: 100000 }
+  history: { enabled: true, backend: sqlite, database_file: .graphx/history.sqlite, retention_seconds: 86400, max_records: 50000, max_database_bytes: 67108864 }

@@ -32,6 +32,52 @@ GUEST_PORT = 18001
 RECEIVER_PORT = 19001
 
 
+def packet_rules() -> list[dict[str, object]]:
+    source = os.environ.get("GRAPHX_PACKET_RULES", "")
+    if not source:
+        return [
+            {"edge_id": "origin-qemu-tcp", "direction": "host-to-qemu", "node_id": "qemu-node",
+             "protocol": "TCP", "destination": GUEST_ADDRESS, "destination_port": GUEST_PORT},
+            {"edge_id": "origin-qemu-udp", "direction": "host-to-qemu", "node_id": "qemu-node",
+             "protocol": "UDP", "destination": GUEST_ADDRESS, "destination_port": GUEST_PORT},
+            {"edge_id": "qemu-receiver-tcp", "direction": "qemu-to-host", "node_id": "host-receiver",
+             "protocol": "TCP", "source": GUEST_ADDRESS, "destination_port": RECEIVER_PORT},
+            {"edge_id": "qemu-receiver-udp", "direction": "qemu-to-host", "node_id": "host-receiver",
+             "protocol": "UDP", "source": GUEST_ADDRESS, "destination_port": RECEIVER_PORT},
+        ]
+    try:
+        value = json.loads(source)
+    except json.JSONDecodeError as error:
+        raise ValueError("GRAPHX_PACKET_RULES must be valid JSON") from error
+    if not isinstance(value, list) or not 1 <= len(value) <= 64:
+        raise ValueError("GRAPHX_PACKET_RULES must contain 1 through 64 rules")
+    allowed = {"edge_id", "direction", "node_id", "protocol", "source", "destination",
+               "source_port", "destination_port"}
+    for index, rule in enumerate(value):
+        if not isinstance(rule, dict) or set(rule) - allowed:
+            raise ValueError(f"GRAPHX_PACKET_RULES[{index}] contains invalid fields")
+        for required in ("edge_id", "direction", "node_id", "protocol"):
+            if not isinstance(rule.get(required), str) or not 1 <= len(rule[required]) <= 64:
+                raise ValueError(f"GRAPHX_PACKET_RULES[{index}].{required} is invalid")
+        if rule["protocol"] not in ("TCP", "UDP"):
+            raise ValueError(f"GRAPHX_PACKET_RULES[{index}].protocol must be TCP or UDP")
+        if not any(name in rule for name in ("source", "destination", "source_port", "destination_port")):
+            raise ValueError(f"GRAPHX_PACKET_RULES[{index}] must constrain an address or port")
+        for name in ("source", "destination"):
+            if name in rule:
+                try:
+                    ipaddress.ip_address(rule[name])
+                except ValueError as error:
+                    raise ValueError(f"GRAPHX_PACKET_RULES[{index}].{name} is invalid") from error
+        for name in ("source_port", "destination_port"):
+            if name in rule and (not isinstance(rule[name], int) or not 1 <= rule[name] <= 65535):
+                raise ValueError(f"GRAPHX_PACKET_RULES[{index}].{name} is invalid")
+    return value
+
+
+PACKET_RULES = packet_rules()
+
+
 def daemonize(pid_file: Path, log_file: Path) -> bool:
     if not hasattr(os, "fork"):
         raise RuntimeError("observer daemon mode requires a POSIX host")
@@ -135,12 +181,15 @@ def decode_packet(packet: bytes) -> dict[str, object] | None:
         return None
     if not payload:
         return None
-    suffix = protocol.lower()
-    if destination == GUEST_ADDRESS and destination_port == GUEST_PORT:
-        edge_id, direction = f"origin-qemu-{suffix}", "host-to-qemu"
-    elif source == GUEST_ADDRESS and destination_port == RECEIVER_PORT:
-        edge_id, direction = f"qemu-receiver-{suffix}", "qemu-to-host"
-    else:
+    matched = None
+    fields = {"protocol": protocol, "source": source, "destination": destination,
+              "source_port": source_port, "destination_port": destination_port}
+    for rule in PACKET_RULES:
+        if all(name not in rule or rule[name] == fields[name]
+               for name in ("protocol", "source", "destination", "source_port", "destination_port")):
+            matched = rule
+            break
+    if matched is None:
         return None
     return {
         "protocol": protocol,
@@ -149,8 +198,9 @@ def decode_packet(packet: bytes) -> dict[str, object] | None:
         "source_port": source_port,
         "destination_port": destination_port,
         "payload": payload,
-        "edge_id": edge_id,
-        "direction": direction,
+        "edge_id": matched["edge_id"],
+        "direction": matched["direction"],
+        "node_id": matched["node_id"],
     }
 
 
@@ -159,7 +209,9 @@ class Observer:
         self.capture = capture
         self.pcapng = pcapng
         self.database = database
-        self.capture_session = os.environ.get("GRAPHX_QEMU_RUN_ID", "manual")
+        self.capture_session = os.environ.get(
+            "GRAPHX_PACKET_CAPTURE_SESSION", os.environ.get("GRAPHX_QEMU_RUN_ID", "manual")
+        )
         if not self.capture_session.replace("-", "").replace("_", "").isalnum() or len(self.capture_session) > 64:
             raise ValueError("GRAPHX_QEMU_RUN_ID must be a bounded identifier")
         self.max_records = integer("GRAPHX_PACKET_HISTORY_MAX_RECORDS", 50_000, 10, 10_000_000)
@@ -259,7 +311,7 @@ class Observer:
 
     def publish(self, decoded: dict[str, object], timestamp: float, wire_length: int) -> None:
         self.sequence += 1
-        node_id = "qemu-node" if decoded["direction"] == "host-to-qemu" else "host-receiver"
+        node_id = decoded["node_id"]
         payload = {
             "kind": "network_packet",
             "event": "receive",
@@ -275,7 +327,7 @@ class Observer:
             "sourcePort": decoded["source_port"],
             "destinationPort": decoded["destination_port"],
             "direction": "observed",
-            "observationSource": "qemu-pcap",
+            "observationSource": os.environ.get("GRAPHX_PACKET_OBSERVATION_SOURCE", "qemu-pcap"),
             "type": f"Raw{decoded['protocol']}",
         }
         try:

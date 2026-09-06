@@ -342,8 +342,9 @@ class ConfigParser {
       node.kind = text(value["kind"], path + ".kind", 64);
       identifier(node.kind, path + ".kind");
       if (value["runtime"]) node.runtime = text(value["runtime"], path + ".runtime", 32);
-      if (node.runtime != "process" && node.runtime != "docker" && node.runtime != "qemu")
-        error(path + ".runtime", "must be 'process', 'docker', or 'qemu'");
+      if (node.runtime != "process" && node.runtime != "docker" && node.runtime != "qemu" &&
+          node.runtime != "external")
+        error(path + ".runtime", "must be 'process', 'docker', 'qemu', or 'external'");
       if (value["execution"]) node.execution = text(value["execution"], path + ".execution", 32);
       if (node.execution != "local" && node.execution != "host" && node.execution != "container")
         error(path + ".execution", "must be 'local', 'host', or 'container'");
@@ -1419,7 +1420,12 @@ class ConfigParser {
       if (source && target && source->schema != target->schema)
         error(path, "schema mismatch: source is '" + source->schema + "' but target is '" +
                         target->schema + "'");
-      if (!edge.from_node.empty() && !edge.to_node.empty())
+      // External data-plane edges describe traffic which GraphX observes but does
+      // not schedule.  In particular, a device control connection may legitimately
+      // run opposite to its sample stream.  Keep the managed GraphX execution DAG
+      // acyclic while allowing that physical/network relationship to be modeled.
+      if (config.edges[index].data_plane == "graphx" && !edge.from_node.empty() &&
+          !edge.to_node.empty())
         adjacency[edge.from_node].push_back(edge.to_node);
     }
 
@@ -1436,7 +1442,9 @@ class ConfigParser {
     };
     for (const auto& node : config.nodes) {
       if (visit(node.id)) {
-        error("graph.edges", "cycles are not supported by configuration version 1");
+        error("graph.edges",
+              "cycles are not supported in the GraphX-managed data plane by "
+              "configuration version 1");
         break;
       }
     }

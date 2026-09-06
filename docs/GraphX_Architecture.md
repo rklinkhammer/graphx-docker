@@ -26,7 +26,7 @@ The QEMU examples prove a second important boundary: an application does not nee
 
 Observability is intentionally best effort and bounded. Runtime events update live WebSocket topology, Prometheus metrics, rolling SLO state, optional OTLP export, optional SQLite metadata history, and capture correlation. GraphX application PCAPNG and standard Ethernet PCAPNG are complementary: the former explains envelopes; the latter explains the real network path. The GUI ties these artifacts together by edge identity, message identity where available, filenames, packet indexes, and capture offsets.
 
-The architecture is suitable for reproducible laboratories and controlled demonstrations. Its present limits are equally important: configuration version 1 allows only DAGs; infrastructure provisioning is create/destroy rather than reconciliation; UDP is bounded but unreliable; multicast remains one logical producer-to-consumer edge; capture does not rotate automatically; OVS and application captures are not automatically cross-correlated; QEMU uses user-mode networking rather than TAP; and the telemetry/control system is a single-collector control domain rather than a distributed control plane.
+The architecture is suitable for reproducible laboratories and controlled demonstrations. Its present limits are equally important: configuration version 1 allows only DAGs for GraphX-managed execution (external raw device relationships may loop); infrastructure provisioning is create/destroy rather than reconciliation; UDP is bounded but unreliable; multicast remains one logical producer-to-consumer edge; capture does not rotate automatically; OVS and application captures are not automatically cross-correlated; QEMU uses user-mode networking rather than TAP; and the telemetry/control system is a single-collector control domain rather than a distributed control plane.
 
 ## 1. Scope and architectural principles
 
@@ -142,7 +142,7 @@ Secrets do not belong in `graphx.yaml`. Compose secret mounts and deployment env
 
 A node has an ID, kind, runtime, execution location, lifecycle owner, control classification, optional accelerator and architecture, and typed input/output ports. These fields let the same GUI represent a GraphX process, Docker service, host program, or QEMU VM without pretending they have the same runtime contract.
 
-An edge references `from` and `to` ports, a transport name, and a data-plane classification. Version 1 requires a directed acyclic graph because the current blocking startup/lifecycle model cannot safely schedule feedback cycles.
+An edge references `from` and `to` ports, a transport name, and a data-plane classification. Version 1 requires the GraphX-managed data plane to be a directed acyclic graph because the current blocking startup/lifecycle model cannot safely schedule feedback cycles. External raw edges are descriptive rather than scheduled and may form a physical control/data loop; ADR 0014 records that narrow exception.
 
 ### 4.3 Deployment
 
@@ -188,7 +188,7 @@ Lifecycle-aware transports report `message`, `timeout`, `end_of_stream`, or `can
 | Unix-domain socket | One-host framed stream | Nonblocking listener construction; timed accept/connect/write; cancellation socket | One listener peer for v1; local filesystem ownership | Transport tests/documented profile |
 | Shared memory | POSIX mapped SPSC ring containing exact framed bytes | Fixed slots; block/reject; peer-PID checks; robust mutex on Linux | One producer/consumer; copy-based; IPC namespace considerations | `examples/shared-memory` |
 | UDP | One framed envelope per IPv4 datagram | Bounded buffers/datagram; invalid datagrams dropped; cancellation socket | Loss, duplicates, reordering; no ACK, security, congestion control, or EOS | Unicast, broadcast, multicast examples |
-| External raw TCP/UDP | Descriptive protocol-native bytes, `framing: none` | Owned by external application/profile | Not constructible by `TransportFactory`; passive evidence only | Both QEMU profiles |
+| External raw TCP/UDP | Descriptive protocol-native bytes, `framing: none` | Owned by external application/profile | Not constructible by `TransportFactory`; passive evidence only | QEMU and SDR profiles |
 
 ### 6.1 TCP and security
 
@@ -467,12 +467,14 @@ Credential rotation uses atomic current snapshots plus a bounded redaction-only 
 | Mixed network | Cross-driver routing, OVS, mirrors, nftables, netem, edge paths | Native Linux exact; macOS simulation |
 | External QEMU | External raw node, host QEMU, slirp, passive observation, portable GUI | macOS/Linux; host QEMU + Docker |
 | Container QEMU | Nested VM deployment, KVM/TCG evidence, least privilege, packet history | Linux x86_64; optional `/dev/kvm` |
+| Simulated SDR | Raw UDP IQ, mutual-TLS control, raw results, live GUI, packet history | Docker Desktop or Linux; unprivileged except capture sidecar capabilities |
+| External SDR | External hardware boundary, macvlan, OVS/SPAN, ordinary Ethernet capture | Native Linux; privileged infrastructure lifecycle |
 
 ## 11. Architectural limits, drift, and risks
 
 ### 11.1 Current limits
 
-- Configuration v1 rejects cycles and native one-to-many graph edges.
+- Configuration v1 rejects cycles in the GraphX-managed data plane and native one-to-many graph edges. Descriptive external raw edges may form device data/control loops.
 - Infrastructure tooling does not reconcile state or persist ownership metadata.
 - UDP supports IPv4 only and provides no DTLS, retransmission, congestion control, fragmentation/reassembly, or peer authorization.
 - Shared memory is SPSC, fixed-size, copy-based, and sensitive to IPC namespace design.
@@ -496,15 +498,15 @@ Credential rotation uses atomic current snapshots plus a bounded redaction-only 
 
 The following are proposals, not current capabilities.
 
-### 12.1 Single SDR → switch → processor → sink
+### 12.1 Single SDR → switch → processor → sink (implemented in Phase 13)
 
-**Priority: high.** Model one external Ethernet-connected SDR sending UDP IQ/sample blocks to one containerized processor, with a TLS/TCP control edge back to the SDR and a result edge to a sink. Place an OVS switch and SPAN port on the data path. This is the smallest example that combines the user’s SDR goal with external raw edges, mixed UDP/TCP semantics, Ethernet PCAPNG, packet history, and the GUI without introducing a large topology.
+The `examples/sdr-node` suite models one external Ethernet-connected SDR sending UDP IQ/sample blocks to one containerized processor, with a mutual-TLS TCP control edge back to the SDR and a result edge to a sink. Its native-Linux profile places OVS and SPAN on the data path; its portable profile clearly models Docker bridge switching as a simulation. Both reuse one deterministic endpoint and packet observer and feed Ethernet PCAPNG, bounded packet history, live telemetry, capture download, and the existing GUI.
 
-Recommended staging:
+Delivered profiles and deferred extension:
 
-1. simulated SDR container using raw UDP data and TCP control;
-2. external physical-SDR profile using the same logical model;
-3. optional QEMU-based SDR emulator profile.
+1. simulated SDR container using raw UDP data and authenticated TCP control;
+2. external-device contract plus native Linux namespace/OVS/SPAN verifier;
+3. optional QEMU-based SDR emulator profile remains a later enhancement.
 
 ### 12.2 Routed multicast receiver set
 
@@ -537,7 +539,7 @@ Recommended staging:
 
 ### Near-term architectural examples
 
-1. Implement the single-SDR example in simulated and external profiles.
+1. Independently verify the single-SDR example on macOS and native Linux.
 2. Add the static-route/deny-policy network laboratory.
 3. Add an application/Ethernet dual-capture correlation prototype.
 4. Decide whether one-to-many logical edges belong in config v1 extension rules or require config v2.
@@ -568,6 +570,7 @@ Recommended staging:
 | Network laboratories | `examples/macvlan`, `examples/ipvlan-l2`, `examples/ipvlan-l3`, `examples/mixed-network` |
 | UDP examples | `examples/udp-unicast`, `examples/udp-broadcast`, `examples/udp-multicast` |
 | QEMU profiles | `examples/qemu-node`, `docs/qemu-demos.md` |
+| SDR profiles | `examples/sdr-node`, `docs/adr/0014-external-device-control-cycles.md` |
 | Verification status | `verification_status.md`, `phase_3_verification.md` through `phase_12_verification.md` |
 
 ## Appendix B. Terminology

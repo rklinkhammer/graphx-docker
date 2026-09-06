@@ -84,6 +84,11 @@ test('raw external edge and runtime metadata pass structural schema checks', () 
   configuration.graph.edges[0] = { ...configuration.graph.edges[0], data_plane: 'external' }
   configuration.transport.tcp[configuration.graph.edges[0].id].framing = 'none'
   assert.equal(validate(configuration), true, JSON.stringify(validate.errors))
+  const physical = structuredClone(configuration)
+  physical.graph.nodes[1].runtime = 'external'
+  delete physical.graph.nodes[1].accelerator
+  delete physical.graph.nodes[1].architecture
+  assert.equal(validate(physical), true, JSON.stringify(validate.errors))
 
   for (const [field, value] of [['runtime', 'podman'], ['execution', 'remote'],
     ['lifecycle', 'automatic'], ['control', 'guest']]) {

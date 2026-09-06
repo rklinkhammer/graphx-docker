@@ -21,8 +21,10 @@ says otherwise.
 | Mixed macvlan/IPvlan | Yes, including OVS/router path | No | No | OVS Ethernet mirrors |
 | External QEMU | Yes, including host/VM path | Yes, passive packets | Origin only | Ethernet PCAPNG |
 | Linux containerized QEMU | Yes, including container/VM path | Yes, passive packets | Origin only | Ethernet PCAPNG |
+| Simulated SDR | Yes, including bridge path | Yes, passive packets | Processor relays to SDR | Ethernet PCAPNG |
+| External SDR | Yes, including OVS path | Yes, passive packets | Processor relays to SDR | OVS Ethernet PCAPNG |
 
-The standard Docker demo and both QEMU demos connect to the telemetry collector
+The standard Docker demo, both QEMU demos, and both SDR profiles connect to the telemetry collector
 and authenticated control plane. The QEMU controls apply only to their raw
 traffic origin, not the guest. For the remaining examples, the
 console accurately renders `graphx.yaml`, but node cards remain starting/offline
@@ -155,6 +157,37 @@ Resume to control `host-origin`. The QEMU guest remains explicitly
 uncontrollable. Use the matching profile script's `verify`, `status`, `logs`,
 and `stop` commands. The complete guide and Linux operator acceptance procedure
 are in [`qemu-demos.md`](qemu-demos.md).
+
+## 4A. SDR demos: data, device control, and OVS capture
+
+Start the portable profile on macOS or Linux:
+
+```sh
+examples/sdr-node/simulated/scripts/demo.sh start
+```
+
+Open <http://127.0.0.1:8080>, paste the token printed by `demo.sh token`, and
+select each of the three edges. UDP `sdr-samples` should advance most quickly;
+the TLS `processor-control` edge advances when status or control is used; and
+`processed-results` follows accepted sample blocks. The Network view labels the
+portable switch as a bridge simulation. Capture and packet history are enabled
+by default and contain Ethernet packets, not GraphX message records.
+
+Pause and Resume target the processor's registered control endpoint. The
+processor sends an authenticated stop/start command to the SDR. Reset clears
+collector counters, as in the standard demo; it does not reset or take ownership
+of physical hardware. Directly prove the same device path with:
+
+```sh
+examples/sdr-node/simulated/scripts/demo.sh control status
+examples/sdr-node/simulated/scripts/demo.sh control tune 433920000
+```
+
+On native Linux, stop this profile and run the `external` script instead. Its
+Network view must show `sdr-node` as external, `br-sdr` as OVS infrastructure,
+and processor/sink as containers. Only that run is evidence for OVS/SPAN. Full
+commands, physical-device limits, inspection, and cleanup are in the
+[`sdr-node` guide](../examples/sdr-node/README.md).
 
 ## 5. Reusable topology-only console
 

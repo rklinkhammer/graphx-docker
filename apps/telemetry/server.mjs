@@ -113,6 +113,9 @@ const latencyBoundsUs = [10, 50, 100, 500, 1000, 5000, 10000]
 function topologyModel() {
   const requestedQemuAccelerator = process.env.GRAPHX_QEMU_REQUESTED_ACCEL || ''
   const selectedQemuAccelerator = process.env.GRAPHX_QEMU_ACCEL || ''
+  const externalObservationSource = graph.nodes.some(node => node.runtime === 'qemu')
+    ? 'qemu-pcap'
+    : config.observability?.capture?.provider === 'ovs-span' ? 'ovs-span' : 'ethernet-pcap'
   const graphNodes = graph.nodes.map(node => ({
     id: node.id, label: node.id, role: node.kind, image: deployment[node.id]?.image || 'local process',
     runtime: node.runtime || (deployment[node.id] ? 'docker' : 'process'),
@@ -134,7 +137,7 @@ function topologyModel() {
     const settings = transport[edge.transport]?.[edge.id] || {}
     return { id: edge.id, source, target, transport: edge.transport,
       dataPlane: edge.data_plane || 'graphx', framing: settings.framing || 'u32be',
-      observationSource: edge.data_plane === 'external' ? 'qemu-pcap' : 'runtime',
+      observationSource: edge.data_plane === 'external' ? externalObservationSource : 'runtime',
       port: settings.port || null, schema }
   })
   const network = config.network || {}

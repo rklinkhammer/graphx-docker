@@ -126,6 +126,9 @@ Example launchers also accept narrower runtime overrides. Common ones are
 `GRAPHX_START_DELAY_MS` for native process examples;
 `GRAPHX_CAPTURE_DIR` for the capture example; and `GRAPHX_QEMU_GUI_PORT` plus
 `--accel auto|kvm|tcg|hvf`, `--no-capture`, or `--no-history` for QEMU.
+The SDR profiles accept `GRAPHX_SDR_GUI_PORT`, `--no-capture`, and
+`--no-history`; the native profile also accepts `GRAPHX_BIN` when the GraphX CLI
+is outside a detected build directory.
 Application configuration can be selected with `GRAPHX_CONFIG` and scalar
 configuration values with `GRAPHX_OVERRIDES`. These are deployment inputs, not
 acceptance shortcuts. Unset manually exported `GRAPHX_CONFIG`,
@@ -217,6 +220,8 @@ GUI, capture, accelerator, and platform-specific evidence.
 | Native UDP broadcast | `GRAPHX_VERIFY_LIVE_CAPTURE=1 examples/udp-broadcast/run-native-linux.sh` | Native Linux only; use `down-native-linux.sh` afterward |
 | External QEMU | `examples/qemu-node/external/scripts/demo.sh start --accel auto`, then `verify` and `stop` | macOS/Linux; [`QEMU guide`](qemu-demos.md) |
 | Container QEMU | `examples/qemu-node/container/scripts/demo.sh start --accel kvm` | Native Linux, operator-run; [`QEMU guide`](qemu-demos.md) |
+| Simulated SDR | `examples/sdr-node/simulated/scripts/demo.sh start`, then `verify` and `stop` | Docker on macOS/Linux; [`SDR guide`](../examples/sdr-node/README.md) |
+| External SDR + OVS/SPAN | `examples/sdr-node/external/scripts/demo.sh start`, then `verify` and `stop` | Native Linux only; creates fixed disposable host resources |
 | macOS OVS simulation | `examples/mixed-network/scripts/macos-up.sh`, then `macos-down.sh` | Docker Desktop; [`network guide`](network-infrastructure.md) |
 | Native network labs | `examples/<lab>/scripts/up.sh`, where `<lab>` is `macvlan`, `ipvlan-l2`, or `ipvlan-l3` | Native Linux only; always use the matching `down.sh` |
 | Mixed native network | `examples/mixed-network/scripts/linux-up.sh` | Native Linux only; use `linux-down.sh` afterward |
@@ -226,6 +231,12 @@ Compose-model tests, but it does not boot a guest. Before accepting QEMU changes
 build the shared guest and run the external profile on macOS or Linux. On native
 Linux, also follow the TCG, KVM, automatic-selection, denial, capture/history,
 control, and cleanup procedure in [`qemu-demos.md`](qemu-demos.md#manual-linux-acceptance-procedure).
+
+Phase 13 portable acceptance additionally requires running the simulated SDR
+workflow on both macOS and Linux. `native-linux` includes its external SDR
+OVS/SPAN start/verify/stop gate after the existing network labs. This proves the
+namespace simulator and attachment path, not a physical radio. Review the
+physical ownership contract in the SDR guide before any manual adaptation.
 
 For the browser topology, control tokens, history, and capture workflow across
 the graphical examples, follow

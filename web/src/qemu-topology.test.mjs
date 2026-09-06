@@ -79,3 +79,28 @@ test('QEMU deployment state transitions remain layer-specific', () => {
     assert.equal(nodes[1].data.guestProtocols.udp, guestState === 'ready')
   }
 })
+
+test('SDR raw topology preserves external ownership, OVS, and control metadata', () => {
+  const topology = {
+    nodes: [
+      { id: 'sdr-node', label: 'sdr-node', role: 'radio', runtime: 'external',
+        execution: 'host', lifecycle: 'external', control: 'none', input: true, output: true },
+      { id: 'processor', label: 'processor', role: 'transform', runtime: 'docker',
+        execution: 'container', lifecycle: 'managed', control: 'origin', input: true, output: true },
+    ],
+    edges: [{ id: 'sdr-samples', source: 'sdr-node', target: 'processor', transport: 'udp',
+      dataPlane: 'external', framing: 'none', observationSource: 'ovs-span', port: 18400,
+      schema: 'RawIqSamples' }],
+    networkNodes: [{ id: 'br-sdr', label: 'br-sdr', role: 'openvswitch', kind: 'openvswitch',
+      hierarchy: 'infrastructure', input: true, output: true }],
+  }
+  const nodes = applicationNodes(topology)
+  assert.equal(nodes[0].data.runtime, 'external')
+  assert.equal(nodes[0].data.lifecycle, 'external')
+  assert.equal(nodes[1].data.control, 'origin')
+  const [edge] = applicationEdges(topology)
+  assert.equal(edge.data.dataPlane, 'external')
+  assert.equal(edge.data.framing, 'none')
+  assert.equal(edge.data.observationSource, 'ovs-span')
+  assert.equal(infrastructureNodes(topology)[0].data.role, 'openvswitch')
+})

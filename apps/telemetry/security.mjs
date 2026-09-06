@@ -184,7 +184,8 @@ export function validateTelemetryEvent(event, nodeIds, edgeIds) {
       typeof event.destinationAddress === 'string' && boundedText(event.destinationAddress, 45) &&
       Number.isSafeInteger(event.sourcePort) && event.sourcePort >= 0 && event.sourcePort <= 65535 &&
       Number.isSafeInteger(event.destinationPort) && event.destinationPort >= 0 &&
-      event.destinationPort <= 65535 && event.observationSource === 'qemu-pcap' &&
+      event.destinationPort <= 65535 &&
+      ['qemu-pcap', 'ethernet-pcap', 'ovs-span'].includes(event.observationSource) &&
       event.direction === 'observed'
   if (event.kind === 'capture')
     return event.event === 'frame' && typeof event.captureFile === 'string' &&

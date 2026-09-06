@@ -19,6 +19,7 @@ view is maintained in [`../GraphX_Architecture.md`](../GraphX_Architecture.md).
 | 0011 | Immutable release artifacts and explicit compatibility | Accepted | 2026-09-03 | [`0011-immutable-release-artifacts-and-explicit-compatibility.md`](0011-immutable-release-artifacts-and-explicit-compatibility.md) |
 | 0012 | Bounded IPv4 UDP edges | Accepted for Phase 11 | 2026-09-04 | [`0012-bounded-ipv4-udp-edges.md`](0012-bounded-ipv4-udp-edges.md) |
 | 0013 | Unified external and containerized QEMU profiles | Accepted for Phase 12 | 2026-09-05 | [`0013-unified-qemu-profiles.md`](0013-unified-qemu-profiles.md) |
+| 0014 | External device attachment and control relationships | Accepted for Phase 13 | 2026-09-06 | [`0014-external-device-control-cycles.md`](0014-external-device-control-cycles.md) |
 
 ## Historical number mapping
 

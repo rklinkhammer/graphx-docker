@@ -547,6 +547,43 @@ transport:
   }
 }
 
+void external_control_cycle_is_accepted() {
+  TemporaryConfig file(R"yaml(
+version: 1
+graph:
+  id: external-control-cycle
+  nodes:
+    - id: device
+      kind: source
+      runtime: external
+      execution: host
+      lifecycle: external
+      control: none
+      ports:
+        - { name: samples, direction: output, schema: RawSamples }
+        - { name: control, direction: input, schema: RawControl }
+    - id: processor
+      kind: transform
+      ports:
+        - { name: samples, direction: input, schema: RawSamples }
+        - { name: control, direction: output, schema: RawControl }
+  edges:
+    - { id: samples, from: device.samples, to: processor.samples, transport: udp, data_plane: external }
+    - { id: control, from: processor.control, to: device.control, transport: tcp, data_plane: external }
+transport:
+  tcp:
+    control: { host: 127.0.0.1, bind: 0.0.0.0, port: 18401, framing: none }
+  udp:
+    samples: { mode: unicast, destination: 127.0.0.1, bind: 0.0.0.0, port: 18400, max_datagram_bytes: 1400, framing: none }
+deployment:
+  services:
+    processor: { image: processor:latest, command: processor }
+)yaml");
+  const auto config = graphx::load_config(file.path());
+  expect(config.node("device").runtime == "external", "external runtime loads");
+  expect(config.edge("control").data_plane == "external", "external control edge loads");
+}
+
 void invalid_deployment_is_rejected() {
   TemporaryConfig file(R"yaml(
 version: 1
@@ -1129,6 +1166,7 @@ int main() {
       {"invalid override", invalid_override_is_rejected},
       {"aggregated errors", semantic_errors_are_aggregated},
       {"cycle", cycle_is_rejected},
+      {"external control cycle", external_control_cycle_is_accepted},
       {"invalid deployment", invalid_deployment_is_rejected},
       {"malformed and oversized", malformed_and_oversized_files_are_rejected},
       {"in-process queue config", in_process_queue_config_loads_and_validates},

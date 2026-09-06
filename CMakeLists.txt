@@ -331,6 +331,16 @@ if(GRAPHX_BUILD_TESTS)
     COMMAND graphx-cli validate ${CMAKE_SOURCE_DIR}/examples/qemu-node/container/graphx.yaml)
   set_tests_properties(graphx-config-qemu-external graphx-config-qemu-container
     PROPERTIES ENVIRONMENT "GRAPHX_OVERRIDES=")
+  add_test(NAME graphx-sdr-node-portable
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_sdr_example.py
+      ${CMAKE_SOURCE_DIR})
+  add_test(NAME graphx-config-sdr-simulated
+    COMMAND graphx-cli validate ${CMAKE_SOURCE_DIR}/examples/sdr-node/simulated/graphx.yaml)
+  add_test(NAME graphx-config-sdr-external
+    COMMAND graphx-cli validate ${CMAKE_SOURCE_DIR}/examples/sdr-node/external/graphx.yaml)
+  set_tests_properties(graphx-sdr-node-portable PROPERTIES TIMEOUT 15)
+  set_tests_properties(graphx-config-sdr-simulated graphx-config-sdr-external
+    PROPERTIES ENVIRONMENT "GRAPHX_OVERRIDES=")
   if(GRAPHX_ENABLE_SANITIZERS)
     add_test(NAME graphx-sanitizer-coverage
       COMMAND ${CMAKE_COMMAND}

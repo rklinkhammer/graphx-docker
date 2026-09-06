@@ -67,6 +67,8 @@ test('passive network packet events are bounded and explicitly identified', () =
     destinationAddress: '10.0.2.15', sourcePort: 51000, destinationPort: 18001,
     direction: 'observed', observationSource: 'qemu-pcap' }
   assert.equal(validateTelemetryEvent(valid, nodes, edges), true)
+  assert.equal(validateTelemetryEvent({ ...valid, observationSource: 'ethernet-pcap' }, nodes, edges), true)
+  assert.equal(validateTelemetryEvent({ ...valid, observationSource: 'ovs-span' }, nodes, edges), true)
   assert.equal(validateTelemetryEvent({ ...valid, kind: 'trace' }, nodes, edges), false)
   assert.equal(validateTelemetryEvent({ ...valid, protocol: 'ICMP' }, nodes, edges), false)
   assert.equal(validateTelemetryEvent({ ...valid, destinationPort: 65536 }, nodes, edges), false)

@@ -13,6 +13,12 @@ or environmentally blocked narratives as historical evidence; explicit
 supersession notices prevent those narratives from being mistaken for current
 status.
 
+Phase 13 has an independent verification report with passing portable macOS
+runtime and regression evidence. The report identifies lifecycle, port
+preflight, UDP endpoint-validation, and adversarial-test gaps. Portable Linux
+and native-Linux OVS/SPAN gates are also still required, so Phase 13 is not part
+of the accepted chain.
+
 Phase 1 has no checked-in handoff or independent verification report. Phase 2
 has a detailed implementation handoff, test record, and completed acceptance
 checklist, but no separate independent verification report. Later cumulative
@@ -35,6 +41,7 @@ replacement for the missing phase-specific independent records.
 | 10 | `phase_10_verification.md` | **ACCEPTED** | Release/package contract accepted; report states no remaining Linux acceptance gate. |
 | 11 | `phase_11_verification.md` | **ACCEPTED** | Native Linux directed-broadcast and live-capture evidence closes UDP-003/UDP-009. |
 | 12 | `phase_12_verification.md` | **ACCEPTED** | External Linux, container TCG/KVM/auto/denial, capture/history, GUI/control, hardening, lifecycle, cleanup, and corrected TShark inspection passed. |
+| 13 | `phase_13_verification.md` | **INCOMPLETE** | Portable macOS passed. Remediate F-013-01 through F-013-05, rerun macOS adversarial checks, then pass portable Linux and native-Linux OVS/SPAN gates. |
 
 ## Review conclusions
 
@@ -43,6 +50,5 @@ replacement for the missing phase-specific independent records.
 2. Superseded findings remain valuable historical evidence and should not be
    deleted; they must remain visibly labeled as superseded.
 3. Phase 1 and Phase 2 are the only gaps in the formal verification chain.
-4. A future Phase 13 should not be described as part of the accepted chain until
-   its implementation and verifier contracts are written and independently
-   executed.
+4. Phase 13 must not be described as part of the accepted chain until its five
+   findings are closed and its portable Linux and native-Linux gates pass.
