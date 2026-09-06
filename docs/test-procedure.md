@@ -26,8 +26,10 @@ compiler. Portable testing also needs Node.js, npm, and curl.
 
 Additional requirements:
 
-- `full`: Docker Compose, Clang 18, clang-format-18, clang-tidy-18, cppcheck,
-  `xxd`, and libFuzzer support.
+- `full`: Docker Compose, LLVM/Clang 18, clang-format 18, clang-tidy 18,
+  cppcheck, `xxd`, and libFuzzer support. The executable names do not have to
+  contain `-18`; use the overrides below when a package manager uses unversioned
+  names or keeps LLVM 18 outside `PATH`.
 - `native-linux`: Docker Compose, Open vSwitch, iproute2, nftables, dumpcap,
   tshark, and sudo access.
 - `release`: Python 3 and a clean Git worktree at the intended release commit.
@@ -36,6 +38,105 @@ The commands stop at the first failure and write a combined log under
 `outputs/verification/`. Set `GRAPHX_VERIFY_LOG_DIR` to use another location.
 Portable tests isolate telemetry and web subprocesses from inherited `GRAPHX_*`
 deployment variables, so container-only secret paths cannot affect host tests.
+
+### macOS LLVM 18 setup
+
+Homebrew's `llvm@18` formula is keg-only. It supplies `clang-format` and
+`clang-tidy` beneath its own prefix, not commands named `clang-format-18` and
+`clang-tidy-18`. Install and select the pinned tools explicitly:
+
+```sh
+brew install llvm@18 cppcheck
+
+graphx_llvm18=$(brew --prefix llvm@18)
+export CLANG_FORMAT="$graphx_llvm18/bin/clang-format"
+export CLANG_TIDY="$graphx_llvm18/bin/clang-tidy"
+export CC="$graphx_llvm18/bin/clang"
+export CXX="$graphx_llvm18/bin/clang++"
+```
+
+Confirm that the selected formatter and analyzer both report version 18 before
+running `full`:
+
+```sh
+"$CLANG_FORMAT" --version
+"$CLANG_TIDY" --version
+"$CXX" --version
+scripts/verify.sh full
+```
+
+Do not point these variables at Homebrew's current unversioned `llvm` formula
+unless it is LLVM 18. Formatting and clang-tidy diagnostics can change between
+major releases, so another major is useful development feedback but is not an
+equivalent acceptance result.
+
+On Linux distributions that install version-suffixed tools, the defaults work
+without overrides. If the locations differ, the same variables may contain
+absolute paths:
+
+```sh
+export CLANG_FORMAT=/usr/bin/clang-format-18
+export CLANG_TIDY=/usr/bin/clang-tidy-18
+export CC=/usr/bin/clang-18
+export CXX=/usr/bin/clang++-18
+```
+
+### Common overrides
+
+Set overrides in the same shell before invoking `scripts/verify.sh`. Paths
+should be absolute when the command may start Docker builds or child scripts.
+
+| Variable | Purpose | Default |
+|---|---|---|
+| `CLANG_FORMAT` | LLVM 18 formatter executable | `clang-format-18` |
+| `CLANG_TIDY` | LLVM 18 static analyzer executable | `clang-tidy-18` |
+| `CPPCHECK` | cppcheck executable | `cppcheck` |
+| `CC`, `CXX` | Clang compilers used by fresh sanitizer/fuzz builds | auto-selected/toolchain default |
+| `GRAPHX_BUILD_JOBS` | Maximum parallel build jobs | `4` |
+| `GRAPHX_BUILD_DIR` | C++23 portable/native build directory | `build/dev` |
+| `GRAPHX_CXX20_BUILD_DIR` | C++20 portable build directory | `build/cxx20-features` |
+| `GRAPHX_QUALITY_BUILD_DIR` | Static-analysis build directory | `build/quality` |
+| `GRAPHX_FUZZ_BUILD_DIR` | Fuzzer build directory | `build/fuzz` |
+| `GRAPHX_FUZZ_SECONDS` | Seconds per fuzz target | `30` through `verify.sh full` |
+| `GRAPHX_TEST_HTTP_PORT` | Portable telemetry HTTP port | `18080` |
+| `GRAPHX_TEST_UDP_PORT` | Portable telemetry UDP port | `19000` |
+| `GRAPHX_VERIFY_LOG_DIR` | Persistent verification-log directory | `outputs/verification` |
+| `GRAPHX_CA_CERT` | Public organization CA used by all participating Docker builds | unset |
+| `GRAPHX_CERT_INSTALL_SCRIPT` | Reviewed noninteractive certificate installer | unset |
+| `ASAN_OPTIONS`, `UBSAN_OPTIONS` | Sanitizer runtime options | platform-safe profile defaults |
+| `GRAPHX_ALLOW_PRIVILEGED_TESTS` | Explicit native-network authorization; must equal `1` | unset |
+
+Example launchers also accept narrower runtime overrides. Common ones are
+`GRAPHX_BUILD_DIR`, `GRAPHX_MAX_MESSAGES`, `GRAPHX_INTERVAL_MS`, and
+`GRAPHX_START_DELAY_MS` for native process examples;
+`GRAPHX_CAPTURE_DIR` for the capture example; and `GRAPHX_QEMU_GUI_PORT` plus
+`--accel auto|kvm|tcg|hvf`, `--no-capture`, or `--no-history` for QEMU.
+Application configuration can be selected with `GRAPHX_CONFIG` and scalar
+configuration values with `GRAPHX_OVERRIDES`. These are deployment inputs, not
+acceptance shortcuts. Unset manually exported `GRAPHX_CONFIG`,
+`GRAPHX_OVERRIDES`, credentials, and topology-specific variables before moving
+between unrelated examples. The portable suite isolates its own subprocesses
+from these values, but an individual command-line validation intentionally
+honors them. See [`README.md`](../README.md#configuration-reference) and each example's
+README for its supported inputs.
+
+For example, this selects the Homebrew LLVM 18 tools, avoids occupied portable-
+test ports, uses separate build directories, and retains logs outside the
+default path:
+
+```sh
+graphx_llvm18=$(brew --prefix llvm@18)
+CLANG_FORMAT="$graphx_llvm18/bin/clang-format" \
+CLANG_TIDY="$graphx_llvm18/bin/clang-tidy" \
+CC="$graphx_llvm18/bin/clang" \
+CXX="$graphx_llvm18/bin/clang++" \
+GRAPHX_TEST_HTTP_PORT=28080 \
+GRAPHX_TEST_UDP_PORT=29000 \
+GRAPHX_QUALITY_BUILD_DIR="$PWD/build/quality-macos" \
+GRAPHX_FUZZ_BUILD_DIR="$PWD/build/fuzz-macos" \
+GRAPHX_VERIFY_LOG_DIR="$PWD/outputs/verification-macos" \
+  scripts/verify.sh full
+```
 
 ## Run the tests
 
@@ -79,6 +180,35 @@ scripts/verify.sh release
 The release profile creates uniquely named build and output directories. It
 does not publish anything and does not permit the development-only
 `--allow-dirty` override.
+
+## Focused tests and examples
+
+Use a focused command while diagnosing a failure, then rerun the applicable
+profile before recording acceptance. The profile scripts already exercise the
+standard bridge demo, shared-memory, UDP unicast/multicast, and—in Docker mode—
+the isolated UDP broadcast example. Interactive examples remain valuable for
+GUI, capture, accelerator, and platform-specific evidence.
+
+| Area | Focused command | Platform and reference |
+|---|---|---|
+| One CTest | `ctest --test-dir build/dev -R '<test-name>' --output-on-failure` | macOS/Linux; list names with `ctest --test-dir build/dev -N` |
+| Standard GUI demo | `scripts/demo.sh start`, then `scripts/demo.sh verify` and `scripts/demo.sh stop` | macOS/Linux; [`complete-system-demo.md`](complete-system-demo.md) |
+| Shared memory | `GRAPHX_BUILD_DIR="$PWD/build/dev" examples/shared-memory/run.sh` | macOS/Linux; [`shared-memory`](../examples/shared-memory/README.md) |
+| UDP unicast | `GRAPHX_BUILD_DIR="$PWD/build/dev" examples/udp-unicast/run.sh` | macOS/Linux; [`UDP guide`](udp-transport.md) |
+| UDP multicast | `GRAPHX_BUILD_DIR="$PWD/build/dev" examples/udp-multicast/run.sh` | macOS/Linux; [`UDP guide`](udp-transport.md) |
+| UDP broadcast | `examples/udp-broadcast/run.sh` | Docker on macOS/Linux; [`broadcast example`](../examples/udp-broadcast/README.md) |
+| Native UDP broadcast | `GRAPHX_VERIFY_LIVE_CAPTURE=1 examples/udp-broadcast/run-native-linux.sh` | Native Linux only; use `down-native-linux.sh` afterward |
+| External QEMU | `examples/qemu-node/external/scripts/demo.sh start --accel auto`, then `verify` and `stop` | macOS/Linux; [`QEMU guide`](qemu-demos.md) |
+| Container QEMU | `examples/qemu-node/container/scripts/demo.sh start --accel kvm` | Native Linux, operator-run; [`QEMU guide`](qemu-demos.md) |
+| macOS OVS simulation | `examples/mixed-network/scripts/macos-up.sh`, then `macos-down.sh` | Docker Desktop; [`network guide`](network-infrastructure.md) |
+| Native network labs | `examples/<lab>/scripts/up.sh`, where `<lab>` is `macvlan`, `ipvlan-l2`, or `ipvlan-l3` | Native Linux only; always use the matching `down.sh` |
+| Mixed native network | `examples/mixed-network/scripts/linux-up.sh` | Native Linux only; use `linux-down.sh` afterward |
+
+For the browser topology, control tokens, history, and capture workflow across
+the graphical examples, follow
+[`graphical-examples-guide.md`](graphical-examples-guide.md). For exact expected
+results, negative tests, Linux cleanup, and packet-capture diagnostics, use
+[`test-reference.md`](test-reference.md).
 
 ## Independent verification
 

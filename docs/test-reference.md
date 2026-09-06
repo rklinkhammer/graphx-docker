@@ -35,9 +35,13 @@ C++20/23 compiler, Node.js/npm and curl. Docker tests need Docker Engine/Desktop
 also need a Linux host, Open vSwitch, iproute2, nftables and root/sudo access.
 tcpdump or dumpcap is optional for capture checks.
 
-Quality checks additionally need clang-format-18, clang-tidy-18, and cppcheck. Fuzzing
-needs Clang with libFuzzer and `xxd`. Override tool names with `CLANG_FORMAT`,
-`CLANG_TIDY`, and `CPPCHECK`; override build directories with
+Quality checks additionally need clang-format 18, clang-tidy 18, and cppcheck.
+Fuzzing needs Clang with libFuzzer and `xxd`. Linux packages commonly expose
+the first two tools as `clang-format-18` and `clang-tidy-18`. Homebrew's keg-only
+`llvm@18` formula exposes unversioned binaries beneath its formula prefix; set
+`CLANG_FORMAT`, `CLANG_TIDY`, `CC`, and `CXX` to those absolute paths as shown in the
+[`short test procedure`](test-procedure.md#macos-llvm-18-setup). Override
+cppcheck with `CPPCHECK` and build directories with
 `GRAPHX_QUALITY_BUILD_DIR` and `GRAPHX_FUZZ_BUILD_DIR`.
 
 Docker Desktop does not expose native macvlan/ipvlan semantics. On macOS, use the
