@@ -84,7 +84,7 @@ if [[ "${GRAPHX_VERIFY_LIVE_CAPTURE:-0}" == 1 ]]; then
   # Redirection intentionally belongs to the invoking user in its private temp directory.
   # shellcheck disable=SC2024
   sudo timeout 10 dumpcap -q -i gxudp-ph -f 'udp dst port 47102' \
-    -c 5 -a duration:8 -w "$capture_file" >"$log_dir/dumpcap.log" 2>&1 &
+    -c 5 -a duration:8 -w - >"$capture_file" 2>"$log_dir/dumpcap.log" &
   capture_pid=$!
   # Give dumpcap a bounded opportunity to attach before the five datagrams.
   sleep 0.5
@@ -106,7 +106,11 @@ cat "$log_dir/listener.log"
 grep -q '^PASS received=5$' "$log_dir/listener.log"
 
 if [[ "${GRAPHX_VERIFY_LIVE_CAPTURE:-0}" == 1 ]]; then
-  wait "$capture_pid"
+  if ! wait "$capture_pid"; then
+    capture_pid=
+    cat "$log_dir/dumpcap.log" >&2
+    exit 1
+  fi
   capture_pid=
   sudo chmod 0644 "$capture_file"
   install -m 0644 "$repo_dir/wireshark/graphx.lua" "$log_dir/graphx.lua"
