@@ -47,6 +47,15 @@ Artifacts are retained beneath `outputs/qemu-node/container/TIMESTAMP`.
 An optional `GRAPHX_QEMU_GUI_PORT` supplied to `start` is saved for later CLI
 commands.
 
+Inspect the retained Ethernet capture through the portability helper. It opens
+the artifact as the host operator and streams it to TShark, avoiding workspace
+path restrictions imposed by some confined Linux packages:
+
+```sh
+run_dir=$(sed -n 's/^GRAPHX_QEMU_RUN_DIR=//p' examples/qemu-node/.state/container.env)
+examples/qemu-node/scripts/inspect-capture.sh "$run_dir"
+```
+
 ## Required manual Linux acceptance
 
 The implementation environment may validate configuration, images, scripts,

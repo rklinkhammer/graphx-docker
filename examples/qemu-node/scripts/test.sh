@@ -18,6 +18,7 @@ python3 -m py_compile "$example_dir/host/peer.py" \
   "$example_dir/tools/packet_observer.py" "$example_dir/tools/query_history.py" \
   "$example_dir/tools/qmp_control.py" "$example_dir/tools/artifact_manifest.py"
 bash -n "$example_dir/scripts/demo-profile.sh" \
+  "$example_dir/scripts/inspect-capture.sh" \
   "$example_dir/external/scripts/demo.sh" "$example_dir/container/scripts/demo.sh" \
   "$example_dir/container/qemu-entrypoint.sh" "$example_dir/container/qemu-healthcheck.sh"
 
@@ -56,6 +57,16 @@ python3 "$example_dir/tools/capture_history.py" "$test_dir/fixture.pcap" \
   "$test_dir/history.sqlite" --max-records 3 --preview-bytes 8 \
   --pcapng "$test_dir/qemu-node.pcapng"
 [[ -s "$test_dir/qemu-node.pcapng" ]]
+cat >"$test_dir/fake-tshark" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+test "$1" = -r && test "$2" = - && test "$3" = -Y && test -n "$4"
+printf 'stdin-bytes=%s\n' "$(wc -c | tr -d '[:space:]')"
+SH
+chmod 0700 "$test_dir/fake-tshark"
+TSHARK="$test_dir/fake-tshark" \
+  "$example_dir/scripts/inspect-capture.sh" "$test_dir" \
+  | grep -Eq '^stdin-bytes=[1-9][0-9]*$'
 count="$(python3 - "$test_dir/history.sqlite" <<'PY'
 import sqlite3
 import sys

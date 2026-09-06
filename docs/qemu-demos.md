@@ -189,10 +189,13 @@ python3 -m json.tool "$run_dir/accelerator-evidence.json"
 
 For KVM require `actualAccelerator: "kvm"`, `state: "ready"`, and both KVM
 booleans true. For TCG require `actualAccelerator: "tcg"`, a running QMP
-status, and KVM not enabled. Confirm both raw protocols in the capture:
+status, and KVM not enabled. Confirm both raw protocols in the capture. Use the
+project helper rather than having TShark open the workspace path directly;
+some confined Linux TShark packages reject that path despite normal Unix read
+permission:
 
 ```sh
-tshark -r "$run_dir/qemu-node.pcapng" -Y 'tcp.port == 18001 || udp.port == 18001 || tcp.port == 19001 || udp.port == 19001'
+examples/qemu-node/scripts/inspect-capture.sh "$run_dir"
 ```
 
 After the explicit runs, exercise automatic selection with `start --accel

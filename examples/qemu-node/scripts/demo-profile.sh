@@ -417,7 +417,13 @@ PY
   if test "$GRAPHX_CAPTURE_ENABLED" = true; then
     python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["capture"]["enabled"] and any(f["format"] == "ethernet" for f in d["capture"]["files"])' <<<"$snapshot" || {
       echo "FAIL: bounded Ethernet PCAPNG is not cataloged" >&2; return 1; }
+    test -r "$GRAPHX_QEMU_RUN_DIR/qemu-node.pcapng" || {
+      echo "FAIL: retained Ethernet PCAPNG is not readable by the host operator" >&2
+      ls -ld "$GRAPHX_QEMU_RUN_DIR" "$GRAPHX_QEMU_RUN_DIR/qemu-node.pcapng" >&2 || true
+      return 1
+    }
     echo "PASS: bounded Ethernet PCAPNG is cataloged"
+    echo "PASS: retained Ethernet PCAPNG is host-readable"
   else
     python3 -c 'import json,sys; assert not json.load(sys.stdin)["capture"]["enabled"]' <<<"$snapshot" || {
       echo "FAIL: cataloged capture remains enabled" >&2; return 1; }

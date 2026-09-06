@@ -1,5 +1,16 @@
 # Phase 12 implementation handoff
 
+## Post-Linux verification capture-inspection correction
+
+A native-Linux operator run found that a confined TShark installation could
+not open the retained `qemu-node.pcapng` through its workspace pathname. Phase
+12 requires the operator to inspect that artifact, so the documented direct
+`tshark -r PATH` command was not portable enough. The new bounded
+`examples/qemu-node/scripts/inspect-capture.sh` helper verifies host readability,
+opens the file as the operator, and streams it to TShark over standard input.
+Demo verification now also fails if the retained PCAPNG is not host-readable,
+and the QEMU static suite covers the stdin inspection contract.
+
 ## Post-verification Linux external-profile correction
 
 A native-Linux operator run exposed a routing mismatch after the earlier phase
