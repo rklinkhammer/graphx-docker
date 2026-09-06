@@ -37,7 +37,9 @@ services:
     depends_on: [host-receiver]
     networks: [qemu-demo]
     read_only: true
-    tmpfs: [/tmp, /run/graphx-qemu]
+    tmpfs:
+      - /tmp
+      - /run/graphx-qemu:uid=${GRAPHX_HOST_UID:-65532},gid=${GRAPHX_HOST_GID:-65532},mode=0700
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
     pids_limit: 128

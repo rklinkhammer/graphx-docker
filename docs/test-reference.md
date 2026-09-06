@@ -31,9 +31,12 @@ inspection. Override ports with `GRAPHX_TEST_HTTP_PORT` and
 ## Prerequisites
 
 Portable tests need CMake 3.25+, Ninja, OpenSSL 3 and its development headers, a
-C++20/23 compiler, Node.js/npm and curl. Docker tests need Docker Engine/Desktop with Compose. Native network tests
-also need a Linux host, Open vSwitch, iproute2, nftables and root/sudo access.
-tcpdump or dumpcap is optional for capture checks.
+C++20/23 compiler, Node.js/npm and curl. Docker tests need Docker Engine/Desktop
+with Compose. Native network tests also need a Linux host, Open vSwitch,
+iproute2, nftables, dumpcap, tshark, and root/sudo access. The `native-linux`
+profile requires dumpcap and tshark so its successful result includes
+live-capture and dissector evidence; narrower manual network laboratories may
+omit capture checks where their documentation permits it.
 
 Quality checks additionally need clang-format 21, clang-tidy 21, and cppcheck.
 Sanitizer and fuzz acceptance require LLVM/Clang 21, its compiler-rt and

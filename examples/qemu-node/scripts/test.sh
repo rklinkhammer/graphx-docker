@@ -389,7 +389,8 @@ done
 ! grep -q 'privileged:' "$example_dir/container/compose.yaml"
 ! grep -q '/captures/qemu.qmp' "$example_dir/container/qemu-entrypoint.sh"
 grep -q 'qmp_socket=/run/graphx-qemu/qemu.qmp' "$example_dir/container/qemu-entrypoint.sh"
-grep -q 'tmpfs: \[/tmp, /run/graphx-qemu\]' "$example_dir/container/compose.yaml"
+grep -q '/run/graphx-qemu:uid=${GRAPHX_HOST_UID:-65532},gid=${GRAPHX_HOST_GID:-65532},mode=0700' \
+    "$example_dir/container/compose.yaml"
 
 # The only permitted graph-profile differences are deployment ownership and
 # profile-specific transport destinations. Logical nodes, ports, and edges are identical.
@@ -450,6 +451,9 @@ else
 fi
 
 grep -q 'hostfwd=tcp:\$bind_address:18001-:18001' "$example_dir/scripts/demo-profile.sh"
+grep -q 'hostfwd=tcp:\$bind_address:18002-:18001' "$example_dir/scripts/demo-profile.sh"
+grep -q -- '--target "$readiness_target" --port 18002' "$example_dir/scripts/demo-profile.sh"
+grep -q -- '--target 127.0.0.1 --port 18002' "$example_dir/container/qemu-entrypoint.sh"
 grep -q 'Demo verification failed; cleaning up owned runtime resources' \
   "$example_dir/scripts/demo-profile.sh"
 grep -q 'all four raw TCP/UDP edge counters advanced' "$example_dir/scripts/demo-profile.sh"

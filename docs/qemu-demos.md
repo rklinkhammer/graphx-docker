@@ -111,13 +111,15 @@ as not application-controllable in this phase.
 The QEMU card reports requested, launcher-selected, and runtime-proven
 accelerators separately. The evidence source is QMP `query-status` plus
 `query-kvm`. QMP proves VM liveness and acceleration, not guest-application
-readiness. A separate bounded monitor requires successful TCP and UDP echoes
-before `ready`; repeated failure or evidence older than ten seconds becomes
-`degraded`. The network view renders the runtime boundary, virtual machine,
-and guest application as separate nodes: host process → VM → guest application
-for the external profile, and Docker container → VM → guest application for
-the Linux profile. Runtime states are `not-started`, `booting`, `ready`,
-`degraded`, `stopped`, and `unavailable`.
+readiness. A separate bounded monitor uses private host port 18002, forwarded
+to the guest service on port 18001, so its TCP and UDP probes do not compete
+with data-plane associations. Successful probes promote the guest to `ready`;
+repeated failure or evidence older than ten seconds becomes `degraded`. The
+network view renders the runtime boundary, virtual machine, and guest
+application as separate nodes: host process → VM → guest application for the
+external profile, and Docker container → VM → guest application for the Linux
+profile. Runtime states are `not-started`, `booting`, `ready`, `degraded`,
+`stopped`, and `unavailable`.
 
 The monitor refreshes QMP status on every probe cycle. A QMP pause therefore
 shows the VM as `paused`, marks the guest application unavailable, and marks
@@ -240,8 +242,8 @@ Use this result template:
 - **KVM requested but inaccessible:** enable virtualization, load `kvm` and the
   CPU-specific module, and grant the operator access to `/dev/kvm`.
 - **Port already allocated:** stop the standard demo or set
-  `GRAPHX_QEMU_GUI_PORT` for `start`; it is saved for later commands. Ports 18001
-  and 19001 must also be free in external mode.
+  `GRAPHX_QEMU_GUI_PORT` for `start`; it is saved for later commands. Ports
+  18001, 18002, and 19001 must also be free in external mode.
 - **Guest not healthy:** inspect QEMU/guest logs and confirm both guest artifacts
   match `output/images/manifest.json`; startup reports the exact mismatch.
 - **No live counters:** inspect the packet observer, confirm the PCAP is growing,

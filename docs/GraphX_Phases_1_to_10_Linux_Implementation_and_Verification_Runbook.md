@@ -360,10 +360,11 @@ CC=clang-21 CXX=clang++-21 GRAPHX_FUZZ_SECONDS=30 \
   GRAPHX_FUZZ_BUILD_DIR="$PWD/build/fuzz-$RUN_ID" scripts/run-fuzz.sh
 ```
 
-The accepted candidate has 18 enabled sanitizer tests; the release package test
-is disabled in a sanitizer build because downstream consumers would need the
-same sanitizer runtimes. Pass only with no ASan, UBSan, leak, static-analysis,
-format, or fuzzer finding.
+CTest discovers the current sanitizer suite from the checked-out candidate; do
+not use a historical test count as the acceptance criterion. The release package
+test is disabled in a sanitizer build because downstream consumers would need
+the same sanitizer runtimes. Pass only when every enabled test passes with no
+ASan, UBSan, leak, static-analysis, format, or fuzzer finding.
 
 ### 8.5 Phase 5 TLS authentication and containers
 

@@ -55,8 +55,8 @@ if not gui.isdigit() or not 1 <= int(gui) <= 65535:
     raise SystemExit("GRAPHX_QEMU_GUI_PORT must be from 1 through 65535")
 checks = [(socket.SOCK_STREAM, int(gui))]
 if profile == "external":
-    checks += [(socket.SOCK_STREAM, p) for p in (18001, 19001, 9100)]
-    checks += [(socket.SOCK_DGRAM, p) for p in (9000, 18001, 19001)]
+    checks += [(socket.SOCK_STREAM, p) for p in (18001, 18002, 19001, 9100)]
+    checks += [(socket.SOCK_DGRAM, p) for p in (9000, 18001, 18002, 19001)]
 for kind, port in checks:
     with socket.socket(socket.AF_INET, kind) as candidate:
         try:
@@ -229,8 +229,10 @@ owned_readiness_pid() {
 }
 
 start_external_readiness() {
+  local readiness_target=127.0.0.1
+  if test "$(uname -s)" = Linux; then readiness_target=$GRAPHX_QEMU_HOST_GATEWAY; fi
   python3 "$example_dir/tools/qmp_control.py" guest-readiness \
-    --target 127.0.0.1 --port 18001 \
+    --target "$readiness_target" --port 18002 \
     --socket "$state_dir/external.qmp" \
     --output "$GRAPHX_QEMU_RUN_DIR/accelerator-evidence.json" \
     --wait 60 --interval 2 --failure-threshold 3 --monitor \
@@ -300,7 +302,7 @@ start_external_qemu() {
     -serial "file:$GRAPHX_QEMU_RUN_DIR/guest-console.log" \
     -daemonize -pidfile "$GRAPHX_QEMU_RUN_DIR/qemu.pid" \
     -qmp "unix:$state_dir/external.qmp,server=on,wait=off" \
-    -netdev "user,id=net0,hostfwd=tcp:$bind_address:18001-:18001,hostfwd=udp:$bind_address:18001-:18001" \
+    -netdev "user,id=net0,hostfwd=tcp:$bind_address:18001-:18001,hostfwd=udp:$bind_address:18001-:18001,hostfwd=tcp:$bind_address:18002-:18001,hostfwd=udp:$bind_address:18002-:18001" \
     -device virtio-net-pci,netdev=net0 \
     -object "filter-dump,id=capture0,netdev=net0,file=$GRAPHX_QEMU_RUN_DIR/qemu-node.pcap"
   (

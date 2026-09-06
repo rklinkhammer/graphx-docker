@@ -12,7 +12,7 @@ describes QEMU as an external, host-executed VM.
 - Python 3 and OpenSSL
 - `qemu-system-x86_64` 8.2 or newer
 - shared guest artifacts built by `../scripts/build.sh`
-- macOS or Linux with ports 18001, 19001, 9000/UDP, 9100, and 8080 available
+- macOS or Linux with ports 18001, 18002, 19001, 9000/UDP, 9100, and 8080 available
 
 ## Run
 
@@ -31,8 +31,10 @@ On Apple Silicon, the x86_64 guest uses TCG. HVF is accepted only for an Intel
 Mac. Linux uses KVM when `/dev/kvm` is accessible or TCG otherwise. An explicit
 `--accel kvm` or `--accel hvf` fails rather than silently falling back.
 
-The origin reaches QEMU through `host.docker.internal:18001`. The guest reaches
-the receiver through the conventional slirp gateway `10.0.2.2:19001`, which is
+The origin reaches QEMU through `host.docker.internal:18001`. A separate private
+TCP/UDP forward on port 18002 probes the same guest service without competing
+with data-plane UDP associations. The guest reaches the receiver through the
+conventional slirp gateway `10.0.2.2:19001`, which is
 published by Docker only on host loopback. QMP is a private Unix socket beneath
 the mode-0700 state directory. It supplies accelerator evidence and graceful
 shutdown and is not mounted into telemetry. It does not establish application

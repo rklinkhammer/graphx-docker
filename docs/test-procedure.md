@@ -221,6 +221,12 @@ GUI, capture, accelerator, and platform-specific evidence.
 | Native network labs | `examples/<lab>/scripts/up.sh`, where `<lab>` is `macvlan`, `ipvlan-l2`, or `ipvlan-l3` | Native Linux only; always use the matching `down.sh` |
 | Mixed native network | `examples/mixed-network/scripts/linux-up.sh` | Native Linux only; use `linux-down.sh` afterward |
 
+The `full` profile runs QEMU configuration, parser, history, QMP simulation, and
+Compose-model tests, but it does not boot a guest. Before accepting QEMU changes,
+build the shared guest and run the external profile on macOS or Linux. On native
+Linux, also follow the TCG, KVM, automatic-selection, denial, capture/history,
+control, and cleanup procedure in [`qemu-demos.md`](qemu-demos.md#manual-linux-acceptance-procedure).
+
 For the browser topology, control tokens, history, and capture workflow across
 the graphical examples, follow
 [`graphical-examples-guide.md`](graphical-examples-guide.md). For exact expected

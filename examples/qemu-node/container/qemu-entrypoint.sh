@@ -59,7 +59,7 @@ qemu-system-x86_64 \
   -kernel "$artifact_dir/bzImage" -initrd "$artifact_dir/rootfs.cpio.gz" \
   -append "console=ttyS0 panic=1" -no-reboot -nographic \
   -qmp "unix:$qmp_socket,server=on,wait=off" \
-  -netdev "user,id=net0,hostfwd=tcp:0.0.0.0:18001-:18001,hostfwd=udp:0.0.0.0:18001-:18001" \
+  -netdev "user,id=net0,hostfwd=tcp:0.0.0.0:18001-:18001,hostfwd=udp:0.0.0.0:18001-:18001,hostfwd=tcp:127.0.0.1:18002-:18001,hostfwd=udp:127.0.0.1:18002-:18001" \
   -device virtio-net-pci,netdev=net0 \
   -object "filter-dump,id=capture0,netdev=net0,file=$capture_dir/qemu-node.pcap" &
 qemu_pid=$!
@@ -76,13 +76,13 @@ if ! python3 "$qmp_control" probe --socket "$qmp_socket" --output "$evidence_fil
   wait "$qemu_pid" 2>/dev/null || true
   exit 1
 fi
-if ! python3 "$qmp_control" guest-readiness --target 127.0.0.1 --port 18001 \
+if ! python3 "$qmp_control" guest-readiness --target 127.0.0.1 --port 18002 \
     --socket "$qmp_socket" --output "$evidence_file" --wait 60 --interval 2; then
   shutdown_qemu
   wait "$qemu_pid" 2>/dev/null || true
   exit 1
 fi
-python3 "$qmp_control" guest-readiness --target 127.0.0.1 --port 18001 \
+python3 "$qmp_control" guest-readiness --target 127.0.0.1 --port 18002 \
   --socket "$qmp_socket" --output "$evidence_file" --wait 0 --interval 2 \
   --failure-threshold 3 --monitor &
 readiness_pid=$!
