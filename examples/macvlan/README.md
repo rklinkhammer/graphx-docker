@@ -8,6 +8,7 @@ physical LAN.
 ```sh
 cmake --preset dev && cmake --build --preset dev
 ./build/dev/graphx validate examples/macvlan/graphx.yaml
+./build/dev/graphx infra create examples/macvlan/graphx.yaml --dry-run
 examples/macvlan/scripts/up.sh
 docker logs -f gx-mac-sink-sink-1
 examples/macvlan/scripts/status.sh
