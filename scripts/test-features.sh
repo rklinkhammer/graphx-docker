@@ -399,14 +399,19 @@ portable_isolated() (
 )
 
 docker_suite() {
+  local docker_http_port=${GRAPHX_DOCKER_TEST_HTTP_PORT:-28080}
   require docker
   portable_isolated
   step "Validate and smoke-test the standard Compose deployment"
+  export GRAPHX_PUBLISHED_HTTP_PORT=$docker_http_port
   docker compose -f "$ROOT/compose.yaml" config >/dev/null
   docker compose -f "$ROOT/compose.yaml" up -d --build
   trap 'docker compose -f "$ROOT/compose.yaml" down --remove-orphans; cleanup' EXIT INT TERM
-  for _ in {1..60}; do curl -fsS http://127.0.0.1:8080/api/health >/dev/null && break; sleep 1; done
-  "$ROOT/scripts/demo.sh" verify
+  for _ in {1..60}; do
+    curl -fsS "http://127.0.0.1:$docker_http_port/api/health" >/dev/null && break
+    sleep 1
+  done
+  GRAPHX_DEMO_URL="http://127.0.0.1:$docker_http_port" "$ROOT/scripts/demo.sh" verify
   docker compose -f "$ROOT/compose.yaml" ps
   docker compose -f "$ROOT/compose.yaml" down --remove-orphans
   step "Run isolated UDP broadcast example"

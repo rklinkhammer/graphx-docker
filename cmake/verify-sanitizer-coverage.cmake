@@ -4,6 +4,9 @@ endif()
 if(NOT DEFINED GRAPHX_SOURCE_ROOT)
   message(FATAL_ERROR "sanitizer coverage requires GRAPHX_SOURCE_ROOT")
 endif()
+if(NOT DEFINED GRAPHX_EXPECTED_SANITIZERS OR GRAPHX_EXPECTED_SANITIZERS STREQUAL "")
+  set(GRAPHX_EXPECTED_SANITIZERS "address,undefined")
+endif()
 
 file(READ "${GRAPHX_COMPILE_COMMANDS}" compile_commands)
 string(JSON command_count LENGTH "${compile_commands}")
@@ -37,7 +40,7 @@ foreach(index RANGE 0 ${last_command})
 
   if(source_kind)
     string(JSON compile_command GET "${compile_commands}" ${index} command)
-    if(NOT compile_command MATCHES "(^| )-fsanitize=address,undefined( |$)" OR
+    if(NOT compile_command MATCHES "(^| )-fsanitize=${GRAPHX_EXPECTED_SANITIZERS}( |$)" OR
        NOT compile_command MATCHES "(^| )-fno-omit-frame-pointer( |$)")
       list(APPEND unsanitized_sources "${source_file}")
     endif()
@@ -60,10 +63,11 @@ if(graphx_source_count EQUAL 0 OR graphx_application_count EQUAL 0 OR
 endif()
 if(unsanitized_sources)
   list(JOIN unsanitized_sources "\n  " formatted_sources)
-  message(FATAL_ERROR "GraphX-owned sources missing ASan/UBSan instrumentation:\n  ${formatted_sources}")
+  message(FATAL_ERROR
+    "GraphX-owned sources missing ${GRAPHX_EXPECTED_SANITIZERS} instrumentation:\n  ${formatted_sources}")
 endif()
 
 message(STATUS
-  "sanitizer coverage passed for ${graphx_source_count} library, "
+  "${GRAPHX_EXPECTED_SANITIZERS} sanitizer coverage passed for ${graphx_source_count} library, "
   "${graphx_application_count} application, ${graphx_test_count} test, and "
   "${graphx_fuzzer_count} fuzzer translation units")

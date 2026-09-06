@@ -43,27 +43,21 @@ deployment variables, so container-only secret paths cannot affect host tests.
 
 Homebrew's `llvm@21` formula is keg-only. It supplies `clang-format` and
 `clang-tidy` beneath its own prefix, not commands named `clang-format-21` and
-`clang-tidy-21`. Install and select the pinned tools explicitly:
+`clang-tidy-21`. Install the pinned tools:
 
 ```sh
 brew install llvm@21 cppcheck
-
-graphx_llvm21=$(brew --prefix llvm@21)
-export CLANG_FORMAT="$graphx_llvm21/bin/clang-format"
-export CLANG_TIDY="$graphx_llvm21/bin/clang-tidy"
-export GRAPHX_FUZZ_CC="$graphx_llvm21/bin/clang"
-export GRAPHX_FUZZ_CXX="$graphx_llvm21/bin/clang++"
-unset CC CXX
+scripts/verify.sh full
 ```
 
-Confirm that the selected formatter and analyzer both report version 21 before
-running `full`:
+The `full` profile discovers Homebrew `llvm@21`, selects its compiler, formatter,
+analyzer, symbolizer, and the active Xcode SDK automatically. To inspect the
+installed versions independently:
 
 ```sh
-"$CLANG_FORMAT" --version
-"$CLANG_TIDY" --version
+"$(brew --prefix llvm@21)/bin/clang-format" --version
+"$(brew --prefix llvm@21)/bin/clang-tidy" --version
 /usr/bin/c++ --version
-scripts/verify.sh full
 ```
 
 Do not point these variables at Homebrew's current unversioned `llvm` formula
@@ -74,6 +68,13 @@ leaving `CC` and `CXX` unset. The `full` profile selects Homebrew LLVM 21 for
 sanitizer and fuzz acceptance; `GRAPHX_SANITIZER_CC`,
 `GRAPHX_SANITIZER_CXX`, `GRAPHX_FUZZ_CC`, and `GRAPHX_FUZZ_CXX` may provide
 explicit paths when Homebrew is installed in a nonstandard location.
+
+Homebrew LLVM 21 AddressSanitizer has an [upstream runtime initialization hang
+on macOS 26](https://github.com/llvm/llvm-project/issues/200447). On that release, `verify.sh full` reports the limitation and runs
+LLVM 21 UBSan plus libFuzzer locally. Linux and the supported macOS 15 CI runner
+retain LLVM 21 ASan+UBSan, so ASan remains a required acceptance gate. Set
+`GRAPHX_SANITIZERS=address,undefined` only to retest macOS 26 after its LLVM
+runtime is fixed; affected runtimes will hang before GraphX `main()` starts.
 
 On Linux distributions that install version-suffixed tools, the defaults work
 without overrides. If the locations differ, the same variables may contain
@@ -105,7 +106,9 @@ should be absolute when the command may start Docker builds or child scripts.
 | `GRAPHX_QUALITY_BUILD_DIR` | Static-analysis build directory | `build/quality` |
 | `GRAPHX_FUZZ_BUILD_DIR` | Fuzzer build directory | `build/fuzz` |
 | `GRAPHX_FUZZ_SECONDS` | Seconds per fuzz target | `30` through `verify.sh full` |
+| `GRAPHX_SANITIZERS` | Compiler sanitizer set | `address,undefined`; `undefined` automatically on macOS 26 |
 | `GRAPHX_TEST_HTTP_PORT` | Portable telemetry HTTP port | `18080` |
+| `GRAPHX_DOCKER_TEST_HTTP_PORT` | Published telemetry port used by Docker acceptance | `28080` |
 | `GRAPHX_TEST_UDP_PORT` | Portable telemetry UDP port | `19000` |
 | `GRAPHX_VERIFY_LOG_DIR` | Persistent verification-log directory | `outputs/verification` |
 | `GRAPHX_CA_CERT` | Public organization CA used by all participating Docker builds | unset |

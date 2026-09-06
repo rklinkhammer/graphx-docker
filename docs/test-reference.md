@@ -45,7 +45,8 @@ the first two tools as `clang-format-21` and `clang-tidy-21`. Homebrew's keg-onl
 cppcheck with `CPPCHECK` and build directories with
 `GRAPHX_QUALITY_BUILD_DIR` and `GRAPHX_FUZZ_BUILD_DIR`. On macOS, ordinary
 builds continue to use Apple Clang while sanitizer and fuzz acceptance select
-Homebrew `llvm@21`. Explicit compiler locations can be supplied with
+Homebrew `llvm@21`; the scripts also discover the active macOS SDK automatically.
+Explicit compiler locations can be supplied with
 `GRAPHX_SANITIZER_CC`, `GRAPHX_SANITIZER_CXX`, `GRAPHX_FUZZ_CC`, and
 `GRAPHX_FUZZ_CXX`.
 
@@ -75,8 +76,11 @@ GRAPHX_FUZZ_SECONDS=30 scripts/run-fuzz.sh
 ```
 
 LeakSanitizer is not supported by the LLVM runtime on every macOS release. The
-CI macOS job disables leak detection explicitly while retaining LLVM 21
-ASan/UBSan; the Ubuntu job requires leak detection. Sanitized binaries are test artifacts and
+CI macOS 15 job disables leak detection explicitly while retaining LLVM 21
+ASan/UBSan; the Ubuntu job requires leak detection. Homebrew LLVM 21 ASan has
+an upstream process-initialization hang on macOS 26, so `verify.sh full` uses
+LLVM 21 UBSan plus libFuzzer there and clearly reports that substitution. Linux
+continues to provide the required LLVM 21 ASan+UBSan acceptance. Sanitized binaries are test artifacts and
 must not be shipped as production executables.
 
 The sanitizer configuration compiles every GraphX-owned library, application,

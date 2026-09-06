@@ -85,6 +85,7 @@ jobs:
             cc="$llvm_bin/clang"
             cxx="$llvm_bin/clang++"
             symbolizer="$llvm_bin/llvm-symbolizer"
+            echo "SDKROOT=$(xcrun --show-sdk-path)" >> "$GITHUB_ENV"
           else
             cc=/usr/bin/clang-21
             cxx=/usr/bin/clang++-21

@@ -15,7 +15,9 @@ include(CMakePackageConfigHelpers)
 
 option(GRAPHX_BUILD_TESTS "Build GraphX tests" ON)
 option(GRAPHX_BUILD_FUZZERS "Build libFuzzer targets" OFF)
-option(GRAPHX_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
+option(GRAPHX_ENABLE_SANITIZERS "Enable the configured compiler sanitizers" OFF)
+set(GRAPHX_SANITIZERS "address,undefined" CACHE STRING
+  "Comma-separated compiler sanitizers used when GRAPHX_ENABLE_SANITIZERS is ON")
 option(GRAPHX_ENABLE_CLANG_TIDY "Run clang-tidy while compiling GraphX targets" OFF)
 option(GRAPHX_ENABLE_CPPCHECK "Run cppcheck while compiling GraphX targets" OFF)
 option(GRAPHX_FORCE_BUNDLED_YAML_CPP "Use the pinned yaml-cpp source archive" OFF)
@@ -29,6 +31,9 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 if(GRAPHX_ENABLE_SANITIZERS AND NOT CMAKE_CXX_COMPILER_ID MATCHES "AppleClang|Clang|GNU")
   message(FATAL_ERROR "GRAPHX_ENABLE_SANITIZERS requires Clang, AppleClang, or GCC")
+endif()
+if(GRAPHX_ENABLE_SANITIZERS AND GRAPHX_SANITIZERS STREQUAL "")
+  message(FATAL_ERROR "GRAPHX_SANITIZERS must not be empty when sanitizers are enabled")
 endif()
 if(GRAPHX_BUILD_FUZZERS AND NOT CMAKE_CXX_COMPILER_ID MATCHES "AppleClang|Clang")
   message(FATAL_ERROR "GRAPHX_BUILD_FUZZERS requires Clang or AppleClang libFuzzer support")
@@ -65,9 +70,9 @@ endfunction()
 function(graphx_enable_sanitizers target)
   if(GRAPHX_ENABLE_SANITIZERS)
     target_compile_options(${target} PRIVATE
-      -fno-omit-frame-pointer -fsanitize=address,undefined)
+      -fno-omit-frame-pointer "-fsanitize=${GRAPHX_SANITIZERS}")
     target_link_options(${target} PRIVATE
-      -fno-omit-frame-pointer -fsanitize=address,undefined)
+      -fno-omit-frame-pointer "-fsanitize=${GRAPHX_SANITIZERS}")
   endif()
 endfunction()
 
@@ -323,6 +328,7 @@ if(GRAPHX_BUILD_TESTS)
       COMMAND ${CMAKE_COMMAND}
         -DGRAPHX_COMPILE_COMMANDS=${CMAKE_BINARY_DIR}/compile_commands.json
         -DGRAPHX_SOURCE_ROOT=${CMAKE_SOURCE_DIR}
+        -DGRAPHX_EXPECTED_SANITIZERS=${GRAPHX_SANITIZERS}
         -P ${CMAKE_SOURCE_DIR}/cmake/verify-sanitizer-coverage.cmake)
   endif()
 endif()

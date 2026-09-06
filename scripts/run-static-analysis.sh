@@ -7,6 +7,16 @@ CLANG_TIDY_BIN=${CLANG_TIDY:-clang-tidy-21}
 CPPCHECK_BIN=${CPPCHECK:-cppcheck}
 REQUIRED_CLANG_TIDY_MAJOR=21
 
+if test "$(uname -s)" = Darwin; then
+  command -v xcrun >/dev/null || {
+    echo "missing prerequisite: xcrun from Xcode Command Line Tools" >&2
+    exit 2
+  }
+  SDKROOT=${SDKROOT:-$(xcrun --show-sdk-path)}
+  test -d "$SDKROOT" || { echo "active macOS SDK not found: $SDKROOT" >&2; exit 2; }
+  export SDKROOT
+fi
+
 for tool in cmake ninja "$CLANG_TIDY_BIN" "$CPPCHECK_BIN"; do
   command -v "$tool" >/dev/null || {
     echo "missing prerequisite: $tool" >&2

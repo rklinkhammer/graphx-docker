@@ -8,6 +8,16 @@ REQUIRED_CLANG_MAJOR=21
 TMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/graphx-fuzz.XXXXXX")
 trap 'rm -rf "$TMP_DIR"' EXIT INT TERM
 
+if test "$(uname -s)" = Darwin; then
+  command -v xcrun >/dev/null || {
+    echo "missing prerequisite: xcrun from Xcode Command Line Tools" >&2
+    exit 2
+  }
+  SDKROOT=${SDKROOT:-$(xcrun --show-sdk-path)}
+  test -d "$SDKROOT" || { echo "active macOS SDK not found: $SDKROOT" >&2; exit 2; }
+  export SDKROOT
+fi
+
 if test -n "${GRAPHX_FUZZ_CC:-}"; then CC=$GRAPHX_FUZZ_CC; fi
 if test -n "${GRAPHX_FUZZ_CXX:-}"; then CXX=$GRAPHX_FUZZ_CXX; fi
 
@@ -67,12 +77,14 @@ cmake --fresh -S "$ROOT" -B "$BUILD_DIR" -G Ninja \
   -DCMAKE_CXX_STANDARD=23 \
   -DGRAPHX_BUILD_TESTS=OFF \
   -DGRAPHX_ENABLE_SANITIZERS=ON \
+  -DGRAPHX_SANITIZERS="${GRAPHX_SANITIZERS:-address,undefined}" \
   -DGRAPHX_BUILD_FUZZERS=ON
 cmake --build "$BUILD_DIR" --target graphx-envelope-fuzz graphx-frame-fuzz \
   -j "${GRAPHX_BUILD_JOBS:-4}"
 cmake \
   -DGRAPHX_COMPILE_COMMANDS="$BUILD_DIR/compile_commands.json" \
   -DGRAPHX_SOURCE_ROOT="$ROOT" \
+  -DGRAPHX_EXPECTED_SANITIZERS="${GRAPHX_SANITIZERS:-address,undefined}" \
   -DGRAPHX_REQUIRE_TEST_SOURCES=OFF \
   -DGRAPHX_REQUIRE_FUZZ_SOURCES=ON \
   -P "$ROOT/cmake/verify-sanitizer-coverage.cmake"

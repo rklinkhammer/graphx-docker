@@ -76,7 +76,7 @@ run_quick() {
 }
 
 select_llvm21_sanitizer_toolchain() {
-  local compiler_dir compiler_version
+  local compiler_dir compiler_version macos_major sdk_root
 
   if test -n "${GRAPHX_SANITIZER_CC:-}" || test -n "${GRAPHX_SANITIZER_CXX:-}"; then
     test -n "${GRAPHX_SANITIZER_CC:-}" && test -n "${GRAPHX_SANITIZER_CXX:-}" || {
@@ -93,6 +93,28 @@ select_llvm21_sanitizer_toolchain() {
     compiler_dir=$(brew --prefix llvm@21)/bin
     CC=$compiler_dir/clang
     CXX=$compiler_dir/clang++
+    CLANG_FORMAT=${CLANG_FORMAT:-$compiler_dir/clang-format}
+    CLANG_TIDY=${CLANG_TIDY:-$compiler_dir/clang-tidy}
+    export CLANG_FORMAT CLANG_TIDY
+    command -v xcrun >/dev/null || {
+      echo "LLVM 21 testing on macOS requires Xcode Command Line Tools" >&2
+      return 2
+    }
+    sdk_root=$(xcrun --show-sdk-path)
+    test -d "$sdk_root" || {
+      echo "active macOS SDK not found: $sdk_root" >&2
+      return 2
+    }
+    SDKROOT=$sdk_root
+    export SDKROOT
+    macos_major=$(sw_vers -productVersion | cut -d. -f1)
+    if test "$macos_major" -ge 26 && test -z "${GRAPHX_SANITIZERS:-}"; then
+      GRAPHX_SANITIZERS=undefined
+      export GRAPHX_SANITIZERS
+      echo "NOTE: macOS $macos_major uses LLVM 21 UBSan without ASan because the"
+      echo "Homebrew LLVM ASan runtime hangs during process initialization on macOS 26."
+      echo "Full LLVM 21 ASan+UBSan acceptance remains enabled on Linux."
+    fi
   else
     CC=clang-21
     CXX=clang++-21
@@ -117,15 +139,17 @@ select_llvm21_sanitizer_toolchain() {
   fi
   export CC CXX
   echo "Sanitizer compiler: CC=$CC CXX=$CXX"
+  test -z "${SDKROOT:-}" || echo "macOS SDK: SDKROOT=$SDKROOT"
 }
 
 run_sanitizers() {
   select_llvm21_sanitizer_toolchain
   gate "configure sanitizer build"
-  cmake --preset sanitizers --fresh
+  cmake --preset sanitizers --fresh \
+    -DGRAPHX_SANITIZERS="${GRAPHX_SANITIZERS:-address,undefined}"
   gate "build sanitizer targets"
   cmake --build --preset sanitizers -j "${GRAPHX_BUILD_JOBS:-4}"
-  gate "ASan and UBSan CTest suite"
+  gate "${GRAPHX_SANITIZERS:-address,undefined} sanitizer CTest suite"
   if test "$(uname -s)" = Darwin; then
     ASAN_OPTIONS=${ASAN_OPTIONS:-detect_leaks=0} \
       UBSAN_OPTIONS=${UBSAN_OPTIONS:-halt_on_error=1} \
