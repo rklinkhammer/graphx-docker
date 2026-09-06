@@ -249,3 +249,11 @@ That rehearsal must preserve these invariants:
   and retry begins from a demonstrably absent state.
 - Existing Phase 1-9 security, lifecycle, observability, history, control, and
   PCAPNG/Wireshark/extcap gates remain mandatory.
+
+## Appendix - Linux revalidation (2026-09-06)
+
+**Linux status: ACCEPTED.** Phase 10 has no remaining Linux acceptance gate.
+
+The current full Linux profile passed release-contract, installable package,
+external consumer, C++20/C++23, sanitizer, quality, fuzz, portable, and Docker
+checks. Evidence: `outputs/verification/20260906T202636Z-full.log`.

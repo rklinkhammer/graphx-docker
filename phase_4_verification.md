@@ -221,3 +221,13 @@ isolation, transport/deployment neutrality, non-root runtime behavior, and every
 Phase 4 CI/sanitizer/static-analysis/fuzz/compatibility gate. Security failures
 should become deterministic negative tests and appropriate fuzz seeds, while
 sanitizer and fuzz runtimes must remain absent from production images.
+
+## Appendix - Linux revalidation (2026-09-06)
+
+**Linux status: ACCEPTED.** Phase 4 has no remaining Linux acceptance gate.
+
+On Ubuntu 26.04.1 LTS, `scripts/verify.sh full` passed the current C++20 and
+C++23 suites, LLVM 21 formatting/static analysis, ASan/UBSan with leak
+detection, both fuzz targets, package/consumer checks, portable features, and
+Docker acceptance. Evidence:
+`outputs/verification/20260906T202636Z-full.log`.

@@ -213,3 +213,12 @@ Phase 7 must preserve these accepted invariants:
 - restart/reset semantics remain explicit; and
 - the GraphX wire envelope and transport-neutral runtime APIs remain unchanged
   unless a separately versioned compatibility decision approves a change.
+
+## Appendix - Linux revalidation (2026-09-06)
+
+**Linux status: ACCEPTED.** Phase 6 has no remaining Linux acceptance gate.
+
+The current `scripts/verify.sh full` run passed telemetry 76/76, secure TLS and
+control checks, bounded OTLP behavior, web 13/13, C++20/C++23, sanitizers,
+quality, fuzz, package, portable, and Docker gates. Evidence:
+`outputs/verification/20260906T202636Z-full.log`.

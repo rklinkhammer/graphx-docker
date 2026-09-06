@@ -208,3 +208,12 @@ Phase 8 must preserve these invariants:
   metrics, diagnostic logs, or control responses; and
 - Phase 8 adds real authorized runtime behavior, not UI-only or simulated
   controls that appear operational.
+
+## Appendix - Linux revalidation (2026-09-06)
+
+**Linux status: ACCEPTED.** Phase 7 has no remaining Linux acceptance gate.
+
+The current full Linux profile passed the history configuration, SQLite
+persistence/restart, retention, pagination, queue/deadline, authentication,
+telemetry, sanitizer, package, portable, and Docker regressions. Evidence:
+`outputs/verification/20260906T202636Z-full.log`.

@@ -7,7 +7,11 @@ Project version: `1.0.0`
 
 ## 1. Verdict
 
-**BLOCKED**
+**ACCEPTED**
+
+**Linux acceptance update (2026-09-06):** The original macOS report below is
+retained as historical evidence. Its UDP-003 environmental blocker is resolved
+by the native Linux results in Section 12.
 
 All Phase 11 requirements that can be executed safely on the available macOS/OrbStack host pass.
 The two findings from the preceding verification are independently confirmed fixed:
@@ -327,7 +331,21 @@ No code remediation is required by this verification pass. To remove the blocker
 
 ## 11. Readiness for the SDR topology phase
 
-The code is functionally ready for the planned SDR topology, but the formal Phase 11 gate remains
-**BLOCKED**, not accepted. Per the governing verifier contract, do not begin the SDR topology
-phase until native Linux broadcast acceptance completes and a follow-up verifier issues
-`ACCEPTED`.
+The Phase 11 implementation is accepted. The original native-Linux blocker is
+resolved by the follow-up evidence below.
+
+## 12. Native Linux acceptance (2026-09-06)
+
+**Linux status: ACCEPTED.** UDP-003 and UDP-009 are verified on Ubuntu 26.04.1
+LTS, Linux 7.0.0-31-generic, x86_64.
+
+`GRAPHX_ALLOW_PRIVILEGED_TESTS=1 scripts/verify.sh native-linux` passed in 205
+seconds. The native namespace runner delivered all five directed-broadcast
+datagrams, decoded live-capture sequences 1 through 5, and passed repeated
+idempotent teardown. The same profile passed macvlan, IPvlan L2, IPvlan L3,
+mixed-network OVS routing, nftables, netem fault apply/clear, and cleanup.
+
+Evidence: `outputs/verification/20260906T203237Z-native-linux.log`. Final checks
+found no `gx-udp-*` namespace, `gxudp-*` link, GraphX OVS bridge, project
+container, or GraphX process. B-001 is closed and no Phase 11 Linux acceptance
+item remains.

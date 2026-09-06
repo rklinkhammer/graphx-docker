@@ -1,6 +1,10 @@
 # Phase 5 Independent Verification Report
 
-**Verdict: CHANGES REQUIRED**
+**Verdict: ACCEPTED**
+
+**Linux acceptance update (2026-09-06):** The original review below correctly
+records defects present at its baseline. Those findings were subsequently
+remediated and are superseded by the current Linux evidence in Appendix B.
 
 Date: 2026-09-01  
 Repository: `/Users/rklinkhammer/workspace/graphx-docker`  
@@ -262,4 +266,25 @@ These restrictions do not cause a `BLOCKED` verdict because enough required veri
 - The implementer handoff was treated as a claim set. Its command history was not counted as independent pass evidence unless rerun here.
 - The isolated Compose resources and deterministic test volume were removed after their checks. No existing container was modified.
 - Build outputs remain under ignored `build/` directories for reproducibility and can be discarded normally.
+
+## Appendix B - Linux remediation verification (2026-09-06)
+
+**Linux status: ACCEPTED.** No Phase 5 Linux gate remains open.
+
+The four findings from the original baseline are closed in the current tree:
+
+- **P1-001:** telemetry tests reject malformed HTTP and WebSocket targets with
+	bounded responses and prove the service remains healthy.
+- **P2-002:** `scripts/test-container-hardening.sh` passed capture-volume
+	ownership and read-only collector checks in both initialization orders.
+- **P2-003:** `RateLimiter` enforces a fixed entry capacity by bounded eviction;
+	its capacity, isolation, expiry, and request-count regression passed.
+- **P2-004:** TLS send and receive operations select `POLLIN` or `POLLOUT` from
+	each `SSL_ERROR_WANT_READ` or `SSL_ERROR_WANT_WRITE` result. The TLS and full
+	regression gates passed.
+
+Current Linux evidence is `outputs/verification/20260906T202636Z-full.log`.
+That run passed C++20/C++23, 28 CTests, TLS/security, telemetry 76/76, web
+13/13, container hardening, ASan/UBSan, format, static analysis, fuzz, package,
+portable, and Docker gates on Ubuntu 26.04.1 LTS.
 

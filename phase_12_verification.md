@@ -1,12 +1,48 @@
 # Phase 12 Independent Verification Report
 
-**Verdict: BLOCKED**
+**Verdict: ACCEPTED**
 
 **Verification date:** 2026-09-05  
 **Repository:** `/Users/rklinkhammer/workspace/graphx-docker`  
 **Branch / baseline:** `main` / `7cbb2ce85d677af3c592446a33c62352527b7982` (`Qemu`)  
 **Verified state:** uncommitted Phase 12 working tree; no product code changed by this verification  
 **Contracts:** repository `prompt/implement.md` (372 lines) and `prompt/verifier.md` (396 lines), byte-identical to the reviewed copies in `/Users/rklinkhammer/workspace/prompt`
+
+## Linux acceptance update (2026-09-06)
+
+**Linux status: ACCEPTED.** This section supersedes the original macOS-only
+blocker statements retained below as historical evidence. QEMU-004 through
+QEMU-016 now have native Linux runtime and quality evidence.
+
+The acceptance host was Ubuntu 26.04.1 LTS, Linux 7.0.0-31-generic, x86_64,
+with Docker 29.1.3, Compose 2.40.3, QEMU 10.2.1, CMake 4.2.3, GCC 15.2.0,
+LLVM 21 in the repository quality profile, and TShark 4.6.4. `/dev/kvm` was
+`root:kvm` mode `0660`; the operator's configured `kvm` membership provided
+read/write access through an inherited group shell.
+
+| Gate | Linux evidence | Result |
+|---|---|---|
+| Full regression/quality | `scripts/verify.sh full`; C++20/C++23, 28 CTests, ASan/UBSan, format, static analysis, fuzz, package, telemetry 76/76, web 13/13, portable and Docker | **PASS** |
+| External Linux profile | host QEMU TCG used the Linux private gateway; guest and both protocols became ready; all four counters advanced; capture/history were queryable | **PASS** |
+| Explicit TCG | requested/selected/actual `tcg`; guest ready; TCP and UDP ready; all four counters advanced | **PASS** |
+| Explicit KVM | requested/selected/actual `kvm`; QMP reported KVM present and enabled; guest and both protocols ready | **PASS** |
+| Automatic selection | requested `auto`, selected/actual `kvm`; QMP reported KVM present and enabled | **PASS** |
+| KVM denial | runtime without `/dev/kvm` exited 2 with the expected inaccessible-KVM diagnostic | **PASS** |
+| Capture/history | bounded PCAPNG catalog and SQLite packet history were queryable; retained captures contain TCP and UDP | **PASS** |
+| Least privilege | live KVM container was non-privileged, non-root, read-only, had no added capabilities, and mapped only `/dev/kvm` | **PASS** |
+| Cleanup | every profile stop removed containers and its network; final process/container/namespace/OVS checks were empty | **PASS** |
+
+Retained run evidence:
+
+- external Linux TCG: `outputs/qemu-node/external/20260906T204212Z`
+- TCG: `outputs/qemu-node/container/20260906T203627Z`
+- explicit KVM: `outputs/qemu-node/container/20260906T203655Z`
+- automatic KVM: `outputs/qemu-node/container/20260906T203737Z`
+- full Linux log: `outputs/verification/20260906T202636Z-full.log`
+- native network log: `outputs/verification/20260906T203237Z-native-linux.log`
+
+No Phase 12 Linux acceptance item remains. The later sections describe the
+original 2026-09-05 macOS verification and should not be read as current status.
 
 ## 1. Executive summary
 

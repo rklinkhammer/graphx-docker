@@ -198,3 +198,12 @@ Phase 10 must preserve these invariants:
 - release artifacts exercise the real writer/extcap/TShark fixtures; and
 - packaging must not make GraphX semantics depend on Docker, a telemetry
   vendor, a GUI framework, or Wireshark being installed on runtime nodes.
+
+## Appendix - Linux revalidation (2026-09-06)
+
+**Linux status: ACCEPTED.** Phase 9 has no remaining Linux acceptance gate.
+
+The current full Linux profile passed capture configuration, PCAPNG,
+Wireshark dissector, extcap, telemetry catalog/download, sanitizer, quality,
+fuzz, package, portable, and Docker checks with TShark 4.6.4. Evidence:
+`outputs/verification/20260906T202636Z-full.log`.

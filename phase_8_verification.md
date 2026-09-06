@@ -341,3 +341,12 @@ existing Vite chunk-size and GCC 12 diagnostic noise.
 - Temporary Compose resources and credential files were removed.
 - The verifier-only adversarial script was removed.
 - Existing implementation and unrelated worktree changes were preserved.
+
+## Appendix C - Linux revalidation (2026-09-06)
+
+**Linux status: ACCEPTED.** Phase 8 has no remaining Linux acceptance gate.
+
+The current full Linux profile passed control authorization and lifecycle,
+credential handling, telemetry 76/76, web 13/13, C++20/C++23, sanitizer,
+quality, fuzz, package, portable, and Docker checks. Evidence:
+`outputs/verification/20260906T202636Z-full.log`.

@@ -221,3 +221,17 @@ The repository was already intentionally dirty with the uncommitted Phase 3
 implementation and documentation. Verification preserved those changes and did
 not commit, push, publish, deploy, or modify external systems. The only verifier
 deliverable changed is this report.
+
+## Appendix C - Linux revalidation (2026-09-06)
+
+**Linux status: ACCEPTED.** Phase 3 has no remaining Linux acceptance gate.
+
+The current `main` revision (`d7ee777`) passed `scripts/verify.sh full` on
+Ubuntu 26.04.1 LTS, Linux 7.0.0-31-generic, x86_64. The run rebuilt and tested
+both C++20 and C++23 configurations and passed protocol boundaries,
+mixed-version transport, lifecycle, package, sanitizer, static-analysis, fuzz,
+portable, and Docker gates. Evidence:
+`outputs/verification/20260906T202636Z-full.log`.
+
+This Linux result supplements the original macOS verification; it does not
+replace the detailed evidence above.
