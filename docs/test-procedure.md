@@ -26,10 +26,10 @@ compiler. Portable testing also needs Node.js, npm, and curl.
 
 Additional requirements:
 
-- `full`: Docker Compose, LLVM/Clang 18, clang-format 18, clang-tidy 18,
-  cppcheck, `xxd`, and libFuzzer support. The executable names do not have to
-  contain `-18`; use the overrides below when a package manager uses unversioned
-  names or keeps LLVM 18 outside `PATH`.
+- `full`: Docker Compose, LLVM/Clang 21 with its sanitizer and libFuzzer
+  runtimes, clang-format 21, clang-tidy 21, cppcheck, and `xxd`. The executable names do not
+  have to contain `-21`; use the overrides below when a package manager uses
+  unversioned names or keeps LLVM 21 outside `PATH`.
 - `native-linux`: Docker Compose, Open vSwitch, iproute2, nftables, dumpcap,
   tshark, and sudo access.
 - `release`: Python 3 and a clean Git worktree at the intended release commit.
@@ -39,46 +39,51 @@ The commands stop at the first failure and write a combined log under
 Portable tests isolate telemetry and web subprocesses from inherited `GRAPHX_*`
 deployment variables, so container-only secret paths cannot affect host tests.
 
-### macOS LLVM 18 setup
+### macOS LLVM 21 setup
 
-Homebrew's `llvm@18` formula is keg-only. It supplies `clang-format` and
-`clang-tidy` beneath its own prefix, not commands named `clang-format-18` and
-`clang-tidy-18`. Install and select the pinned tools explicitly:
+Homebrew's `llvm@21` formula is keg-only. It supplies `clang-format` and
+`clang-tidy` beneath its own prefix, not commands named `clang-format-21` and
+`clang-tidy-21`. Install and select the pinned tools explicitly:
 
 ```sh
-brew install llvm@18 cppcheck
+brew install llvm@21 cppcheck
 
-graphx_llvm18=$(brew --prefix llvm@18)
-export CLANG_FORMAT="$graphx_llvm18/bin/clang-format"
-export CLANG_TIDY="$graphx_llvm18/bin/clang-tidy"
-export CC="$graphx_llvm18/bin/clang"
-export CXX="$graphx_llvm18/bin/clang++"
+graphx_llvm21=$(brew --prefix llvm@21)
+export CLANG_FORMAT="$graphx_llvm21/bin/clang-format"
+export CLANG_TIDY="$graphx_llvm21/bin/clang-tidy"
+export GRAPHX_FUZZ_CC="$graphx_llvm21/bin/clang"
+export GRAPHX_FUZZ_CXX="$graphx_llvm21/bin/clang++"
+unset CC CXX
 ```
 
-Confirm that the selected formatter and analyzer both report version 18 before
+Confirm that the selected formatter and analyzer both report version 21 before
 running `full`:
 
 ```sh
 "$CLANG_FORMAT" --version
 "$CLANG_TIDY" --version
-"$CXX" --version
+/usr/bin/c++ --version
 scripts/verify.sh full
 ```
 
 Do not point these variables at Homebrew's current unversioned `llvm` formula
-unless it is LLVM 18. Formatting and clang-tidy diagnostics can change between
+unless it is LLVM 21. Formatting and clang-tidy diagnostics can change between
 major releases, so another major is useful development feedback but is not an
-equivalent acceptance result.
+equivalent acceptance result. Ordinary macOS builds retain Apple Clang by
+leaving `CC` and `CXX` unset. The `full` profile selects Homebrew LLVM 21 for
+sanitizer and fuzz acceptance; `GRAPHX_SANITIZER_CC`,
+`GRAPHX_SANITIZER_CXX`, `GRAPHX_FUZZ_CC`, and `GRAPHX_FUZZ_CXX` may provide
+explicit paths when Homebrew is installed in a nonstandard location.
 
 On Linux distributions that install version-suffixed tools, the defaults work
 without overrides. If the locations differ, the same variables may contain
 absolute paths:
 
 ```sh
-export CLANG_FORMAT=/usr/bin/clang-format-18
-export CLANG_TIDY=/usr/bin/clang-tidy-18
-export CC=/usr/bin/clang-18
-export CXX=/usr/bin/clang++-18
+export CLANG_FORMAT=/usr/bin/clang-format-21
+export CLANG_TIDY=/usr/bin/clang-tidy-21
+export CC=/usr/bin/clang-21
+export CXX=/usr/bin/clang++-21
 ```
 
 ### Common overrides
@@ -88,10 +93,12 @@ should be absolute when the command may start Docker builds or child scripts.
 
 | Variable | Purpose | Default |
 |---|---|---|
-| `CLANG_FORMAT` | LLVM 18 formatter executable | `clang-format-18` |
-| `CLANG_TIDY` | LLVM 18 static analyzer executable | `clang-tidy-18` |
+| `CLANG_FORMAT` | LLVM 21 formatter executable | `clang-format-21` |
+| `CLANG_TIDY` | LLVM 21 static analyzer executable | `clang-tidy-21` |
 | `CPPCHECK` | cppcheck executable | `cppcheck` |
-| `CC`, `CXX` | Clang compilers used by fresh sanitizer/fuzz builds | auto-selected/toolchain default |
+| `CC`, `CXX` | Optional compilers for ordinary builds; leave unset on macOS to use Apple Clang | auto-selected/toolchain default |
+| `GRAPHX_SANITIZER_CC`, `GRAPHX_SANITIZER_CXX` | LLVM 21 compiler pair for sanitizer acceptance | `clang-21` on Linux; Homebrew `llvm@21` on macOS |
+| `GRAPHX_FUZZ_CC`, `GRAPHX_FUZZ_CXX` | LLVM 21 compiler pair for fuzzing; takes precedence over `CC`/`CXX` | `clang-21`/`clang++-21` |
 | `GRAPHX_BUILD_JOBS` | Maximum parallel build jobs | `4` |
 | `GRAPHX_BUILD_DIR` | C++23 portable/native build directory | `build/dev` |
 | `GRAPHX_CXX20_BUILD_DIR` | C++20 portable build directory | `build/cxx20-features` |
@@ -120,16 +127,18 @@ from these values, but an individual command-line validation intentionally
 honors them. See [`README.md`](../README.md#configuration-reference) and each example's
 README for its supported inputs.
 
-For example, this selects the Homebrew LLVM 18 tools, avoids occupied portable-
+For example, this selects the Homebrew LLVM 21 tools, avoids occupied portable-
 test ports, uses separate build directories, and retains logs outside the
 default path:
 
 ```sh
-graphx_llvm18=$(brew --prefix llvm@18)
-CLANG_FORMAT="$graphx_llvm18/bin/clang-format" \
-CLANG_TIDY="$graphx_llvm18/bin/clang-tidy" \
-CC="$graphx_llvm18/bin/clang" \
-CXX="$graphx_llvm18/bin/clang++" \
+graphx_llvm21=$(brew --prefix llvm@21)
+CLANG_FORMAT="$graphx_llvm21/bin/clang-format" \
+CLANG_TIDY="$graphx_llvm21/bin/clang-tidy" \
+GRAPHX_SANITIZER_CC="$graphx_llvm21/bin/clang" \
+GRAPHX_SANITIZER_CXX="$graphx_llvm21/bin/clang++" \
+GRAPHX_FUZZ_CC="$graphx_llvm21/bin/clang" \
+GRAPHX_FUZZ_CXX="$graphx_llvm21/bin/clang++" \
 GRAPHX_TEST_HTTP_PORT=28080 \
 GRAPHX_TEST_UDP_PORT=29000 \
 GRAPHX_QUALITY_BUILD_DIR="$PWD/build/quality-macos" \

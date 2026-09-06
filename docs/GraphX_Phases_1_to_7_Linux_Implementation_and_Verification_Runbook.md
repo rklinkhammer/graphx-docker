@@ -109,11 +109,31 @@ The ordinary CI and portable tiers intentionally do not opt into privileged netw
 
 ### 5.2 Base and quality tools
 
+Ubuntu 24.04 needs the official LLVM repository for LLVM 21. Verify the
+repository signing key before enabling it:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y ca-certificates curl gnupg
+curl --fail --silent --show-error \
+  https://apt.llvm.org/llvm-snapshot.gpg.key \
+  -o /tmp/llvm-snapshot.gpg.key
+test "$(gpg --show-keys --with-colons /tmp/llvm-snapshot.gpg.key \
+  | awk -F: '$1 == "fpr" { print $10; exit }')" \
+  = "6084F3CF814B57C1CF12EFD515CF4D18AF4F7421"
+gpg --dearmor < /tmp/llvm-snapshot.gpg.key \
+  | sudo tee /usr/share/keyrings/apt.llvm.org.gpg >/dev/null
+echo "deb [signed-by=/usr/share/keyrings/apt.llvm.org.gpg] https://apt.llvm.org/noble/ llvm-toolchain-noble-21 main" \
+  | sudo tee /etc/apt/sources.list.d/llvm-21.list
+rm /tmp/llvm-snapshot.gpg.key
+```
+
 ```bash
 sudo apt-get update
 sudo apt-get install -y \
   git cmake ninja-build build-essential \
-  clang-18 clang-tools-18 clang-format-18 clang-tidy-18 libclang-rt-18-dev \
+  clang-21 clang-tools-21 clang-format-21 clang-tidy-21 \
+  libclang-rt-21-dev libfuzzer-21-dev \
   cppcheck libssl-dev openssl curl jq xxd \
   iproute2 nftables openvswitch-switch tcpdump wireshark-common
 ```
@@ -123,9 +143,9 @@ Verify:
 ```bash
 cmake --version
 ninja --version
-clang++-18 --version
-clang-format-18 --version
-clang-tidy-18 --version
+clang++-21 --version
+clang-format-21 --version
+clang-tidy-21 --version
 cppcheck --version
 openssl version
 ```
@@ -135,8 +155,8 @@ Required minimums and pins:
 - CMake 3.25 or newer.
 - C++20 and C++23 support.
 - OpenSSL 3 development headers.
-- clang-format **18.x** for the repository format gate.
-- Clang 18 with libFuzzer for the Phase 4 fuzz gate.
+- clang-format and clang-tidy **21.x** for the repository quality gates.
+- Clang 21 with compiler-rt and libFuzzer for the Phase 4 fuzz gate.
 
 ### 5.3 Node.js and npm
 
@@ -331,9 +351,9 @@ c207a51dc5423f3a4f2e47404572f6845ca141937f3dc71d03ff920775aeeda6  tests/fixtures
 #### Formatting and static analysis
 
 ```bash
-CLANG_FORMAT=clang-format-18 scripts/check-format.sh
+CLANG_FORMAT=clang-format-21 scripts/check-format.sh
 
-CLANG_TIDY=clang-tidy-18 CPPCHECK=cppcheck \
+CLANG_TIDY=clang-tidy-21 CPPCHECK=cppcheck \
 GRAPHX_QUALITY_BUILD_DIR="$PWD/build/linux-verify-$RUN_ID-quality" \
   scripts/run-static-analysis.sh
 ```
@@ -341,8 +361,8 @@ GRAPHX_QUALITY_BUILD_DIR="$PWD/build/linux-verify-$RUN_ID-quality" \
 #### ASan, UBSan, and Linux leak detection
 
 ```bash
-export CC=clang-18
-export CXX=clang++-18
+export CC=clang-21
+export CXX=clang++-21
 cmake --preset sanitizers --fresh
 cmake --build --preset sanitizers -j 4
 ASAN_OPTIONS='detect_leaks=1:strict_string_checks=1' \
@@ -356,7 +376,7 @@ Expected current count: **13/13**, including `graphx-sanitizer-coverage`.
 #### Bounded libFuzzer smoke
 
 ```bash
-CC=clang-18 CXX=clang++-18 \
+CC=clang-21 CXX=clang++-21 \
 GRAPHX_FUZZ_BUILD_DIR="$PWD/build/linux-verify-$RUN_ID-fuzz" \
 GRAPHX_FUZZ_SECONDS=30 \
   scripts/run-fuzz.sh
@@ -732,11 +752,11 @@ The Node runtime is too old or was built without the required module. Use Node 2
 
 ### Formatter reports the wrong major
 
-Run `CLANG_FORMAT=clang-format-18 scripts/check-format.sh`. A newer formatter is not an equivalent result because formatting output can change across majors.
+Run `CLANG_FORMAT=clang-format-21 scripts/check-format.sh`. Another formatter major is not an equivalent result because formatting output can change across majors.
 
 ### Fuzzer fails before executing
 
-Confirm `CC=clang-18`, `CXX=clang++-18`, and that the Linux Clang package includes libFuzzer. Record a pre-execution failure as unverified.
+Confirm `CC=clang-21`, `CXX=clang++-21`, and that `libfuzzer-21-dev` is installed. Record a pre-execution failure as unverified.
 
 ### Native network resource already exists
 

@@ -41,6 +41,17 @@ struct SharedHeader {
   pthread_cond_t not_full{};
 };
 
+// Keep the mapped header a plain fixed-layout object. These Clang/GCC
+// primitives provide the required interprocess release/acquire publication
+// without depending on std::atomic_ref, which some supported libc++ deployments lack.
+std::uint64_t load_magic(const SharedHeader& header) noexcept {
+  return __atomic_load_n(&header.magic, __ATOMIC_ACQUIRE);
+}
+
+void store_magic(SharedHeader& header, std::uint64_t value) noexcept {
+  __atomic_store_n(&header.magic, value, __ATOMIC_RELEASE);
+}
+
 std::runtime_error posix_error(std::string_view action, int error = errno) {
   return std::runtime_error(std::string(action) + ": " + std::strerror(error));
 }
@@ -84,15 +95,14 @@ void remove_stale_segment(const std::string& name) {
     throw posix_error("inspect existing shared-memory segment");
   }
   bool live_consumer{};
-  struct stat status {};
+  struct stat status{};
   if (::fstat(descriptor, &status) == 0 &&
       status.st_size >= static_cast<off_t>(sizeof(SharedHeader))) {
     void* mapping =
         ::mmap(nullptr, sizeof(SharedHeader), PROT_READ | PROT_WRITE, MAP_SHARED, descriptor, 0);
     if (mapping != MAP_FAILED) {
       auto* header = static_cast<SharedHeader*>(mapping);
-      live_consumer = std::atomic_ref(header->magic).load(std::memory_order_acquire) == kMagic &&
-                      process_alive(header->consumer_pid);
+      live_consumer = load_magic(*header) == kMagic && process_alive(header->consumer_pid);
       ::munmap(mapping, sizeof(SharedHeader));
     }
   }
@@ -283,7 +293,7 @@ std::unique_ptr<SharedMemoryTransport::Impl> SharedMemoryTransport::create_impl(
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     } while (std::chrono::steady_clock::now() < connect_deadline);
     if (impl->descriptor < 0) throw posix_error("open shared-memory segment");
-    struct stat status {};
+    struct stat status{};
     if (::fstat(impl->descriptor, &status) != 0) throw posix_error("inspect shared-memory segment");
     if (status.st_size < static_cast<off_t>(sizeof(SharedHeader)) ||
         status.st_size > static_cast<off_t>(kMaximumMappingBytes))
@@ -304,14 +314,13 @@ std::unique_ptr<SharedMemoryTransport::Impl> SharedMemoryTransport::create_impl(
     impl->header->consumer_pid = ::getpid();
     initialize_sync(*impl->header);
     impl->sync_ready = true;
-    std::atomic_ref(impl->header->magic).store(kMagic, std::memory_order_release);
+    store_magic(*impl->header, kMagic);
     impl->role_claimed = true;
   } else {
-    while (std::atomic_ref(impl->header->magic).load(std::memory_order_acquire) != kMagic &&
+    while (load_magic(*impl->header) != kMagic &&
            std::chrono::steady_clock::now() < connect_deadline)
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
-    if (std::atomic_ref(impl->header->magic).load(std::memory_order_acquire) != kMagic ||
-        impl->header->version != kLayoutVersion)
+    if (load_magic(*impl->header) != kMagic || impl->header->version != kLayoutVersion)
       throw std::runtime_error("shared-memory segment layout is incompatible or incomplete");
     const auto expected_mapping = mapping_size(options);
     const auto page_size = static_cast<std::size_t>(::sysconf(_SC_PAGESIZE));

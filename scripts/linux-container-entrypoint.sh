@@ -49,26 +49,27 @@ case "$MODE" in
       "$ROOT/scripts/test-features.sh" portable
     ;;
   quality)
-    CLANG_FORMAT=clang-format-18 "$ROOT/scripts/check-format.sh"
-    CLANG_TIDY=clang-tidy-18 \
+    CLANG_FORMAT=clang-format-21 "$ROOT/scripts/check-format.sh"
+    CC=clang-21 CXX=clang++-21 \
+    CLANG_TIDY=clang-tidy-21 \
     CPPCHECK=cppcheck \
     GRAPHX_QUALITY_BUILD_DIR=/tmp/graphx-linux-quality \
       "$ROOT/scripts/run-static-analysis.sh"
-    CC=clang-18 CXX=clang++-18 \
+    CC=clang-21 CXX=clang++-21 \
     GRAPHX_FUZZ_BUILD_DIR=/tmp/graphx-linux-fuzz \
     GRAPHX_FUZZ_SECONDS="${GRAPHX_FUZZ_SECONDS:-30}" \
       "$ROOT/scripts/run-fuzz.sh"
     ;;
   sanitizers)
     build=/tmp/graphx-linux-sanitizers
-    CC=clang-18 CXX=clang++-18 cmake -S "$ROOT" -B "$build" -G Ninja \
+    CC=clang-21 CXX=clang++-21 cmake -S "$ROOT" -B "$build" -G Ninja \
       -DCMAKE_BUILD_TYPE=Debug \
       -DCMAKE_CXX_STANDARD=23 \
       -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
       -DGRAPHX_BUILD_TESTS=ON \
       -DGRAPHX_ENABLE_SANITIZERS=ON
     cmake --build "$build" -j "$GRAPHX_BUILD_JOBS"
-    ASAN_SYMBOLIZER_PATH=/usr/bin/llvm-symbolizer-18 \
+    ASAN_SYMBOLIZER_PATH=/usr/bin/llvm-symbolizer-21 \
     ASAN_OPTIONS=detect_leaks=1:strict_string_checks=1 \
     UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1 \
       ctest --test-dir "$build" --output-on-failure

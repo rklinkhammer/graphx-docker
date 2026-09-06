@@ -934,16 +934,14 @@ deployment:
              config.node("origin").execution == "container" &&
              config.node("origin").control == "origin",
          "managed runtime metadata");
-  expect(config.node("guest").runtime == "qemu" &&
-             config.node("guest").execution == "host" &&
+  expect(config.node("guest").runtime == "qemu" && config.node("guest").execution == "host" &&
              config.node("guest").lifecycle == "external" &&
-             config.node("guest").control == "none" &&
-             config.node("guest").accelerator == "auto" &&
+             config.node("guest").control == "none" && config.node("guest").accelerator == "auto" &&
              config.node("guest").architecture == "x86_64",
          "external runtime metadata");
-  expect(config.edge("raw").data_plane == "external" &&
-             config.edge("raw").transport.framing == "none",
-         "raw data-plane metadata");
+  expect(
+      config.edge("raw").data_plane == "external" && config.edge("raw").transport.framing == "none",
+      "raw data-plane metadata");
 
   graphx::TransportFactory factory;
   try {

@@ -175,7 +175,7 @@ class WriterState {
     if (descriptor_ < 0)
       throw std::system_error(errno, std::generic_category(),
                               "cannot safely open PCAPNG capture " + path_.string());
-    struct stat details {};
+    struct stat details{};
     if (::fstat(descriptor_, &details) != 0) {
       const auto error = errno;
       ::close(descriptor_);

@@ -4,23 +4,35 @@ set -euo pipefail
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 BUILD_DIR=${GRAPHX_FUZZ_BUILD_DIR:-"$ROOT/build/fuzz"}
 RUN_SECONDS=${GRAPHX_FUZZ_SECONDS:-15}
+REQUIRED_CLANG_MAJOR=21
 TMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/graphx-fuzz.XXXXXX")
 trap 'rm -rf "$TMP_DIR"' EXIT INT TERM
+
+if test -n "${GRAPHX_FUZZ_CC:-}"; then CC=$GRAPHX_FUZZ_CC; fi
+if test -n "${GRAPHX_FUZZ_CXX:-}"; then CXX=$GRAPHX_FUZZ_CXX; fi
 
 for tool in cmake ninja xxd; do
   command -v "$tool" >/dev/null || { echo "missing prerequisite: $tool" >&2; exit 2; }
 done
 
+if test -z "${CC:-}" && test "$(uname -s)" = Darwin && command -v brew >/dev/null; then
+  llvm21_bin=$(brew --prefix llvm@21)/bin
+  test -x "$llvm21_bin/clang" && CC=$llvm21_bin/clang
+fi
 if test -z "${CC:-}"; then
-  for candidate in clang-18 clang; do
+  for candidate in clang-21 clang; do
     if command -v "$candidate" >/dev/null; then
       CC=$candidate
       break
     fi
   done
 fi
+if test -z "${CXX:-}" && test "$(uname -s)" = Darwin && command -v brew >/dev/null; then
+  llvm21_bin=${llvm21_bin:-$(brew --prefix llvm@21)/bin}
+  test -x "$llvm21_bin/clang++" && CXX=$llvm21_bin/clang++
+fi
 if test -z "${CXX:-}"; then
-  for candidate in clang++-18 clang++; do
+  for candidate in clang++-21 clang++; do
     if command -v "$candidate" >/dev/null; then
       CXX=$candidate
       break
@@ -28,15 +40,17 @@ if test -z "${CXX:-}"; then
   done
 fi
 if test -z "${CC:-}" || test -z "${CXX:-}"; then
-  echo "missing prerequisite: Clang with libFuzzer support (set CC and CXX)" >&2
+  echo "missing prerequisite: Clang with libFuzzer support (set GRAPHX_FUZZ_CC and GRAPHX_FUZZ_CXX)" >&2
   exit 2
 fi
 command -v "$CC" >/dev/null || { echo "compiler not found: CC=$CC" >&2; exit 2; }
 command -v "$CXX" >/dev/null || { echo "compiler not found: CXX=$CXX" >&2; exit 2; }
 compiler_version=$("$CXX" --version)
-if ! grep -qi clang <<<"$compiler_version"; then
-  echo "GraphX fuzzing requires Clang; selected CXX=$CXX" >&2
-  echo "unset CC/CXX to auto-detect Clang, or set CC=clang CXX=clang++" >&2
+if grep -q "Apple clang" <<<"$compiler_version" || \
+    ! grep -q "version $REQUIRED_CLANG_MAJOR\." <<<"$compiler_version"; then
+  echo "GraphX fuzzing requires Clang $REQUIRED_CLANG_MAJOR.x; selected CXX=$CXX" >&2
+  echo "$compiler_version" >&2
+  echo "set GRAPHX_FUZZ_CC and GRAPHX_FUZZ_CXX to the LLVM 21 compiler paths" >&2
   exit 2
 fi
 export CC CXX

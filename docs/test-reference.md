@@ -17,7 +17,7 @@ tier. The privileged tier is deliberately never selected automatically.
 | Tier | Host | Coverage | Command |
 |---|---|---|---|
 | Quality | macOS or Linux | Repository formatting, clang-tidy, cppcheck | `scripts/check-format.sh && scripts/run-static-analysis.sh` |
-| Sanitizers | macOS or Linux | Complete CTest under ASan and UBSan | `cmake --preset sanitizers && cmake --build --preset sanitizers && ctest --preset sanitizers` |
+| Sanitizers | macOS or Linux | Complete CTest under LLVM 21 ASan and UBSan | Select LLVM 21 with `CC`/`CXX`, then run `cmake --preset sanitizers && cmake --build --preset sanitizers && ctest --preset sanitizers` |
 | Fuzz | Clang host | Envelope and frame libFuzzer targets under ASan/UBSan | `GRAPHX_FUZZ_SECONDS=30 scripts/run-fuzz.sh` |
 | Portable | macOS or Linux | C++20/23, unit/integration tests, config/infra dry-runs, TCP and shared-memory process pipelines, graceful SIGTERM, web build, configuration-driven telemetry, heartbeat expiry, API and Prometheus output | `scripts/test-features.sh portable` |
 | Docker | macOS or Linux with Docker | Portable tier plus the standard bridge-network Compose deployment | `scripts/test-features.sh docker` |
@@ -35,14 +35,19 @@ C++20/23 compiler, Node.js/npm and curl. Docker tests need Docker Engine/Desktop
 also need a Linux host, Open vSwitch, iproute2, nftables and root/sudo access.
 tcpdump or dumpcap is optional for capture checks.
 
-Quality checks additionally need clang-format 18, clang-tidy 18, and cppcheck.
-Fuzzing needs Clang with libFuzzer and `xxd`. Linux packages commonly expose
-the first two tools as `clang-format-18` and `clang-tidy-18`. Homebrew's keg-only
-`llvm@18` formula exposes unversioned binaries beneath its formula prefix; set
-`CLANG_FORMAT`, `CLANG_TIDY`, `CC`, and `CXX` to those absolute paths as shown in the
-[`short test procedure`](test-procedure.md#macos-llvm-18-setup). Override
+Quality checks additionally need clang-format 21, clang-tidy 21, and cppcheck.
+Sanitizer and fuzz acceptance require LLVM/Clang 21, its compiler-rt and
+libFuzzer runtimes, and `xxd`. Linux packages commonly expose
+the first two tools as `clang-format-21` and `clang-tidy-21`. Homebrew's keg-only
+`llvm@21` formula exposes unversioned binaries beneath its formula prefix; set
+`CLANG_FORMAT` and `CLANG_TIDY` to those absolute paths as shown in the
+[`short test procedure`](test-procedure.md#macos-llvm-21-setup). Override
 cppcheck with `CPPCHECK` and build directories with
-`GRAPHX_QUALITY_BUILD_DIR` and `GRAPHX_FUZZ_BUILD_DIR`.
+`GRAPHX_QUALITY_BUILD_DIR` and `GRAPHX_FUZZ_BUILD_DIR`. On macOS, ordinary
+builds continue to use Apple Clang while sanitizer and fuzz acceptance select
+Homebrew `llvm@21`. Explicit compiler locations can be supplied with
+`GRAPHX_SANITIZER_CC`, `GRAPHX_SANITIZER_CXX`, `GRAPHX_FUZZ_CC`, and
+`GRAPHX_FUZZ_CXX`.
 
 Docker Desktop does not expose native macvlan/ipvlan semantics. On macOS, use the
 mixed-network macOS profile to test the containerized userspace OVS simulation;
@@ -53,7 +58,7 @@ use native Linux for driver-accurate results.
 The checked-in workflow at `.github/workflows/ci.yml` runs on pushes to `main`,
 pull requests, a weekly schedule, and manual dispatch. Its external actions are pinned to immutable
 commit SHAs. The matrix covers C++20 and C++23 on Ubuntu and macOS. Separate jobs
-run ASan/UBSan, clang-format 18, clang-tidy 18, cppcheck, bounded libFuzzer smoke
+run ASan/UBSan, clang-format 21, clang-tidy 21, cppcheck, bounded libFuzzer smoke
 runs, the portable feature suite, npm production audits, and Compose image
 builds. Workflow permissions are read-only and duplicate branch runs are
 cancelled.
@@ -63,15 +68,15 @@ Run the same focused gates locally:
 ```sh
 scripts/check-format.sh
 scripts/run-static-analysis.sh
-cmake --preset sanitizers
+CC=clang-21 CXX=clang++-21 cmake --preset sanitizers
 cmake --build --preset sanitizers
 ASAN_OPTIONS=detect_leaks=1 UBSAN_OPTIONS=halt_on_error=1 ctest --preset sanitizers
 GRAPHX_FUZZ_SECONDS=30 scripts/run-fuzz.sh
 ```
 
-Apple's sanitizer runtime may not provide LeakSanitizer in every toolchain. The
-CI macOS job disables leak detection explicitly while retaining ASan/UBSan; the
-Ubuntu job requires leak detection. Sanitized binaries are test artifacts and
+LeakSanitizer is not supported by the LLVM runtime on every macOS release. The
+CI macOS job disables leak detection explicitly while retaining LLVM 21
+ASan/UBSan; the Ubuntu job requires leak detection. Sanitized binaries are test artifacts and
 must not be shipped as production executables.
 
 The sanitizer configuration compiles every GraphX-owned library, application,
@@ -519,7 +524,7 @@ scripts/test-linux-container.sh quality
 ```
 
 Logs are written under `outputs/linux-container/`. The image uses Ubuntu 24.04,
-Node 24, OpenSSL 3, and Clang 18. To install organization trust globally for
+Node 24, OpenSSL 3, and LLVM/Clang 21. To install organization trust globally for
 GraphX builds without adding it to the repository, export the absolute path to
 a root CA, a reviewed installer, or both before invoking any repository test
 script:

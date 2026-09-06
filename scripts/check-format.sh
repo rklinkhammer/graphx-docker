@@ -2,13 +2,13 @@
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-CLANG_FORMAT_BIN=${CLANG_FORMAT:-clang-format-18}
-REQUIRED_MAJOR=18
+CLANG_FORMAT_BIN=${CLANG_FORMAT:-clang-format-21}
+REQUIRED_MAJOR=21
 FILES=()
 
 command -v "$CLANG_FORMAT_BIN" >/dev/null || {
   echo "missing prerequisite: $CLANG_FORMAT_BIN" >&2
-  echo "Set CLANG_FORMAT to the LLVM 18 formatter path; see docs/test-procedure.md#macos-llvm-18-setup" >&2
+  echo "Set CLANG_FORMAT to the LLVM 21 formatter path; see docs/test-procedure.md#macos-llvm-21-setup" >&2
   exit 2
 }
 

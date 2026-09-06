@@ -473,7 +473,7 @@ TcpTransport::TcpTransport(TcpTransport&& other) noexcept
       endpoint_(std::move(other.endpoint_)),
       edge_id_(std::move(other.edge_id_)),
       trace_sink_(other.trace_sink_),
-      options_(other.options_),
+      options_(std::move(other.options_)),
       outbound_(other.outbound_),
       ever_connected_(other.ever_connected_) {
   tls_ = std::move(other.tls_);
@@ -491,7 +491,7 @@ TcpTransport& TcpTransport::operator=(TcpTransport&& other) noexcept {
   edge_id_ = std::move(other.edge_id_);
   trace_sink_ =
       other.trace_sink_ == &other.null_trace_sink_ ? &null_trace_sink_ : other.trace_sink_;
-  options_ = other.options_;
+  options_ = std::move(other.options_);
   outbound_ = other.outbound_;
   ever_connected_ = other.ever_connected_;
   tls_ = std::move(other.tls_);
@@ -503,8 +503,13 @@ TcpTransport::~TcpTransport() { close(); }
 
 void TcpTransport::close_connection() noexcept {
   if (tls_) {
-    std::scoped_lock lock(tls_->mutex);
-    tls_->session.reset();
+    try {
+      std::scoped_lock lock(tls_->mutex);
+      tls_->session.reset();
+    } catch (...) {
+      // A cleanup path must not allow a mutex failure to escape a noexcept
+      // move, close, or destructor. The socket is still closed below.
+    }
   }
   const int socket = socket_.exchange(-1);
   if (socket >= 0) {
@@ -682,14 +687,18 @@ ReceiveResult TcpTransport::receive_result(std::chrono::milliseconds timeout) {
   }
 }
 
-void TcpTransport::close() {
+void TcpTransport::close() noexcept {
   if (closed_.exchange(true)) return;
   retry_ready_.notify_all();
   if (tls_) {
-    std::scoped_lock lock(tls_->mutex);
-    if (tls_->session) {
-      [[maybe_unused]] ScopedSigpipeBlock block_sigpipe;
-      (void)SSL_shutdown(tls_->session.get());
+    try {
+      std::scoped_lock lock(tls_->mutex);
+      if (tls_->session) {
+        [[maybe_unused]] ScopedSigpipeBlock block_sigpipe;
+        (void)SSL_shutdown(tls_->session.get());
+      }
+    } catch (...) {
+      // Shutdown is best-effort; descriptor cleanup must still complete.
     }
   }
   close_connection();

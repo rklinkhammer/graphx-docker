@@ -57,7 +57,7 @@ class TcpTransport final : public Transport {
   }
   ReceiveResult receive_result(std::chrono::milliseconds timeout = std::chrono::milliseconds{
                                    -1}) override;
-  void close() override;
+  void close() noexcept override;
 
  private:
   TcpTransport(int socket, int listener, Endpoint endpoint, std::string edge_id,

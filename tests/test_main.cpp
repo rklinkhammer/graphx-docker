@@ -680,8 +680,7 @@ void udp_runtime_control() {
     socklen_t runtime_size = sizeof(runtime);
     const auto heartbeat_size = ::recvfrom(collector, event.data(), event.size(), 0,
                                            reinterpret_cast<sockaddr*>(&runtime), &runtime_size);
-    expect(heartbeat_size > 0,
-           "UDP control endpoint registration");
+    expect(heartbeat_size > 0, "UDP control endpoint registration");
     const std::string_view heartbeat_json(event.data(), static_cast<std::size_t>(heartbeat_size));
     expect(heartbeat_json.find("\"event\":\"heartbeat\"") != std::string_view::npos &&
                heartbeat_json.find("\"nodeId\":\"generator\"") != std::string_view::npos &&
@@ -1648,7 +1647,9 @@ void tcp_peer_close_respects_reconnect_policy() {
     options.reconnect = reconnect;
     auto listener =
         graphx::TcpTransport::listen({"127.0.0.1", port}, "reconnect-policy", nullptr, options);
-    { auto client = graphx::TcpTransport::connect({"127.0.0.1", port}, "reconnect-policy-client"); }
+    {
+      auto client = graphx::TcpTransport::connect({"127.0.0.1", port}, "reconnect-policy-client");
+    }
     return listener.receive_result(50ms).status;
   };
 

@@ -3,15 +3,15 @@ set -euo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 BUILD_DIR=${GRAPHX_QUALITY_BUILD_DIR:-"$ROOT/build/quality"}
-CLANG_TIDY_BIN=${CLANG_TIDY:-clang-tidy-18}
+CLANG_TIDY_BIN=${CLANG_TIDY:-clang-tidy-21}
 CPPCHECK_BIN=${CPPCHECK:-cppcheck}
-REQUIRED_CLANG_TIDY_MAJOR=18
+REQUIRED_CLANG_TIDY_MAJOR=21
 
 for tool in cmake ninja "$CLANG_TIDY_BIN" "$CPPCHECK_BIN"; do
   command -v "$tool" >/dev/null || {
     echo "missing prerequisite: $tool" >&2
     if test "$tool" = "$CLANG_TIDY_BIN"; then
-      echo "Set CLANG_TIDY to the LLVM 18 analyzer path; see docs/test-procedure.md#macos-llvm-18-setup" >&2
+      echo "Set CLANG_TIDY to the LLVM 21 analyzer path; see docs/test-procedure.md#macos-llvm-21-setup" >&2
     fi
     exit 2
   }
@@ -26,7 +26,7 @@ case "$CLANG_TIDY_VERSION" in
     ;;
 esac
 
-cmake -S "$ROOT" -B "$BUILD_DIR" -G Ninja \
+cmake --fresh -S "$ROOT" -B "$BUILD_DIR" -G Ninja \
   -DCMAKE_BUILD_TYPE=Debug \
   -DCMAKE_CXX_STANDARD=20 \
   -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \

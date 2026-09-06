@@ -26,11 +26,16 @@ runners.
    translation unit on both systems; Linux also requires leak detection. A
    compile-database CTest prevents sanitizer linkage without compilation
    instrumentation.
-3. `.clang-format` is enforced across every tracked C++ source/header.
-   `.clang-tidy` selects correctness, lifetime, performance, and portability
-   checks. cppcheck supplies an independent warning/portability analysis. Both
-   tools are wired through CMake only for GraphX-owned targets, excluding fetched
+3. `.clang-format` is enforced across every tracked C++ source/header. The
+   formatter and clang-tidy analyzer are pinned to LLVM major 21 so macOS,
+   Linux, containers, and CI produce the same result. `.clang-tidy` selects
+   correctness, lifetime, performance, and portability checks. cppcheck
+   supplies an independent warning/portability analysis. Both analyzers are
+   wired through CMake only for GraphX-owned targets, excluding fetched
    dependencies.
+   ASan, UBSan, symbolization, and libFuzzer acceptance also use LLVM 21. The
+   independent GCC and Apple-Clang native-build matrix remains for portability
+   coverage.
 4. Clang libFuzzer targets accept raw envelope bytes and framed-stream bytes.
    They are built only when explicitly enabled and always with ASan/UBSan.
    Golden v1/v2 fixtures seed a temporary corpus; routine CI campaigns are time

@@ -6,3 +6,7 @@ web/dist
 outputs
 work
 /outputs/linux-container/
+/examples/qemu-node/output/
+/examples/qemu-node/dl/
+/examples/qemu-node/.state/
+**/__pycache__/

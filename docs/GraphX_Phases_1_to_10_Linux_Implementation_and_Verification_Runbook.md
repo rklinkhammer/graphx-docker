@@ -79,12 +79,32 @@ Before privileged testing:
 
 ### 4.1 Native build and analysis tools
 
+Ubuntu 24.04 does not provide LLVM 21 in its base archive. Configure the
+official LLVM repository and verify its signing-key fingerprint before
+installing the pinned quality tools:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y ca-certificates curl gnupg
+curl --fail --silent --show-error \
+  https://apt.llvm.org/llvm-snapshot.gpg.key \
+  -o /tmp/llvm-snapshot.gpg.key
+test "$(gpg --show-keys --with-colons /tmp/llvm-snapshot.gpg.key \
+  | awk -F: '$1 == "fpr" { print $10; exit }')" \
+  = "6084F3CF814B57C1CF12EFD515CF4D18AF4F7421"
+gpg --dearmor < /tmp/llvm-snapshot.gpg.key \
+  | sudo tee /usr/share/keyrings/apt.llvm.org.gpg >/dev/null
+echo "deb [signed-by=/usr/share/keyrings/apt.llvm.org.gpg] https://apt.llvm.org/noble/ llvm-toolchain-noble-21 main" \
+  | sudo tee /etc/apt/sources.list.d/llvm-21.list
+rm /tmp/llvm-snapshot.gpg.key
+```
+
 ```bash
 sudo apt-get update
 sudo apt-get install -y \
   git cmake ninja-build build-essential \
-  clang-18 clang-tools-18 clang-format-18 clang-tidy-18 \
-  libclang-rt-18-dev cppcheck \
+  clang-21 clang-tools-21 clang-format-21 clang-tidy-21 \
+  libclang-rt-21-dev libfuzzer-21-dev cppcheck \
   libssl-dev openssl curl jq xxd python3 \
   iproute2 nftables openvswitch-switch tcpdump tshark wireshark-common
 ```
@@ -94,7 +114,7 @@ Requirements:
 - CMake 3.25 or newer.
 - A compiler supporting C++20 and C++23.
 - OpenSSL 3 development headers.
-- `clang-format-18`, `clang-tidy-18`, and Clang 18 with libFuzzer.
+- `clang-format-21`, `clang-tidy-21`, and Clang 21 with compiler-rt and libFuzzer.
 - Python 3 and TShark for release and Wireshark tests.
 
 Verify the installed versions:
@@ -103,18 +123,17 @@ Verify the installed versions:
 cmake --version
 ninja --version
 g++ --version
-clang++-18 --version
-clang-format-18 --version
-clang-tidy-18 --version
+clang++-21 --version
+clang-format-21 --version
+clang-tidy-21 --version
 cppcheck --version
 openssl version
 python3 --version
 tshark --version
 ```
 
-The repository intentionally names Clang 18 tools explicitly. A newer formatter
-is not interchangeable because formatting output changes between major
-versions.
+The repository intentionally pins the formatter and analyzer to LLVM 21.
+Formatting output and analyzer diagnostics can change between major versions.
 
 ### 4.2 Node.js
 
@@ -326,18 +345,18 @@ scripts/test-linux-container.sh sanitizers
 Native equivalents are:
 
 ```bash
-CLANG_FORMAT=clang-format-18 scripts/check-format.sh
-CLANG_TIDY=clang-tidy-18 CPPCHECK=cppcheck \
+CLANG_FORMAT=clang-format-21 scripts/check-format.sh
+CLANG_TIDY=clang-tidy-21 CPPCHECK=cppcheck \
   GRAPHX_QUALITY_BUILD_DIR="$PWD/build/quality-$RUN_ID" \
   scripts/run-static-analysis.sh
 
-CC=clang-18 CXX=clang++-18 cmake --preset sanitizers --fresh
+CC=clang-21 CXX=clang++-21 cmake --preset sanitizers --fresh
 cmake --build --preset sanitizers -j "$(nproc)"
 ASAN_OPTIONS='detect_leaks=1:strict_string_checks=1' \
 UBSAN_OPTIONS='print_stacktrace=1:halt_on_error=1' \
   ctest --preset sanitizers --output-on-failure
 
-CC=clang-18 CXX=clang++-18 GRAPHX_FUZZ_SECONDS=30 \
+CC=clang-21 CXX=clang++-21 GRAPHX_FUZZ_SECONDS=30 \
   GRAPHX_FUZZ_BUILD_DIR="$PWD/build/fuzz-$RUN_ID" scripts/run-fuzz.sh
 ```
 
@@ -637,7 +656,7 @@ set `strict-ssl=false`, or bake private certificates into source control.
 
 ### Fuzzer cannot find support libraries
 
-Use Clang 18 and install `libclang-rt-18-dev`. Verify the compiler selected by
+Use Clang 21 and install `libclang-rt-21-dev` and `libfuzzer-21-dev`. Verify the compiler selected by
 the fuzzer build is `clang++-18`, not GCC or another Clang major.
 
 ### A port is already in use

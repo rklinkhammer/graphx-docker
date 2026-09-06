@@ -75,7 +75,52 @@ run_quick() {
   ctest --preset dev
 }
 
+select_llvm21_sanitizer_toolchain() {
+  local compiler_dir compiler_version
+
+  if test -n "${GRAPHX_SANITIZER_CC:-}" || test -n "${GRAPHX_SANITIZER_CXX:-}"; then
+    test -n "${GRAPHX_SANITIZER_CC:-}" && test -n "${GRAPHX_SANITIZER_CXX:-}" || {
+      echo "set both GRAPHX_SANITIZER_CC and GRAPHX_SANITIZER_CXX" >&2
+      return 2
+    }
+    CC=$GRAPHX_SANITIZER_CC
+    CXX=$GRAPHX_SANITIZER_CXX
+  elif test "$(uname -s)" = Darwin; then
+    command -v brew >/dev/null || {
+      echo "LLVM 21 sanitizer testing on macOS requires Homebrew llvm@21" >&2
+      return 2
+    }
+    compiler_dir=$(brew --prefix llvm@21)/bin
+    CC=$compiler_dir/clang
+    CXX=$compiler_dir/clang++
+  else
+    CC=clang-21
+    CXX=clang++-21
+  fi
+
+  command -v "$CC" >/dev/null || { echo "LLVM 21 compiler not found: $CC" >&2; return 2; }
+  command -v "$CXX" >/dev/null || { echo "LLVM 21 compiler not found: $CXX" >&2; return 2; }
+  compiler_version=$("$CXX" --version)
+  if grep -q "Apple clang" <<<"$compiler_version" || \
+      ! grep -q "version 21\." <<<"$compiler_version"; then
+    echo "GraphX sanitizer acceptance requires LLVM 21.x; found: $compiler_version" >&2
+    return 2
+  fi
+
+  compiler_dir=$(dirname "$(command -v "$CXX")")
+  if test -x "$compiler_dir/llvm-symbolizer"; then
+    ASAN_SYMBOLIZER_PATH=$compiler_dir/llvm-symbolizer
+    export ASAN_SYMBOLIZER_PATH
+  elif command -v llvm-symbolizer-21 >/dev/null; then
+    ASAN_SYMBOLIZER_PATH=$(command -v llvm-symbolizer-21)
+    export ASAN_SYMBOLIZER_PATH
+  fi
+  export CC CXX
+  echo "Sanitizer compiler: CC=$CC CXX=$CXX"
+}
+
 run_sanitizers() {
+  select_llvm21_sanitizer_toolchain
   gate "configure sanitizer build"
   cmake --preset sanitizers --fresh
   gate "build sanitizer targets"
@@ -119,6 +164,7 @@ case "$PROFILE" in
     scripts/test-features.sh portable
     ;;
   full)
+    select_llvm21_sanitizer_toolchain
     gate "format"
     scripts/check-format.sh
     gate "static analysis"

@@ -334,28 +334,23 @@ class ConfigParser {
       const auto value = nodes[index];
       if (!require_map(value, path)) continue;
       strict_keys(value, path,
-                  {"id", "kind", "runtime", "execution", "lifecycle", "control",
-                   "accelerator", "architecture", "ports"});
+                  {"id", "kind", "runtime", "execution", "lifecycle", "control", "accelerator",
+                   "architecture", "ports"});
       NodeConfig node;
       node.id = text(value["id"], path + ".id", 64);
       identifier(node.id, path + ".id");
       node.kind = text(value["kind"], path + ".kind", 64);
       identifier(node.kind, path + ".kind");
-      if (value["runtime"])
-        node.runtime = text(value["runtime"], path + ".runtime", 32);
+      if (value["runtime"]) node.runtime = text(value["runtime"], path + ".runtime", 32);
       if (node.runtime != "process" && node.runtime != "docker" && node.runtime != "qemu")
         error(path + ".runtime", "must be 'process', 'docker', or 'qemu'");
-      if (value["execution"])
-        node.execution = text(value["execution"], path + ".execution", 32);
-      if (node.execution != "local" && node.execution != "host" &&
-          node.execution != "container")
+      if (value["execution"]) node.execution = text(value["execution"], path + ".execution", 32);
+      if (node.execution != "local" && node.execution != "host" && node.execution != "container")
         error(path + ".execution", "must be 'local', 'host', or 'container'");
-      if (value["lifecycle"])
-        node.lifecycle = text(value["lifecycle"], path + ".lifecycle", 32);
+      if (value["lifecycle"]) node.lifecycle = text(value["lifecycle"], path + ".lifecycle", 32);
       if (node.lifecycle != "managed" && node.lifecycle != "external")
         error(path + ".lifecycle", "must be 'managed' or 'external'");
-      if (value["control"])
-        node.control = text(value["control"], path + ".control", 32);
+      if (value["control"]) node.control = text(value["control"], path + ".control", 32);
       if (node.control != "graphx" && node.control != "origin" && node.control != "none")
         error(path + ".control", "must be 'graphx', 'origin', or 'none'");
       if (value["accelerator"])
