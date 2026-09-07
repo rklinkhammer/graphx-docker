@@ -11,6 +11,7 @@ RUN --mount=type=secret,id=graphx_ca,required=false \
 FROM python:3.13-alpine@sha256:7415fbc3c9e4979cc717d92377ab2bc7b2b4a2af1ac03cc52b5f3f88efedaf3a
 COPY --from=trust /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+#RUN sed -i 's/https/http/g' /etc/apk/repositories
 RUN apk add --no-cache tcpdump
 RUN addgroup -S -g 65532 graphx && adduser -S -D -H -u 65532 -G graphx graphx
 WORKDIR /opt/graphx-sdr

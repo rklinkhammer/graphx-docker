@@ -16,6 +16,7 @@ ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt \
     npm_config_cafile=/etc/ssl/certs/ca-certificates.crt
 WORKDIR /app/web
 COPY web/package*.json ./
+RUN npm config set strict-ssl true
 RUN npm ci
 COPY web/ ./
 RUN npm run build
