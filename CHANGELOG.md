@@ -21,6 +21,9 @@ All notable GraphX changes are recorded here. The format follows
 
 ### Fixed
 
+- Made the guided demo derive health checks and its console URL from
+  `GRAPHX_PUBLISHED_HTTP_PORT`, reject an unrelated HTTP service already using
+  that port, and print telemetry logs when readiness times out.
 - Canonicalized the unified QEMU profiles decision as ADR 0013 after its
   original number collided with the existing UDP ADR 0012, and added a
   maintained decision index.

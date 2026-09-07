@@ -46,6 +46,13 @@ The **Network path** view shows the portable demo's Docker bridge path.
 Node cards show measured process CPU; this lightweight demo commonly uses less
 than 1%, so the console retains two decimal places for those readings.
 
+If port 8080 is in use, select another loopback port and open the URL printed by
+the command:
+
+```sh
+GRAPHX_PUBLISHED_HTTP_PORT=18080 scripts/demo.sh start
+```
+
 Authenticated source control is enabled automatically for the guided demo.
 Paste the token printed by `start` (or by the following command) into the
 console's **Control token** field:
@@ -145,7 +152,7 @@ Common causes:
 
 | Symptom | Meaning and next action |
 |---|---|
-| Port 8080 is already allocated | Stop the other service using the port, then rerun `scripts/demo.sh start`. |
+| Port 8080 is already allocated, or the browser shows a repository directory | Another HTTP process owns port 8080. Stop it, or run `GRAPHX_PUBLISHED_HTTP_PORT=18080 scripts/demo.sh start` and open the printed URL. |
 | A service repeatedly exits | Read that service's logs; stale local images can be rebuilt with `docker compose build --no-cache`. |
 | Counts change only after a refresh | Recreate the telemetry container after updating `compose.yaml`; both `localhost` and `127.0.0.1` are allowed WebSocket origins. |
 | Console says connecting | Verify `curl http://localhost:8080/api/health`, then reload the page. |

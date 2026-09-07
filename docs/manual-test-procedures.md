@@ -120,7 +120,8 @@ scripts/demo.sh status
 scripts/demo.sh token
 ```
 
-Open <http://127.0.0.1:8080>. Confirm Application and Network views render,
+Open the console URL printed by `start`, normally <http://127.0.0.1:8080>.
+Confirm Application and Network views render,
 both TCP edges connect, counters advance without refresh, sink values are twice
 their sequence, Pause/Resume works after entering the token, History remains
 usable after view changes, and a capture can be downloaded when capture is

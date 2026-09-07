@@ -49,20 +49,35 @@ observation and control credentials are generated under `.graphx/`.
 
 ```sh
 scripts/demo.sh start
-scripts/demo.sh verify
-scripts/demo.sh status
-scripts/demo.sh logs
-scripts/demo.sh token
-scripts/demo.sh stop
 ```
 
-Open <http://127.0.0.1:8080>. Success means both edges are connected, counters
-advance, and sink output contains `value=2*sequence`. Enter the printed token to
-pause and resume the generator. Application, Network, and History views should
-survive navigation, and enabled capture files should download. `stop` removes
-containers and the private bridge but retains bounded captures/history and the
-local credential file. See [`complete-system-demo.md`](complete-system-demo.md)
-for the full walkthrough and troubleshooting table.
+After `start` prints five `PASS` lines, open its printed console URL. Success
+means both edges are connected, counters advance, and sink output contains
+`value=2*sequence`. Enter the printed token to pause and resume the generator.
+Application, Network, and History views should survive navigation, and enabled
+capture files should download.
+
+Run these commands individually when needed:
+
+```sh
+scripts/demo.sh verify  # Repeat the automated checks.
+scripts/demo.sh status  # Show service status and recent sink values.
+scripts/demo.sh token   # Print the control token again.
+scripts/demo.sh logs    # Follow live output; press Ctrl-C to leave it.
+scripts/demo.sh stop    # Stop and remove the demo containers and network.
+```
+
+Stopping retains bounded captures/history and the local credential file. See
+[`complete-system-demo.md`](complete-system-demo.md) for the full walkthrough
+and troubleshooting table.
+
+If port 8080 is already occupied, choose another port. The script uses the same
+value for Docker publication, health checks, allowed browser origins, and the
+printed console URL:
+
+```sh
+GRAPHX_PUBLISHED_HTTP_PORT=18080 scripts/demo.sh start
+```
 
 ## 3. Local transport and capture examples
 

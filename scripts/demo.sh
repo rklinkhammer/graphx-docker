@@ -4,7 +4,9 @@ set -euo pipefail
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 source "$ROOT/scripts/configure-build-trust.sh"
 COMPOSE=(docker compose -f "$ROOT/compose.yaml" -f "$ROOT/compose.history.yaml")
-URL=${GRAPHX_DEMO_URL:-http://127.0.0.1:8080}
+PUBLISHED_HTTP_PORT=${GRAPHX_PUBLISHED_HTTP_PORT:-8080}
+LOCAL_URL="http://127.0.0.1:$PUBLISHED_HTTP_PORT"
+URL=${GRAPHX_DEMO_URL:-$LOCAL_URL}
 DEMO_STATE_DIR=${GRAPHX_DEMO_STATE_DIR:-"$ROOT/.graphx"}
 DEMO_ENV_FILE="$DEMO_STATE_DIR/demo.env"
 
@@ -30,6 +32,28 @@ require() {
     echo "Missing prerequisite: $1" >&2
     exit 2
   }
+}
+
+preflight_http_endpoint() {
+  case "$PUBLISHED_HTTP_PORT" in
+    ''|*[!0-9]*) echo "GRAPHX_PUBLISHED_HTTP_PORT must be from 1 through 65535" >&2; return 2 ;;
+  esac
+  test "$PUBLISHED_HTTP_PORT" -ge 1 && test "$PUBLISHED_HTTP_PORT" -le 65535 || {
+    echo "GRAPHX_PUBLISHED_HTTP_PORT must be from 1 through 65535" >&2
+    return 2
+  }
+
+  local health
+  health=$(curl -fsS --max-time 2 "$LOCAL_URL/api/health" 2>/dev/null || true)
+  if grep -Fq '"service":"graphx-telemetry"' <<<"$health"; then
+    return
+  fi
+  if curl -sS --max-time 2 --output /dev/null "$LOCAL_URL/" 2>/dev/null; then
+    echo "Cannot start GraphX: $LOCAL_URL is already served by another HTTP process." >&2
+    echo "Stop that process or choose another port, for example:" >&2
+    echo "  GRAPHX_PUBLISHED_HTTP_PORT=18080 scripts/demo.sh start" >&2
+    return 2
+  fi
 }
 
 valid_demo_credential() {
@@ -117,6 +141,7 @@ wait_for_telemetry() {
   done
   printf ' timed out\n' >&2
   "${COMPOSE[@]}" ps >&2
+  "${COMPOSE[@]}" logs --tail=100 telemetry >&2
   return 1
 }
 
@@ -212,6 +237,7 @@ case "$demo_command" in
   start)
     require docker
     require curl
+    preflight_http_endpoint
     ensure_demo_credentials
     configure_demo_features
     if test "$disable_capture" = true; then export GRAPHX_CAPTURE_ENABLED=false; fi

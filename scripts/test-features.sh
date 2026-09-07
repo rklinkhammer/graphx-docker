@@ -411,7 +411,7 @@ docker_suite() {
     curl -fsS "http://127.0.0.1:$docker_http_port/api/health" >/dev/null && break
     sleep 1
   done
-  GRAPHX_DEMO_URL="http://127.0.0.1:$docker_http_port" "$ROOT/scripts/demo.sh" verify
+  "$ROOT/scripts/demo.sh" verify
   docker compose -f "$ROOT/compose.yaml" ps
   docker compose -f "$ROOT/compose.yaml" down --remove-orphans
   step "Run isolated UDP broadcast example"

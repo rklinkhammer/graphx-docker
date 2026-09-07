@@ -52,7 +52,8 @@ The command creates reusable local demo credentials in the ignored
 `.graphx/demo.env` file, enables bounded PCAPNG capture and SQLite history,
 builds and starts the complete portable system, and proves that both TCP message
 counters advance. A healthy run prints five `PASS` lines and the control token
-to paste into the console. Open [http://localhost:8080](http://localhost:8080); the console
+to paste into the console. Open the printed console URL, normally
+[http://localhost:8080](http://localhost:8080); the console
 should show **Traffic flowing**, all three nodes running, and increasing sample
 counts. Use `scripts/demo.sh token` to print the same control token later. To see
 the doubled values arriving at the sink:
@@ -60,6 +61,9 @@ the doubled values arriving at the sink:
 ```sh
 scripts/demo.sh logs
 ```
+
+If port 8080 is occupied, run
+`GRAPHX_PUBLISHED_HTTP_PORT=18080 scripts/demo.sh start` and use the printed URL.
 
 Use `Ctrl-C` to leave the log view, then stop the system with:
 

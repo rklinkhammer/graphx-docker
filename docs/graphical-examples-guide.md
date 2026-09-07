@@ -48,9 +48,10 @@ scripts/verify.sh quick
 ```
 
 The console is served at <http://127.0.0.1:8080>; the standard Compose demo also
-allows <http://localhost:8080>. Port 8080 must be free. Use a different `PORT`
-and matching browser URL if another service owns it, and include that exact
-origin in `GRAPHX_ALLOWED_ORIGINS` for a Compose deployment.
+allows <http://localhost:8080>. If another service owns port 8080, run
+`GRAPHX_PUBLISHED_HTTP_PORT=18080 scripts/demo.sh start` and use the printed
+console URL. The guided script applies the port to Docker publication, health
+checks, and allowed browser origins together.
 
 ## 2. Understand the three credentials
 
@@ -96,7 +97,8 @@ live browser metrics and runtime controls.
    scripts/demo.sh start
    ```
 
-2. Open <http://127.0.0.1:8080>.
+2. Open the console URL printed by the script; the default is
+   <http://127.0.0.1:8080>.
 3. If you explicitly configured `GRAPHX_OBSERVATION_TOKEN`, enter it in
    **Observation token**. Otherwise leave that field empty.
 4. Paste the value printed by `scripts/demo.sh token` into **Control token**.
