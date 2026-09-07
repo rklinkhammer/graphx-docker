@@ -19,6 +19,12 @@ native source-PCAP ownership, and host-Python TLS readiness failures. Two
 portable and two native OVS/SPAN cycles passed, followed by the complete Linux
 verification profile, so Phase 13 is part of the accepted chain.
 
+The updated repository at `9d60238` was revalidated on macOS after the Linux
+results were checked in. Portable, focused SDR, GUI/browser, default and opt-out
+lifecycle, capture/history, adverse-port, quality, sanitizer, and fuzz checks
+all passed. Native Linux evidence was accepted from the checked-in operator run
+and was not misrepresented as having been rerun on macOS.
+
 Phase 1 has no checked-in handoff or independent verification report. Phase 2
 has a detailed implementation handoff, test record, and completed acceptance
 checklist, but no separate independent verification report. Later cumulative
@@ -41,7 +47,7 @@ replacement for the missing phase-specific independent records.
 | 10 | `phase_10_verification.md` | **ACCEPTED** | Release/package contract accepted; report states no remaining Linux acceptance gate. |
 | 11 | `phase_11_verification.md` | **ACCEPTED** | Native Linux directed-broadcast and live-capture evidence closes UDP-003/UDP-009. |
 | 12 | `phase_12_verification.md` | **ACCEPTED** | External Linux, container TCG/KVM/auto/denial, capture/history, GUI/control, hardening, lifecycle, cleanup, and corrected TShark inspection passed. |
-| 13 | `phase_13_verification.md` | **ACCEPTED** | Portable default/opt-out and native OVS/SPAN default/opt-out cycles passed; F-013-06, F-013-08, and F-013-09 are closed; full Linux verification passed. |
+| 13 | `phase_13_verification.md` | **ACCEPTED** | All SDR-001 through SDR-012 rows are implemented; portable default/opt-out and native OVS/SPAN default/opt-out cycles passed; all Phase 13 findings are closed; full Linux plus updated-repository macOS verification passed. |
 
 ## Review conclusions
 

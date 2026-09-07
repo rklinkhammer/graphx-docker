@@ -4,8 +4,9 @@
 
 **Verification date:** 2026-09-06  
 **Repository:** `/Users/rklinkhammer/workspace/graphx-docker`  
-**Branch / baseline:** `main` / `c9db9bb9bfe26b122710eaa88a58a5506b50e378`  
-**Verified state:** uncommitted Phase 13 working tree; no product implementation was changed by this verification  
+**Original branch / baseline:** `main` / `c9db9bb9bfe26b122710eaa88a58a5506b50e378`
+**Current revalidation:** `main` / `9d6023802e169e27116ba9019123712fa0bfccab` on 2026-09-07
+**Verified state:** the updated, checked-in Phase 13 implementation; no product implementation was changed by this verification
 **Contracts:** `prompt/implement.md`, `prompt/verifier.md`, and section 6 of `prompt/architectural_roadmap_implementation_plan.md`
 
 **Linux follow-up:** Ubuntu 26.04.1 LTS, kernel 7.0.0-31-generic, x86_64,
@@ -17,8 +18,8 @@ host and commit state.
 **Remediation revalidation:** commit `6d1b36f` on the same Ubuntu host on
 2026-09-07. The ownership guard, port handling, portable rollback, UDP source
 policy, and native PID-file handling improved. The current focused SDR CTest,
-portable Linux runtime, and native OVS/SPAN runtime still fail, so Phase 13
-remains outside the accepted chain.
+portable Linux runtime, and native OVS/SPAN runtime still failed, so Phase 13
+remained outside the accepted chain at that checkpoint.
 
 **Linux-host implementation completion:** the working tree based on `6d1b36f`
 was independently rerun on 2026-09-07 after the focused fixes below. Both
@@ -40,13 +41,14 @@ second with capture and history disabled. Existing portable compatibility,
 quality, sanitizer, fuzz, telemetry, GUI, configuration, and documentation
 checks passed.
 
-Phase 13 is **not accepted**. The contract requires the portable simulation on
+**Superseded macOS-only verdict:** Phase 13 was not accepted at the original
+macOS-only checkpoint. The contract requires the portable simulation on
 macOS and Linux and the OVS/SPAN profile on native Linux. This verifier only had
 macOS with a Linux Docker Desktop VM; that environment cannot prove OVS,
 macvlan, network namespaces, host listeners, SPAN traffic, privilege boundaries,
 or exact native cleanup. Dry-run commands are inspection evidence only.
 
-The Linux follow-up supplied both missing environments but neither mandatory
+**Superseded initial Linux follow-up:** the first Linux follow-up supplied both missing environments but neither mandatory
 SDR runtime gate passed. The portable profile's `packet-capture` service cannot
 create `/captures/sdr-node.pcap` in the mode-0700 bind-mounted run directory.
 The native profile creates its OVS/macvlan/namespace infrastructure and starts
@@ -72,7 +74,8 @@ rotated PCAP files readable by the non-root observer. The focused TLS test now
 waits for explicit server-context readiness before mutating process-wide test
 credentials.
 
-Independent verification also found four implementation gaps:
+The original independent verification also found four implementation gaps,
+all of which are retained below as superseded history:
 
 1. native cleanup can delete fixed-name host resources without proving they
    belong to the current run;
@@ -98,18 +101,25 @@ No physical SDR was attached. Simulator success is not physical-hardware proof.
 - **Portable automated:** C++20/C++23 suites, configuration/schema gates,
   telemetry, GUI, SDR protocol/TLS smoke checks, compatibility, packaging,
   quality, sanitizer, and fuzz gates.
-- **Native-Linux runtime — not verified:** OVS, SPAN, macvlan, network namespace,
-  native PID ownership, listeners, interruption recovery, and exact teardown.
-- **Linux follow-up runtime — failed:** portable tcpdump output creation and
-  native tcpdump PID ownership validation both block startup and acceptance.
+- **Native-Linux runtime — verified by checked-in Linux-host evidence:** two
+  native OVS/SPAN cycles covered the bridge, ports, mirror, namespace endpoint,
+  source capture ownership, live observation, control, opt-outs, and exact
+  teardown. The macOS revalidation did not re-execute Linux host networking.
+- **Linux follow-up runtime — historical failure, superseded:** portable tcpdump
+  output creation and native tcpdump PID ownership initially blocked startup;
+  later Linux completion cycles passed after remediation.
 - **Inspection only:** external configuration and Compose render, infrastructure
   dry-run, scripts, ownership declarations, capabilities, and documentation.
 - **Not applicable:** physical SDR attachment and RF behavior.
-- **Failed:** occupied-port diagnostics and the associated port-override case.
+- **Adversarial portable runtime — verified:** occupied and invalid GUI ports
+  fail with actionable nonzero exits and leave no Compose resources.
 
 The implementation handoff was treated as a source of test leads, not as proof.
 
 ## 3. Environment and repository audit
+
+This table records the original macOS checkpoint. The current repository and
+tool revalidation is recorded in section 9.4.
 
 | Item | Independently observed value |
 |---|---|
@@ -153,25 +163,26 @@ and the QEMU static regression passed.
 The portable profile uses a private Docker bridge and is labeled as a
 simulation. The external plan uses one macvlan network, `br-sdr`, three veth
 ports, an all-traffic OVS mirror, a disposable namespace endpoint, and `sdr-cap`.
-The plan never attaches a physical interface. These native properties were
-inspected, not executed.
+The plan never attaches a physical interface. At the original macOS checkpoint,
+these native properties were inspected but not executed; the later Linux-host
+completion supplied the native runtime evidence.
 
 ## 5. SDR-001 through SDR-012 traceability
 
 | ID | Requirement | Implementation evidence/path | Independent validation evidence | Status | Remediation |
 |---|---|---|---|---|---|
-| SDR-001 | Equivalent one-SDR/switch/processor/sink raw topology and accurate ownership | `examples/sdr-node/{simulated,external}/graphx.yaml`; schema/config loader; ADR 0014 | Both configs validated and inspected; live simulated API/GUI showed 3 nodes, 3 raw edges, bridge simulation, and external SDR ownership | **Implemented** | Confirm the same normalized hierarchy in the native GUI run |
+| SDR-001 | Equivalent one-SDR/switch/processor/sink raw topology and accurate ownership | `examples/sdr-node/{simulated,external}/graphx.yaml`; schema/config loader; ADR 0014 | Both configs validated and inspected; live simulated API/GUI showed 3 nodes and 3 raw edges; Linux native verification confirmed the external hierarchy and ownership boundary | **Implemented** | Retain cross-profile topology checks |
 | SDR-002 | Deterministic bounded raw UDP IQ; malformed and mismatched input rejected; no GraphX framing | `common/protocol.py`, `sdr_simulator.py`, `processor.py`; UDP 18400 with `framing: none` | Remediation adds source-address enforcement and boundary, corruption, duplicate, reorder, loss, and restart cases; these execute before the later TLS test failure | **Implemented** | Retain the new source-policy and protocol cases |
 | SDR-003 | TLS 1.3 mTLS, peer verification, four exact commands, bounded JSON lines, state/rejection tests | `common/sdr_simulator.py`, `processor.py`, `sdrctl.py`, `generate_tls.sh` | Expanded host test and live portable/native controls pass; malformed framing, certificate, replay, schema, and command cases complete | **Implemented** | Retain cross-platform host-Python and live mTLS coverage |
-| SDR-004 | Shared implementation and consistent semantics; GUI reset remains collector-only | shared `common`, shared observer/telemetry/GUI, thin profile configs; GUI control target is processor | Both Compose files reference the shared code/image; QEMU static tests and GUI topology tests passed; pause/resume used processor mTLS; Reset documentation and existing GUI tests passed | **Implemented** | Reconfirm native profile uses identical command/evidence behavior |
+| SDR-004 | Shared implementation and consistent semantics; GUI reset remains collector-only | shared `common`, shared observer/telemetry/GUI, thin profile configs; GUI control target is processor | Both Compose files reference the shared code/image; QEMU static tests and GUI topology tests passed; pause/resume used processor mTLS; Reset documentation and existing GUI tests passed | **Implemented** | Retain shared-semantics regression coverage |
 | SDR-005 | Native Linux OVS bridge/ports/mirror, endpoint, packet path, and exact teardown | external graph, Compose, and `external/scripts/demo.sh`; infra planner | Two Linux native cycles passed; OVS/SPAN counters advanced, history was queryable, controls worked, PCAP stayed operator-owned, and teardown was exact | **Implemented** | Retain repeated native ownership and cleanup checks |
-| SDR-006 | Packet-derived live API/WebSocket counters without fabricated GraphX messages | generalized packet observer emits `network_packet`; telemetry allow-list includes `ethernet-pcap`/`ovs-span` | Simulated counters advanced repeatedly; browser values advanced from 228/228 to 241/241 without refresh; traffic/history reported `network_packet` | **Partial** | Repeat API and WebSocket proof on portable Linux and native OVS/SPAN |
+| SDR-006 | Packet-derived live API/WebSocket counters without fabricated GraphX messages | generalized packet observer emits `network_packet`; telemetry allow-list includes `ethernet-pcap`/`ovs-span` | Simulated browser counters advanced without refresh; Linux portable and native OVS/SPAN counters advanced; traffic/history reported `network_packet` | **Implemented** | Retain live portable and native counter checks |
 | SDR-007 | Default-on bounded Ethernet PCAPNG and separate history; query/download; disable flags | observer, telemetry capture/history APIs, Compose bounds, graph configs | Portable and native default cycles produced live counters/history/capture; both opt-out cycles reported disabled APIs and zero retained records | **Implemented** | Retain Linux bind-mount and native rotation ownership checks |
-| SDR-008 | Accurate GUI ownership; live updates, controls, capture/history, all tab transitions | existing web console plus SDR topology metadata/tests | Real browser showed topology/live changes; Application, Network, History, Capture, and History → Network transitions rendered; API control changed SDR state | **Partial** | Repeat browser checks on Linux/native topology; interactively enter a token and exercise buttons in an operator-controlled session |
+| SDR-008 | Accurate GUI ownership; live updates, controls, capture/history, all tab transitions | existing web console plus SDR topology metadata/tests | Real browser showed topology/live changes; Application, Network, History, Capture, and History → Network transitions rendered; direct and GUI-relayed controls changed SDR state; Linux runtime confirmed native observation | **Implemented** | Retain browser tab-transition and control checks |
 | SDR-009 | Preflight, idempotence, waits, rollback, PID ownership, restart, cleanup | both `demo.sh` files; native PID marker checks and ERR trap | Port diagnostics, rollback, readable PID files, per-run ownership refusal, two cycles per profile, repeated stop, and exact cleanup passed | **Implemented** | Retain lifecycle fault-injection coverage |
-| SDR-010 | Private/loopback exposure, protected keys, least privilege, bounds, no broad kill or physical adoption | Compose hardening, loopback publish, private networks, TLS generation, bounded parsers/storage, fixed PID kill, ownership docs | Key/state modes inspected; telemetry only published to loopback; no broad `pkill`/`killall`; security/history/capture tests passed | **Partial** | Fix unowned native-resource deletion; inspect live native users/groups/caps/mounts/listeners/routes and capture limits |
+| SDR-010 | Private/loopback exposure, protected keys, least privilege, bounds, no broad kill or physical adoption | Compose hardening, loopback publish, private networks, TLS generation, bounded parsers/storage, fixed PID kill, ownership docs | Key/state modes and capabilities were inspected; telemetry publishes only to loopback; no broad `pkill`/`killall`; Linux ownership refusal, source-PCAP ownership, security/history/capture, and exact-cleanup checks passed | **Implemented** | Retain collision-fixture, capability, and cleanup audits |
 | SDR-011 | No regressions to transports, QEMU, config, packaging, demos, or quality | additive schema/config changes and QEMU-compatible observer defaults | Current full Linux verification passed in 340 s with three 34/34 CTest runs and the Docker feature suite | **Implemented** | Retain both platform regression gates |
-| SDR-012 | Complete accurate architecture, ADR, indexes, profile guides, GUI/control/inspection/cleanup/troubleshooting | `examples/sdr-node` READMEs; `docs/GraphX_Architecture.md`; ADR 0014; examples/graphical/test guides | Documentation-consistency test passed and portable commands were followed literally; native commands inspected only | **Implemented** | Correct the documented/preflight port behavior after code remediation and append Linux results |
+| SDR-012 | Complete accurate architecture, ADR, indexes, profile guides, GUI/control/inspection/cleanup/troubleshooting | `examples/sdr-node` READMEs; `docs/GraphX_Architecture.md`; ADR 0014; examples/graphical/test guides | Documentation-consistency test passed; portable commands were followed literally; checked-in Linux results cover the native workflow | **Implemented** | Retain documentation-command consistency checks |
 
 ## 6. Wire, control, capture, history, and GUI results
 
@@ -274,6 +285,12 @@ and namespace markers are now present. A disposable `gx-sdr-native` network
 with the wrong owner label survived `stop`, which refused cleanup with exit 2.
 The complete collision and forged-state matrix has not yet run.
 
+**Linux-host implementation completion: CLOSED.** The checked-in Linux result
+records per-run ownership refusal, two successful native cycles, repeated stop,
+and exact cleanup without removing the wrong-owner collision fixture. Retain
+the broader forged-state and startup-interruption matrix as regression work,
+not as an open Phase 13 acceptance blocker.
+
 ### F-013-02 — High: portable failed starts do not roll back
 
 The simulated launcher's `start` path creates state, certificates, a run
@@ -347,6 +364,11 @@ fresh-connection/replay independence; and exact per-action schemas.
 **Revalidation at `6d1b36f`: PARTIAL REMEDIATION.** The requested protocol,
 framing, schema, untrusted/expired certificate, and fresh-connection cases were
 added, but the test fails before completing them; see F-013-09.
+
+**Linux-host implementation completion: CLOSED.** The readiness remediation
+allowed the expanded table of protocol, schema, framing, certificate, and
+fresh-connection cases to complete on Linux. The same focused test also passes
+in the current macOS revalidation.
 
 ### F-013-06 — High: portable packet capture cannot start on Linux
 
@@ -541,9 +563,35 @@ inspection command incorrectly attempted to parse human-readable output as
 JSON. Both were verifier setup errors; corrected repetitions passed and neither
 is attributed to the product.
 
-## 10. Native-Linux re-verification still required
+### 9.4 Updated-repository revalidation at `9d60238`
 
-For future release revalidation, rerun on a native Linux host with
+The current verifier accepted the checked-in Linux-native results as direct
+operator runtime evidence and independently reran the portable/macOS portion
+against the updated repository revision.
+
+| Command/check | Result |
+|---|---|
+| clean baseline and `git diff --check` | **PASS** — `main` at `9d60238`; no pre-existing working-tree changes |
+| `scripts/verify.sh portable` | **PASS** — C++23 34/34, C++20 34/34, all checked-in configurations, telemetry 76/76, GUI 14/14, and portable feature suite; 60 s; log `outputs/verification/20260907T004720Z-portable.log` |
+| focused SDR Python and five focused CTests | **PASS** — parser, endpoint, framing, mTLS/certificate, lifecycle/static, QEMU, documentation, and both SDR configurations |
+| simulated default lifecycle on port 28113 | **PASS** — start/status/verify/control/stop, live counters 181/181 to 195/195 without refresh, all tabs including History → Network, and repeated cleanup |
+| default capture/history inspection | **PASS** — Ethernet PCAPNG, 3,393 packets, strict time order, independently decoded UDP/TCP ports, and 744 SQLite packet-history rows |
+| simulated opt-out lifecycle on port 28114 | **PASS** — live observation/control remained active, capture catalog reported disabled, history returned 503 disabled, and repeated cleanup succeeded |
+| occupied port, invalid port, and external-on-macOS rejection | **PASS** — actionable exits 1, 1, and 2 respectively; no residual Phase 13 containers or networks |
+| configuration validation, Compose render, and native infra dry-run | **PASS** after supplying the launcher's required render environment; dry-run remains inspection-only |
+| `scripts/verify.sh quality` | **PASS** — format and static analysis; log `outputs/verification/20260907T005022Z-quality.log` |
+| `scripts/verify.sh sanitizers` | **PASS** — LLVM 21 UBSan 34/34 plus sanitizer coverage; package test disabled by profile; log `outputs/verification/20260907T005128Z-sanitizers.log` |
+| `scripts/verify.sh fuzz` | **PASS** — bounded envelope and frame fuzz runs, 30 seconds each; log `outputs/verification/20260907T005154Z-fuzz.log` |
+
+No control token was entered through browser automation. That credential was
+instead exercised by the launcher's authenticated GUI-relay verification and
+the direct mTLS controller workflow. Browser automation remained read-only and
+confirmed rendering, live WebSocket updates, capture/history content, tab
+transitions, and the absence of console errors.
+
+## 10. Future native-Linux release re-verification
+
+For a future release revalidation, rerun on a native Linux host with
 Docker, Compose, Open vSwitch, iproute2, tcpdump/TShark, and suitable sudo:
 
 ```bash
@@ -576,20 +624,21 @@ retained evidence paths, and the Linux matrix result to this report.
 
 ## 11. Architectural drift, documentation, and risk summary
 
-- The implementation handoff overstates SDR-002, SDR-003, and portable SDR-009
-  as implemented; the independent cases above show they are partial.
-- The handoff says the port preflight was fixed, but the occupied-port path is
-  still broken and restart-time overrides are not honored.
-- Documentation is otherwise internally consistent and accurately distinguishes
-  the portable bridge, native OVS/SPAN, and optional physical attachment.
+- The original handoff and early verification snapshots predate the Linux
+  remediation. Their failure language is retained as explicitly superseded
+  history; the current acceptance matrix and section 9.4 govern present status.
+- Port override, occupied/invalid-port handling, failed-start rollback, focused
+  TLS readiness, UDP source-address policy, and capture ownership now pass.
+- Documentation is internally consistent and accurately distinguishes the
+  portable bridge, native OVS/SPAN, and optional physical attachment.
 - The external topology and dry-run are not runtime OVS evidence.
 - UDP remains deliberately unauthenticated/unencrypted/unreliable; endpoint
   filtering reduces accidental/spoofed acceptance but does not authenticate a
   physical SDR.
-- Native network cleanup is the highest operational risk and must be corrected
-  before asking an operator to run fault-injection tests with sudo.
-- No stale Phase 13 acceptance claim was found: `verification_status.md` already
-  excluded Phase 13 from the accepted chain pending independent verification.
+- Fixed-name native resources remain operationally sensitive, so future changes
+  must retain ownership labels, refusal tests, and exact-cleanup inspection.
+- The only current non-blocking quality advisory is the large production GUI
+  bundle. A real physical SDR and RF behavior remain outside this phase's proof.
 
 ## 12. Exit decision and prioritized remediation
 
@@ -625,6 +674,13 @@ evidence and both mandatory Linux gates pass. A physical SDR remains optional.
   `outputs/verification/20260906T231238Z-sanitizers.log`,
   `outputs/verification/20260906T231306Z-fuzz.log`, and
   `outputs/verification/20260906T232012Z-portable.log`
+- Updated-repository portable run:
+  `outputs/sdr-node/simulated/20260907T004837Z`
+- Updated-repository verification logs:
+  `outputs/verification/20260907T004720Z-portable.log`,
+  `outputs/verification/20260907T005022Z-quality.log`,
+  `outputs/verification/20260907T005128Z-sanitizers.log`, and
+  `outputs/verification/20260907T005154Z-fuzz.log`
 
 ## Appendix B — independent evidence boundaries
 
