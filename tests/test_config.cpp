@@ -9,6 +9,7 @@
 #include <fstream>
 #include <functional>
 #include <iostream>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -478,6 +479,101 @@ void static_route_policy_model_and_plan_load() {
   expect(clear.ignore_failure &&
              graphx::format_command(clear).find("route delete 10.64.30.10/32") != std::string::npos,
          "manual route clear command");
+
+  const auto transactional = graphx::infrastructure_plan(config, graphx::InfraAction::create, true);
+  std::string transactional_plan;
+  for (const auto& command : transactional) {
+    transactional_plan += graphx::format_command(command) + '\n';
+    if (!command.rollback_arguments.empty()) {
+      expect(command.rollback_arguments.front() != "", "transaction rollback command");
+      expect(!command.rollback_identity_arguments.empty(), "transaction rollback identity");
+    }
+  }
+  expect(transactional_plan.find("ovs-vsctl add-br br-route-left") != std::string::npos &&
+             transactional_plan.find("--may-exist add-br br-route-left") == std::string::npos,
+         "transactional route lab uses strict bridge creation");
+}
+
+void infrastructure_transaction_rolls_back_in_reverse() {
+  const auto directory = std::filesystem::temp_directory_path() /
+                         ("graphx-infra-transaction-" + std::to_string(::getpid()));
+  const auto first = directory / "first";
+  const auto second = directory / "second";
+  std::filesystem::create_directories(directory);
+  const std::vector<graphx::InfraCommand> commands = {
+      {{"touch", first.string()},
+       {},
+       false,
+       {"rm", first.string()},
+       {"stat", "-Lc", "%i:%F", first.string()}},
+      {{"touch", second.string()},
+       {},
+       false,
+       {"rm", second.string()},
+       {"stat", "-Lc", "%i:%F", second.string()}},
+      {{"false"}, {}, false, {}, {}},
+  };
+  std::ostringstream output, errors;
+  const auto status = graphx::execute_infrastructure_plan(commands, false, output, errors);
+  expect(status != 0, "transaction reports command failure");
+  expect(!std::filesystem::exists(first) && !std::filesystem::exists(second),
+         "transaction removes completed resources");
+  const auto log = output.str();
+  expect(log.find("- rm " + second.string()) < log.find("- rm " + first.string()),
+         "transaction rolls back in reverse order");
+  std::filesystem::remove_all(directory);
+}
+
+void infrastructure_transaction_preserves_replacement() {
+  const auto directory = std::filesystem::temp_directory_path() /
+                         ("graphx-infra-replacement-" + std::to_string(::getpid()));
+  const auto resource = directory / "resource";
+  std::filesystem::create_directories(directory);
+  const std::vector<graphx::InfraCommand> commands = {
+      {{"touch", resource.string()},
+       {},
+       false,
+       {"rm", "-rf", resource.string()},
+       {"stat", "-Lc", "%i:%F", resource.string()}},
+      {{"sh", "-c",
+        "rm '" + resource.string() + "' && mkdir '" + resource.string() + "' && exit 23"},
+       {},
+       false,
+       {},
+       {}},
+  };
+  std::ostringstream output, errors;
+  const auto status = graphx::execute_infrastructure_plan(commands, false, output, errors);
+  expect(status == 23, "replacement transaction reports injected failure");
+  expect(std::filesystem::is_directory(resource), "transaction preserves replacement resource");
+  expect(output.str().find("rollback skipped; resource identity changed") != std::string::npos,
+         "transaction reports identity-safe rollback skip");
+  std::filesystem::remove_all(directory);
+}
+
+void infrastructure_transaction_rolls_back_identity_probe_failure() {
+  const auto directory = std::filesystem::temp_directory_path() /
+                         ("graphx-infra-identity-failure-" + std::to_string(::getpid()));
+  const auto first = directory / "first";
+  const auto second = directory / "second";
+  std::filesystem::create_directories(directory);
+  const std::vector<graphx::InfraCommand> commands = {
+      {{"touch", first.string()},
+       {},
+       false,
+       {"rm", first.string()},
+       {"stat", "-Lc", "%i:%F", first.string()}},
+      {{"touch", second.string()}, {}, false, {"rm", second.string()}, {"sh", "-c", "exit 23"}},
+  };
+  std::ostringstream output, errors;
+  const auto status = graphx::execute_infrastructure_plan(commands, false, output, errors);
+  expect(status == 23, "identity failure reports probe status");
+  expect(!std::filesystem::exists(first) && !std::filesystem::exists(second),
+         "identity failure removes current and completed resources");
+  const auto log = output.str();
+  expect(log.find("- rm " + second.string()) < log.find("- rm " + first.string()),
+         "identity failure rolls back current resource first");
+  std::filesystem::remove_all(directory);
 }
 
 void invalid_network_reference_is_rejected() {
@@ -1196,6 +1292,10 @@ int main() {
       {"mixed network model", mixed_network_model_and_plan_load},
       {"standalone network examples", standalone_network_examples_load},
       {"static route policy model", static_route_policy_model_and_plan_load},
+      {"infrastructure transaction rollback", infrastructure_transaction_rolls_back_in_reverse},
+      {"infrastructure transaction replacement", infrastructure_transaction_preserves_replacement},
+      {"infrastructure transaction identity failure",
+       infrastructure_transaction_rolls_back_identity_probe_failure},
       {"invalid network reference", invalid_network_reference_is_rejected},
       {"override precedence", explicit_override_wins},
       {"invalid override", invalid_override_is_rejected},

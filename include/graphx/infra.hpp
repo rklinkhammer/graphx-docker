@@ -12,12 +12,15 @@ struct InfraCommand {
   std::vector<std::string> arguments;
   std::string standard_input;
   bool ignore_failure{};
+  std::vector<std::string> rollback_arguments;
+  std::vector<std::string> rollback_identity_arguments;
 };
 
 enum class InfraAction { create, destroy, status };
 
 [[nodiscard]] std::vector<InfraCommand> infrastructure_plan(const GraphConfig& config,
-                                                            InfraAction action);
+                                                            InfraAction action,
+                                                            bool transactional = false);
 [[nodiscard]] InfraCommand netem_command(const GraphConfig& config, std::string_view router,
                                          std::string_view interface, bool clear,
                                          std::string delay = {}, std::string jitter = {},

@@ -132,3 +132,117 @@ This is implementer evidence, not an acceptance verdict. The subsequent
 independent rerun closed six findings but kept F-014-05 open: create-stage
 ownership or rollback must become transactional before Phase 14 can be
 `ACCEPTED`.
+
+## Transactional create implementation — 2026-09-07
+
+F-014-05 is remediated in this working tree without changing the independent
+verification verdict. `graphx infra create --transactional` now journals a
+reverse operation immediately after each successful resource creation and
+unwinds completed operations in reverse order if a later command fails. The
+transaction covers veth pairs, OVS bridges, Linux network namespaces, and
+external Docker networks. Transactional bridge creation is strict, so an
+unrelated fixed-name bridge is never adopted. The Phase 14 launcher opts into
+this mode before it installs its higher-level ownership markers; the legacy
+nontransactional planner behavior remains unchanged for other callers.
+
+Focused automated coverage proves reverse-order executor rollback, rollback
+metadata on the Phase 14 plan, strict transactional bridge creation, CLI
+dry-run behavior, and launcher use of `--transactional`. Native fault injection
+through the real GraphX executor passed at these stages:
+
+- command 4, after the first veth pair was created;
+- command 25, after two OVS bridges and all endpoint/capture veth pairs existed;
+- command 45, after the router namespace existed and its first interface had
+   moved into that namespace.
+
+Every injected failure returned status 23 and left zero Phase 14 links,
+bridges, or namespaces. Namespace-stage rollback completed without rollback
+errors after veth reversal was anchored on the peer that remains in the root
+namespace. A preexisting dummy `rtl-ovs` canary caused strict creation to fail
+and retained the same interface index and type. An immediate full native cycle
+then passed missing-route, exact route apply/delivery, route clear/restored
+timeout, named deny-counter proof, repeated stop, and zero owned residue.
+
+Implementation evidence:
+
+- `outputs/phase14-fault-25.log`
+- `outputs/phase14-fault-45.log`
+- `outputs/phase14-canary-collision.log`
+- `outputs/static-route-policy/20260907T124324Z`
+- `outputs/static-route-policy/20260907T125035Z`
+- `outputs/phase14-transaction-cycle-2.log`
+- `outputs/verification/20260907T124412Z-full.log` (`PASS`, 363 seconds)
+
+The focused CTest selection, two complete native lifecycle cycles, and the
+complete Linux profile pass. A fresh independent verification must supersede F-014-05 before
+`phase_14_verification.md` or `verification_status.md` can mark Phase 14
+accepted.
+
+## Linux verification follow-up remediation — 2026-09-07
+
+The subsequent independent pass found two remaining defects: rollback commands
+were guarded only by resource names, and React Flow could calculate topology
+edges before remounted node geometry was ready after leaving History.
+
+Transactional creation now captures a stable identity immediately after each
+successful mutation: root-link ifindex for veth pairs, bridge UUID for OVS,
+mount inode for network namespaces, and Docker network ID. Before each reverse
+operation, the executor obtains the identity again. Missing or changed objects
+are skipped with an explicit diagnostic, preventing deletion of an unrelated
+same-named replacement. The focused executor test replaces a created file with
+a different object before failure and proves that rollback preserves it; the
+Phase 14 planner test requires identity metadata for every rollback.
+
+The topology component now withholds edges until asynchronous ELK node layout
+has committed, then fits the viewport on the following animation frame. In a
+rebuilt native console, the sequence Application to History to Network to
+History to Application retained 3 application edges, 18 network hop edges, and
+all diagnostic badges without reload. The blue dashed route-applied state also
+survived the same History round trip.
+
+Native replacement-race evidence is retained in
+`outputs/phase14-remediation-replacement.log`; browser lifecycle evidence is in
+`outputs/phase14-remediation-browser.log`; later-stage identity-checked rollback
+is in `outputs/phase14-remediation-stage.log`. The complete Linux profile passed
+in 362 seconds at `outputs/verification/20260907T131037Z-full.log`. These are
+implementer results. The independent `CHANGES REQUIRED` verdict remains
+unchanged until a fresh verifier supersedes F-014-05 and F-014-08.
+
+## Identity-probe failure remediation — 2026-09-07
+
+The latest independent Linux verification closed F-014-05 and F-014-08 but
+found F-014-09: after a successful create command, identity-probe failure
+returned before the new resource was journaled or any completed operation was
+rolled back.
+
+The infrastructure executor now uses one reverse-order rollback routine for
+ordinary command failures and completed operations. If the identity probe for
+a newly created resource fails, the executor first reverses that current
+creation, then invokes the same identity-checked rollback routine for all
+earlier journal entries. Probe status remains the command result, and rollback
+failures retain explicit diagnostics.
+
+Focused automated coverage creates two resources, forces the second identity
+probe to return 23, and proves current-first reverse order plus zero residue.
+The existing replacement test remains green and proves that completed entries
+still skip rollback when their stable identity changes.
+
+Native Linux injection replaced the first veth identity probe with status 23.
+The real GraphX executor returned 23, logged the failed probe, executed
+`ip link delete rtl-end`, and left neither `rtl-ovs` nor `rtl-end`. Evidence is
+retained in `outputs/phase14-fix-identity-probe.log`.
+
+Focused results:
+
+- `graphx-config-tests` — pass, including identity-probe cleanup and
+   replacement preservation;
+- `graphx-config-static-route-policy` — pass;
+- `graphx-static-route-policy-portable` — pass;
+- `graphx-documentation-consistency` — pass.
+- `scripts/verify.sh full` — pass in 362 seconds; evidence retained at
+   `outputs/verification/20260907T133745Z-full.log`.
+
+This is implementation evidence, not an independent acceptance decision.
+`phase_14_verification.md` and `verification_status.md` retain `CHANGES
+REQUIRED` until a fresh verifier closes F-014-09 and reruns the required native,
+browser, packet, canary, cleanup, and full-profile gates.

@@ -1,0 +1,38 @@
+[pass] authoritative config
+[pass] TCP policy
+[pass] invalid TCP policy
+[pass] shared-memory config
+[pass] invalid observability
+[pass] capture config
+[pass] invalid operations config
+[pass] invalid history config
+[pass] strict history scalar types
+[pass] strict history strings and keys
+[pass] invalid control config
+[pass] invalid shared-memory config
+[pass] mixed network model
+[pass] standalone network examples
+[pass] static route policy model
+[pass] infrastructure transaction rollback
+[pass] infrastructure transaction replacement
+[pass] infrastructure transaction identity failure
+[pass] invalid network reference
+[pass] override precedence
+[pass] invalid override
+[pass] aggregated errors
+[pass] cycle
+[pass] external control cycle
+[pass] invalid deployment
+[pass] malformed and oversized
+[pass] in-process queue config
+[pass] Unix socket deadline config
+[pass] TCP TLS config
+[pass] UDP config
+[pass] external data plane
+[pass] in-process factory
+[pass] factory validation
+[pass] TCP factory
+[pass] Unix socket factory
+[pass] shared-memory factory
+[pass] shared-memory factory timeout
+[pass] UDP factory

@@ -1,0 +1,3 @@
++ ip link add rtl-ovs type veth peer name rtl-end
+graphx: failed to identify created resource: ip link add rtl-ovs type veth peer name rtl-end
+- ip link delete rtl-end

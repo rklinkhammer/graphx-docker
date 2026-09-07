@@ -12,7 +12,7 @@ namespace graphx {
 namespace {
 
 InfraCommand command(std::initializer_list<std::string> arguments, bool ignore_failure = false) {
-  return {std::vector<std::string>(arguments), {}, ignore_failure};
+  return {std::vector<std::string>(arguments), {}, ignore_failure, {}, {}};
 }
 
 std::string join(const std::vector<std::uint16_t>& values) {
@@ -35,7 +35,10 @@ const SwitchPortDefinition& mirror_port(const SwitchDefinition& network_switch) 
 
 void append_veth(std::vector<InfraCommand>& commands, const std::string& first,
                  const std::string& second) {
-  commands.push_back(command({"ip", "link", "add", first, "type", "veth", "peer", "name", second}));
+  auto create = command({"ip", "link", "add", first, "type", "veth", "peer", "name", second});
+  create.rollback_arguments = {"ip", "link", "delete", second};
+  create.rollback_identity_arguments = {"cat", "/sys/class/net/" + second + "/ifindex"};
+  commands.push_back(std::move(create));
   commands.push_back(command({"ip", "link", "set", first, "up"}));
   commands.push_back(command({"ip", "link", "set", second, "up"}));
 }
@@ -54,6 +57,9 @@ void append_docker_network(std::vector<InfraCommand>& commands, const NetworkDef
   if (network.driver == NetworkDriver::ipvlan)
     result.arguments.insert(result.arguments.end(), {"--opt", "ipvlan_mode=" + network.mode});
   result.arguments.push_back(network.id);
+  result.rollback_arguments = {"docker", "network", "rm", network.id};
+  result.rollback_identity_arguments = {"docker",   "network", "inspect",
+                                        "--format", "{{.Id}}", network.id};
   commands.push_back(std::move(result));
 }
 
@@ -113,9 +119,55 @@ int execute_command(const InfraCommand& command_value, std::ostream& errors) {
   return 128 + (WIFSIGNALED(status) ? WTERMSIG(status) : 0);
 }
 
+int capture_command(const std::vector<std::string>& arguments, std::string& output,
+                    std::ostream& errors) {
+  int output_pipe[2];
+  if (::pipe(output_pipe) != 0) {
+    errors << "graphx: pipe: " << std::strerror(errno) << '\n';
+    return 1;
+  }
+  const auto child = ::fork();
+  if (child < 0) {
+    ::close(output_pipe[0]);
+    ::close(output_pipe[1]);
+    errors << "graphx: fork: " << std::strerror(errno) << '\n';
+    return 1;
+  }
+  if (child == 0) {
+    ::close(output_pipe[0]);
+    ::dup2(output_pipe[1], STDOUT_FILENO);
+    ::close(output_pipe[1]);
+    std::vector<char*> argv;
+    argv.reserve(arguments.size() + 1);
+    for (const auto& argument : arguments) argv.push_back(const_cast<char*>(argument.c_str()));
+    argv.push_back(nullptr);
+    ::execvp(argv.front(), argv.data());
+    _exit(errno == ENOENT ? 127 : 126);
+  }
+  ::close(output_pipe[1]);
+  output.clear();
+  char buffer[256];
+  for (;;) {
+    const auto count = ::read(output_pipe[0], buffer, sizeof(buffer));
+    if (count > 0) {
+      output.append(buffer, static_cast<std::size_t>(count));
+      continue;
+    }
+    if (count < 0 && errno == EINTR) continue;
+    break;
+  }
+  ::close(output_pipe[0]);
+  int status{};
+  if (::waitpid(child, &status, 0) < 0) return 1;
+  while (!output.empty() && (output.back() == '\n' || output.back() == '\r')) output.pop_back();
+  if (WIFEXITED(status)) return WEXITSTATUS(status);
+  return 128 + (WIFSIGNALED(status) ? WTERMSIG(status) : 0);
+}
+
 }  // namespace
 
-std::vector<InfraCommand> infrastructure_plan(const GraphConfig& config, InfraAction action) {
+std::vector<InfraCommand> infrastructure_plan(const GraphConfig& config, InfraAction action,
+                                              bool transactional) {
   const auto& infrastructure = config.network_infrastructure;
   std::vector<InfraCommand> commands;
   if (action == InfraAction::create) {
@@ -124,7 +176,15 @@ std::vector<InfraCommand> infrastructure_plan(const GraphConfig& config, InfraAc
         if (!port.peer.empty()) append_veth(commands, port.interface, port.peer);
 
     for (const auto& network_switch : infrastructure.switches) {
-      commands.push_back(command({"ovs-vsctl", "--may-exist", "add-br", network_switch.id}));
+      auto create_bridge =
+          command(transactional
+                      ? std::initializer_list<std::string>{"ovs-vsctl", "add-br", network_switch.id}
+                      : std::initializer_list<std::string>{"ovs-vsctl", "--may-exist", "add-br",
+                                                           network_switch.id});
+      create_bridge.rollback_arguments = {"ovs-vsctl", "--if-exists", "del-br", network_switch.id};
+      create_bridge.rollback_identity_arguments = {"ovs-vsctl", "get", "Bridge", network_switch.id,
+                                                   "_uuid"};
+      commands.push_back(std::move(create_bridge));
       commands.push_back(command({"ovs-vsctl", "set", "Bridge", network_switch.id,
                                   "datapath_type=" + network_switch.datapath}));
       commands.push_back(command({"ip", "link", "set", network_switch.id, "up"}));
@@ -142,7 +202,11 @@ std::vector<InfraCommand> infrastructure_plan(const GraphConfig& config, InfraAc
 
     for (const auto& router : infrastructure.routers) {
       if (router.kind != RouterKind::linux_namespace) continue;
-      commands.push_back(command({"ip", "netns", "add", router.namespace_name}));
+      auto create_namespace = command({"ip", "netns", "add", router.namespace_name});
+      create_namespace.rollback_arguments = {"ip", "netns", "delete", router.namespace_name};
+      create_namespace.rollback_identity_arguments = {"stat", "-Lc", "%i",
+                                                      "/run/netns/" + router.namespace_name};
+      commands.push_back(std::move(create_namespace));
       commands.push_back(
           command({"ip", "netns", "exec", router.namespace_name, "ip", "link", "set", "lo", "up"}));
       for (const auto& interface : router.interfaces) {
@@ -294,6 +358,32 @@ std::string format_command(const InfraCommand& command_value) {
 
 int execute_infrastructure_plan(const std::vector<InfraCommand>& commands, bool dry_run,
                                 std::ostream& output, std::ostream& errors) {
+  struct CompletedCommand {
+    const InfraCommand* command;
+    std::string identity;
+  };
+  std::vector<CompletedCommand> completed;
+  const auto rollback_completed = [&] {
+    for (auto iterator = completed.rbegin(); iterator != completed.rend(); ++iterator) {
+      if (!iterator->command->rollback_identity_arguments.empty()) {
+        std::string current_identity;
+        const auto identity_status = capture_command(iterator->command->rollback_identity_arguments,
+                                                     current_identity, errors);
+        if (identity_status != 0 || current_identity != iterator->identity) {
+          output << "! rollback skipped; resource identity changed: "
+                 << format_command(*iterator->command) << '\n';
+          continue;
+        }
+      }
+      InfraCommand rollback;
+      rollback.arguments = iterator->command->rollback_arguments;
+      output << "- " << format_command(rollback) << '\n';
+      const auto rollback_status = execute_command(rollback, errors);
+      if (rollback_status != 0)
+        errors << "graphx: rollback command failed with status " << rollback_status << ": "
+               << format_command(rollback) << '\n';
+    }
+  };
   for (const auto& command_value : commands) {
     output << "+ " << format_command(command_value) << '\n';
     if (dry_run) continue;
@@ -301,7 +391,29 @@ int execute_infrastructure_plan(const std::vector<InfraCommand>& commands, bool 
     if (status != 0 && !command_value.ignore_failure) {
       errors << "graphx: command failed with status " << status << ": "
              << format_command(command_value) << '\n';
+      rollback_completed();
       return status;
+    }
+    if (status == 0 && !command_value.rollback_arguments.empty()) {
+      std::string identity;
+      if (!command_value.rollback_identity_arguments.empty()) {
+        const auto identity_status =
+            capture_command(command_value.rollback_identity_arguments, identity, errors);
+        if (identity_status != 0) {
+          errors << "graphx: failed to identify created resource: " << format_command(command_value)
+                 << '\n';
+          InfraCommand rollback;
+          rollback.arguments = command_value.rollback_arguments;
+          output << "- " << format_command(rollback) << '\n';
+          const auto rollback_status = execute_command(rollback, errors);
+          if (rollback_status != 0)
+            errors << "graphx: rollback command failed with status " << rollback_status << ": "
+                   << format_command(rollback) << '\n';
+          rollback_completed();
+          return identity_status;
+        }
+      }
+      completed.push_back({&command_value, std::move(identity)});
     }
   }
   return 0;

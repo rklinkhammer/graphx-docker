@@ -1,7 +1,7 @@
 # GraphX verification status
 
-Review date: 2026-09-06  
-Reviewed repository: `/Users/rklinkhammer/workspace/graphx-docker`  
+Review date: 2026-09-07
+Reviewed repository: `/home/rklinkhammer/workspace/graphx-docker`
 Reviewed branch: `main`
 
 ## Summary
@@ -31,14 +31,14 @@ checklist, but no separate independent verification report. Later cumulative
 regression results are strong implementation evidence, but they are not a
 replacement for the missing phase-specific independent records.
 
-Phase 14 has a completed independent remediation re-verification with a current
-`CHANGES REQUIRED` verdict. Six of seven original findings are closed. Two
+Phase 14 has a completed post-remediation independent verification with a
+current `CHANGES REQUIRED` verdict. F-014-05 and F-014-08 remain closed, and
+ordinary F-014-09 probe-failure cleanup now removes the created resource. Two
 complete native cycles, exact route transitions, named deny counters,
 operator-readable three-interface PCAPs, separate sender/receiver evidence,
-unrelated canaries, live browser transitions, exact successful cleanup, and the
-full Linux profile pass. F-014-05 remains open: an `infra create` failure before
-ownership marking leaves a fixed-name link behind because rollback refuses to
-remove the unmarked partial resource.
+unrelated canaries, browser History checks, exact successful cleanup, and the
+full Linux profile pass. F-014-09 remains open because failed-probe cleanup
+deletes an unrelated same-named replacement introduced during that probe.
 
 ## Phase status
 
@@ -57,7 +57,7 @@ remove the unmarked partial resource.
 | 11 | `phase_11_verification.md` | **ACCEPTED** | Native Linux directed-broadcast and live-capture evidence closes UDP-003/UDP-009. |
 | 12 | `phase_12_verification.md` | **ACCEPTED** | External Linux, container TCG/KVM/auto/denial, capture/history, GUI/control, hardening, lifecycle, cleanup, and corrected TShark inspection passed. |
 | 13 | `phase_13_verification.md` | **ACCEPTED** | All SDR-001 through SDR-012 rows are implemented; portable default/opt-out and native OVS/SPAN default/opt-out cycles passed; all Phase 13 findings are closed; full Linux plus updated-repository macOS verification passed. |
-| 14 | `phase_14_verification.md` | **CHANGES REQUIRED** | F-014-01/02/03/04/06/07 are closed and all normal native/runtime/regression gates pass. F-014-05 remains: make create-stage ownership/rollback transactional, add staged fault injection, then reverify cleanup and immediate restart. |
+| 14 | `phase_14_verification.md` | **CHANGES REQUIRED** | Ordinary probe cleanup, completed-entry replacement safety, History navigation, two native cycles, canaries, PCAPs, and full regression pass. Preserve a current-command replacement introduced during a failed identity probe. |
 
 ## Review conclusions
 
@@ -67,6 +67,6 @@ remove the unmarked partial resource.
    deleted; they must remain visibly labeled as superseded.
 3. Phase 1 and Phase 2 retain documentary gaps in the formal verification chain.
 4. Phases 3 through 13 have current accepted independent verification records.
-5. Phase 14 remediation passed independent native, browser, canary, and full
-   regression checks but remains unaccepted because failed-create rollback can
-   leave an unmarked fixed-name resource behind.
+5. Phase 14 remediation passed independent native, canary, PCAP, browser, and
+   full regression checks but remains unaccepted because failed identity-probe
+   cleanup deletes a same-named replacement of the current resource.

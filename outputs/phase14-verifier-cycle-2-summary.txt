@@ -1,0 +1,19 @@
+run_dir=/home/rklinkhammer/workspace/graphx-docker/outputs/static-route-policy/20260907T125651Z
+Console: http://127.0.0.1:18096
+Next: examples/static-route-policy/scripts/demo.sh apply-route
+PASS: allowed flow arrived; denied flow incremented policy counter; routed flow remained missing-route
++ ip netns exec gx-route-router ip route replace 10.64.30.10/32 via 10.64.3.10 dev rt-right
+PASS: allowed flow arrived; denied flow incremented policy counter; routed flow arrived after route apply
+[{"dst":"10.64.30.10","gateway":"10.64.3.10","dev":"rt-right","flags":[]}]
+PASS: allowed flow arrived; denied flow incremented policy counter; routed flow arrived after route apply
++ ip netns exec gx-route-router ip route delete 10.64.30.10/32
+PASS: allowed flow arrived; denied flow incremented policy counter; routed flow remained missing-route
+PASS: allowed flow arrived; denied flow incremented policy counter; routed flow remained missing-route
+Stopped; retained evidence: /home/rklinkhammer/workspace/graphx-docker/outputs/static-route-policy/20260907T125651Z
+Stopped; retained evidence: /home/rklinkhammer/workspace/graphx-docker/outputs/static-route-policy/20260907T125651Z
+pcap_owner=rklinkhammer:rklinkhammer mode=644 size=25204
+File name:           /home/rklinkhammer/workspace/graphx-docker/outputs/static-route-policy/20260907T125651Z/route-policy.pcapng
+Number of packets:   165
+File size:           25 kB
+sender_logs=18
+receiver_logs=18

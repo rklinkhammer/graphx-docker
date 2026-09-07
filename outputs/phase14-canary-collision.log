@@ -1,0 +1,3 @@
+RTNETLINK answers: File exists
++ ip link add rtl-ovs type veth peer name rtl-end
+graphx: command failed with status 2: ip link add rtl-ovs type veth peer name rtl-end

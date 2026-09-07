@@ -14,11 +14,14 @@ export function Topology({ nodes, edges, onEdgeSelect }) {
   // initial position while the asynchronous layout is running.
   const [layoutNodes, setLayoutNodes, onNodesChange] = useNodesState(positionedNodes(nodes))
   const [flow, setFlow] = useState(null)
+  const [layoutReady, setLayoutReady] = useState(false)
   const topologyKey = `${nodes.map(node => node.id).join(',')}|${edges.map(edge => edge.id).join(',')}`
 
   useEffect(() => {
     let active = true
-    let fitTimer
+    let fitFrame
+    let readyFrame
+    setLayoutReady(false)
     const elk = new ELK()
     elk.layout({ id: 'root', layoutOptions: { 'elk.algorithm': 'layered', 'elk.direction': 'RIGHT', 'elk.spacing.nodeNode': '90' },
       children: nodes.map(node => ({ id: node.id, width: 205, height: 115 })),
@@ -29,11 +32,16 @@ export function Topology({ nodes, edges, onEdgeSelect }) {
         const position = graph.children.find(item => item.id === node.id)
         return { ...node, type: 'graphx', position: position ? { x: position.x, y: position.y } : node.position }
       }))
-      fitTimer = setTimeout(() => flow?.fitView({ padding: 0.12, duration: 250 }), 0)
+      readyFrame = requestAnimationFrame(() => {
+        if (!active) return
+        setLayoutReady(true)
+        fitFrame = requestAnimationFrame(() => flow?.fitView({ padding: 0.12, duration: 250 }))
+      })
     })
     return () => {
       active = false
-      clearTimeout(fitTimer)
+      cancelAnimationFrame(readyFrame)
+      cancelAnimationFrame(fitFrame)
     }
   }, [topologyKey, flow])
 
@@ -45,7 +53,7 @@ export function Topology({ nodes, edges, onEdgeSelect }) {
   }, [nodes, setLayoutNodes])
 
   return <div className="topology-canvas">
-    <ReactFlow nodes={layoutNodes} edges={edges} onNodesChange={onNodesChange} nodeTypes={nodeTypes} edgeTypes={edgeTypes}
+    <ReactFlow nodes={layoutNodes} edges={layoutReady ? edges : []} onNodesChange={onNodesChange} nodeTypes={nodeTypes} edgeTypes={edgeTypes}
       onInit={setFlow} onEdgeClick={(_, edge) => onEdgeSelect(edge.data?.logicalEdge || edge.id)} fitView minZoom={0.25} maxZoom={1.5} nodesDraggable>
       <Background color="#253245" gap={24} size={1}/><Controls showInteractive={false}/>
       <MiniMap pannable zoomable nodeColor="#3b82f6" maskColor="rgba(5,10,18,.72)"/>

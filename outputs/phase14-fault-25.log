@@ -1,0 +1,34 @@
++ ip link add rtl-ovs type veth peer name rtl-end
++ ip link set rtl-ovs up
++ ip link set rtl-end up
++ ip link add rtl-cap-ovs type veth peer name rtl-cap
++ ip link set rtl-cap-ovs up
++ ip link set rtl-cap up
++ ip link add rtm-ovs type veth peer name rtm-end
++ ip link set rtm-ovs up
++ ip link set rtm-end up
++ ip link add rtm-cap-ovs type veth peer name rtm-cap
++ ip link set rtm-cap-ovs up
++ ip link set rtm-cap up
++ ip link add rtr-ovs type veth peer name rtr-end
++ ip link set rtr-ovs up
++ ip link set rtr-end up
++ ip link add rtr-cap-ovs type veth peer name rtr-cap
++ ip link set rtr-cap-ovs up
++ ip link set rtr-cap up
++ ovs-vsctl add-br br-route-left
++ ovs-vsctl set Bridge br-route-left datapath_type=system
++ ip link set br-route-left up
++ ovs-vsctl --may-exist add-port br-route-left rtl-ovs
++ ovs-vsctl --may-exist add-port br-route-left rtl-cap-ovs
++ ovs-vsctl add-br br-route-middle
++ ovs-vsctl set Bridge br-route-middle datapath_type=system
+graphx: command failed with status 23: ovs-vsctl set Bridge br-route-middle datapath_type=system
+- ovs-vsctl --if-exists del-br br-route-middle
+- ovs-vsctl --if-exists del-br br-route-left
+- ip link delete rtr-cap-ovs
+- ip link delete rtr-ovs
+- ip link delete rtm-cap-ovs
+- ip link delete rtm-ovs
+- ip link delete rtl-cap-ovs
+- ip link delete rtl-ovs

@@ -16,7 +16,7 @@ void usage(std::ostream& output) {
          << "  graphx --version\n"
          << "  graphx <validate|inspect> [config.yaml] [--set path=value]\n"
          << "  graphx project [config.yaml] [--check] [--output-dir DIR]\n"
-         << "  graphx infra <create|destroy|status> [config.yaml] [--dry-run]\n"
+         << "  graphx infra <create|destroy|status> [config.yaml] [--dry-run] [--transactional]\n"
          << "  graphx infra route <apply|clear> [config.yaml] --router ID --destination CIDR\n"
          << "  graphx infra fault <apply|clear> [config.yaml] --router ID --interface ID\n"
          << "                    [--delay 20ms] [--jitter 3ms] [--loss 1%] [--rate 50mbit]\n";
@@ -272,25 +272,30 @@ int infrastructure_command(int argc, char** argv) {
   else
     throw std::invalid_argument("unknown infra action '" + action + "'");
   auto path = default_config();
-  bool path_set{}, dry_run{};
+  bool path_set{}, dry_run{}, transactional{};
   for (int index = 3; index < argc; ++index) {
     const std::string argument = argv[index];
     if (argument == "--dry-run")
       dry_run = true;
+    else if (argument == "--transactional")
+      transactional = true;
     else if (!path_set) {
       path = argument;
       path_set = true;
     } else
       throw std::invalid_argument("unexpected argument '" + argument + "'");
   }
+  if (transactional && infra_action != graphx::InfraAction::create)
+    throw std::invalid_argument("--transactional is supported only for infra create");
 #if !defined(__linux__)
   if (!dry_run)
     throw std::runtime_error(
         "native infrastructure changes require Linux; use --dry-run or the macOS OVS lab profile");
 #endif
   const auto config = graphx::load_config(path);
-  return graphx::execute_infrastructure_plan(graphx::infrastructure_plan(config, infra_action),
-                                             dry_run, std::cout, std::cerr);
+  return graphx::execute_infrastructure_plan(
+      graphx::infrastructure_plan(config, infra_action, transactional), dry_run, std::cout,
+      std::cerr);
 }
 
 }  // namespace

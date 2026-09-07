@@ -1,0 +1,202 @@
+net.ipv4.ip_forward = 1
+fb816af4-aa30-42cb-af4d-a3d7f944a877
+6029e6f9-6213-49d7-b796-bc4f9c8142a5
+54c18243-ba6a-4e61-b9bb-4c28ecfa3436
++ ip link add rtl-ovs type veth peer name rtl-end
++ ip link set rtl-ovs up
++ ip link set rtl-end up
++ ip link add rtl-cap-ovs type veth peer name rtl-cap
++ ip link set rtl-cap-ovs up
++ ip link set rtl-cap up
++ ip link add rtm-ovs type veth peer name rtm-end
++ ip link set rtm-ovs up
++ ip link set rtm-end up
++ ip link add rtm-cap-ovs type veth peer name rtm-cap
++ ip link set rtm-cap-ovs up
++ ip link set rtm-cap up
++ ip link add rtr-ovs type veth peer name rtr-end
++ ip link set rtr-ovs up
++ ip link set rtr-end up
++ ip link add rtr-cap-ovs type veth peer name rtr-cap
++ ip link set rtr-cap-ovs up
++ ip link set rtr-cap up
++ ovs-vsctl add-br br-route-left
++ ovs-vsctl set Bridge br-route-left datapath_type=system
++ ip link set br-route-left up
++ ovs-vsctl --may-exist add-port br-route-left rtl-ovs
++ ovs-vsctl --may-exist add-port br-route-left rtl-cap-ovs
++ ovs-vsctl add-br br-route-middle
++ ovs-vsctl set Bridge br-route-middle datapath_type=system
++ ip link set br-route-middle up
++ ovs-vsctl --may-exist add-port br-route-middle rtm-ovs
++ ovs-vsctl --may-exist add-port br-route-middle rtm-cap-ovs
++ ovs-vsctl add-br br-route-right
++ ovs-vsctl set Bridge br-route-right datapath_type=system
++ ip link set br-route-right up
++ ovs-vsctl --may-exist add-port br-route-right rtr-ovs
++ ovs-vsctl --may-exist add-port br-route-right rtr-cap-ovs
++ ip netns add gx-route-router
++ ip netns exec gx-route-router ip link set lo up
++ ip link add rt-left type veth peer name rt-left-ovs
++ ip link set rt-left up
++ ip link set rt-left-ovs up
++ ip link set rt-left netns gx-route-router
++ ip netns exec gx-route-router ip addr add 10.64.1.1/24 dev rt-left
++ ip netns exec gx-route-router ip link set rt-left up
++ ovs-vsctl --may-exist add-port br-route-left rt-left-ovs
++ ip link add rt-middle type veth peer name rt-middle-ovs
++ ip link set rt-middle up
++ ip link set rt-middle-ovs up
++ ip link set rt-middle netns gx-route-router
++ ip netns exec gx-route-router ip addr add 10.64.2.1/24 dev rt-middle
++ ip netns exec gx-route-router ip link set rt-middle up
++ ovs-vsctl --may-exist add-port br-route-middle rt-middle-ovs
++ ip link add rt-right type veth peer name rt-right-ovs
++ ip link set rt-right up
++ ip link set rt-right-ovs up
++ ip link set rt-right netns gx-route-router
++ ip netns exec gx-route-router ip addr add 10.64.3.1/24 dev rt-right
++ ip netns exec gx-route-router ip link set rt-right up
++ ovs-vsctl --may-exist add-port br-route-right rt-right-ovs
++ ip netns exec gx-route-router sysctl -w net.ipv4.ip_forward=1
++ ip netns exec gx-route-router nft -f -
++ ovs-vsctl -- --id=@out get Port rtl-cap-ovs -- --id=@mirror create Mirror name=mirror-route-left select_all=true output-port=@out -- set Bridge br-route-left mirrors=@mirror
++ ovs-vsctl -- --id=@out get Port rtm-cap-ovs -- --id=@mirror create Mirror name=mirror-route-middle select_all=true output-port=@out -- set Bridge br-route-middle mirrors=@mirror
++ ovs-vsctl -- --id=@out get Port rtr-cap-ovs -- --id=@mirror create Mirror name=mirror-route-right select_all=true output-port=@out -- set Bridge br-route-right mirrors=@mirror
+#1 [internal] load local bake definitions
+#1 reading from stdin 580B done
+#1 DONE 0.0s
+
+#2 [internal] load build definition from telemetry.Dockerfile
+#2 transferring dockerfile: 2.74kB done
+#2 DONE 0.0s
+
+#3 resolve image config for docker-image://docker.io/docker/dockerfile:1.7
+#3 DONE 0.3s
+
+#4 docker-image://docker.io/docker/dockerfile:1.7@sha256:a57df69d0ea827fb7266491f2813635de6f17269be881f696fbfdf2d83dda33e
+#4 resolve docker.io/docker/dockerfile:1.7@sha256:a57df69d0ea827fb7266491f2813635de6f17269be881f696fbfdf2d83dda33e 0.0s done
+#4 CACHED
+
+#5 [internal] load metadata for docker.io/library/node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32
+#5 DONE 0.0s
+
+#6 [internal] load metadata for docker.io/library/debian:bookworm-slim@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171
+#6 DONE 0.0s
+
+#7 [internal] load .dockerignore
+#7 transferring context: 222B done
+#7 DONE 0.0s
+
+#8 [trust 1/4] FROM docker.io/library/debian:bookworm-slim@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171
+#8 resolve docker.io/library/debian:bookworm-slim@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171 0.0s done
+#8 DONE 0.0s
+
+#9 [web 1/7] FROM docker.io/library/node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32
+#9 resolve docker.io/library/node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32 0.0s done
+#9 DONE 0.1s
+
+#10 [internal] load build context
+#10 transferring context: 4.75kB 0.0s done
+#10 DONE 0.0s
+
+#11 [trust 4/4] RUN --mount=type=secret,id=graphx_ca,required=false     --mount=type=secret,id=graphx_cert_installer,required=false     /usr/bin/bash /usr/local/libexec/graphx-install-build-trust
+#11 CACHED
+
+#12 [web 4/7] COPY web/package*.json ./
+#12 CACHED
+
+#13 [web 3/7] WORKDIR /app/web
+#13 CACHED
+
+#14 [trust 2/4] RUN apt-get update && apt-get install -y --no-install-recommends bash ca-certificates curl  && rm -rf /var/lib/apt/lists/*
+#14 CACHED
+
+#15 [web 2/7] COPY --from=trust /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+#15 CACHED
+
+#16 [trust 3/4] COPY docker/install-build-trust.sh /usr/local/libexec/graphx-install-build-trust
+#16 CACHED
+
+#17 [web 5/7] RUN npm ci
+#17 CACHED
+
+#18 [web 6/7] COPY web/ ./
+#18 DONE 0.1s
+
+#19 [web 7/7] RUN npm run build
+#19 0.241 
+#19 0.241 > graphx-console@1.0.0 build
+#19 0.241 > vite build
+#19 0.241 
+#19 0.425 vite v6.4.3 building for production...
+#19 0.470 transforming...
+#19 6.412 ✓ 1756 modules transformed.
+#19 6.955 rendering chunks...
+#19 6.971 computing gzip size...
+#19 7.019 dist/index.html                     0.51 kB │ gzip:   0.32 kB
+#19 7.019 dist/assets/index-ahPg9zEA.css     27.49 kB │ gzip:   5.78 kB
+#19 7.019 dist/assets/index-DmWxA6Ly.js   1,859.48 kB │ gzip: 572.24 kB
+#19 7.019 
+#19 7.019 (!) Some chunks are larger than 500 kB after minification. Consider:
+#19 7.019 - Using dynamic import() to code-split the application
+#19 7.019 - Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+#19 7.019 - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+#19 7.019 ✓ built in 6.58s
+#19 DONE 7.1s
+
+#20 [stage-2 7/9] COPY --chown=node:node apps/telemetry/server.mjs apps/telemetry/security.mjs apps/telemetry/control.mjs apps/telemetry/operations.mjs   apps/telemetry/history.mjs apps/telemetry/history-worker.mjs apps/telemetry/capture-files.mjs ./
+#20 CACHED
+
+#21 [stage-2 5/9] COPY apps/telemetry/package*.json ./
+#21 CACHED
+
+#22 [stage-2 6/9] RUN npm ci --omit=dev
+#22 CACHED
+
+#23 [stage-2 3/9] WORKDIR /app
+#23 CACHED
+
+#24 [stage-2 4/9] RUN addgroup -S -g 65532 graphx-capture && addgroup node graphx-capture  && mkdir /captures /var/lib/graphx /var/lib/graphx/history  && chown 65532:65532 /captures && chmod 0770 /captures  && chown -R node:node /var/lib/graphx && chmod 0750 /var/lib/graphx /var/lib/graphx/history
+#24 CACHED
+
+#25 [stage-2 8/9] COPY graphx.yaml ./graphx.yaml
+#25 CACHED
+
+#26 [stage-2 9/9] COPY --from=web /app/web/dist ./web/dist
+#26 DONE 0.0s
+
+#27 exporting to image
+#27 exporting layers
+#27 exporting layers 0.2s done
+#27 exporting manifest sha256:dad73a82731f5be36526b25c867f981b27d29712cad35bd9a5179c8595220989 0.0s done
+#27 exporting config sha256:3946b6381df46cab76541f50e099fe8aa64ed22adb88718fced362e95ed28933 0.0s done
+#27 exporting attestation manifest sha256:deb5790949416fc310c1685fe4c9ab62b62746a60714e14d07845b13190f8077
+#27 exporting attestation manifest sha256:deb5790949416fc310c1685fe4c9ab62b62746a60714e14d07845b13190f8077 0.1s done
+#27 exporting manifest list sha256:cd874c4a62fdc82b33605f80c239d18da1b7b0a6ff707ae0a1fab8121b83fe67 0.0s done
+#27 naming to docker.io/library/graphx-telemetry:latest
+#27 naming to docker.io/library/graphx-telemetry:latest done
+#27 unpacking to docker.io/library/graphx-telemetry:latest 0.0s done
+#27 DONE 0.5s
+
+#28 resolving provenance for metadata file
+#28 DONE 0.0s
+ graphx-telemetry:latest  Built
+ Network gx-route-policy_management  Creating
+ Network gx-route-policy_management  Created
+ Container gx-route-policy-telemetry-1  Creating
+ Container gx-route-policy-telemetry-1  Created
+ Container gx-route-policy-telemetry-1  Starting
+ Container gx-route-policy-telemetry-1  Started
+PASS: allowed flow arrived; denied flow incremented policy counter; routed flow remained missing-route
+Route-policy lab is running
+Console: http://127.0.0.1:18097
+Next: examples/static-route-policy/scripts/demo.sh apply-route
++ ip netns exec gx-route-router ip route replace 10.64.30.10/32 via 10.64.3.10 dev rt-right
+PASS: allowed flow arrived; denied flow incremented policy counter; routed flow arrived after route apply
+PASS: allowed flow arrived; denied flow incremented policy counter; routed flow arrived after route apply
++ ip netns exec gx-route-router ip route delete 10.64.30.10/32
+PASS: allowed flow arrived; denied flow incremented policy counter; routed flow remained missing-route
+PASS: allowed flow arrived; denied flow incremented policy counter; routed flow remained missing-route
+Stopped; retained evidence: /home/rklinkhammer/workspace/graphx-docker/outputs/static-route-policy/20260907T130809Z
+Stopped; retained evidence: /home/rklinkhammer/workspace/graphx-docker/outputs/static-route-policy/20260907T130809Z

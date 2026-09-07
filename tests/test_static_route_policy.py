@@ -53,9 +53,12 @@ def main() -> int:
     inspected = run(graphx, "inspect", config)
     assert "static-route-policy-lab" in inspected
     created = run(graphx, "infra", "create", config, "--dry-run")
+    transactional = run(graphx, "infra", "create", config, "--transactional", "--dry-run")
     assert all(name in created for name in ("br-route-left", "br-route-middle", "br-route-right"))
     assert all(name in created for name in ("mirror-route-left", "mirror-route-middle",
                                              "mirror-route-right"))
+    assert "ovs-vsctl add-br br-route-left" in transactional
+    assert "--may-exist add-br br-route-left" not in transactional
     source = config.read_text(encoding="utf-8")
     assert source.index("allow-left-middle") < source.index("deny-middle-left") < source.index("allow-left-right")
     assert "10.64.30.10/32 via 10.64.3.10" not in created, "manual route leaked into create"
@@ -94,6 +97,7 @@ def main() -> int:
     assert 'current_start_owns_native" != true' not in demo
     assert 'sender_output="$GRAPHX_ROUTE_RUN_DIR/$id-$attempt-sender.log"' in demo
     assert 'receiver_output="$GRAPHX_ROUTE_RUN_DIR/$id-$attempt-receiver.log"' in demo
+    assert 'infra create "$graph_config" --transactional' in demo
     assert "pkill" not in demo and "killall" not in demo and "rm -rf" not in demo
     compose = (example / "compose.yaml").read_text(encoding="utf-8")
     assert 'tmpfs: ["/tmp:rw,noexec,nosuid,size=16m"]' in compose

@@ -345,7 +345,7 @@ case "$command_name" in
     if test -r "$state_file"; then cleanup; fi
     preflight_names
     create_state
-    sudo "$graphx" infra create "$graph_config"
+    sudo "$graphx" infra create "$graph_config" --transactional
     mark_native_ownership
     configure_endpoints
     for link in rtl-cap rtm-cap rtr-cap; do sudo ip link set "$link" up; done
