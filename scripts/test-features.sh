@@ -21,13 +21,6 @@ trap cleanup EXIT INT TERM
 
 step() { printf '\n==> %s\n' "$*"; }
 require() { command -v "$1" >/dev/null || { echo "missing prerequisite: $1" >&2; exit 2; }; }
-npm_with_build_trust() {
-  if test -n "${GRAPHX_CA_CERT:-}"; then
-    NODE_USE_SYSTEM_CA=1 NODE_EXTRA_CA_CERTS="$GRAPHX_CA_CERT" npm "$@"
-  else
-    NODE_USE_SYSTEM_CA=1 npm "$@"
-  fi
-}
 without_graphx_environment() {
   local name
   local -a command=(env)
@@ -188,9 +181,9 @@ portable() {
   test "$(grep -c 'PASS received=5' "$TMP_DIR/udp-multicast.log")" = 2
 
   step "Build the web console and exercise telemetry HTTP semantics"
-  npm_with_build_trust ci --prefix "$ROOT/apps/telemetry" --no-audit --no-fund
+  npm ci --prefix "$ROOT/apps/telemetry" --no-audit --no-fund
   without_graphx_environment npm test --prefix "$ROOT/apps/telemetry"
-  npm_with_build_trust ci --prefix "$ROOT/web" --no-audit --no-fund
+  npm ci --prefix "$ROOT/web" --no-audit --no-fund
   without_graphx_environment npm test --prefix "$ROOT/web"
   npm run build --prefix "$ROOT/web"
   sed 's/provider: ovs-span/provider: pcapng/' \

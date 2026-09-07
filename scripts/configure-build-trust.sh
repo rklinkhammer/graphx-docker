@@ -21,6 +21,8 @@ if test -n "${GRAPHX_CA_CERT:-}"; then
     return 2 2>/dev/null || exit 2
   }
   graphx_build_trust_material="GRAPHX_CA_CERT=$(graphx_sha256_file "$GRAPHX_CA_CERT");"
+  NODE_EXTRA_CA_CERTS=$GRAPHX_CA_CERT
+  export NODE_EXTRA_CA_CERTS
 fi
 
 if test -n "${GRAPHX_CERT_INSTALL_SCRIPT:-}"; then
@@ -46,5 +48,6 @@ if test -n "$graphx_build_trust_material"; then
 else
   GRAPHX_BUILD_TRUST_FINGERPRINT=graphx-trust-v1-none
 fi
-export GRAPHX_BUILD_TRUST_FINGERPRINT
+NODE_USE_SYSTEM_CA=1
+export GRAPHX_BUILD_TRUST_FINGERPRINT NODE_USE_SYSTEM_CA
 unset graphx_build_trust_material
