@@ -3,7 +3,10 @@
 This is the short testing entry point for developers and independent verifiers.
 Choose one profile, run one command, and retain the generated log. Detailed
 coverage, rationale, and manual diagnostics are in
-[`test-reference.md`](test-reference.md).
+[`test-reference.md`](test-reference.md). Platform-specific interactive
+acceptance and cleanup steps are in
+[`manual-test-procedures.md`](manual-test-procedures.md); runnable scenario
+walkthroughs are in [`demo-guide.md`](demo-guide.md).
 
 ## Choose a profile
 

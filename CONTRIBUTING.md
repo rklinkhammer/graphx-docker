@@ -22,6 +22,9 @@ file [`docs/GraphX_Architecture.md`](docs/GraphX_Architecture.md) is authoritati
 over the generated DOCX. After a material architecture edit, run:
 
 ```sh
+python3 -m venv .venv-docs
+. .venv-docs/bin/activate
+python3 -m pip install -r scripts/requirements-docs.txt
 scripts/generate-architecture-doc.py
 ```
 

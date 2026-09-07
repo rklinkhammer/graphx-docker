@@ -51,7 +51,17 @@ def main() -> int:
     if stale_references:
         fail(f"live repository content still references the old QEMU ADR path: {stale_references}")
 
-    for document in (root / "README.md", root / "CONTRIBUTING.md", index):
+    linked_documents = (
+        root / "README.md",
+        root / "CONTRIBUTING.md",
+        root / "examples" / "README.md",
+        root / "docs" / "GraphX_Architecture.md",
+        root / "docs" / "demo-guide.md",
+        root / "docs" / "manual-test-procedures.md",
+        root / "docs" / "test-procedure.md",
+        index,
+    )
+    for document in linked_documents:
         for link in local_links(document):
             if not (document.parent / link).resolve().exists():
                 fail(f"broken local link in {document.relative_to(root)}: {link}")

@@ -177,6 +177,27 @@ def create_diagrams():
     d.text((75, 885), "Live telemetry is metadata and best effort. Raw captures retain payload bytes and require separate protection.", fill="#465564", font=font(26, True))
     image.save(ASSETS / "observability-gui-flow.png", quality=95)
 
+    image, d = canvas("Architecture to verification evidence")
+    stages = [
+        ((45, 305, 305, 485), "Architecture + ADR", "boundaries\nand decisions", "#E8F5F2", "#16877A"),
+        ((350, 305, 610, 485), "Example model", "graphx.yaml\nand assets", "#EAF2FA", "#2563A6"),
+        ((655, 305, 915, 485), "Demo lifecycle", "start • verify\nobserve • stop", "#FFF4DC", "#B87900"),
+        ((960, 305, 1220, 485), "Test layers", "unit • portable\nnative • quality", "#F3F5F7", "#687482"),
+        ((1265, 305, 1755, 485), "Verification report", "commit • host • logs\nevidence • skips • cleanup", "#E8F5F2", "#16877A"),
+    ]
+    for box, title, subtitle, fill, outline in stages:
+        rounded_box(d, box, title, subtitle, fill, outline)
+    for first, second in zip(stages, stages[1:]):
+        arrow(d, (first[0][2], 395), (second[0][0], 395))
+    rounded_box(d, (330, 650, 1470, 815), "Shared implementation under test",
+                "configuration • runtime • infrastructure • telemetry • control • history • capture • GUI",
+                "#F3F5F7", "#687482")
+    arrow(d, (785, 485), (785, 650))
+    arrow(d, (1090, 650), (1090, 485))
+    d.text((70, 890), "Profiles aggregate evidence; they do not change what a platform or test can prove.",
+           fill="#465564", font=font(27, True))
+    image.save(ASSETS / "architecture-evidence-flow.png", quality=95)
+
 
 def set_repeat_table_header(row):
     tr_pr = row._tr.get_or_add_trPr()
@@ -357,7 +378,7 @@ def build_docx():
     band = doc.add_table(rows=1, cols=1); band.alignment = WD_TABLE_ALIGNMENT.CENTER
     cell = band.cell(0, 0); shade(cell, NAVY); set_cell_margins(cell, 220, 220, 220, 220)
     cp = cell.paragraphs[0]; cp.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    add_inline(cp, "GraphX 1.0.0\nRepository architecture baseline\nReviewed 2026-09-06")
+    add_inline(cp, "GraphX 1.0.0\nRepository architecture baseline\nReviewed 2026-09-07")
     for run in cp.runs: set_run_font(run, size=12, bold=True, color=WHITE)
     doc.add_paragraph()
     note = doc.add_paragraph("Document status: maintained source and editable Word edition. Implemented behavior is separated from proposed work.")
@@ -382,6 +403,7 @@ def build_docx():
         (ASSETS / "ipvlan-l2-path.png", "Figure 2. IPvlan L2 domains connected by OVS and a namespace router."),
         (ASSETS / "mixed-network-path.png", "Figure 3. Mixed-network logical path and explicit observation/fault points."),
         (ASSETS / "observability-gui-flow.png", "Figure 5. Live, durable, exported, and captured evidence presented to operators."),
+        (ASSETS / "architecture-evidence-flow.png", "Figure 6. Traceability from architecture through examples, demos, tests, and verification."),
     ]
     while i < len(lines):
         raw = lines[i]; stripped = raw.strip()

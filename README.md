@@ -34,6 +34,11 @@ The [`static-route/policy laboratory`](examples/static-route-policy/README.md)
 demonstrates receiver-confirmed delivery, nftables denial, explicit route
 activation, OVS mirroring, PCAPNG, and matching GUI states.
 
+The [`demo guide`](docs/demo-guide.md) compares every runnable scenario and its
+evidence boundary. The [`manual test procedures`](docs/manual-test-procedures.md)
+provide separate macOS and native-Linux acceptance sequences, expected results,
+and cleanup audits.
+
 ## Run the complete demo
 
 Requirements: Docker Engine or Docker Desktop with Compose, plus `curl`.
@@ -86,6 +91,9 @@ and shared-memory pipelines, the browser build, telemetry API, Prometheus output
 and infrastructure dry-runs), run `scripts/verify.sh portable`. Docker, quality,
 release, and privileged native-Linux profiles are documented in
 [`docs/test-procedure.md`](docs/test-procedure.md).
+Use [`docs/manual-test-procedures.md`](docs/manual-test-procedures.md) when a
+platform acceptance report also requires interactive observation and explicit
+host cleanup evidence.
 
 Before a pull request, run the combined local quality and Docker profile:
 

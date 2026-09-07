@@ -1,8 +1,8 @@
 # GraphX Architecture and Network Topology
 
-**Version:** 1.1
+**Version:** 1.2
 **Repository baseline:** GraphX 1.0.0  
-**Review date:** 2026-09-06  
+**Review date:** 2026-09-07
 **Status:** Living architecture document
 
 ## Executive summary
@@ -506,6 +506,75 @@ Credential rotation uses atomic current snapshots plus a bounded redaction-only 
 | Container QEMU | Nested VM deployment, KVM/TCG evidence, least privilege, packet history | Linux x86_64; optional `/dev/kvm` |
 | Simulated SDR | Raw UDP IQ, mutual-TLS control, raw results, live GUI, packet history | Docker Desktop or Linux; unprivileged except capture sidecar capabilities |
 | External SDR | External hardware boundary, macvlan, OVS/SPAN, ordinary Ethernet capture | Native Linux; privileged infrastructure lifecycle |
+
+### 10.1 How examples, demos, and tests relate to the system
+
+Examples, demos, and tests are not parallel implementations of GraphX. They are
+different evidence layers over the same configuration, runtime, infrastructure,
+observation, and presentation components:
+
+```mermaid
+flowchart TB
+  M[Authoritative graphx.yaml model] --> L[Library, CLI, and node runtimes]
+  M --> T[Telemetry and browser topology]
+  M --> I[Infrastructure plans]
+  E[Example configurations] --> M
+  D[Demo lifecycle scripts] --> L
+  D --> T
+  D --> I
+  U[Unit and contract tests] --> M
+  U --> L
+  P[Portable integration profiles] --> D
+  P --> T
+  N[Native Linux acceptance] --> D
+  N --> I
+  Q[Quality, sanitizer, and fuzz gates] --> L
+  R[Verification report] --> U
+  R --> P
+  R --> N
+  R --> Q
+```
+
+- An **example** is a checked-in configuration plus the smallest code or
+  Compose assets needed to illustrate one architectural concern.
+- A **demo** is an operator-facing lifecycle around one or more examples. It
+  starts real components, exposes observable success criteria, and owns cleanup.
+- A **test** checks a bounded contract. Unit tests isolate implementation;
+  portable integration runs real host/Docker behavior; native-Linux acceptance
+  proves kernel and host-network semantics that cannot be simulated faithfully.
+- A **verification profile** aggregates tests but does not change what they
+  prove. A report must retain platform, commit, logs, manual evidence, and skips.
+
+### 10.2 Component and evidence traceability
+
+| System component | Primary examples or demos | Automated evidence | Manual/system evidence |
+| --- | --- | --- | --- |
+| Configuration loader, schema, projections | Every `graphx.yaml`; root demo | `graphx-config-*`, schema/AJV, projection and documentation CTests | `graphx validate`, `inspect`, and reviewed infra dry-runs |
+| Envelope, framing, identity | Standard TCP, capture, shared memory, UDP | C++ unit/golden tests, malformed cases, envelope/frame fuzzers | USER0 PCAPNG decoded with Lua/extcap |
+| Transport factory and lifecycle | Standard TCP, shared memory, UDP examples | CTest transport suites, finite pipelines, SIGTERM and reconnect checks | Process output, delivery counts, clean shutdown |
+| Infrastructure planner/executor | Native network labs, route/policy lab | Config/planner/transaction tests and portable dry-run assertions | Native links, OVS, namespace, route, policy, netem, and cleanup inspection |
+| Deployment and ownership | Root Compose, separate network projects, QEMU/SDR launchers | Compose rendering, hardening and lifecycle script tests | Container/device boundaries, ownership markers, repeated teardown |
+| Telemetry and operations | Root, QEMU, SDR, route/policy demos | Node tests, HTTP/WebSocket integration, Prometheus/SLO/OTLP checks | Live counters, readiness, bounded failure behavior |
+| Control and security | Root source control, SDR mTLS relay | Authentication, authorization, anti-replay, rotation, redaction and audit tests | Token workflow, pause/resume, direct SDR command rejection/success |
+| History | Root, QEMU, SDR | SQLite worker, retention, restart, query/auth tests | History navigation and persistence across collector restart |
+| Application capture | Root and capture example | PCAPNG writer, security, catalog, download, Lua/extcap tests | Message identity and frame inspection |
+| Ethernet capture | Native OVS labs, QEMU, SDR, route/policy | Observer/parser tests and portable simulated captures | SPAN/live capture, TShark decode, receiver/counter correlation |
+| Browser presentation | Root and every graphical demo | React/node component tests and production build | Application/Network/History transitions and live updates without refresh |
+| External-node model | QEMU and SDR | Config, raw-edge rejection, observer, QMP/probe, SDR protocol tests | VM acceleration/readiness or native SDR-path evidence |
+
+The shortest path from architecture to evidence is therefore:
+
+1. the architecture and ADR define a boundary;
+2. `graphx.yaml` expresses it in an example;
+3. a demo makes the example observable and repeatably cleanable;
+4. focused tests validate individual contracts;
+5. portable and native profiles establish platform-appropriate integration;
+6. an independent report states exactly which evidence ran.
+
+The consolidated [`demo guide`](demo-guide.md) describes the runnable scenarios.
+The [`manual test procedures`](manual-test-procedures.md) define macOS and Linux
+system acceptance without conflating Docker Desktop simulation with native
+kernel evidence.
 
 ## 11. Architectural limits, drift, and risks
 
