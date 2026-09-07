@@ -19,36 +19,42 @@ state = {"running": True, "frequency_hz": 100_000_000}
 MAX_CONTROL_BYTES = 4096
 
 
-def control_server() -> None:
+def control_server(listener: socket.socket | None = None) -> None:
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     context.minimum_version = ssl.TLSVersion.TLSv1_3
     context.load_cert_chain(os.environ["SDR_TLS_CERT"], os.environ["SDR_TLS_KEY"])
     context.load_verify_locations(os.environ["SDR_TLS_CLIENT_CA"])
     context.verify_mode = ssl.CERT_REQUIRED
-    with socket.socket() as listener:
+    if listener is None:
+        listener = socket.socket()
         listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         listener.bind(("0.0.0.0", int(os.environ.get("SDR_CONTROL_PORT", "18401"))))
         listener.listen(8)
+    with listener:
         listener.settimeout(0.5)
         while not stop.is_set():
             try:
                 connection, _ = listener.accept()
             except TimeoutError:
                 continue
-            try:
-                with context.wrap_socket(connection, server_side=True) as secure:
-                    secure.settimeout(2)
-                    request = recv_line(secure, MAX_CONTROL_BYTES)
-                    response = apply_command(json.loads(request))
-                    secure.sendall(json.dumps(response, separators=(",", ":")).encode() + b"\n")
-            except (OSError, ssl.SSLError, json.JSONDecodeError, TypeError, ValueError) as error:
-                print(f"control rejected: {type(error).__name__}: {str(error)[:160]}", flush=True)
+            with connection:
+                try:
+                    with context.wrap_socket(connection, server_side=True) as secure:
+                        secure.settimeout(2)
+                        request = recv_line(secure, MAX_CONTROL_BYTES)
+                        response = apply_command(json.loads(request))
+                        secure.sendall(json.dumps(response, separators=(",", ":")).encode() + b"\n")
+                except (OSError, ssl.SSLError, json.JSONDecodeError, TypeError, ValueError) as error:
+                    print(f"control rejected: {type(error).__name__}: {str(error)[:160]}", flush=True)
 
 
 def apply_command(command: object) -> dict[str, object]:
-    if not isinstance(command, dict) or set(command) - {"action", "frequency_hz"}:
+    if not isinstance(command, dict):
         return {"accepted": False, "error": "invalid command"}
     action = command.get("action")
+    expected_fields = {"action", "frequency_hz"} if action == "tune" else {"action"}
+    if set(command) != expected_fields:
+        return {"accepted": False, "error": "invalid command"}
     with state_lock:
         if action == "start":
             state["running"] = True

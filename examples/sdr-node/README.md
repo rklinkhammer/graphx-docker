@@ -25,7 +25,9 @@ UDP port 18400 carries deterministic `SDR1` sample blocks: a bounded network-
 order header followed by at most 256 signed 16-bit I/Q pairs. It is deliberately
 ordinary UDP with `framing: none`. UDP is lossy and unauthenticated; the example
 does not claim confidentiality, integrity, delivery, ordering, congestion
-control, or device authorization.
+control, or device authorization. The processor rejects datagrams whose source
+address is not the profile's declared SDR address. This reduces accidental or
+spoofed cross-talk but is not authentication; the source port remains ephemeral.
 
 TCP port 18401 carries one JSON-line control request/response per mutually
 authenticated TLS 1.3 connection. The only actions are `start`, `stop`, `tune`,
@@ -55,6 +57,12 @@ normal file access controls.
 `--no-capture` disables the derived PCAPNG and GUI capture catalog. The bounded
 classic PCAP observation source still exists because live passive metrics and
 packet history are derived from it; this matches the QEMU observer model.
+
+The portable capture container retains root only inside its isolated processor
+network namespace and has a read-only root filesystem plus only `NET_RAW`,
+`NET_ADMIN`, `SETUID`, and `SETGID`. The identity capabilities are needed because
+tcpdump's explicit `-Z root` path otherwise fails or drops to an account that
+cannot write the mode-0770 host capture directory on Linux.
 
 ## Physical SDR contract
 

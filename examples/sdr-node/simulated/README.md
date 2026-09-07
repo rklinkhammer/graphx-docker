@@ -46,6 +46,10 @@ examples/sdr-node/simulated/scripts/demo.sh stop
 ```
 
 Add `--no-capture` or `--no-history` only to `start`. If startup fails, use
-`demo.sh logs`, confirm port 8080 is free, and run `stop` before retrying.
+the bounded command output and retained run directory for diagnosis. Failed or
+interrupted starts automatically remove the profile's Compose resources, and
+`stop` is safe to repeat. Confirm the selected GUI port is free before retrying.
+An explicit `GRAPHX_SDR_GUI_PORT` on a new `start` takes precedence over the
+port retained in the preceding state file.
 This profile represents the Ethernet switch with Docker's private bridge; it is
 not evidence for OVS, SPAN, macvlan, or physical-link behavior.

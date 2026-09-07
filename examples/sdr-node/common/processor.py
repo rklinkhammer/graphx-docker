@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import ipaddress
 import json
 import os
 import signal
@@ -14,6 +15,24 @@ import time
 from protocol import decode_samples, recv_line, signed, verified
 
 stop = threading.Event()
+
+
+def expected_sample_source(value: str) -> str:
+    """Return one canonical IPv4 source or reject an ambiguous endpoint policy."""
+    try:
+        address = ipaddress.ip_address(value)
+    except ValueError as error:
+        raise ValueError("SDR_SAMPLE_SOURCE must be one IPv4 address") from error
+    if address.version != 4:
+        raise ValueError("SDR_SAMPLE_SOURCE must be one IPv4 address")
+    return str(address)
+
+
+def decode_sample_datagram(payload: bytes, peer: tuple[str, int], source: str):
+    """Enforce the configured device address before parsing ordinary UDP bytes."""
+    if peer[0] != source:
+        raise ValueError("SDR sample source does not match SDR_SAMPLE_SOURCE")
+    return decode_samples(payload)
 
 
 def telemetry_control() -> None:
@@ -102,6 +121,7 @@ def main() -> None:
     signal.signal(signal.SIGINT, lambda *_: stop.set())
     bind = os.environ.get("SDR_SAMPLE_BIND", "0.0.0.0")
     port = int(os.environ.get("SDR_SAMPLE_PORT", "18400"))
+    sample_source = expected_sample_source(os.environ["SDR_SAMPLE_SOURCE"])
     for _ in range(30):
         try:
             print(f"SDR control status: {control('status')}", flush=True)
@@ -121,7 +141,7 @@ def main() -> None:
         while not stop.is_set():
             try:
                 payload, peer = source.recvfrom(2048)
-                sequence, frequency, samples = decode_samples(payload)
+                sequence, frequency, samples = decode_sample_datagram(payload, peer, sample_source)
                 power = sum(i * i + q * q for i, q in samples)
                 send_result({"sequence": sequence, "frequency_hz": frequency,
                              "sample_count": len(samples), "power": power})

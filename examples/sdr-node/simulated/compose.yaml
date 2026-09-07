@@ -39,6 +39,7 @@ services:
     environment:
       <<: *sdr-environment
       SDR_SAMPLE_BIND: 0.0.0.0
+      SDR_SAMPLE_SOURCE: 172.30.13.10
       SDR_CONTROL_TARGET: sdr-node
       SDR_RESULT_TARGET: sink
       SDR_TLS_CERT: /run/sdr-tls/processor.pem
@@ -58,10 +59,14 @@ services:
       sdr-ethernet: { ipv4_address: 172.30.13.30 }
   packet-capture:
     <<: *sdr-service
-    command: ["tcpdump", "-U", "-n", "-i", "eth0", "-s", "65535", "-C", "64", "-W", "1", "-w", "/captures/sdr-node.pcap", "udp port 18400 or tcp port 18401 or tcp port 18402"]
+    # Retain the capability-bounded root identity so tcpdump can write the
+    # mode-0770 bind mount on Linux. This service has no host network, writable
+    # root filesystem, or capabilities beyond packet capture.
+    command: ["tcpdump", "-Z", "root", "-U", "-n", "-i", "eth0", "-s", "65535", "-C", "64", "-W", "1", "-w", "/captures/sdr-node.pcap", "udp port 18400 or tcp port 18401 or tcp port 18402"]
     network_mode: service:processor
-    cap_add: [NET_RAW, NET_ADMIN]
+    cap_add: [NET_RAW, NET_ADMIN, SETUID, SETGID]
     user: "0:0"
+    security_opt: []
     volumes: ["${GRAPHX_SDR_RUN_DIR:?set by demo.sh}:/captures"]
     depends_on: [processor]
   packet-observer:

@@ -6,6 +6,7 @@ profile_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 example_dir=$(cd "$profile_dir/.." && pwd)
 repo_dir=$(cd "$example_dir/../.." && pwd)
 source "$repo_dir/scripts/configure-build-trust.sh"
+source "$example_dir/common/lifecycle.sh"
 state_dir="$example_dir/.state"
 state_file="$state_dir/simulated.env"
 GRAPHX_SDR_GUI_PORT=${GRAPHX_SDR_GUI_PORT:-8080}
@@ -30,23 +31,6 @@ Start options: --no-capture --no-history
 EOF
 }
 require() { command -v "$1" >/dev/null 2>&1 || { echo "Missing prerequisite: $1" >&2; exit 2; }; }
-preflight_port() {
-  python3 - "${GRAPHX_SDR_GUI_PORT:-8080}" <<'PY'
-import socket, sys, time
-port=int(sys.argv[1])
-if not 1 <= port <= 65535: raise SystemExit("GRAPHX_SDR_GUI_PORT must be from 1 through 65535")
-error=None
-for _ in range(50):
-  with socket.socket() as candidate:
-    try:
-        candidate.bind(("127.0.0.1", port))
-        break
-    except OSError as error:
-        time.sleep(.1)
-else:
-  raise SystemExit(f"SDR GUI loopback port {port} is unavailable: {error}")
-PY
-}
 packet_rules() {
   printf '%s' '[{"edge_id":"sdr-samples","direction":"sdr-to-processor","node_id":"sdr-node","protocol":"UDP","source":"172.30.13.10","destination":"172.30.13.20","destination_port":18400},{"edge_id":"processor-control","direction":"processor-to-sdr","node_id":"processor","protocol":"TCP","source":"172.30.13.20","destination":"172.30.13.10","destination_port":18401},{"edge_id":"processed-results","direction":"processor-to-sink","node_id":"sink","protocol":"TCP","source":"172.30.13.20","destination":"172.30.13.30","destination_port":18402}]'
 }
@@ -76,6 +60,7 @@ create_state() {
   GRAPHX_CONTROL_TOKEN=$(openssl rand -hex 32)
   GRAPHX_TELEMETRY_SHARED_SECRET=$(openssl rand -hex 32)
   mkdir -p "$GRAPHX_SDR_RUN_DIR"
+  chmod 0770 "$GRAPHX_SDR_RUN_DIR"
   "$example_dir/common/generate_tls.sh" "$GRAPHX_SDR_TLS_DIR"
   temporary="$state_file.tmp.$$"
   printf 'GRAPHX_CONTROL_TOKEN=%q\nGRAPHX_TELEMETRY_SHARED_SECRET=%q\nGRAPHX_SDR_RUN_ID=%q\nGRAPHX_SDR_RUN_DIR=%q\nGRAPHX_SDR_TLS_DIR=%q\nGRAPHX_SDR_GUI_PORT=%q\nGRAPHX_CAPTURE_ENABLED=%q\nGRAPHX_HISTORY_ENABLED=%q\n' \
@@ -85,6 +70,18 @@ create_state() {
   chmod 0600 "$temporary"
   mv "$temporary" "$state_file"
   load_state
+}
+cleanup() (
+  set +e
+  if test -r "$state_file"; then load_state >/dev/null 2>&1; fi
+  "${COMPOSE[@]}" down --remove-orphans >/dev/null 2>&1
+  return 0
+)
+rollback_start() {
+  local status=$?
+  echo "start failed; rolling back owned portable resources" >&2
+  cleanup
+  return "$status"
 }
 wait_ready() {
   printf 'Waiting for SDR telemetry'
@@ -169,17 +166,25 @@ done
 case "$command_name" in
   start)
     require docker; require curl; require python3
+    requested_gui_port=$GRAPHX_SDR_GUI_PORT
+    trap rollback_start EXIT
+    trap 'exit 130' INT
+    trap 'exit 143' TERM
     if test -r "$state_file"; then
       load_state
       "${COMPOSE[@]}" down --remove-orphans
     fi
-    preflight_port
+    GRAPHX_SDR_GUI_PORT=$requested_gui_port
+    url="http://127.0.0.1:$GRAPHX_SDR_GUI_PORT"
+    export GRAPHX_SDR_GUI_PORT
+    graphx_sdr_preflight_port "$GRAPHX_SDR_GUI_PORT"
     GRAPHX_CAPTURE_ENABLED=true; GRAPHX_HISTORY_ENABLED=true
     test "$disable_capture" = false || GRAPHX_CAPTURE_ENABLED=false
     test "$disable_history" = false || GRAPHX_HISTORY_ENABLED=false
     create_state
     "${COMPOSE[@]}" up -d --build
     verify
+    trap - EXIT INT TERM
     echo "Control token: $GRAPHX_CONTROL_TOKEN"
     ;;
   verify) load_state; require docker; verify ;;
@@ -187,6 +192,9 @@ case "$command_name" in
   logs) load_state; "${COMPOSE[@]}" logs -f --tail=40 ;;
   token) load_state; printf '%s\n' "$GRAPHX_CONTROL_TOKEN" ;;
   control) load_state; control "$@" ;;
-  stop) load_state; "${COMPOSE[@]}" down --remove-orphans ;;
+  stop)
+    if test ! -r "$state_file"; then echo "Already stopped; no simulated SDR state"; exit 0; fi
+    load_state; cleanup
+    ;;
   *) usage; exit 64 ;;
 esac

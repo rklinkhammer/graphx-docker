@@ -26,6 +26,7 @@ services:
     environment:
       <<: *sdr-environment
       SDR_CONTROL_TARGET: 10.63.0.10
+      SDR_SAMPLE_SOURCE: 10.63.0.10
       SDR_RESULT_TARGET: 10.63.0.30
       SDR_TLS_CERT: /run/sdr-tls/processor.pem
       SDR_TLS_KEY: /run/sdr-tls/processor.key

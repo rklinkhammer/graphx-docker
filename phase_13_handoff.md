@@ -21,6 +21,42 @@ The native OVS/macvlan/netns profile was configuration-validated and dry-run
 inspected only because this is not a native Linux host. Phase 13 therefore awaits
 independent portable and native-Linux verification.
 
+## Post-verification remediation update — 2026-09-07
+
+The Ubuntu follow-up in `phase_13_verification.md` found F-013-01 through
+F-013-07. This implementation update addresses them without relabeling the
+failed Linux runs as passing evidence:
+
+- shared `common/lifecycle.sh` now gives both launchers bounded, actionable port
+  validation without the exception-scope traceback;
+- explicit start-time GUI ports survive loading prior state;
+- the simulated profile has EXIT/signal rollback, repeated stop behavior, and a
+  Linux-compatible tcpdump identity/capability boundary with a mode-0770 run
+  directory;
+- the native profile writes operator-readable mode-0600 PID files, makes stop
+  idempotent, and applies a random per-run owner to the OVS bridge/mirror, every
+  lab interface/namespace, and the Docker network;
+- native cleanup refuses fixed-name teardown unless every extant target carries
+  the current state file's intrinsic owner marker, while the same-process failure
+  trap may remove a partial attempt only after clean-name preflight;
+- the processor rejects UDP from addresses other than the configured SDR; and
+- control requests now use exact per-action fields, while the focused test adds
+  IQ boundary/corruption, loss/duplicate/reorder/restart, endpoint mismatch,
+  framing/JSON/action/range, missing/untrusted/expired client certificate, and
+  fresh-connection cases.
+
+Portable macOS remediation checks passed for the expanded behavioral test,
+occupied-port diagnostics/rollback, Compose rendering, and a complete simulated
+start/verify workflow on port 28090 plus an opt-out workflow on port 28092.
+`scripts/verify.sh portable` passed in 62 seconds with two 34/34 CTest runs,
+telemetry 76/76, GUI 14/14, and log
+`outputs/verification/20260907T002034Z-portable.log`. The LLVM 21 quality gate
+passed in 15 seconds with log
+`outputs/verification/20260907T002140Z-quality.log`. Native resource ownership,
+PID metadata, Linux bind-mount capture, repeated lifecycle, OVS/SPAN traffic,
+and GUI behavior still require the independent Linux rerun prescribed by the
+verifier report.
+
 ## Acceptance traceability
 
 | ID | Implementation evidence | Validation evidence | Status / remaining action |

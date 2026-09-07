@@ -18,6 +18,12 @@ network `gx-sdr-native`, and a mirror. These names must be unused. It does not
 attach a physical interface. Read the physical contract in the suite README
 before adapting the lab.
 
+Every created bridge, mirror, interface, namespace, and Docker network carries
+a random per-run ownership marker. Normal cleanup validates those intrinsic
+markers before invoking any fixed-name teardown. If a state file is stale or a
+same-named resource lacks the matching marker, cleanup refuses the operation;
+inspect ownership manually instead of renaming, adopting, or deleting it.
+
 ## Run and verify
 
 ```bash
@@ -53,6 +59,9 @@ examples/sdr-node/external/scripts/demo.sh stop
 
 After stopping, independently confirm `br-sdr`, `gx-sdr-device`, `sdr-cap`, and
 `gx-sdr-native` are absent. Evidence is retained. If an interrupted start leaves
-resources, rerun `stop`; cleanup targets only validated process IDs and these
-fixed disposable lab names. Native Linux runtime output is required for OVS/SPAN
-acceptance. A real SDR is optional and is never implied by simulator success.
+resources, rerun `stop`; cleanup targets only validated process IDs and native
+resources with the current run's marker. PID files are mode 0600 and owned by
+the invoking operator even though tcpdump and the namespace simulator require
+sudo. Repeated `stop` succeeds when the owned resources are already absent.
+Native Linux runtime output is required for OVS/SPAN acceptance. A real SDR is
+optional and is never implied by simulator success.
