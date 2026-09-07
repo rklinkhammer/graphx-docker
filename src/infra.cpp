@@ -359,7 +359,7 @@ std::string format_command(const InfraCommand& command_value) {
 int execute_infrastructure_plan(const std::vector<InfraCommand>& commands, bool dry_run,
                                 std::ostream& output, std::ostream& errors) {
   struct CompletedCommand {
-    const InfraCommand* command;
+    const InfraCommand* command{};
     std::string identity;
   };
   std::vector<CompletedCommand> completed;

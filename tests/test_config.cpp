@@ -494,6 +494,13 @@ void static_route_policy_model_and_plan_load() {
          "transactional route lab uses strict bridge creation");
 }
 
+std::vector<std::string> file_identity_command(const std::filesystem::path& path) {
+  return {"python3", "-c",
+          "import os,sys; value=os.stat(sys.argv[1]); "
+          "print(f'{value.st_ino}:{value.st_mode}')",
+          path.string()};
+}
+
 void infrastructure_transaction_rolls_back_in_reverse() {
   const auto directory = std::filesystem::temp_directory_path() /
                          ("graphx-infra-transaction-" + std::to_string(::getpid()));
@@ -501,16 +508,12 @@ void infrastructure_transaction_rolls_back_in_reverse() {
   const auto second = directory / "second";
   std::filesystem::create_directories(directory);
   const std::vector<graphx::InfraCommand> commands = {
-      {{"touch", first.string()},
-       {},
-       false,
-       {"rm", first.string()},
-       {"stat", "-Lc", "%i:%F", first.string()}},
+      {{"touch", first.string()}, {}, false, {"rm", first.string()}, file_identity_command(first)},
       {{"touch", second.string()},
        {},
        false,
        {"rm", second.string()},
-       {"stat", "-Lc", "%i:%F", second.string()}},
+       file_identity_command(second)},
       {{"false"}, {}, false, {}, {}},
   };
   std::ostringstream output, errors;
@@ -534,7 +537,7 @@ void infrastructure_transaction_preserves_replacement() {
        {},
        false,
        {"rm", "-rf", resource.string()},
-       {"stat", "-Lc", "%i:%F", resource.string()}},
+       file_identity_command(resource)},
       {{"sh", "-c",
         "rm '" + resource.string() + "' && mkdir '" + resource.string() + "' && exit 23"},
        {},
@@ -558,11 +561,7 @@ void infrastructure_transaction_rolls_back_identity_probe_failure() {
   const auto second = directory / "second";
   std::filesystem::create_directories(directory);
   const std::vector<graphx::InfraCommand> commands = {
-      {{"touch", first.string()},
-       {},
-       false,
-       {"rm", first.string()},
-       {"stat", "-Lc", "%i:%F", first.string()}},
+      {{"touch", first.string()}, {}, false, {"rm", first.string()}, file_identity_command(first)},
       {{"touch", second.string()}, {}, false, {"rm", second.string()}, {"sh", "-c", "exit 23"}},
   };
   std::ostringstream output, errors;
