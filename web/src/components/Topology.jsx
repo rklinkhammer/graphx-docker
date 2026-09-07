@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import ELK from 'elkjs/lib/elk.bundled.js'
 import { Background, Controls, MiniMap, ReactFlow, useNodesState } from '@xyflow/react'
 import { NodeCard } from './NodeCard'
 import { TelemetryEdge } from './TelemetryEdge'
@@ -22,11 +21,11 @@ export function Topology({ nodes, edges, onEdgeSelect }) {
     let fitFrame
     let readyFrame
     setLayoutReady(false)
-    const elk = new ELK()
-    elk.layout({ id: 'root', layoutOptions: { 'elk.algorithm': 'layered', 'elk.direction': 'RIGHT', 'elk.spacing.nodeNode': '90' },
+    import('elkjs/lib/elk.bundled.js').then(({ default: ELK }) => new ELK().layout({
+      id: 'root', layoutOptions: { 'elk.algorithm': 'layered', 'elk.direction': 'RIGHT', 'elk.spacing.nodeNode': '90' },
       children: nodes.map(node => ({ id: node.id, width: 205, height: 115 })),
-      edges: edges.map(edge => ({ id: edge.id, sources: [edge.source], targets: [edge.target] }))
-    }).then(graph => {
+      edges: edges.map(edge => ({ id: edge.id, sources: [edge.source], targets: [edge.target] })),
+    })).then(graph => {
       if (!active) return
       setLayoutNodes(positionedNodes(nodes).map(node => {
         const position = graph.children.find(item => item.id === node.id)

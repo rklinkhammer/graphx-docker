@@ -238,13 +238,13 @@ portable() {
     setTimeout(() => d.close(), 5000);
   ' &
   PIDS+=("$!")
-  sleep 0.1
-  curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/topology" | grep -q 'ipvlan-l2-pipeline'
-  curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/topology" >"$TMP_DIR/topology.json"
-  node -e '
+  telemetry_ready=false
+  for _ in {1..50}; do
+    if curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/topology" \
+        >"$TMP_DIR/topology.json" 2>/dev/null && node -e '
     const fs = require("node:fs");
     const snapshot = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
-    const edge = snapshot.edges.samples;
+    const edge = snapshot.edges?.samples || {};
     const failures = [];
     if (edge.sent !== 1 || edge.received !== 1) failures.push("directional message counters");
     if (edge.sentWireBytes !== 64 || edge.receivedWireBytes !== 64) failures.push("directional byte counters");
@@ -259,8 +259,21 @@ portable() {
     if (!snapshot.capture?.enabled || snapshot.capture?.provider !== "pcapng") failures.push("capture capability");
     if (!snapshot.capture?.files?.some(file => file.name === "generator.pcapng")) failures.push("capture listing");
     if (!snapshot.control?.available || snapshot.control?.connectedNodes < 1) failures.push("control capability");
-    if (failures.length) throw new Error(`bad telemetry: ${failures.join(", ")}`);
-  ' "$TMP_DIR/topology.json"
+    if (failures.length) {
+      console.error(`bad telemetry: ${failures.join(", ")}`);
+      process.exit(1);
+    }
+  ' "$TMP_DIR/topology.json" 2>"$TMP_DIR/telemetry-validation.log"; then
+      telemetry_ready=true
+      break
+    fi
+    sleep 0.1
+  done
+  if test "$telemetry_ready" != true; then
+    cat "$TMP_DIR/telemetry-validation.log" >&2
+    return 1
+  fi
+  grep -q 'ipvlan-l2-pipeline' "$TMP_DIR/topology.json"
   grep -q '"networkNodes"' "$TMP_DIR/topology.json"
   curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/topology" | grep -q 'br-l2-gen'
   curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/metrics" >"$TMP_DIR/metrics.txt"
