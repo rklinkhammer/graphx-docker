@@ -4,6 +4,7 @@ umask 077
 
 example_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 repo_dir=$(cd "$example_dir/../.." && pwd)
+source "$repo_dir/scripts/configure-build-trust.sh"
 state_dir="$example_dir/.state"
 state_file="$state_dir/lab.env"
 graph_config="$example_dir/graphx.yaml"

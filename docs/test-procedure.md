@@ -119,8 +119,8 @@ should be absolute when the command may start Docker builds or child scripts.
 | `GRAPHX_PHASE7_HTTP_PORT` | Published telemetry port used by the isolated history test | `38080` |
 | `GRAPHX_TEST_UDP_PORT` | Portable telemetry UDP port | `19000` |
 | `GRAPHX_VERIFY_LOG_DIR` | Persistent verification-log directory | `outputs/verification` |
-| `GRAPHX_CA_CERT` | Public organization CA used by all participating Docker builds | unset |
-| `GRAPHX_CERT_INSTALL_SCRIPT` | Reviewed noninteractive certificate installer | unset |
+| `GRAPHX_CA_CERT` | Public organization CA used by host npm and participating Docker builds | unset |
+| `GRAPHX_CERT_INSTALL_SCRIPT` | Reviewed noninteractive Docker build certificate installer | unset |
 | `ASAN_OPTIONS`, `UBSAN_OPTIONS` | Sanitizer runtime options | platform-safe profile defaults |
 | `GRAPHX_ALLOW_PRIVILEGED_TESTS` | Explicit native-network authorization; must equal `1` | unset |
 
@@ -273,8 +273,9 @@ must not be reported as native runtime verification.
 
 ## Organization certificates
 
-To add organization trust to all Docker builds used by the profiles, export an
-absolute path to a public root CA, a reviewed installer, or both:
+To add organization trust to host npm and all Docker builds used by the
+profiles, export an absolute path to a public root CA. A reviewed installer may
+also configure the Docker build stages:
 
 ```sh
 export GRAPHX_CA_CERT=/absolute/path/to/company-root-ca.crt
@@ -282,9 +283,14 @@ export GRAPHX_CERT_INSTALL_SCRIPT=/absolute/path/to/install-certs.sh
 scripts/verify.sh full
 ```
 
-The installer runs noninteractively in the image trust-bootstrap stage. It must
-not use sudo and must not contain private keys, registry passwords, or npm
-tokens. See the
+Host-side `npm ci` uses the operating-system trust store and, when set,
+`GRAPHX_CA_CERT` as additional trust without replacing Node.js's public roots.
+This recognizes an organization CA that its installer has already added to the
+macOS Keychain or Linux system trust store. `GRAPHX_CERT_INSTALL_SCRIPT` is not
+run on the host; it runs noninteractively in the image trust-bootstrap stage,
+where the resulting CA bundle is configured for Docker-based `npm ci`. The
+installer must not use sudo and must not contain private keys, registry
+passwords, or npm tokens. See the
 [`certificate bootstrap reference`](test-reference.md#local-linux-verifier-container-on-macos)
 for the complete trust model.
 
