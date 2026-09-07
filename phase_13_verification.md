@@ -1,12 +1,18 @@
 # Phase 13 Independent Verification Report
 
-**Verdict: INCOMPLETE — remediation and native-Linux evidence required**
+**Verdict: CHANGES REQUIRED — portable Linux and native OVS/SPAN startup fail**
 
 **Verification date:** 2026-09-06  
 **Repository:** `/Users/rklinkhammer/workspace/graphx-docker`  
 **Branch / baseline:** `main` / `c9db9bb9bfe26b122710eaa88a58a5506b50e378`  
 **Verified state:** uncommitted Phase 13 working tree; no product implementation was changed by this verification  
 **Contracts:** `prompt/implement.md`, `prompt/verifier.md`, and section 6 of `prompt/architectural_roadmap_implementation_plan.md`
+
+**Linux follow-up:** Ubuntu 26.04.1 LTS, kernel 7.0.0-31-generic, x86_64,
+commit `5cc44dd` on 2026-09-06. This follow-up independently executed the
+portable simulated and native OVS/SPAN launchers. It supersedes the original
+`INCOMPLETE` verdict; the original macOS evidence below remains valid for that
+host and commit state.
 
 ## 1. Executive summary
 
@@ -25,6 +31,15 @@ macOS and Linux and the OVS/SPAN profile on native Linux. This verifier only had
 macOS with a Linux Docker Desktop VM; that environment cannot prove OVS,
 macvlan, network namespaces, host listeners, SPAN traffic, privilege boundaries,
 or exact native cleanup. Dry-run commands are inspection evidence only.
+
+The Linux follow-up supplied both missing environments but neither mandatory
+SDR runtime gate passed. The portable profile's `packet-capture` service cannot
+create `/captures/sdr-node.pcap` in the mode-0700 bind-mounted run directory.
+The native profile creates its OVS/macvlan/namespace infrastructure and starts
+tcpdump, but writes `capture.pid` as root with mode 0600; the unprivileged
+launcher therefore cannot validate the PID and rolls the run back. The standard
+Linux regression suite still passed, including two 34/34 CTest runs and the
+Docker feature suite.
 
 Independent verification also found four implementation gaps:
 
@@ -54,6 +69,8 @@ No physical SDR was attached. Simulator success is not physical-hardware proof.
   quality, sanitizer, and fuzz gates.
 - **Native-Linux runtime — not verified:** OVS, SPAN, macvlan, network namespace,
   native PID ownership, listeners, interruption recovery, and exact teardown.
+- **Linux follow-up runtime — failed:** portable tcpdump output creation and
+  native tcpdump PID ownership validation both block startup and acceptance.
 - **Inspection only:** external configuration and Compose render, infrastructure
   dry-run, scripts, ownership declarations, capabilities, and documentation.
 - **Not applicable:** physical SDR attachment and RF behavior.
@@ -116,13 +133,13 @@ inspected, not executed.
 | SDR-002 | Deterministic bounded raw UDP IQ; malformed and mismatched input rejected; no GraphX framing | `common/protocol.py`, `sdr_simulator.py`, `processor.py`; UDP 18400 with `framing: none` | Deterministic bytes matched sender encoder and captured `SDR1`; live results reached sink; truncation and bad magic rejected | **Partial** | Bind acceptance to the expected source address/port or an explicit policy; add min/max, bad count/length, wrong endpoint, loss, duplicate, reorder, and restart tests |
 | SDR-003 | TLS 1.3 mTLS, peer verification, four exact commands, bounded JSON lines, state/rejection tests | `common/sdr_simulator.py`, `processor.py`, `sdrctl.py`, `generate_tls.sh` | Live status/tune/stop/start passed; missing client cert, wrong server name, and range rejection passed; certs were seven-day and keys mode 0600 | **Partial** | Add malformed JSON/framing/multiple-record/action tests, untrusted/expired client certs, repeated independent connections, and strict per-action fields; reject `frequency_hz` on non-`tune` actions |
 | SDR-004 | Shared implementation and consistent semantics; GUI reset remains collector-only | shared `common`, shared observer/telemetry/GUI, thin profile configs; GUI control target is processor | Both Compose files reference the shared code/image; QEMU static tests and GUI topology tests passed; pause/resume used processor mTLS; Reset documentation and existing GUI tests passed | **Implemented** | Reconfirm native profile uses identical command/evidence behavior |
-| SDR-005 | Native Linux OVS bridge/ports/mirror, endpoint, packet path, and exact teardown | external graph, Compose, and `external/scripts/demo.sh`; infra planner | Dry-run rendered veths, `br-sdr`, three ports, `mirror-sdr`, macvlan network, and destroy plan | **Partial** | Run the full native-Linux gate twice and inspect live bridge, mirror, namespace, frames, isolation, and teardown; fix ownership finding F-013-01 first |
+| SDR-005 | Native Linux OVS bridge/ports/mirror, endpoint, packet path, and exact teardown | external graph, Compose, and `external/scripts/demo.sh`; infra planner | Linux created the veths, `br-sdr`, mirror, namespace, and macvlan network, then failed capture PID ownership validation and rolled back | **Failed** | Fix F-013-01 and F-013-07, then run the full native-Linux gate twice and inspect live frames, isolation, and teardown |
 | SDR-006 | Packet-derived live API/WebSocket counters without fabricated GraphX messages | generalized packet observer emits `network_packet`; telemetry allow-list includes `ethernet-pcap`/`ovs-span` | Simulated counters advanced repeatedly; browser values advanced from 228/228 to 241/241 without refresh; traffic/history reported `network_packet` | **Partial** | Repeat API and WebSocket proof on portable Linux and native OVS/SPAN |
-| SDR-007 | Default-on bounded Ethernet PCAPNG and separate history; query/download; disable flags | observer, telemetry capture/history APIs, Compose bounds, graph configs | Default run produced valid link-type-1 PCAPNG with all 3 ports and queryable bounded SQLite; catalog/download worked; opt-out run returned capture `enabled:false`, empty records, and zero captured packets | **Partial** | Prove source-PCAP rotation/replacement and shutdown flush in this profile; repeat default/opt-out/boundary checks on Linux/native SPAN |
+| SDR-007 | Default-on bounded Ethernet PCAPNG and separate history; query/download; disable flags | observer, telemetry capture/history APIs, Compose bounds, graph configs | macOS evidence passed; Linux default and opt-out starts both failed because tcpdump could not create its source PCAP | **Failed on Linux** | Fix F-013-06, then repeat default/opt-out/boundary checks on Linux and native SPAN |
 | SDR-008 | Accurate GUI ownership; live updates, controls, capture/history, all tab transitions | existing web console plus SDR topology metadata/tests | Real browser showed topology/live changes; Application, Network, History, Capture, and History → Network transitions rendered; API control changed SDR state | **Partial** | Repeat browser checks on Linux/native topology; interactively enter a token and exercise buttons in an operator-controlled session |
-| SDR-009 | Preflight, idempotence, waits, rollback, PID ownership, restart, cleanup | both `demo.sh` files; native PID marker checks and ERR trap | Two portable workflows and repeated stop removed containers/network; waits are bounded; invalid CLI exits 64 | **Partial** | Fix F-013-01 through F-013-03; add fault injection for every startup stage, stale state, observer/capture/container failure, interruption, forged PID, and native repeat cleanup |
+| SDR-009 | Preflight, idempotence, waits, rollback, PID ownership, restart, cleanup | both `demo.sh` files; native PID marker checks and ERR trap | Linux confirmed portable failed-start leakage, stale-port traceback, unreadable native PID state, and non-idempotent native stop; native rollback did remove created host resources | **Failed** | Fix F-013-01 through F-013-03 and F-013-06/07; add fault injection for every startup stage, stale state, observer/capture/container failure, interruption, forged PID, and native repeat cleanup |
 | SDR-010 | Private/loopback exposure, protected keys, least privilege, bounds, no broad kill or physical adoption | Compose hardening, loopback publish, private networks, TLS generation, bounded parsers/storage, fixed PID kill, ownership docs | Key/state modes inspected; telemetry only published to loopback; no broad `pkill`/`killall`; security/history/capture tests passed | **Partial** | Fix unowned native-resource deletion; inspect live native users/groups/caps/mounts/listeners/routes and capture limits |
-| SDR-011 | No regressions to transports, QEMU, config, packaging, demos, or quality | additive schema/config changes and QEMU-compatible observer defaults | Portable suite passed C++20/C++23 34/34, topology gates, package, telemetry 76/76, GUI 14/14, quality, sanitizer, and fuzz checks | **Partial** | Run portable Phase 13 and full relevant regression on Linux; native success does not replace portable Linux parity |
+| SDR-011 | No regressions to transports, QEMU, config, packaging, demos, or quality | additive schema/config changes and QEMU-compatible observer defaults | macOS portable suite passed; Linux full verification passed in 359 s with two 34/34 CTest runs and the Docker feature suite | **Implemented** | Retain both platform regression gates while remediating the SDR runtime failures |
 | SDR-012 | Complete accurate architecture, ADR, indexes, profile guides, GUI/control/inspection/cleanup/troubleshooting | `examples/sdr-node` READMEs; `docs/GraphX_Architecture.md`; ADR 0014; examples/graphical/test guides | Documentation-consistency test passed and portable commands were followed literally; native commands inspected only | **Implemented** | Correct the documented/preflight port behavior after code remediation and append Linux results |
 
 ## 6. Wire, control, capture, history, and GUI results
@@ -276,6 +293,50 @@ bounded line tests for missing newline, oversize, trailing/multiple records, bad
 UTF-8/JSON/type/field/action/range; untrusted and expired client identities;
 fresh-connection/replay independence; and exact per-action schemas.
 
+### F-013-06 — High: portable packet capture cannot start on Linux
+
+On native Linux, both the default simulated launch and
+`start --no-capture --no-history` fail verification because the
+`packet-capture` container exits with:
+
+```text
+tcpdump: /captures/sdr-node.pcap: Permission denied
+```
+
+The launcher creates the host run directory mode 0700 as the invoking user.
+Compose starts the capture service as `0:0`, but Linux bind-mount permissions
+and tcpdump's privilege behavior leave it unable to create the output file.
+The opt-out flags disable derived capture/history behavior, not this source
+capture service, and `verify` still requires the service. In both cases `start`
+returned 1 while the other five services remained running, independently
+confirming F-013-02. Manual `stop` was required and did remove them.
+
+**Remediation:** give the capture process explicit, least-privilege write access
+to a dedicated capture path without broadening unrelated state permissions;
+define whether source capture is required in opt-out mode; make failed start
+rollback automatic; and add a native-Linux bind-mount permission regression.
+
+### F-013-07 — High: native capture PID state is unreadable by its owner check
+
+The native Linux profile successfully created the OVS bridge, mirror ports,
+namespace, and `gx-sdr-native`, and tcpdump reported that it was listening on
+`sdr-cap`. Startup nevertheless reported `tcpdump failed to start on the OVS
+mirror port`. The privileged shell wrote `capture.pid` as `root:root`, mode
+0600, in the mode-0700 evidence directory. The unprivileged `owned_pid` check
+cannot read that file, so it can never establish ownership and triggers
+rollback. Teardown then removes the interface, producing tcpdump's
+`pcap_loop: The interface disappeared` diagnostic.
+
+The rollback removed all observed fixed interfaces, OVS bridge, namespace,
+Docker network, processes, and containers. However, the documented subsequent
+`stop` and a repeated `stop` both returned 1, so cleanup is not idempotent at
+the command level even when resources are absent.
+
+**Remediation:** create PID metadata with ownership and mode readable by the
+launcher while retaining strict write ownership, validate it before declaring
+startup failure, and make cleanup return success when owned resources are
+already absent. Add startup, rollback, and repeated-stop tests on native Linux.
+
 ### Advisory — production web bundle size
 
 The production build passed but Vite reported a pre-existing 1.86 MB JavaScript
@@ -329,14 +390,28 @@ least privilege, listeners, routes, limits, and cleanup remain unproven.
 | native external start/verify/stop twice | Native-Linux runtime | **NOT RUN / blocked by host** |
 | physical SDR | Hardware | **NOT APPLICABLE** |
 
+### 9.1 Linux follow-up commands and results
+
+| Command/check | Evidence class | Result |
+|---|---|---|
+| `scripts/verify.sh full` | Linux cumulative regression | **PASS** — 359 s; C++20/C++23 each 34/34; Docker feature suite passed; log `outputs/verification/20260906T235418Z-full.log` |
+| focused Phase 13 CTests | Linux automated | **PASS** — documentation, QEMU static regression, SDR behavioral test, and both SDR configuration tests, 5/5 |
+| `python3 tests/test_sdr_example.py .` | Linux automated SDR | **PASS** for implemented cases; F-013-04/05 gaps remain |
+| simulated default `start` | Linux Docker runtime | **FAIL** — packet capture permission denied; exit 1; five services leaked until manual stop |
+| simulated `start --no-capture --no-history` | Linux Docker runtime | **FAIL** — capture service still started and required; same leak and manual cleanup |
+| occupied 8080 plus requested override 29000 | Linux adversarial runtime | **FAIL** — stale state selected 8080 and preflight raised `NameError` |
+| external native `start` | Linux OVS/SPAN runtime | **FAIL** — OVS/network setup succeeded; unreadable root-owned `capture.pid` caused false startup failure and rollback |
+| native rollback inspection | Linux lifecycle | **PASS with limitation** — all observed fixed resources/processes were absent; ownership-safety finding F-013-01 remains |
+| native `stop` after rollback and repeated `stop` | Linux lifecycle | **FAIL** — both returned 1 rather than succeeding idempotently |
+
 One initial manual Compose render omitted exported state variables and one
 inspection command incorrectly attempted to parse human-readable output as
 JSON. Both were verifier setup errors; corrected repetitions passed and neither
 is attributed to the product.
 
-## 10. Native-Linux verification still required
+## 10. Native-Linux re-verification still required
 
-After remediating F-013-01 through F-013-03, run on a native Linux host with
+After remediating F-013-01 through F-013-07, rerun on a native Linux host with
 Docker, Compose, Open vSwitch, iproute2, tcpdump/TShark, and suitable sudo:
 
 ```bash
@@ -386,14 +461,16 @@ retained evidence paths, and the Linux matrix result to this report.
 
 ## 12. Exit decision and prioritized remediation
 
-**Overall result: INCOMPLETE.** Phase 13 cannot enter the accepted chain.
+**Overall result: CHANGES REQUIRED.** Phase 13 cannot enter the accepted chain.
 
 Immediate blockers:
 
 1. make native cleanup ownership-safe (F-013-01);
 2. add portable failed-start rollback (F-013-02);
 3. correct port precedence and occupied-port diagnostics (F-013-03); and
-4. enforce/document the UDP endpoint policy and add missing adversarial wire and
+4. fix Linux portable capture access and native PID ownership/idempotence
+   (F-013-06/07); and
+5. enforce/document the UDP endpoint policy and add missing adversarial wire and
    control tests (F-013-04/05).
 
 Next verification work:
