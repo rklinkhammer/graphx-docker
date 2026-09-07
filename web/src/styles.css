@@ -30,9 +30,11 @@ footer { display: flex; align-items: center; gap: 24px; padding: 0 24px; color: 
 .capture-row { grid-template-columns: 190px 100px 140px 100px 110px minmax(220px,1fr); }.capture-download { display: inline-flex; align-items: center; gap: 5px; margin-top: 0; padding: 5px 8px; }
 @media (max-width: 900px) { .workspace { grid-template-columns: 1fr; }.inspector { min-height: 380px; }.topology-canvas { height: 440px; }.toolbar { align-items: flex-start; flex-direction: column; }.toolbar-actions { width: 100%; justify-content: flex-start; }.environment { display: none; }.summary { overflow-x: auto; white-space: nowrap; }.summary .healthy, .summary .waiting { margin-left: 0; } }
 @media (max-width: 560px) { .toolbar-actions { width: 100%; overflow-x: auto; }.workspace, .toolbar { padding-left: 12px; padding-right: 12px; }.summary, .history-panel { margin-left: 12px; margin-right: 12px; }.panel-label span:last-child { display: none; } }
-.react-flow__edge.diagnostic-allowed path,.react-flow__edge.diagnostic-route-applied path { stroke: #48d49a; }
-.react-flow__edge.diagnostic-policy-denied path { stroke: #f08a8a; stroke-dasharray: 3 4; }
-.react-flow__edge.diagnostic-missing-route path { stroke: #f1c56b; stroke-dasharray: 8 5; }
-.edge-badge.diagnostic-allowed,.edge-badge.diagnostic-route-applied { border-color: #287e61; color: #80e3ba; }
+.react-flow__edge-path.diagnostic-allowed { stroke: #48d49a; }
+.react-flow__edge-path.diagnostic-route-applied { stroke: #69a8ff; stroke-dasharray: 10 3 2 3; }
+.react-flow__edge-path.diagnostic-policy-denied { stroke: #f08a8a; stroke-dasharray: 3 4; }
+.react-flow__edge-path.diagnostic-missing-route { stroke: #f1c56b; stroke-dasharray: 8 5; }
+.edge-badge.diagnostic-allowed { border-color: #287e61; color: #80e3ba; }
+.edge-badge.diagnostic-route-applied { border-color: #3f72b5; color: #9ac4ff; }
 .edge-badge.diagnostic-policy-denied { border-color: #994b4b; color: #f4a4a4; }
 .edge-badge.diagnostic-missing-route { border-color: #98752d; color: #f1c56b; }

@@ -67,6 +67,15 @@ test('route-policy evidence drives bounded topology diagnostics', { timeout: 100
     assert.equal(applied.edges['routed-flow'].connection, 'route-applied')
     assert.equal(applied.topology.networkDiagnostic.routeApplied, true)
 
+    await writeFile(evidence, JSON.stringify({ ...initial, flows: { ...initial.flows,
+      'denied-flow': { state: 'policy-denied', evidence: 'route-installed' } } }))
+    const contradictory = await (await fetch(`http://127.0.0.1:${port}/api/topology`)).json()
+    assert.equal(contradictory.topology.networkDiagnostic, undefined)
+
+    await writeFile(evidence, JSON.stringify({ ...initial, routeApplied: true }))
+    const inconsistentRoute = await (await fetch(`http://127.0.0.1:${port}/api/topology`)).json()
+    assert.equal(inconsistentRoute.topology.networkDiagnostic, undefined)
+
     await writeFile(evidence, JSON.stringify({ ...initial, flows: {
       ...initial.flows, unexpected: { state: 'allowed', evidence: 'receiver-confirmed' } } }))
     const rejected = await (await fetch(`http://127.0.0.1:${port}/api/topology`)).json()

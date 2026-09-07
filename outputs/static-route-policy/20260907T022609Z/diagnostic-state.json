@@ -1,0 +1,1 @@
+{"version":1,"updatedAt":1788748026094,"routeApplied":false,"flows":{"allowed-flow":{"state":"allowed","evidence":"receiver-confirmed"},"denied-flow":{"state":"policy-denied","evidence":"nft-counter"},"routed-flow":{"state":"missing-route","evidence":"route-absent"}}}

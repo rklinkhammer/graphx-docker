@@ -1571,6 +1571,10 @@ class ConfigParser {
       for (std::size_t index = 0; index < router.policies.size(); ++index) {
         const auto& policy = router.policies[index];
         const auto policy_path = path + ".policies[" + std::to_string(index) + "]";
+        if (std::ranges::count_if(router.policies, [&](const auto& candidate) {
+              return candidate.id == policy.id;
+            }) > 1)
+          error(policy_path + ".id", "must be unique within the router");
         if (!policy.source.empty() && !ipv4_cidr(policy.source))
           error(policy_path + ".source", "must be an IPv4 CIDR");
         if (!policy.destination.empty() && !ipv4_cidr(policy.destination))

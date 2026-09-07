@@ -93,3 +93,42 @@ suite as root.
 Phase 14 remains **Partial** until the independent native-Linux procedure passes.
 Portable/macOS results establish model compatibility and implementation quality;
 they are not evidence for privileged Linux network behavior.
+
+## Linux remediation implementation — 2026-09-07
+
+The implementation was updated on Ubuntu 26.04.1 LTS in response to findings
+F-014-01 through F-014-07 in `phase_14_verification.md`:
+
+- dumpcap now streams pcapng to stdout so the unprivileged launcher creates and
+   owns the bounded retained file;
+- negative route proof requires sender success, and route presence compares the
+   exact destination, gateway, and device tuple;
+- sender and receiver evidence is retained in separate timestamped files for
+   every probe attempt;
+- diagnostic state/evidence pairs and `routeApplied` consistency fail closed;
+- router policy identifiers must be unique;
+- rollback rechecks native ownership markers before deletion, although later
+   independent fault injection found that failures before marker installation
+   leave partial resources behind;
+- allowed and route-applied edges have distinct live badge and path semantics;
+- the Phase 14 Compose tmpfs syntax and loopback publication work on Docker 29.
+
+Two complete native cycles passed after the final runtime changes. Each cycle
+proved baseline missing-route, named-policy denial, exact route apply and
+delivery, route clear and restored timeout, repeated stop, operator-readable
+three-interface PCAPNG evidence, complete sender/receiver logs, and zero final
+Phase 14 host residue. A live Playwright check confirmed Application and Network
+state updates without refresh and distinct blue dashed route-applied rendering.
+The full Linux verification profile passed in 343 seconds.
+
+Primary remediation evidence:
+
+- `outputs/verification/20260907T020124Z-native-linux.log`
+- `outputs/verification/20260907T020644Z-full.log`
+- `outputs/static-route-policy/20260907T020552Z`
+- `outputs/static-route-policy/20260907T020610Z`
+
+This is implementer evidence, not an acceptance verdict. The subsequent
+independent rerun closed six findings but kept F-014-05 open: create-stage
+ownership or rollback must become transactional before Phase 14 can be
+`ACCEPTED`.

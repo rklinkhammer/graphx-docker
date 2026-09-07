@@ -79,11 +79,26 @@ def main() -> int:
             "        - { destination: 10.64.30.10/32, device: rt-right, install: manual }\n      policies:\n"),
             encoding="utf-8")
         assert "must be unique within the router" in run(graphx, "validate", invalid, expect=2)
+        invalid.write_text(source.replace("id: allow-left-middle", "id: deny-middle-left"),
+                           encoding="utf-8")
+        assert "policies[0].id: must be unique within the router" in run(
+            graphx, "validate", invalid, expect=2)
 
     demo = (example / "scripts/demo.sh").read_text(encoding="utf-8")
     assert "requires native Linux" in demo and "native_resources_owned" in demo
     assert "route-policy.pcapng" in demo and "filesize:65536" in demo
+    assert '-w - -f "udp port 18601' in demo, "capture is not streamed to operator-owned output"
+    assert 'test "$sent" -eq 0 && test "$received" -ne 0' in demo
+    assert 'routes[0].get("gateway") == "10.64.3.10"' in demo
+    assert 'native_resources_exist && ! native_resources_owned' in demo
+    assert 'current_start_owns_native" != true' not in demo
+    assert 'sender_output="$GRAPHX_ROUTE_RUN_DIR/$id-$attempt-sender.log"' in demo
+    assert 'receiver_output="$GRAPHX_ROUTE_RUN_DIR/$id-$attempt-receiver.log"' in demo
     assert "pkill" not in demo and "killall" not in demo and "rm -rf" not in demo
+    compose = (example / "compose.yaml").read_text(encoding="utf-8")
+    assert 'tmpfs: ["/tmp:rw,noexec,nosuid,size=16m"]' in compose
+    assert '"127.0.0.1:${GRAPHX_ROUTE_GUI_PORT:-8080}:8080"' in compose
+    assert "internal: true" not in compose
     subprocess.run(["bash", "-n", example / "scripts/demo.sh",
                     example / "scripts/inspect.sh"], check=True)
     print("Phase 14 portable route-policy contract passed")

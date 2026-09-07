@@ -59,14 +59,17 @@ examples/static-route-policy/scripts/demo.sh stop
 ```
 
 Open `http://127.0.0.1:8080/`. The application and network views distinguish
-green `allowed`, red `policy-denied`, amber `missing-route`, and green
+green `allowed`, red `policy-denied`, amber `missing-route`, and blue dashed
 `route-applied` edges. Select an edge to see its evidence type. The route action
+The missing-route state requires a successful send, receiver absence, and an
+absent exact kernel route. Route presence requires the declared destination,
+next hop, and device to match.
 is intentionally a CLI operation, not a general-purpose privileged web control.
 
 The run directory printed by the script contains:
 
 - `route-policy.pcapng`, bounded to 64 MiB and made readable by the invoking user;
-- one log for each bounded one-way UDP probe;
+- separate timestamped sender and receiver logs for every bounded one-way UDP probe;
 - `dumpcap.log`;
 - `diagnostic-state.json`, the small, strict evidence projection consumed by the GUI.
 

@@ -229,9 +229,12 @@ function qemuEvidence() {
   } catch { return null }
 }
 
-const diagnosticStates = new Set(['allowed', 'policy-denied', 'missing-route', 'route-applied'])
-const diagnosticEvidenceTypes = new Set(['receiver-confirmed', 'nft-counter', 'route-absent',
-  'route-installed'])
+const diagnosticEvidenceByState = new Map([
+  ['allowed', 'receiver-confirmed'],
+  ['policy-denied', 'nft-counter'],
+  ['missing-route', 'route-absent'],
+  ['route-applied', 'route-installed'],
+])
 function networkDiagnosticEvidence() {
   if (!networkDiagnosticFile) return null
   try {
@@ -243,9 +246,11 @@ function networkDiagnosticEvidence() {
     for (const [edgeId, flow] of Object.entries(value.flows)) {
       if (!topology.edges.some(edge => edge.id === edgeId) || !flow ||
           typeof flow !== 'object' || Array.isArray(flow) ||
-          !diagnosticStates.has(flow.state) || !diagnosticEvidenceTypes.has(flow.evidence) ||
+        diagnosticEvidenceByState.get(flow.state) !== flow.evidence ||
           Object.keys(flow).some(key => !['state', 'evidence'].includes(key))) return null
     }
+    if (value.routeApplied !== Object.values(value.flows)
+          .some(flow => flow.state === 'route-applied')) return null
     return value
   } catch { return null }
 }

@@ -31,10 +31,14 @@ checklist, but no separate independent verification report. Later cumulative
 regression results are strong implementation evidence, but they are not a
 replacement for the missing phase-specific independent records.
 
-Phase 14 is an implementation candidate, not an accepted phase. Portable
-configuration, route-plan, diagnostic parser, telemetry, and GUI tests are part
-of the implementation handoff; the required native-Linux route, nftables, OVS,
-capture, lifecycle, and host-isolation verification has not yet been executed.
+Phase 14 has a completed independent remediation re-verification with a current
+`CHANGES REQUIRED` verdict. Six of seven original findings are closed. Two
+complete native cycles, exact route transitions, named deny counters,
+operator-readable three-interface PCAPs, separate sender/receiver evidence,
+unrelated canaries, live browser transitions, exact successful cleanup, and the
+full Linux profile pass. F-014-05 remains open: an `infra create` failure before
+ownership marking leaves a fixed-name link behind because rollback refuses to
+remove the unmarked partial resource.
 
 ## Phase status
 
@@ -53,7 +57,7 @@ capture, lifecycle, and host-isolation verification has not yet been executed.
 | 11 | `phase_11_verification.md` | **ACCEPTED** | Native Linux directed-broadcast and live-capture evidence closes UDP-003/UDP-009. |
 | 12 | `phase_12_verification.md` | **ACCEPTED** | External Linux, container TCG/KVM/auto/denial, capture/history, GUI/control, hardening, lifecycle, cleanup, and corrected TShark inspection passed. |
 | 13 | `phase_13_verification.md` | **ACCEPTED** | All SDR-001 through SDR-012 rows are implemented; portable default/opt-out and native OVS/SPAN default/opt-out cycles passed; all Phase 13 findings are closed; full Linux plus updated-repository macOS verification passed. |
-| 14 | Not yet created | **Implementation candidate; native verification required** | Run `prompt/verifier.md` on native Linux, record two lifecycle cycles and adverse-state/host-isolation evidence, then create `phase_14_verification.md`. |
+| 14 | `phase_14_verification.md` | **CHANGES REQUIRED** | F-014-01/02/03/04/06/07 are closed and all normal native/runtime/regression gates pass. F-014-05 remains: make create-stage ownership/rollback transactional, add staged fault injection, then reverify cleanup and immediate restart. |
 
 ## Review conclusions
 
@@ -63,3 +67,6 @@ capture, lifecycle, and host-isolation verification has not yet been executed.
    deleted; they must remain visibly labeled as superseded.
 3. Phase 1 and Phase 2 retain documentary gaps in the formal verification chain.
 4. Phases 3 through 13 have current accepted independent verification records.
+5. Phase 14 remediation passed independent native, browser, canary, and full
+   regression checks but remains unaccepted because failed-create rollback can
+   leave an unmarked fixed-name resource behind.
