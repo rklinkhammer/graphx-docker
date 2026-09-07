@@ -32,6 +32,10 @@ boundary.
 6. Inspect the manifest, SPDX 2.3 SBOM, checksums, licenses, archive contents, and
    downstream CMake consumer test. Sign/protect the exact `vX.Y.Z` tag according
    to repository policy and push it only after approval.
+7. Review the release-wide scope in
+   [`release-license-inventory.md`](release-license-inventory.md). If QEMU guest
+   images are distributed with the release, run `examples/qemu-node/scripts/build.sh`
+   and preserve its generated `output/legal-info` bundle with those images.
 
 ## Automated publication
 

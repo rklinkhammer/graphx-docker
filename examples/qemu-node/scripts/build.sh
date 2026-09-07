@@ -40,6 +40,9 @@ docker run --rm \
     make -C /opt/buildroot O="$example/output" \
       BR2_EXTERNAL="$example/buildroot-external" \
       BR2_DL_DIR="$example/dl" "-j${GRAPHX_QEMU_BUILD_JOBS:-4}"
+    make -C /opt/buildroot O="$example/output" \
+      BR2_EXTERNAL="$example/buildroot-external" \
+      BR2_DL_DIR="$example/dl" legal-info
   '
 
 for image in bzImage rootfs.cpio.gz; do
@@ -53,3 +56,4 @@ python3 "$example_dir/tools/artifact_manifest.py" create \
   --images "$example_dir/output/images" --guest "$example_dir/guest" \
   --buildroot-version "$buildroot_version" --source-date-epoch "$source_date_epoch"
 echo "QEMU guest images: $example_dir/output/images"
+echo "QEMU license bundle: $example_dir/output/legal-info"

@@ -1,7 +1,7 @@
 # GraphX Architecture and Network Topology
 
 **Version:** 1.2
-**Repository baseline:** GraphX 1.0.0  
+**Repository baseline:** GraphX 1.1.0
 **Review date:** 2026-09-07
 **Status:** Living architecture document
 
@@ -596,7 +596,7 @@ kernel evidence.
 
 - The UDP decision is canonical ADR 0012 and the QEMU decision is canonical ADR 0013; the ADR index retains the historical collision note.
 - Top-level projection files under `config/` are explicitly non-authoritative and are generated or checked with `graphx project` from validated `graphx.yaml`.
-- Root documentation identifies GraphX 1.0.0 and distinguishes accepted Phase 3–13 reports from the Phase 1 and Phase 2 documentary gaps; Phase 14 awaits native verification.
+- Root documentation identifies GraphX 1.1.0 and distinguishes accepted Phase 3–13 reports from the Phase 1 and Phase 2 documentary gaps; Phase 14 awaits native verification.
 - Some examples provide live GUI metrics while topology-only examples provide only static visualization; the distinction should remain visible in every example README.
 - Infrastructure routes support create-time and explicit manual activation; the Phase 14 laboratory is the focused coverage. Reconciliation and arbitrary runtime route mutation remain out of scope.
 
@@ -644,7 +644,7 @@ exit gate.
 ### Completed documentation and consistency foundation
 
 1. The QEMU decision is ADR 0013, with its former number recorded in the canonical ADR index.
-2. Root maturity wording matches 1.0.0 and qualifies the accepted Phase 3–13 verification record.
+2. Root maturity wording matches 1.1.0 and qualifies the accepted Phase 3–13 verification record.
 3. Root and contributor documentation link the architecture source, editable DOCX, ADR index, and focused references.
 4. `graphx project` generates or verifies the four projections under `config/`; CTest enforces the drift check in local and Linux/macOS CI builds.
 

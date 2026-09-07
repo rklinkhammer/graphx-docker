@@ -6,7 +6,7 @@ GraphX is an educational framework for describing a processing graph once,
 running its nodes in processes, containers, or external runtimes, and inspecting
 what crosses each edge.
 
-> Status: GraphX 1.0.0 is a validated educational framework with a C++ runtime,
+> Status: GraphX 1.1.0 is a validated educational framework with a C++ runtime,
 > five GraphX-aware transports, raw external-edge modeling, live telemetry and
 > control, bounded history and PCAPNG capture, a React Flow console,
 > native-Linux network laboratories, portable and Linux QEMU demonstrations,

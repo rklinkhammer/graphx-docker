@@ -21,6 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "docs" / "GraphX_Architecture.md"
 OUTPUT = ROOT / "docs" / "GraphX_Architecture.docx"
 ASSETS = ROOT / "docs" / "architecture-assets"
+VERSION = (ROOT / "VERSION").read_text(encoding="ascii").strip()
 
 NAVY = "17324D"
 BLUE = "2563A6"
@@ -378,7 +379,7 @@ def build_docx():
     band = doc.add_table(rows=1, cols=1); band.alignment = WD_TABLE_ALIGNMENT.CENTER
     cell = band.cell(0, 0); shade(cell, NAVY); set_cell_margins(cell, 220, 220, 220, 220)
     cp = cell.paragraphs[0]; cp.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    add_inline(cp, "GraphX 1.0.0\nRepository architecture baseline\nReviewed 2026-09-07")
+    add_inline(cp, f"GraphX {VERSION}\nRepository architecture baseline\nReviewed 2026-09-07")
     for run in cp.runs: set_run_font(run, size=12, bold=True, color=WHITE)
     doc.add_paragraph()
     note = doc.add_paragraph("Document status: maintained source and editable Word edition. Implemented behavior is separated from proposed work.")
@@ -452,7 +453,10 @@ def build_docx():
 
     props = doc.core_properties
     props.title = "GraphX Architecture and Network Topology"
-    props.subject = "GraphX 1.0.0 system, network, QEMU, observability, capture, history, control, and GUI architecture"
+    props.subject = (
+        f"GraphX {VERSION} system, network, QEMU, observability, capture, history, "
+        "control, and GUI architecture"
+    )
     props.author = "GraphX Project"
     props.keywords = "GraphX, architecture, network topology, Docker, Open vSwitch, QEMU, PCAPNG, observability"
     doc.save(OUTPUT)

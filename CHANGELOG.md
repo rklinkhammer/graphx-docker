@@ -6,6 +6,8 @@ All notable GraphX changes are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-09-07
+
 ### Added
 
 - A Phase 14 native-Linux static-route and deny-policy laboratory with three

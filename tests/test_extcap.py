@@ -20,6 +20,7 @@ def main() -> int:
     if len(sys.argv) != 3:
         raise RuntimeError("usage: test_extcap.py EXTCAP FIXTURE_WRITER")
     extcap, fixture_writer = map(str, map(Path, sys.argv[1:]))
+    version = (Path(extcap).resolve().parents[1] / "VERSION").read_text(encoding="ascii").strip()
     with tempfile.TemporaryDirectory(prefix="graphx-extcap-") as directory:
         root = Path(directory)
         capture = root / "fixture.pcapng"
@@ -29,7 +30,7 @@ def main() -> int:
         assert "number=147" in run(
             [extcap, "--extcap-dlts", "--extcap-interface", "graphx"]
         ).stdout
-        assert "version=1.0.0" in run([extcap, "--extcap-version", "4.4"]).stdout
+        assert f"version={version}" in run([extcap, "--extcap-version", "4.4"]).stdout
         assert "Capture filters are not supported" in run(
             [extcap, "--extcap-interface", "graphx", "--extcap-capture-filter", "tcp"]
         ).stdout

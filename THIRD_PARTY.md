@@ -1,5 +1,9 @@
 # Third-party software
 
+The complete release-wide package and license analysis, including npm, OCI
+base-image, and QEMU Buildroot target and host packages, is maintained in
+[`docs/release-license-inventory.md`](docs/release-license-inventory.md).
+
 ## yaml-cpp
 
 - Version: 0.9.0

@@ -2,9 +2,11 @@
 # graphx-qemu-node
 ################################################################################
 
-GRAPHX_QEMU_NODE_VERSION = 1.0.0
+GRAPHX_QEMU_NODE_VERSION = 1.1.0
 GRAPHX_QEMU_NODE_SITE = $(BR2_EXTERNAL_GRAPHX_QEMU_PATH)/../guest
 GRAPHX_QEMU_NODE_SITE_METHOD = local
+GRAPHX_QEMU_NODE_LICENSE = MIT
+GRAPHX_QEMU_NODE_LICENSE_FILES = LICENSE
 
 define GRAPHX_QEMU_NODE_BUILD_CMDS
 	$(TARGET_CC) $(TARGET_CFLAGS) -std=c11 -Wall -Wextra -Werror \

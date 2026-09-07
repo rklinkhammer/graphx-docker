@@ -37,8 +37,10 @@ examples/qemu-node/scripts/build.sh
 ```
 
 The build uses Buildroot 2025.02.17 and writes ignored artifacts beneath
-`examples/qemu-node/output/images`. Optional organizational trust uses the
-project-wide `GRAPHX_CA_CERT` and `GRAPHX_CERT_INSTALL_SCRIPT` inputs.
+`examples/qemu-node/output/images`. It also runs Buildroot `legal-info`, writing
+target and host package manifests, source archives, and collected license texts
+under `examples/qemu-node/output/legal-info`. Optional organizational trust uses
+the project-wide `GRAPHX_CA_CERT` and `GRAPHX_CERT_INSTALL_SCRIPT` inputs.
 
 ## Common user interface
 
