@@ -174,18 +174,11 @@ def main() -> int:
                 left.shutdown(socket.SHUT_WR)
                 expect_value_error(lambda endpoint=right: protocol.recv_line(endpoint, 4096),
                                    "malformed control framing was accepted")
-        server = threading.Thread(target=simulator.control_server, args=(listener,), daemon=True)
+        server_ready = threading.Event()
+        server = threading.Thread(target=simulator.control_server,
+                                  args=(listener, server_ready), daemon=True)
         server.start()
-        # Force the server to finish reading its own identity before changing
-        # this process environment to the processor's client identity.
-        for _ in range(30):
-            try:
-                with socket.create_connection(("127.0.0.1", port), timeout=0.1):
-                    break
-            except OSError:
-                time.sleep(0.05)
-        else:
-            raise AssertionError("SDR control listener did not become ready")
+        assert server_ready.wait(2), "SDR control listener did not become ready"
         os.environ.update({"SDR_TLS_CERT": str(tls / "processor.pem"),
                            "SDR_TLS_KEY": str(tls / "processor.key"),
                            "SDR_TLS_CA": str(tls / "ca.pem"),
@@ -267,15 +260,11 @@ def main() -> int:
                            "SDR_TLS_KEY": str(expiry / "sdr-node.key"),
                            "SDR_TLS_CLIENT_CA": str(expiry / "ca.pem")})
         simulator.stop.clear()
-        expiry_server = threading.Thread(target=simulator.control_server, args=(expiry_listener,),
-                                         daemon=True)
+        expiry_ready = threading.Event()
+        expiry_server = threading.Thread(target=simulator.control_server,
+                                         args=(expiry_listener, expiry_ready), daemon=True)
         expiry_server.start()
-        for _ in range(30):
-            try:
-                with socket.create_connection(("127.0.0.1", expiry_port), timeout=0.1):
-                    break
-            except OSError:
-                time.sleep(0.05)
+        assert expiry_ready.wait(2), "expired-certificate listener did not become ready"
         expired = tls_context(expiry / "ca.pem", expiry / "expired-processor.pem",
                               expiry / "expired-processor.key")
         try:
@@ -315,14 +304,15 @@ def main() -> int:
     external_compose = (root / "examples/sdr-node/external/compose.yaml").read_text()
     assert "rolling back owned portable resources" in simulated_script
     assert "requested_gui_port" in simulated_script and "graphx_sdr_preflight_port" in simulated_script
-    assert 'command: ["tcpdump", "-Z", "root"' in simulated_compose
-    assert 'user: "0:0"' in simulated_compose and "security_opt: []" in simulated_compose
-    assert "cap_add: [NET_RAW, NET_ADMIN, SETUID, SETGID]" in simulated_compose
+    assert 'command: ["tcpdump", "-U"' in simulated_compose
+    assert 'user: "0:0"' in simulated_compose
+    assert "cap_add: [NET_RAW, NET_ADMIN, DAC_OVERRIDE]" in simulated_compose
     assert "SDR_SAMPLE_SOURCE: 172.30.13.10" in simulated_compose
     assert "SDR_SAMPLE_SOURCE: 10.63.0.10" in external_compose
     for required in ("GRAPHX_SDR_OWNER", "com.graphx.sdr.owner", "graphx_sdr_owner",
                      "Refusing to remove native SDR resources", 'chown "$3:$4"',
-                     'chown "$5:$6"', "current_start_owns_native=true"):
+                     'chown "$5:$6"', 'tcpdump -Z "$5"',
+                     "current_start_owns_native=true"):
         assert required in external_script, f"external lifecycle is missing {required}"
     print("SDR example portable behavioral checks passed")
     return 0

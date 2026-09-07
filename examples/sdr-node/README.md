@@ -60,9 +60,9 @@ packet history are derived from it; this matches the QEMU observer model.
 
 The portable capture container retains root only inside its isolated processor
 network namespace and has a read-only root filesystem plus only `NET_RAW`,
-`NET_ADMIN`, `SETUID`, and `SETGID`. The identity capabilities are needed because
-tcpdump's explicit `-Z root` path otherwise fails or drops to an account that
-cannot write the mode-0770 host capture directory on Linux.
+`NET_ADMIN`, and `DAC_OVERRIDE`. The DAC capability is limited to the container's
+only writable host mount and lets tcpdump create captures in the mode-0770 run
+directory while all other services continue to use the invoking host UID/GID.
 
 ## Physical SDR contract
 

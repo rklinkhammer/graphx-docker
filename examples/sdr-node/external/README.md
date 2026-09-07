@@ -61,7 +61,8 @@ After stopping, independently confirm `br-sdr`, `gx-sdr-device`, `sdr-cap`, and
 `gx-sdr-native` are absent. Evidence is retained. If an interrupted start leaves
 resources, rerun `stop`; cleanup targets only validated process IDs and native
 resources with the current run's marker. PID files are mode 0600 and owned by
-the invoking operator even though tcpdump and the namespace simulator require
-sudo. Repeated `stop` succeeds when the owned resources are already absent.
+the invoking operator. Tcpdump opens the mirror interface with sudo and then
+drops to that operator so initial and rotated capture files remain readable by
+the bounded observer. Repeated `stop` succeeds when the owned resources are already absent.
 Native Linux runtime output is required for OVS/SPAN acceptance. A real SDR is
 optional and is never implied by simulator success.

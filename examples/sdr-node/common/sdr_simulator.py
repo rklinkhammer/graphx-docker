@@ -19,7 +19,8 @@ state = {"running": True, "frequency_hz": 100_000_000}
 MAX_CONTROL_BYTES = 4096
 
 
-def control_server(listener: socket.socket | None = None) -> None:
+def control_server(listener: socket.socket | None = None,
+                   ready: threading.Event | None = None) -> None:
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     context.minimum_version = ssl.TLSVersion.TLSv1_3
     context.load_cert_chain(os.environ["SDR_TLS_CERT"], os.environ["SDR_TLS_KEY"])
@@ -32,6 +33,8 @@ def control_server(listener: socket.socket | None = None) -> None:
         listener.listen(8)
     with listener:
         listener.settimeout(0.5)
+        if ready is not None:
+            ready.set()
         while not stop.is_set():
             try:
                 connection, _ = listener.accept()

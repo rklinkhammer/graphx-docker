@@ -164,9 +164,9 @@ preflight_native_names() {
   fi
 }
 start_capture() {
-  sudo sh -c 'echo $$ > "$1"; chown "$3:$4" "$1"; chmod 0600 "$1"; exec tcpdump -Z root -U -n -i sdr-cap -s 65535 -C 64 -W 1 -w "$2" "udp port 18400 or tcp port 18401 or tcp port 18402"' \
+  sudo sh -c 'echo $$ > "$1"; chown "$3:$4" "$1"; chmod 0600 "$1"; exec tcpdump -Z "$5" -U -n -i sdr-cap -s 65535 -C 64 -W 1 -w "$2" "udp port 18400 or tcp port 18401 or tcp port 18402"' \
     sh "$GRAPHX_SDR_RUN_DIR/capture.pid" "$GRAPHX_SDR_RUN_DIR/sdr-node.pcap" \
-    "$(id -u)" "$(id -g)" \
+    "$(id -u)" "$(id -g)" "$(id -un)" \
     >"$GRAPHX_SDR_RUN_DIR/tcpdump.log" 2>&1 &
   for _ in {1..50}; do owned_pid "$GRAPHX_SDR_RUN_DIR/capture.pid" "$GRAPHX_SDR_RUN_DIR/sdr-node.pcap" && return; sleep 0.1; done
   echo "tcpdump failed to start on the OVS mirror port" >&2; return 1
