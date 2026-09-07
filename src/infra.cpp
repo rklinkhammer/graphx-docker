@@ -160,6 +160,7 @@ std::vector<InfraCommand> infrastructure_plan(const GraphConfig& config, InfraAc
         commands.push_back(command({"ip", "netns", "exec", router.namespace_name, "sysctl", "-w",
                                     "net.ipv4.ip_forward=1"}));
       for (const auto& route : router.routes) {
+        if (!route.install_on_create) continue;
         InfraCommand route_command;
         route_command.arguments = {"ip", "netns", "exec", router.namespace_name,
                                    "ip", "route", "add",  route.destination};
@@ -209,6 +210,8 @@ std::vector<InfraCommand> infrastructure_plan(const GraphConfig& config, InfraAc
       if (router.kind == RouterKind::linux_namespace) {
         commands.push_back(
             command({"ip", "netns", "exec", router.namespace_name, "ip", "-br", "address"}, true));
+        commands.push_back(
+            command({"ip", "netns", "exec", router.namespace_name, "ip", "route", "show"}, true));
         commands.push_back(command(
             {"ip", "netns", "exec", router.namespace_name, "tc", "-s", "qdisc", "show"}, true));
         commands.push_back(command(
@@ -218,6 +221,31 @@ std::vector<InfraCommand> infrastructure_plan(const GraphConfig& config, InfraAc
       commands.push_back(command({"docker", "network", "inspect", network.id}, true));
   }
   return commands;
+}
+
+InfraCommand route_command(const GraphConfig& config, std::string_view router_id,
+                           std::string_view destination, bool clear) {
+  const auto& router = config.network_infrastructure.router(router_id);
+  const auto found = std::ranges::find_if(
+      router.routes, [&](const auto& value) { return value.destination == destination; });
+  if (found == router.routes.end()) throw std::invalid_argument("unknown declared route");
+  InfraCommand result;
+  result.arguments = {"ip",
+                      "netns",
+                      "exec",
+                      router.namespace_name,
+                      "ip",
+                      "route",
+                      clear ? "delete" : "replace",
+                      found->destination};
+  if (!clear) {
+    if (!found->via.empty()) result.arguments.insert(result.arguments.end(), {"via", found->via});
+    if (!found->device.empty())
+      result.arguments.insert(result.arguments.end(), {"dev", found->device});
+  } else {
+    result.ignore_failure = true;
+  }
+  return result;
 }
 
 InfraCommand netem_command(const GraphConfig& config, std::string_view router_id,

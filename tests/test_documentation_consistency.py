@@ -26,8 +26,8 @@ def main() -> int:
     index = adr_dir / "README.md"
     index_text = index.read_text(encoding="utf-8")
     rows = re.findall(r"^\| (\d{4}) \|.*\| \[`[^`]+`\]\(([^)]+)\) \|$", index_text, re.MULTILINE)
-    if len(rows) != 14:
-        fail(f"expected 14 ADR index rows, found {len(rows)}")
+    if len(rows) != 15:
+        fail(f"expected 15 ADR index rows, found {len(rows)}")
     numbers = [number for number, _ in rows]
     if numbers != sorted(set(numbers)):
         fail("ADR index numbers are duplicate or unordered")

@@ -295,7 +295,7 @@ if(GRAPHX_BUILD_TESTS)
   endif()
   set(graphx_config_cli_tests graphx-config-cli)
   foreach(example mixed-network macvlan ipvlan-l2 ipvlan-l3 shared-memory udp-unicast
-                  udp-broadcast udp-multicast qemu-node)
+                  udp-broadcast udp-multicast qemu-node static-route-policy)
     add_test(NAME graphx-config-${example}
       COMMAND graphx-cli validate ${CMAKE_SOURCE_DIR}/examples/${example}/graphx.yaml)
     list(APPEND graphx_config_cli_tests graphx-config-${example})
@@ -341,6 +341,11 @@ if(GRAPHX_BUILD_TESTS)
   set_tests_properties(graphx-sdr-node-portable PROPERTIES TIMEOUT 15)
   set_tests_properties(graphx-config-sdr-simulated graphx-config-sdr-external
     PROPERTIES ENVIRONMENT "GRAPHX_OVERRIDES=")
+  add_test(NAME graphx-static-route-policy-portable
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_static_route_policy.py
+      ${CMAKE_SOURCE_DIR} $<TARGET_FILE:graphx-cli>)
+  set_tests_properties(graphx-static-route-policy-portable PROPERTIES
+    TIMEOUT 30 ENVIRONMENT "GRAPHX_OVERRIDES=")
   if(GRAPHX_ENABLE_SANITIZERS)
     add_test(NAME graphx-sanitizer-coverage
       COMMAND ${CMAKE_COMMAND}

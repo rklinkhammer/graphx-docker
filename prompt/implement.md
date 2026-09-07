@@ -1,123 +1,126 @@
 # GraphX implementation work package
 
-Implement **Phase 13: single-SDR simulated and external profiles** in
+Implement **Phase 14: static-route and deny-policy laboratory** in
 `~/workspace/graphx-docker`. The roadmap source is
-`prompt/architectural_roadmap_implementation_plan.md`, section 6.
+`prompt/architectural_roadmap_implementation_plan.md`, section 7.
 
 ## Objective
 
-Deliver the same minimal logical topology in two profiles:
+Deliver one small native-Linux teaching laboratory with three isolated IPv4
+domains and three diagnostic flows:
 
 ```text
-SDR -- ordinary UDP IQ blocks --> processor -- ordinary TCP results --> sink
-SDR <-- mutually authenticated TLS/TCP control --------------------- processor
+left -> middle   allowed and observable
+middle -> left   denied by an ordered forwarding policy
+left -> right    initially no route; succeeds only after route apply
 ```
 
-The portable profile runs the SDR simulator and services in Docker on an
-isolated bridge. The native-Linux profile models the SDR as external, connects a
-disposable verifier endpoint through one OVS switch, and observes it through an
-OVS SPAN port. Both profiles use one endpoint/payload/observer/GUI codebase.
+The topology must make endpoint routes, the namespace router, OVS switches,
+ordered policies, observation points, and `edge_paths` explicit. It must
+distinguish a policy denial from a missing route and from an application error.
 
 ## Working rules
 
-- Inspect repository instructions, status, Phase 12 raw-node implementation,
-  configuration/schema, telemetry, GUI, tests, documentation, and this contract
-  before editing. Preserve unrelated changes.
-- Do not commit, push, publish, deploy, contact external systems, or attach a
-  physical interface.
-- Do not label ordinary SDR packets as GraphX envelopes. External raw edges use
-  `data_plane: external` and `framing: none` and never enter
-  `TransportFactory`.
-- Keep the GraphX-managed execution graph acyclic. If descriptive external
-  data/control relationships form a cycle, make the exception explicit,
-  narrowly validated, tested, and recorded in an ADR.
-- Capture/history are bounded and on by default, with `--no-capture` and
-  `--no-history` start options.
-- All requests, payloads, queues, previews, files, retries, waits, logs, and
-  cleanup are bounded. Default management exposure is loopback/private.
-- GraphX does not own a physical SDR merely because it appears in topology.
+- Inspect repository instructions, status, Phase 13, existing native network
+  labs, schema/configuration, infrastructure planner, telemetry, GUI, tests,
+  documentation, and this contract before editing. Preserve unrelated changes.
+- Do not commit, push, publish, deploy, attach a physical interface, or mutate
+  unrelated host routes, firewall rules, namespaces, links, networks, or OVS.
+- Keep configuration version 1 unless the existing model is demonstrably
+  insufficient. Prefer the current router route/policy and ordered edge-path
+  fields over a new public schema.
+- Use only fixed `gx-route-*` laboratory names and private lab subnets that do
+  not overlap checked-in examples.
+- Every command, packet, wait, retry, log, artifact, capture, and cleanup action
+  must be bounded. Native mutation requires an explicit Linux/sudo/tool gate.
+- Portable validation and dry-run are inspection evidence only. They cannot
+  prove OVS, namespaces, kernel routes, nftables counters, or packet outcomes.
 
 ## Required implementation
 
-Create `examples/sdr-node/common`, `simulated`, and `external`. Shared code must
-provide a deterministic bounded `SDR1` UDP IQ format, simulator, processor,
-sink, direct controller, local TLS material generator, and generalized packet
-attribution rules. The processor is the only visible controller node.
-
-The control vocabulary is exactly `start`, `stop`, `tune`, and `status`. Use TLS
-1.3 mutual certificate authentication, bounded JSON-line requests/responses,
-peer-name verification, local short-lived demo credentials, and no embedded
-private material. State plainly that UDP is unauthenticated, unreliable, and
-unencrypted.
-
-The simulated profile uses a private bridge and clearly identifies it as a
-portable simulation. The external profile is native Linux only and uses a
-macvlan Docker network, OVS bridge, disposable network namespace endpoint, and
-SPAN capture interface. It must create/destroy only fixed lab resources, track
-processes by validated PID and unique artifact path, roll back failed starts,
-and support repeated start/stop. It must never adopt or mutate a real interface.
-
-Both profiles expose a consistent CLI:
+Create `examples/static-route-policy` with an authoritative `graphx.yaml`,
+portable dry-run/configuration inspection, diagnostic endpoint code, and a
+native-Linux lifecycle exposing:
 
 ```text
-demo.sh start [--no-capture] [--no-history]
-demo.sh verify
-demo.sh status
-demo.sh logs
-demo.sh token
-demo.sh control status|start|stop|tune HERTZ
-demo.sh stop
+scripts/demo.sh start
+scripts/demo.sh status
+scripts/demo.sh verify
+scripts/demo.sh apply-route
+scripts/demo.sh clear-route
+scripts/demo.sh logs
+scripts/demo.sh stop
 ```
 
-Reuse the existing telemetry/UI and raw packet observer. Generalize QEMU-specific
-packet attribution without changing QEMU defaults. Emit `network_packet`
-events, standard Ethernet PCAPNG, separate bounded SQLite packet history, live
-edge/node metrics, capture catalog/downloads, and WebSocket GUI updates. GUI
-control must relay only through the processor and must not imply physical-device
-lifecycle ownership.
+The lab must use three OVS-backed address domains, one disposable Linux
+namespace router with three explicit interfaces, three disposable endpoint
+namespaces, an OVS mirror for each domain, ordered allow/deny policies, and
+ordered paths for all diagnostic edges. `start` must leave the selected static
+route absent and prove the initial three-state baseline. `apply-route` must add
+only the declared route to the declared endpoint and make only the missing-route
+flow succeed. `clear-route` must restore the initial state.
 
-Add portable protocol/parser/TLS/attribution tests, both configuration gates,
-schema/runtime compatibility tests, script and Compose validation, architecture
-and ADR updates, common/profile guides, native-Linux operator gates, and a
-Phase 13 handoff recording commands and evidence classification.
+Use deterministic bounded UDP diagnostic datagrams and endpoint receipt logs so
+one-way delivery can be proven without return traffic confusing directional
+deny rules. Use packet capture and nftables counters as independent evidence.
+Retain bounded PCAP evidence after teardown. Do not represent these packets as
+GraphX envelopes or application-message history.
+
+Lifecycle scripts must preflight Linux, required tools, sudo, fixed names,
+subnet/address conflicts, and the GraphX CLI before mutation. They must record
+ownership, reject stale/forged state and unowned collisions, roll back partial
+startup and interruption, allow repeated stop, and prove exact cleanup. Cleanup
+must delete only resources owned by the active run and must preserve unrelated
+host state.
+
+Expose diagnostic state to the existing GUI without inventing application
+failures. The network view must show the three ordered paths and distinct
+`allowed`, `policy-denied`, and `missing-route` classifications, followed by a
+`route-applied` transition for the third flow. Reuse existing telemetry and GUI
+contracts where possible; any extension must be bounded, allow-listed, tested,
+and backward compatible.
+
+Add configuration/schema/planner/script/diagnostic tests, dry-run golden
+assertions, lifecycle/static safety checks, telemetry/GUI tests, QEMU/SDR and
+existing network-example regressions, and a manual native-Linux acceptance gate.
+
+Update the architecture source and DOCX, example indexes, network and graphical
+guides, test procedure/reference, changelog, and support/compatibility text as
+needed. Regenerate authoritative projections only if their source changes.
 
 ## Acceptance identifiers
 
-- **SDR-001 Topology:** one SDR, Ethernet switch/path, processor/controller,
-  sink, and accurate raw data/control/result edges in both profiles.
-- **SDR-002 Raw UDP integrity:** deterministic bounded IQ bytes reach the
-  processor without GraphX framing; malformed and mismatched packets are rejected.
-- **SDR-003 TCP control boundary:** TLS 1.3 mTLS, peer verification, narrow
-  commands, state transitions, and malformed/unauthorized rejection.
-- **SDR-004 Reuse:** profiles share endpoint, payload, observer, telemetry, GUI,
-  control semantics, evidence formats, and vocabulary. GUI pause/resume relay to
-  the SDR; GUI Reset retains its existing collector-counter meaning.
-- **SDR-005 OVS/SPAN:** native Linux proves ports, external endpoint, mirror,
-  packet path, and exact teardown.
-- **SDR-006 Live observation:** packet-derived counters advance over API and
-  WebSocket without fabricated GraphX messages.
-- **SDR-007 Capture/history:** default-on bounded Ethernet PCAPNG and separate
-  packet history are valid, queryable, cataloged/downloadable, and disableable.
-- **SDR-008 GUI:** topology/runtime ownership is accurate; live updates,
-  controls, captures, history, and every tab transition work.
-- **SDR-009 Lifecycle:** preflight, idempotence, bounded waits, rollback,
-  validated process ownership, restart, and cleanup are demonstrated.
-- **SDR-010 Security/bounds:** loopback/private exposure, protected local keys,
-  no broad process kill, least privilege, bounded resources, and honest UDP risks.
-- **SDR-011 Compatibility:** existing GraphX transports, QEMU behavior,
-  configuration, tests, packaging, demos, and quality gates remain compatible.
-- **SDR-012 Documentation:** shared/profile guides cover architecture,
-  operation, GUI, control, inspection, physical ownership, cleanup, limitations,
-  and troubleshooting.
+- **ROUTE-001 Model:** three domains, router interfaces, static route, ordered
+  policies, OVS observation points, and complete ordered edge paths validate.
+- **ROUTE-002 Realization:** native Linux state matches the declaration across
+  namespaces, links, OVS, addresses, forwarding, nftables, and capture points.
+- **ROUTE-003 Static-route transition:** the declared flow fails specifically
+  for missing route, succeeds after apply, and fails again after clear.
+- **ROUTE-004 Deny policy:** the denied flow never reaches its receiver, the
+  matching nftables counter advances, and allowed flows remain unaffected.
+- **ROUTE-005 Observation and GUI:** logs, packet evidence, telemetry, and GUI
+  show honest distinct classifications and ordered paths.
+- **ROUTE-006 Idempotence:** two lifecycle cycles, rollback, interruption,
+  stale state, repeated stop, and route apply/clear are deterministic.
+- **ROUTE-007 Host isolation:** unrelated routes, rules, namespaces, links,
+  Docker networks, processes, and OVS state are unchanged.
+- **ROUTE-008 Bounds:** datagrams, files, capture, logs, waits, retries, state,
+  diagnostics, and cleanup are bounded and validated.
+- **ROUTE-009 Compatibility:** config v1, existing transports, Phase 13 SDR,
+  QEMU, network labs, telemetry, GUI, packaging, and quality gates still pass.
+- **ROUTE-010 Documentation:** architecture and operator guides accurately cover
+  intent, commands, state transitions, inspection, evidence, cleanup, security,
+  limitations, and troubleshooting.
 
 ## Required evidence and exit
 
-Run feasible non-destructive portable builds/tests/config/schema/Compose/static
-checks and the simulated profile where Docker is available. Add a manual native
-Linux gate for OVS/SPAN. Classify evidence as runtime verified, automated
-simulation, inspection only, blocked by environment, failed, or not applicable.
-macOS cannot prove OVS/macvlan/netns behavior. A real SDR is optional; simulator
-success must never be described as physical-hardware proof.
+Run feasible non-destructive builds, CTest, schema/configuration, projection,
+Compose if used, telemetry/web, format/static, sanitizer/fuzz gates proportional
+to changed code, and all portable dry-run tests. On native Linux, run two full
+start/baseline/apply/verify/clear/stop cycles and the adversarial lifecycle
+matrix, comparing recorded host state before and after.
 
-Write `phase_13_handoff.md` with the requirement matrix, changed paths, exact
-commands/results, environmental limitations, remaining risks, and Linux steps.
+Write `phase_14_handoff.md` with the requirement matrix, changed paths, exact
+commands/results, platform and repository state, evidence classification,
+native-Linux operator steps, and remaining limitations. Phase 14 cannot be
+claimed complete from macOS or dry-run evidence alone.

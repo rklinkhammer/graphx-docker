@@ -61,6 +61,7 @@ struct RouteDefinition {
   std::string destination;
   std::string via;
   std::string device;
+  bool install_on_create{true};
 };
 
 struct PolicyDefinition {

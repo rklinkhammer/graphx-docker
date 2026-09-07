@@ -39,6 +39,20 @@ the supported L3 layout therefore supplies repeated `--subnet` arguments on that
 network. The IPvlan L3 model permits an omitted gateway because L3 mode installs
 a device route instead of using an L2 next hop.
 
+The `examples/static-route-policy` laboratory adds three OVS domains around one
+namespace router. A route declared with `install: manual` is validated but
+omitted from `infra create`; only that exact declared destination can be changed:
+
+```sh
+sudo ./build/dev/graphx infra route apply examples/static-route-policy/graphx.yaml \
+  --router route-router --destination 10.64.30.10/32
+sudo ./build/dev/graphx infra route clear examples/static-route-policy/graphx.yaml \
+  --router route-router --destination 10.64.30.10/32
+```
+
+Use `--dry-run` without sudo on any platform for inspection. Runtime route,
+policy, OVS, and packet claims require the native-Linux lab procedure.
+
 ## Faults and inspection
 
 `graphx infra fault apply` places `tc netem` on a selected router interface:

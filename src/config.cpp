@@ -920,12 +920,19 @@ class ConfigParser {
           const auto route_path = path + ".routes[" + std::to_string(route_index) + "]";
           const auto route_value = routes[route_index];
           if (!require_map(route_value, route_path)) continue;
-          strict_keys(route_value, route_path, {"destination", "via", "device"});
+          strict_keys(route_value, route_path, {"destination", "via", "device", "install"});
           RouteDefinition route;
           route.destination = text(route_value["destination"], route_path + ".destination", 43);
           if (route_value["via"]) route.via = text(route_value["via"], route_path + ".via", 39);
           if (route_value["device"])
             route.device = text(route_value["device"], route_path + ".device", 15);
+          if (route_value["install"]) {
+            const auto install = text(route_value["install"], route_path + ".install", 16);
+            if (install == "manual")
+              route.install_on_create = false;
+            else if (install != "create")
+              error(route_path + ".install", "must be 'create' or 'manual'");
+          }
           router.routes.push_back(std::move(route));
         }
       }
@@ -1543,12 +1550,24 @@ class ConfigParser {
                  }))
           error(interface_path + ".address", "must be inside one of its network subnets");
       }
-      for (std::size_t index = 0; index < router.routes.size(); ++index)
+      for (std::size_t index = 0; index < router.routes.size(); ++index) {
+        if (std::ranges::count_if(router.routes, [&](const auto& candidate) {
+              return candidate.destination == router.routes[index].destination;
+            }) > 1)
+          error(path + ".routes[" + std::to_string(index) + "].destination",
+                "must be unique within the router");
         if (!ipv4_cidr(router.routes[index].destination))
           error(path + ".routes[" + std::to_string(index) + "].destination",
                 "must be an IPv4 CIDR");
         else if (!router.routes[index].via.empty() && !ipv4_address(router.routes[index].via))
           error(path + ".routes[" + std::to_string(index) + "].via", "must be an IPv4 address");
+        if (!router.routes[index].device.empty() &&
+            std::ranges::none_of(router.interfaces, [&](const auto& interface) {
+              return interface.device == router.routes[index].device;
+            }))
+          error(path + ".routes[" + std::to_string(index) + "].device",
+                "references an unknown router interface device");
+      }
       for (std::size_t index = 0; index < router.policies.size(); ++index) {
         const auto& policy = router.policies[index];
         const auto policy_path = path + ".policies[" + std::to_string(index) + "]";

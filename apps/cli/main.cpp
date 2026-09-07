@@ -17,6 +17,7 @@ void usage(std::ostream& output) {
          << "  graphx <validate|inspect> [config.yaml] [--set path=value]\n"
          << "  graphx project [config.yaml] [--check] [--output-dir DIR]\n"
          << "  graphx infra <create|destroy|status> [config.yaml] [--dry-run]\n"
+         << "  graphx infra route <apply|clear> [config.yaml] --router ID --destination CIDR\n"
          << "  graphx infra fault <apply|clear> [config.yaml] --router ID --interface ID\n"
          << "                    [--delay 20ms] [--jitter 3ms] [--loss 1%] [--rate 50mbit]\n";
 }
@@ -178,6 +179,42 @@ int project_command(int argc, char** argv) {
 int infrastructure_command(int argc, char** argv) {
   if (argc < 3) throw std::invalid_argument("infra requires an action");
   const std::string action = argv[2];
+  if (action == "route") {
+    if (argc < 4) throw std::invalid_argument("infra route requires apply or clear");
+    const bool clear = std::string_view(argv[3]) == "clear";
+    if (!clear && std::string_view(argv[3]) != "apply")
+      throw std::invalid_argument("infra route action must be apply or clear");
+    auto path = default_config();
+    std::string router, destination;
+    bool path_set{}, dry_run{};
+    for (int index = 4; index < argc; ++index) {
+      const std::string argument = argv[index];
+      auto value = [&](std::string& target) {
+        if (++index == argc) throw std::invalid_argument(argument + " requires a value");
+        target = argv[index];
+      };
+      if (argument == "--router")
+        value(router);
+      else if (argument == "--destination")
+        value(destination);
+      else if (argument == "--dry-run")
+        dry_run = true;
+      else if (!path_set) {
+        path = argument;
+        path_set = true;
+      } else
+        throw std::invalid_argument("unexpected argument '" + argument + "'");
+    }
+    if (router.empty() || destination.empty())
+      throw std::invalid_argument("infra route requires --router and --destination");
+#if !defined(__linux__)
+    if (!dry_run)
+      throw std::runtime_error("native route changes require Linux; use --dry-run on this host");
+#endif
+    const auto config = graphx::load_config(path);
+    return graphx::execute_infrastructure_plan(
+        {graphx::route_command(config, router, destination, clear)}, dry_run, std::cout, std::cerr);
+  }
   if (action == "fault") {
     if (argc < 4) throw std::invalid_argument("infra fault requires apply or clear");
     const bool clear = std::string_view(argv[3]) == "clear";

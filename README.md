@@ -10,8 +10,9 @@ what crosses each edge.
 > five GraphX-aware transports, raw external-edge modeling, live telemetry and
 > control, bounded history and PCAPNG capture, a React Flow console,
 > native-Linux network laboratories, portable and Linux QEMU demonstrations,
-> and Phase 13 SDR profiles awaiting independent platform verification.
-> Phases 3–12 have accepted independent verification reports. Phase 1 has no
+> accepted Phase 13 SDR profiles, and a Phase 14 static-route/policy laboratory
+> awaiting independent native-Linux verification. Phases 3–13 have accepted
+> independent verification reports. Phase 1 has no
 > checked-in independent report, and Phase 2 has an implementation handoff but
 > no separate independent report. Native-Linux claims rely on the evidence
 > recorded in the relevant reports. See [`verification_status.md`](verification_status.md).
@@ -29,6 +30,9 @@ Focused operational references cover
 [`QEMU demonstrations`](docs/qemu-demos.md). The
 [`single-SDR suite`](examples/sdr-node/README.md) applies those raw-node,
 Ethernet-capture, history, and GUI patterns to a simulated or external radio.
+The [`static-route/policy laboratory`](examples/static-route-policy/README.md)
+demonstrates receiver-confirmed delivery, nftables denial, explicit route
+activation, OVS mirroring, PCAPNG, and matching GUI states.
 
 ## Run the complete demo
 

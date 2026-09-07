@@ -599,11 +599,11 @@ Release gates:
 
 ### Immediate
 
-1. Approve and write Phase 13 implementer/verifier contracts.
-2. Implement the portable simulated SDR profile first, then native Linux OVS/SPAN,
-   then the external physical attachment contract.
-3. Execute independent Phase 13 verification on macOS and native Linux.
-4. Implement and verify Phase 14 to close route/policy coverage.
+1. Phase 13 implementation and independent macOS/native-Linux verification are complete.
+2. Phase 14 is implemented in the current candidate; execute
+   its independent native-Linux verifier and remediate any findings.
+3. Accept Phase 14 only after two complete native lifecycle cycles and the
+   adverse-state/host-isolation matrix pass.
 
 ### Near term
 

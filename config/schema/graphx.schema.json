@@ -272,7 +272,8 @@
       "properties": {
         "destination": { "type": "string", "minLength": 1, "maxLength": 43 },
         "via": { "type": "string", "minLength": 1, "maxLength": 39 },
-        "device": { "type": "string", "minLength": 1, "maxLength": 15 }
+        "device": { "type": "string", "minLength": 1, "maxLength": 15 },
+        "install": { "enum": ["create", "manual"] }
       }
     },
     "policy": {

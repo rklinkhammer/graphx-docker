@@ -242,6 +242,18 @@ case "$PROFILE" in
     examples/sdr-node/external/scripts/demo.sh verify
     examples/sdr-node/external/scripts/demo.sh stop
     trap - EXIT
+    gate "native Linux static-route and deny-policy acceptance"
+    route_graphx="${GRAPHX_BUILD_DIR:-$ROOT/build/dev}/graphx"
+    trap 'examples/static-route-policy/scripts/demo.sh stop >/dev/null 2>&1 || true' EXIT
+    for _ in 1 2; do
+      GRAPHX_BIN="$route_graphx" examples/static-route-policy/scripts/demo.sh start
+      GRAPHX_BIN="$route_graphx" examples/static-route-policy/scripts/demo.sh verify
+      GRAPHX_BIN="$route_graphx" examples/static-route-policy/scripts/demo.sh apply-route
+      GRAPHX_BIN="$route_graphx" examples/static-route-policy/scripts/demo.sh clear-route
+      GRAPHX_BIN="$route_graphx" examples/static-route-policy/scripts/demo.sh stop
+    done
+    GRAPHX_BIN="$route_graphx" examples/static-route-policy/scripts/demo.sh stop
+    trap - EXIT
     ;;
   release)
     run_release

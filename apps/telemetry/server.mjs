@@ -1,5 +1,6 @@
 import dgram from 'node:dgram'
-import { closeSync, createReadStream, existsSync, readFileSync, statSync } from 'node:fs'
+import { closeSync, constants, createReadStream, existsSync, fstatSync, openSync, readFileSync,
+  readSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { createServer as createSecureServer } from 'node:https'
 import { dirname, extname, join, normalize, resolve } from 'node:path'
@@ -30,6 +31,7 @@ const deployment = config.deployment?.services || {}
 const transport = config.transport || {}
 const packetHistoryUrl = process.env.GRAPHX_PACKET_HISTORY_URL || ''
 const qemuEvidenceFile = process.env.GRAPHX_QEMU_EVIDENCE_FILE || ''
+const networkDiagnosticFile = process.env.GRAPHX_NETWORK_DIAGNOSTIC_FILE || ''
 const heartbeatTimeout = Number(process.env.GRAPHX_HEARTBEAT_TIMEOUT_MS || config.observability?.telemetry?.heartbeat_timeout_ms || 5000)
 const websocketPath = config.observability?.telemetry?.websocket || '/ws'
 const configuredCapture = config.observability?.capture || { enabled: false, provider: '' }
@@ -184,13 +186,29 @@ function topologyModel() {
 }
 
 const topology = topologyModel()
+function readBoundedJsonFile(path, maximum = 64 * 1024) {
+  let descriptor
+  try {
+    descriptor = openSync(path, constants.O_RDONLY | (constants.O_NOFOLLOW || 0))
+    const metadata = fstatSync(descriptor)
+    if (!metadata.isFile() || metadata.size > maximum) return null
+    const buffer = Buffer.alloc(Math.min(maximum + 1, metadata.size + 1))
+    let offset = 0
+    while (offset < buffer.length) {
+      const count = readSync(descriptor, buffer, offset, buffer.length - offset, null)
+      if (count === 0) break
+      offset += count
+    }
+    if (offset > maximum) return null
+    return JSON.parse(buffer.subarray(0, offset).toString('utf8'))
+  } catch { return null } finally { if (descriptor != null) closeSync(descriptor) }
+}
 const qemuStates = new Set(['not-started', 'booting', 'ready', 'degraded', 'stopped', 'unavailable'])
 const qemuAccelerators = new Set(['auto', 'kvm', 'tcg', 'hvf'])
 function qemuEvidence() {
   if (!qemuEvidenceFile) return null
   try {
-    if (statSync(qemuEvidenceFile).size > 64 * 1024) return null
-    const value = JSON.parse(readFileSync(qemuEvidenceFile, 'utf8'))
+    const value = readBoundedJsonFile(qemuEvidenceFile)
     if (!value || typeof value !== 'object' || !qemuStates.has(value.state) ||
         !Number.isSafeInteger(value.updatedAt)) return null
     if (value.actualAccelerator != null && !qemuAccelerators.has(value.actualAccelerator)) return null
@@ -211,8 +229,39 @@ function qemuEvidence() {
   } catch { return null }
 }
 
-function topologyView(evidence) {
-  if (!evidence) return topology
+const diagnosticStates = new Set(['allowed', 'policy-denied', 'missing-route', 'route-applied'])
+const diagnosticEvidenceTypes = new Set(['receiver-confirmed', 'nft-counter', 'route-absent',
+  'route-installed'])
+function networkDiagnosticEvidence() {
+  if (!networkDiagnosticFile) return null
+  try {
+    const value = readBoundedJsonFile(networkDiagnosticFile)
+    if (value?.version !== 1 || !Number.isSafeInteger(value.updatedAt) ||
+        typeof value.routeApplied !== 'boolean' || !value.flows ||
+        typeof value.flows !== 'object' || Array.isArray(value.flows) ||
+        Object.keys(value.flows).length > topology.edges.length) return null
+    for (const [edgeId, flow] of Object.entries(value.flows)) {
+      if (!topology.edges.some(edge => edge.id === edgeId) || !flow ||
+          typeof flow !== 'object' || Array.isArray(flow) ||
+          !diagnosticStates.has(flow.state) || !diagnosticEvidenceTypes.has(flow.evidence) ||
+          Object.keys(flow).some(key => !['state', 'evidence'].includes(key))) return null
+    }
+    return value
+  } catch { return null }
+}
+
+function topologyView(evidence, diagnosticEvidence = null) {
+  const withDiagnostics = diagnosticEvidence ? { ...topology,
+    edges: topology.edges.map(edge => ({ ...edge,
+      ...(diagnosticEvidence.flows[edge.id] ? {
+        diagnosticState: diagnosticEvidence.flows[edge.id].state,
+        diagnosticEvidence: diagnosticEvidence.flows[edge.id].evidence,
+      } : {}),
+    })),
+    networkDiagnostic: { routeApplied: diagnosticEvidence.routeApplied,
+      updatedAt: diagnosticEvidence.updatedAt },
+  } : topology
+  if (!evidence) return withDiagnostics
   const qemuNode = topology.nodes.find(node => node.runtime === 'qemu')
   const runtimeFields = { requestedAccelerator: evidence.requestedAccelerator || 'unknown',
     selectedAccelerator: evidence.selectedAccelerator || 'unknown',
@@ -223,7 +272,7 @@ function topologyView(evidence) {
     guestProtocols: evidence.guestProtocols || null }
   const boundaryState = evidence.state === 'stopped' ? 'stopped'
     : evidence.vmState === 'unavailable' ? 'unavailable' : 'running'
-  return { ...topology,
+  return { ...withDiagnostics,
     nodes: topology.nodes.map(node => node.runtime === 'qemu' ? { ...node, ...runtimeFields } : node),
     networkNodes: topology.networkNodes.map(node => {
       if (!qemuNode) return node
@@ -385,12 +434,18 @@ function snapshot() {
     timestamp - endpoint.lastSeen <= heartbeatTimeout)
   const catalog = captureCatalog()
   const evidence = qemuEvidence()
+  const diagnosticEvidence = networkDiagnosticEvidence()
   const nodeViews = { ...nodes }
   const qemuNode = topology.nodes.find(node => node.runtime === 'qemu')
   if (qemuNode && evidence) nodeViews[qemuNode.id] = { ...nodeViews[qemuNode.id],
     status: evidence.state, runtimeEvidenceAt: evidence.updatedAt || null }
   const readiness = graphReadiness(nodes, edges, timestamp, heartbeatTimeout)
-  return { kind: 'snapshot', graph: graph.id, topology: topologyView(evidence),
+  if (diagnosticEvidence)
+    for (const [edgeId, flow] of Object.entries(diagnosticEvidence.flows))
+      if (edgeViews[edgeId]) edgeViews[edgeId] = { ...edgeViews[edgeId],
+        connection: flow.state, diagnosticEvidence: flow.evidence }
+  return { kind: 'snapshot', graph: graph.id,
+    topology: topologyView(evidence, diagnosticEvidence),
     telemetry: { websocket: websocketPath, heartbeatTimeoutMs: heartbeatTimeout,
       rateWindowSeconds, latencyBoundsUs }, state,
     control: { available: credentialRegistry.lastError == null && controlAuthorizer.available &&
@@ -1099,6 +1154,14 @@ const healthTimer = setInterval(() => {
   }
   if (changed) broadcast()
 }, Math.max(250, Math.min(heartbeatTimeout / 2, 1000))).unref()
+let networkDiagnosticSignature = JSON.stringify(networkDiagnosticEvidence())
+const networkDiagnosticTimer = networkDiagnosticFile ? setInterval(() => {
+  const next = JSON.stringify(networkDiagnosticEvidence())
+  if (next !== networkDiagnosticSignature) {
+    networkDiagnosticSignature = next
+    broadcast()
+  }
+}, 500).unref() : null
 const sloTimer = setInterval(() => {
   const timestamp = Date.now()
   const readiness = graphReadiness(nodes, edges, timestamp, heartbeatTimeout)
@@ -1127,6 +1190,7 @@ function shutdown() {
   serviceState.shuttingDown = true
   serviceState.httpReady = false
   clearInterval(healthTimer); clearInterval(sloTimer); clearInterval(otlpTimer)
+  if (networkDiagnosticTimer) clearInterval(networkDiagnosticTimer)
   otlpExporter.close()
   for (const socket of webSockets.clients) socket.close(1001, 'service shutting down')
   webSockets.close()

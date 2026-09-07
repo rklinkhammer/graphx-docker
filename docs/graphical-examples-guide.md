@@ -448,7 +448,31 @@ mirror points.
 The macOS profile validates the userspace OVS/routing shape; it does not certify
 native macvlan or IPvlan semantics.
 
-## 15. Inspect captures in Wireshark
+## 15. Static-route and deny-policy laboratory
+
+Native Linux is required for runtime evidence; the portable inspection script
+only validates and prints plans.
+
+1. Start the lab with `examples/static-route-policy/scripts/demo.sh start` and
+   open the loopback URL it prints.
+2. In **Application**, verify `allowed-flow` is green, `denied-flow` is red and
+   dashed, and `routed-flow` is amber and dashed. Select each edge to see
+   `receiver-confirmed`, `nft-counter`, or `route-absent` evidence.
+3. Open **Network path** and select each flow. Confirm that every path includes
+   the matching source domain and OVS bridge, `route-router`, and the matching
+   destination bridge/domain.
+4. Run `examples/static-route-policy/scripts/demo.sh apply-route`. The routed
+   path becomes green with `route-installed`; the other two classifications do
+   not change. Run `clear-route` to restore the amber missing-route state.
+5. Use the capture catalog to download `route-policy.pcapng`. The raw diagnostic
+   traffic uses UDP ports 18601–18603 and standard Ethernet/IP decoding.
+6. Run `demo.sh status`, then `demo.sh stop` twice. Evidence remains in the run
+   directory printed during teardown.
+
+No observation or control token is needed: the service is loopback-only and the
+lab offers no browser control. Route mutation stays in the narrow native CLI.
+
+## 16. Inspect captures in Wireshark
 
 GraphX application captures and OVS Ethernet captures use different link types:
 
@@ -471,7 +495,7 @@ them as sensitive evidence, limit access, and delete or archive them according
 to the applicable retention policy. See [`capture.md`](capture.md) for format,
 extcap, validation, size limits, and security details.
 
-## 16. Clean up credentials and generated data
+## 17. Clean up credentials and generated data
 
 After completing the examples:
 

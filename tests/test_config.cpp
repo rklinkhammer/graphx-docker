@@ -446,6 +446,40 @@ void standalone_network_examples_load() {
   expect(plan.find("--gateway") == std::string::npos, "IPvlan L3 omits gateway");
 }
 
+void static_route_policy_model_and_plan_load() {
+  const auto path =
+      std::filesystem::path(GRAPHX_SOURCE_DIR) / "examples/static-route-policy/graphx.yaml";
+  const auto config = graphx::load_config(path);
+  const auto& router = config.network_infrastructure.router("route-router");
+  expect(config.network_infrastructure.networks.size() == 3, "route lab domains");
+  expect(config.network_infrastructure.switches.size() == 3, "route lab OVS switches");
+  expect(router.interfaces.size() == 3 && router.routes.size() == 1 && router.policies.size() == 3,
+         "route lab router model");
+  expect(!router.routes.front().install_on_create, "manual route model");
+  expect(config.network_infrastructure.edge_paths.size() == 3, "route lab ordered edge paths");
+  std::string create_plan;
+  std::string create_input;
+  for (const auto& command : graphx::infrastructure_plan(config, graphx::InfraAction::create)) {
+    create_plan += graphx::format_command(command) + '\n';
+    create_input += command.standard_input;
+  }
+  expect(create_plan.find("add-br br-route-left") != std::string::npos, "route lab OVS plan");
+  expect(create_plan.find("10.64.30.10/32") == std::string::npos,
+         "manual route absent from create plan");
+  expect(create_input.find("deny-middle-left") != std::string::npos &&
+             create_input.find("counter drop") != std::string::npos,
+         "ordered deny policy plan");
+  const auto apply = graphx::route_command(config, "route-router", "10.64.30.10/32", false);
+  expect(graphx::format_command(apply) ==
+             "ip netns exec gx-route-router ip route replace 10.64.30.10/32 via 10.64.3.10 dev "
+             "rt-right",
+         "manual route apply command");
+  const auto clear = graphx::route_command(config, "route-router", "10.64.30.10/32", true);
+  expect(clear.ignore_failure &&
+             graphx::format_command(clear).find("route delete 10.64.30.10/32") != std::string::npos,
+         "manual route clear command");
+}
+
 void invalid_network_reference_is_rejected() {
   TemporaryConfig file(std::string(valid_config) + R"yaml(
 network:
@@ -1161,6 +1195,7 @@ int main() {
       {"invalid shared-memory config", invalid_shared_memory_config_is_rejected},
       {"mixed network model", mixed_network_model_and_plan_load},
       {"standalone network examples", standalone_network_examples_load},
+      {"static route policy model", static_route_policy_model_and_plan_load},
       {"invalid network reference", invalid_network_reference_is_rejected},
       {"override precedence", explicit_override_wins},
       {"invalid override", invalid_override_is_rejected},

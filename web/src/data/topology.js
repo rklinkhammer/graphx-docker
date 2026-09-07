@@ -46,7 +46,8 @@ export function applicationEdges(topology) {
       connection: 'unavailable', reconnects: '—', backpressure: '—',
       port: edge.port, schema: edge.schema, transport: edge.transport,
       framing: edge.framing, dataPlane: edge.dataPlane,
-      observationSource: edge.observationSource } }))
+      observationSource: edge.observationSource, diagnosticState: edge.diagnosticState,
+      diagnosticEvidence: edge.diagnosticEvidence } }))
 }
 
 export function infrastructureNodes(topology) {
@@ -67,9 +68,12 @@ export function networkEdges(selectedId, topology) {
   const edges = []
   const paths = topology?.edgePaths || edgePaths
   for (const [logicalEdge, path] of Object.entries(paths)) {
+    const definition = topology?.edges?.find(edge => edge.id === logicalEdge)
     path.slice(0, -1).forEach((source, index) => edges.push({
       id: `${logicalEdge}-hop-${index}`, source, target: path[index + 1], type: 'telemetry',
       data: { logicalEdge, highlighted: logicalEdge === selectedId,
+        diagnosticState: definition?.diagnosticState,
+        diagnosticEvidence: definition?.diagnosticEvidence,
         rate: '—', latency: index === 3 ? 'router' : 'L2' },
     }))
   }

@@ -22,6 +22,8 @@ enum class InfraAction { create, destroy, status };
                                          std::string_view interface, bool clear,
                                          std::string delay = {}, std::string jitter = {},
                                          std::string loss = {}, std::string rate = {});
+[[nodiscard]] InfraCommand route_command(const GraphConfig& config, std::string_view router,
+                                         std::string_view destination, bool clear);
 [[nodiscard]] std::string format_command(const InfraCommand& command);
 int execute_infrastructure_plan(const std::vector<InfraCommand>& commands, bool dry_run,
                                 std::ostream& output, std::ostream& errors);

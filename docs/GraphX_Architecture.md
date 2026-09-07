@@ -1,6 +1,6 @@
 # GraphX Architecture and Network Topology
 
-**Version:** 1.0  
+**Version:** 1.1
 **Repository baseline:** GraphX 1.0.0  
 **Review date:** 2026-09-06  
 **Status:** Living architecture document
@@ -61,6 +61,7 @@ The present design evolved through the following accepted decisions.
 | Immutable release and compatibility surfaces | Established the 1.0.0 product/package contract | Authoritative `VERSION`, packages, manifests, checksums, SBOMs, compatibility policy |
 | Bounded IPv4 UDP edges | Added unicast, broadcast, and multicast while retaining framing and bounds | UDP transport, typed anomaly counters, three focused examples |
 | Unified QEMU profiles | Modeled raw network nodes consistently across host and Linux-container execution | Shared guest/observer/UI, external and container profiles, QMP and probe evidence |
+| Explicit manual-route activation | Kept teaching-state transitions declared, reviewable, and narrow | `install: manual`, exact `graphx infra route apply/clear`, strict evidence projection |
 
 The UDP decision is canonical ADR 0012 and the unified QEMU profiles decision is
 canonical ADR 0013. The decision index records that QEMU was initially assigned
@@ -293,7 +294,42 @@ Only Open vSwitch is presently modeled. Ports may identify a host interface/veth
 
 Routers can be Linux namespaces or containers. They expose named interfaces, routes, forwarding, and backend-neutral source/destination/action policies realized with nftables in the native implementation. `tc netem` can apply bounded delay, jitter, loss, and rate behavior to a selected router interface; it is an operational action, not a permanent graph property.
 
-### 7.9 Native Linux versus Docker Desktop
+### 7.9 Static-route and deny-policy laboratory
+
+The Phase 14 `examples/static-route-policy` laboratory is the focused route and
+policy reference. Three OVS-backed Layer-2 domains meet at one namespace router.
+The left-to-middle flow is receiver-confirmed, the reverse flow is denied by a
+named nftables rule and counter, and the left-to-right diagnostic address is
+unreachable until an exact declared route is applied.
+
+```text
+left 10.64.1.10   -> br-route-left   --+
+middle 10.64.2.10 -> br-route-middle --+-> gx-route-router -> br-route-right -> right
+                                                                     10.64.30.10/32
+```
+
+Routes normally install during infrastructure creation. A route with
+`install: manual` remains part of the validated model and dry-run plan surface,
+but `create` omits it. The CLI may then apply or clear only the exact destination
+declared for the selected router. This is deliberately narrower than accepting
+arbitrary route arguments from the browser or shell environment.
+
+Each bridge mirrors traffic to a dedicated capture veth. The lab records a
+bounded, user-readable Ethernet PCAPNG and a strict, atomically replaced JSON
+evidence projection. Telemetry accepts only known edge IDs and the four states
+`allowed`, `policy-denied`, `missing-route`, and `route-applied`; the Application
+and Network views color every logical/path edge consistently and show the
+evidence type in the inspector. Receiver results and nftables/kernel state are
+authoritative; capture and GUI are corroborating views.
+
+The native launcher refuses occupied fixed names and address ranges, marks OVS
+and namespace resources with a random run owner, checks those markers before
+cleanup, retains evidence, and supports repeated stop. Portable inspection
+validates configuration and exact command generation only. Native Linux remains
+required to accept routing, policy, mirroring, delivery, and host-isolation
+claims.
+
+### 7.10 Native Linux versus Docker Desktop
 
 | Capability | Native Linux reference | Docker Desktop/macOS profile |
 |---|---|---|
@@ -465,6 +501,7 @@ Credential rotation uses atomic current snapshots plus a bounded redaction-only 
 | IPvlan L2 | Independent L2 domains, OVS bridges/SPAN, namespace routing/policy | Native Linux; privileged infrastructure |
 | IPvlan L3 | Multi-subnet single-parent IPvlan L3, broadcast-free routing | Native Linux; privileged infrastructure |
 | Mixed network | Cross-driver routing, OVS, mirrors, nftables, netem, edge paths | Native Linux exact; macOS simulation |
+| Static route/policy | Three OVS domains, ordered allow/deny rules, explicit route transition, GUI diagnostics | Native Linux; privileged infrastructure lifecycle |
 | External QEMU | External raw node, host QEMU, slirp, passive observation, portable GUI | macOS/Linux; host QEMU + Docker |
 | Container QEMU | Nested VM deployment, KVM/TCG evidence, least privilege, packet history | Linux x86_64; optional `/dev/kvm` |
 | Simulated SDR | Raw UDP IQ, mutual-TLS control, raw results, live GUI, packet history | Docker Desktop or Linux; unprivileged except capture sidecar capabilities |
@@ -475,7 +512,7 @@ Credential rotation uses atomic current snapshots plus a bounded redaction-only 
 ### 11.1 Current limits
 
 - Configuration v1 rejects cycles in the GraphX-managed data plane and native one-to-many graph edges. Descriptive external raw edges may form device data/control loops.
-- Infrastructure tooling does not reconcile state or persist ownership metadata.
+- General infrastructure tooling does not reconcile state or persist ownership metadata; the Phase 14 laboratory adds local run-scoped ownership markers without changing that general contract.
 - UDP supports IPv4 only and provides no DTLS, retransmission, congestion control, fragmentation/reassembly, or peer authorization.
 - Shared memory is SPSC, fixed-size, copy-based, and sensitive to IPC namespace design.
 - Unix-domain transport accepts one peer for its v1 listener lifetime.
@@ -490,9 +527,9 @@ Credential rotation uses atomic current snapshots plus a bounded redaction-only 
 
 - The UDP decision is canonical ADR 0012 and the QEMU decision is canonical ADR 0013; the ADR index retains the historical collision note.
 - Top-level projection files under `config/` are explicitly non-authoritative and are generated or checked with `graphx project` from validated `graphx.yaml`.
-- Root documentation identifies GraphX 1.0.0 and distinguishes accepted Phase 3–12 reports from the Phase 1 and Phase 2 documentary gaps.
+- Root documentation identifies GraphX 1.0.0 and distinguishes accepted Phase 3–13 reports from the Phase 1 and Phase 2 documentary gaps; Phase 14 awaits native verification.
 - Some examples provide live GUI metrics while topology-only examples provide only static visualization; the distinction should remain visible in every example README.
-- Infrastructure `routes` exist in the model but most checked-in network labs rely on directly connected router subnets and policies. A focused static-route example would improve coverage.
+- Infrastructure routes support create-time and explicit manual activation; the Phase 14 laboratory is the focused coverage. Reconciliation and arbitrary runtime route mutation remain out of scope.
 
 ## 12. Proposed additional examples
 
@@ -512,9 +549,14 @@ Delivered profiles and deferred extension:
 
 **Priority: high.** Extend the multicast laboratory across two subnets with an IGMP-aware OVS/router setup and multiple diagnostic receivers. Keep the logical edge limitation explicit at first, then use the example as acceptance evidence for a future one-to-many graph-edge ADR.
 
-### 12.3 Static routes and deny-policy laboratory
+### 12.3 Static routes and deny-policy laboratory (implemented in Phase 14)
 
-**Priority: medium.** Create three routed domains where one intended flow succeeds, one is denied by policy, and one initially fails until an explicit static route is added. Expose the edge paths and OVS mirrors in the GUI. This would exercise currently underrepresented route configuration and make network troubleshooting teachable.
+The `examples/static-route-policy` lab now supplies three routed domains, a
+receiver-confirmed intended flow, an nftables-counter-confirmed denied flow, and
+a missing-route transition controlled by one declared manual route. It exposes
+ordered paths, OVS mirrors, capture, and distinct GUI diagnostics. Portable
+coverage is automated; independent native-Linux acceptance remains the Phase 14
+exit gate.
 
 ### 12.4 Dual capture correlation laboratory
 
@@ -533,14 +575,14 @@ Delivered profiles and deferred extension:
 ### Completed documentation and consistency foundation
 
 1. The QEMU decision is ADR 0013, with its former number recorded in the canonical ADR index.
-2. Root maturity wording matches 1.0.0 and qualifies the accepted Phase 3–12 verification record.
+2. Root maturity wording matches 1.0.0 and qualifies the accepted Phase 3–13 verification record.
 3. Root and contributor documentation link the architecture source, editable DOCX, ADR index, and focused references.
 4. `graphx project` generates or verifies the four projections under `config/`; CTest enforces the drift check in local and Linux/macOS CI builds.
 
 ### Near-term architectural examples
 
 1. Independently verify the single-SDR example on macOS and native Linux.
-2. Add the static-route/deny-policy network laboratory.
+2. Independently verify the implemented static-route/deny-policy laboratory on native Linux.
 3. Add an application/Ethernet dual-capture correlation prototype.
 4. Decide whether one-to-many logical edges belong in config v1 extension rules or require config v2.
 
@@ -556,7 +598,7 @@ Delivered profiles and deferred extension:
 
 | Concern | Primary implementation or documentation evidence |
 |---|---|
-| Architecture decisions | `docs/adr/README.md`, with records `docs/adr/0001-*.md` through `docs/adr/0013-*.md` |
+| Architecture decisions | `docs/adr/README.md`, with records `docs/adr/0001-*.md` through `docs/adr/0015-*.md` |
 | Configuration model | `include/graphx/config.hpp`, `include/graphx/network.hpp`, `src/config.cpp`, `config/schema/graphx.schema.json` |
 | CLI/infrastructure | `apps/cli/main.cpp`, `include/graphx/infra.hpp`, `src/infra.cpp` |
 | Envelope/framing | `include/graphx/envelope.hpp`, `src/envelope.cpp`, `src/framing.cpp`, `docs/protocol.md` |
@@ -568,10 +610,11 @@ Delivered profiles and deferred extension:
 | Operations stack | `compose.observability.yaml`, `deploy/observability` |
 | Standard deployment | `graphx.yaml`, `compose.yaml`, `compose.history.yaml`, `scripts/demo.sh` |
 | Network laboratories | `examples/macvlan`, `examples/ipvlan-l2`, `examples/ipvlan-l3`, `examples/mixed-network` |
+| Route/policy laboratory | `examples/static-route-policy`, `docs/adr/0015-explicit-manual-route-activation.md` |
 | UDP examples | `examples/udp-unicast`, `examples/udp-broadcast`, `examples/udp-multicast` |
 | QEMU profiles | `examples/qemu-node`, `docs/qemu-demos.md` |
 | SDR profiles | `examples/sdr-node`, `docs/adr/0014-external-device-control-cycles.md` |
-| Verification status | `verification_status.md`, `phase_3_verification.md` through `phase_12_verification.md` |
+| Verification status | `verification_status.md`, `phase_3_verification.md` through `phase_13_verification.md`; Phase 14 verifier contract in `prompt/verifier.md` |
 
 ## Appendix B. Terminology
 

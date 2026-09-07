@@ -1,6 +1,6 @@
 # Support policy
 
-GraphX is currently a pre-1.0 educational project. Community support is provided
+GraphX is a 1.0 educational project. Community support is provided
 through GitHub issues; there is no commercial support or uptime commitment.
 Security reports follow `SECURITY.md`.
 
@@ -22,7 +22,7 @@ Node.js 22 is the telemetry production runtime; Node.js 24 runs JavaScript CI.
 Python 3.10+, CMake 3.25+, Ninja, OpenSSL 3, and TShark/Wireshark are release
 tooling requirements.
 
-The newest tagged pre-1.0 release is the default supported line. Report bugs with
+The newest tagged 1.x release is the default supported line. Report bugs with
 the exact `graphx --version`, platform, compiler/runtime versions, configuration
 with secrets removed, and the smallest reproduction. Native networking reports
 must also state whether the host has the required Linux capabilities.

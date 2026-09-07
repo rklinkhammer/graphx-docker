@@ -8,6 +8,11 @@ All notable GraphX changes are recorded here. The format follows
 
 ### Added
 
+- A Phase 14 native-Linux static-route and deny-policy laboratory with three
+  OVS domains, bounded packet evidence, distinct GUI diagnostics, and portable
+  model/plan tests.
+- Backward-compatible version-1 `install: manual` routes and exact declared
+  `graphx infra route apply|clear` operations.
 - IPv4 UDP edges for unicast, isolated directed broadcast, and multicast, with
   bounded datagrams, cancellation, sequence-anomaly metrics, Wireshark support,
   and deterministic runnable examples.

@@ -221,6 +221,7 @@ YAML::Node network_projection(const GraphConfig& config) {
           value["destination"] = route.destination;
           if (!route.via.empty()) value["via"] = route.via;
           if (!route.device.empty()) value["device"] = route.device;
+          if (!route.install_on_create) value["install"] = "manual";
           routes.push_back(value);
         }
         item["routes"] = routes;

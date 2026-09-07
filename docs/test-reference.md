@@ -584,6 +584,31 @@ examples/mixed-network/scripts/macos-down.sh
 This checks the OVS/router/control shape in a privileged container using bridge
 networks. It does not certify macvlan or ipvlan behavior.
 
+## Phase 14 static-route and policy acceptance
+
+Run this only on a dedicated native Linux host as the normal login user. Record
+host routes, namespaces, links, nftables, OVS, and Docker state before starting.
+Then follow the full matrix in `prompt/verifier.md`; the core two-cycle sequence
+is:
+
+```sh
+examples/static-route-policy/scripts/demo.sh start
+examples/static-route-policy/scripts/demo.sh verify
+examples/static-route-policy/scripts/demo.sh apply-route
+examples/static-route-policy/scripts/demo.sh verify
+examples/static-route-policy/scripts/demo.sh clear-route
+examples/static-route-policy/scripts/demo.sh verify
+examples/static-route-policy/scripts/demo.sh stop
+examples/static-route-policy/scripts/demo.sh stop
+```
+
+Repeat the complete sequence once. Inspect the GUI transition in both topology
+views, verify the named nftables counter, inspect all three OVS mirrors, and read
+the retained PCAPNG as the invoking user. Compare the final host snapshot with
+the baseline and prove an unrelated canary namespace, link, bridge, route, and
+nftables table remain unchanged. Portable validation is not a substitute for
+this gate.
+
 ## Cleanup and failure triage
 
 Always use the matching `down.sh`/`linux-down.sh`/`macos-down.sh` before deleting

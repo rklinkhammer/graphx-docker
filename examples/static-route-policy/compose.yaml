@@ -1,0 +1,41 @@
+services:
+  telemetry:
+    build:
+      context: ../..
+      dockerfile: docker/telemetry.Dockerfile
+    image: graphx-telemetry:latest
+    user: "65532:65532"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: [/tmp:rw,noexec,nosuid,size=16m]
+    environment:
+      PORT: "8080"
+      GRAPHX_HTTP_BIND: "0.0.0.0"
+      GRAPHX_TELEMETRY_BIND: "127.0.0.1"
+      GRAPHX_TELEMETRY_PORT: "9000"
+      GRAPHX_CONFIG: /route-policy/graphx.yaml
+      GRAPHX_NETWORK_DIAGNOSTIC_FILE: /evidence/diagnostic-state.json
+      GRAPHX_CAPTURE_ENABLED: "true"
+      GRAPHX_CAPTURE_PROVIDER: pcapng
+      GRAPHX_CAPTURE_DIR: /evidence
+      GRAPHX_CAPTURE_MAX_FILE_BYTES: "67108864"
+      GRAPHX_CAPTURE_MAX_PACKETS: "100000"
+      GRAPHX_HISTORY_ENABLED: "false"
+      GRAPHX_ALLOW_INSECURE_REMOTE: "true"
+    volumes:
+      - ./graphx.yaml:/route-policy/graphx.yaml:ro
+      - ${GRAPHX_ROUTE_RUN_DIR:?set by demo.sh}:/evidence:ro
+    ports:
+      - "127.0.0.1:${GRAPHX_ROUTE_GUI_PORT:-8080}:8080"
+    networks:
+      - management
+    pids_limit: 128
+    mem_limit: 256m
+    cpus: 1.0
+    restart: "no"
+
+networks:
+  management:
+    driver: bridge
+    internal: true

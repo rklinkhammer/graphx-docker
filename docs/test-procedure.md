@@ -222,6 +222,7 @@ GUI, capture, accelerator, and platform-specific evidence.
 | Container QEMU | `examples/qemu-node/container/scripts/demo.sh start --accel kvm` | Native Linux, operator-run; [`QEMU guide`](qemu-demos.md) |
 | Simulated SDR | `examples/sdr-node/simulated/scripts/demo.sh start`, then `verify` and `stop` | Docker on macOS/Linux; [`SDR guide`](../examples/sdr-node/README.md) |
 | External SDR + OVS/SPAN | `examples/sdr-node/external/scripts/demo.sh start`, then `verify` and `stop` | Native Linux only; creates fixed disposable host resources |
+| Static route/policy | `examples/static-route-policy/scripts/demo.sh start`, then `verify`, `apply-route`, `clear-route`, and `stop` twice | Native Linux only; [`route/policy guide`](../examples/static-route-policy/README.md) |
 | macOS OVS simulation | `examples/mixed-network/scripts/macos-up.sh`, then `macos-down.sh` | Docker Desktop; [`network guide`](network-infrastructure.md) |
 | Native network labs | `examples/<lab>/scripts/up.sh`, where `<lab>` is `macvlan`, `ipvlan-l2`, or `ipvlan-l3` | Native Linux only; always use the matching `down.sh` |
 | Mixed native network | `examples/mixed-network/scripts/linux-up.sh` | Native Linux only; use `linux-down.sh` afterward |
@@ -237,6 +238,13 @@ workflow on both macOS and Linux. `native-linux` includes its external SDR
 OVS/SPAN start/verify/stop gate after the existing network labs. This proves the
 namespace simulator and attachment path, not a physical radio. Review the
 physical ownership contract in the SDR guide before any manual adaptation.
+
+Phase 14 portable acceptance validates the static-route configuration, manual
+route command generation, bounded probe parser, telemetry projection, and GUI
+mapping. Its native routing verdict is a separate operator gate: follow the
+example README through two complete baseline/apply/clear/stop cycles and the
+adversarial checks in `prompt/verifier.md`. Do not report dry-run output as OVS,
+nftables, route-table, capture, or packet-delivery evidence.
 
 For the browser topology, control tokens, history, and capture workflow across
 the graphical examples, follow
