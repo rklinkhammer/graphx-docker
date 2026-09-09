@@ -1,0 +1,74 @@
+minimumLimaVersion: 2.2.0
+
+# M1 is intentionally an ARM64 Linux environment on Apple Silicon.  QEMU guests
+# with other architectures use TCG unless later runtime evidence proves KVM.
+vmType: vz
+arch: aarch64
+images:
+  - location: https://cloud-images.ubuntu.com/releases/noble/release-20260705/ubuntu-24.04-server-cloudimg-arm64.img
+    arch: aarch64
+    digest: sha256:7df0201546f75b8bcc1044594c806c35749421ad3c9bc1be2a3ab806cfae39cc
+    variant: server
+
+cpus: 4
+memory: 8GiB
+disk: 80GiB
+mountType: virtiofs
+mounts:
+  - location: "{{.Param.repo}}"
+    mountPoint: /workspace/graphx-docker
+    writable: true
+
+# Docker is installed as a rootful system service.  Lima does not install or
+# expose containerd, nerdctl, or a host-side Docker socket for this instance.
+containerd:
+  system: false
+  user: false
+
+vmOpts:
+  vz:
+    rosetta:
+      enabled: false
+      binfmt: false
+nestedVirtualization: false
+
+provision:
+  - mode: system
+    script: |
+      #!/bin/bash
+      exec env \
+        GRAPHX_LIMA_USER="{{.User}}" \
+        GRAPHX_M1_CONFIG_DIGEST="{{.Param.configDigest}}" \
+        /workspace/graphx-docker/infrastructure/lima/provision.sh
+
+probes:
+  - script: |
+      #!/bin/bash
+      set -euo pipefail
+      test -f /var/lib/graphx/m1/provisioned
+      systemctl is-active --quiet docker.service
+      systemctl is-active --quiet openvswitch-switch.service
+      test "$(cat /etc/graphx-m1-config.sha256)" = "{{.Param.configDigest}}"
+    hint: Inspect /var/log/cloud-init-output.log and run infrastructure/lima/provision.sh in the guest.
+
+# Only the telemetry demonstration port is forwarded, and only to macOS
+# loopback.  The following rule suppresses Lima's automatic forwarding fallback.
+portForwards:
+  - guestIP: 127.0.0.1
+    guestPort: 8080
+    hostIP: 127.0.0.1
+    hostPort: 18080
+    proto: tcp
+  - guestIP: 0.0.0.0
+    guestIPMustBeZero: false
+    proto: any
+    ignore: true
+
+param:
+  # Lifecycle tooling always overrides this sentinel with the resolved checkout.
+  repo: /nonexistent/graphx-docker-source-must-be-overridden
+  configDigest: unset
+
+message: |
+  GraphX M1 is ready. Run infrastructure/lima/verify.sh on the macOS host.
+  Runtime state and retained evidence are under /var/lib/graphx in this VM.

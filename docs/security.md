@@ -26,6 +26,29 @@ standard Compose demo publishes only `127.0.0.1:8080`, although its service bind
 inside the private container network and therefore carries that explicit demo
 override.
 
+## Lima privileged execution boundary
+
+The optional Apple Silicon M1 environment runs privileged Linux network tooling
+inside one Lima VM named `graphx`, not in a macOS container. Its only writable
+host mount is the source checkout at `/workspace/graphx-docker`. Docker state,
+OVS databases, QEMU disks, captures, logs, and ownership records stay on the VM
+filesystem under `/var/lib` or `/var/log`; verification checks this boundary
+before mutating networking.
+
+The VM definition does not forward Docker, OVS, QMP, or other privileged Unix
+sockets. It forwards only guest loopback TCP 8080 to macOS loopback 18080 and
+denies Lima's general port-forward fallback. Disposable `gx-m1-*` resources use
+a random run token recorded as a Docker label, OVS external ID, or link alias.
+Cleanup validates those identities and refuses a same-named replacement. All
+package, service, process, packet, and lifecycle waits are bounded; retained
+evidence is capped at ten runs.
+
+M1 proves tool availability and an isolated test topology only. Configuration
+version 1 and its existing Docker network drivers remain authoritative. The
+future configuration version 2 OVS-only backend, application-container veth
+attachment, and QEMU TAP path require their own ownership and threat reviews;
+current QEMU profiles continue to use slirp.
+
 ## TCP TLS 1.3 and mutual TLS
 
 Every TCP edge accepts an additive `tls` object. Existing version-1 files without

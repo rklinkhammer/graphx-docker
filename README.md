@@ -17,6 +17,15 @@ what crosses each edge.
 > no separate independent report. Native-Linux claims rely on the evidence
 > recorded in the relevant reports. See [`verification_status.md`](verification_status.md).
 
+On Apple Silicon, the optional [Lima execution environment](infrastructure/lima/README.md)
+provides an ARM64 Linux VM for rootful Docker, system Open vSwitch, namespaces,
+veth/TAP, nftables, netem, QEMU tooling, and packet capture. This M1 environment
+contains the privileged `graphx-docker` toolchain; it is not a container on
+macOS. The application still uses configuration version 1 and its current
+Docker bridge/MACVLAN/IPVLAN realization, while QEMU still uses slirp. The
+configuration version 2 OVS-only backend, container veth attachment, and QEMU
+TAP data path are later migration phases.
+
 ## Architecture and decisions
 
 [`docs/GraphX_Architecture.md`](docs/GraphX_Architecture.md) is the maintained

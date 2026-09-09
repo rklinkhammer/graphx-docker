@@ -278,6 +278,9 @@ if(GRAPHX_BUILD_TESTS)
     ${CMAKE_SOURCE_DIR})
   add_test(NAME graphx-documentation-consistency COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/test_documentation_consistency.py ${CMAKE_SOURCE_DIR})
+  add_test(NAME graphx-lima-static COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/test_lima_environment.py ${CMAKE_SOURCE_DIR})
+  set_tests_properties(graphx-lima-static PROPERTIES TIMEOUT 15)
   add_test(NAME graphx-version COMMAND graphx-cli --version)
   set_tests_properties(graphx-version PROPERTIES
     PASS_REGULAR_EXPRESSION "^graphx ${GRAPHX_VERSION}")

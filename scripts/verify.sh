@@ -70,12 +70,22 @@ gate() {
 }
 
 run_quick() {
+  local dev_build_dir=${GRAPHX_DEV_BUILD_DIR:-}
   gate "configure development build"
-  cmake --preset dev --fresh
-  gate "build development targets"
-  cmake --build --preset dev -j "${GRAPHX_BUILD_JOBS:-4}"
-  gate "development CTest suite"
-  ctest --preset dev
+  if test -n "$dev_build_dir"; then
+    mkdir -p "$dev_build_dir"
+    cmake --preset dev --fresh -B "$dev_build_dir"
+    gate "build development targets"
+    cmake --build "$dev_build_dir" -j "${GRAPHX_BUILD_JOBS:-4}"
+    gate "development CTest suite"
+    ctest --test-dir "$dev_build_dir" --output-on-failure
+  else
+    cmake --preset dev --fresh
+    gate "build development targets"
+    cmake --build --preset dev -j "${GRAPHX_BUILD_JOBS:-4}"
+    gate "development CTest suite"
+    ctest --preset dev
+  fi
 }
 
 select_llvm21_sanitizer_toolchain() {

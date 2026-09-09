@@ -28,6 +28,16 @@ Observability is intentionally best effort and bounded. Runtime events update li
 
 The architecture is suitable for reproducible laboratories and controlled demonstrations. Its present limits are equally important: configuration version 1 allows only DAGs for GraphX-managed execution (external raw device relationships may loop); infrastructure provisioning is create/destroy rather than reconciliation; UDP is bounded but unreliable; multicast remains one logical producer-to-consumer edge; capture does not rotate automatically; OVS and application captures are not automatically cross-correlated; QEMU uses user-mode networking rather than TAP; and the telemetry/control system is a single-collector control domain rather than a distributed control plane.
 
+For Apple Silicon development, Migration M1 adds an optional Lima ARM64 Linux
+execution environment. The VM contains rootful Docker, system OVS, Linux
+namespace/veth/TAP, nftables, netem, QEMU, capture, and build tools while the
+repository remains mounted from macOS. High-I/O and privileged runtime state is
+VM-local. M1 verifies these primitives with a disposable topology but does not
+change the application data plane: configuration version 1 and its current
+Docker-driver planner remain implemented, QEMU remains on slirp, and the future
+configuration version 2 OVS-only backend, container veth attachment, and QEMU
+TAP profile remain proposed.
+
 ## 1. Scope and architectural principles
 
 This document consolidates the implemented architecture, accepted architecture decision records, checked-in examples, and current operational documentation. It describes implementation rather than aspirations unless a subsection is explicitly marked **Proposed**.
@@ -62,6 +72,8 @@ The present design evolved through the following accepted decisions.
 | Bounded IPv4 UDP edges | Added unicast, broadcast, and multicast while retaining framing and bounds | UDP transport, typed anomaly counters, three focused examples |
 | Unified QEMU profiles | Modeled raw network nodes consistently across host and Linux-container execution | Shared guest/observer/UI, external and container profiles, QMP and probe evidence |
 | Explicit manual-route activation | Kept teaching-state transitions declared, reviewable, and narrow | `install: manual`, exact `graphx infra route apply/clear`, strict evidence projection |
+| Lima macOS execution layer | Moved privileged Linux development behind a reproducible Apple Silicon VM boundary | Pinned M1 template, rootful Docker/system OVS provisioning, disposable primitive verifier |
+| OVS semantic network profiles | Accepted OVS as the future single backend while preserving user intent | Proposed configuration v2; MACVLAN/IPVLAN remain current v1 Docker drivers until later phases |
 
 The UDP decision is canonical ADR 0012 and the unified QEMU profiles decision is
 canonical ADR 0013. The decision index records that QEMU was initially assigned
