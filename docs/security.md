@@ -43,11 +43,16 @@ Cleanup validates those identities and refuses a same-named replacement. All
 package, service, process, packet, and lifecycle waits are bounded; retained
 evidence is capped at ten runs.
 
-M1 proves tool availability and an isolated test topology only. Configuration
-version 1 and its existing Docker network drivers remain authoritative. The
-future configuration version 2 OVS-only backend, application-container veth
-attachment, and QEMU TAP path require their own ownership and threat reviews;
-current QEMU profiles continue to use slirp.
+M1 proves tool availability and an isolated test topology only. M2 accepts a
+strict configuration version 2 intent model, while version 1 retains its
+existing Docker network-driver meaning. Version 2 rejects legacy driver fields,
+requires typed attachments, and cannot enter the version-1 infrastructure,
+route, or fault planner. Migration validates the literal source without
+applying runtime `GRAPHX_OVERRIDES`, never modifies it, and creates output with
+exclusive no-follow semantics so existing paths and symlinks are not
+overwritten. Application-container veth and QEMU TAP
+realization still require later ownership and threat reviews; current QEMU
+profiles continue to use slirp.
 
 ## TCP TLS 1.3 and mutual TLS
 

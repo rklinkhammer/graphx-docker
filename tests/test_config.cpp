@@ -1,7 +1,9 @@
 #include "graphx/config.hpp"
 #include "graphx/infra.hpp"
+#include "graphx/migration.hpp"
 #include "graphx/transport_factory.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <cstdlib>
 #include <exception>
@@ -76,6 +78,183 @@ bool diagnostic_contains(const graphx::ConfigError& error, std::string_view text
         diagnostic.message.find(text) != std::string::npos)
       return true;
   return false;
+}
+
+std::string valid_v2_config() {
+  auto source = std::string(valid_config);
+  source.replace(source.find("version: 1"), std::string("version: 1").size(), "version: 2");
+  source += R"yaml(
+network:
+  networks:
+    - id: semantic-lan
+      profile: ethernet
+      subnets: [10.80.0.0/24]
+      gateway: 10.80.0.1
+      external: false
+  attachments:
+    - { id: source-data, kind: external, owner: source, network: semantic-lan, address: 10.80.0.10/24, mac: "02:80:00:00:00:10" }
+    - { id: target-data, kind: external, owner: target, network: semantic-lan, address: 10.80.0.20/24 }
+)yaml";
+  return source;
+}
+
+void version_two_profiles_and_attachments_load() {
+  TemporaryConfig file(valid_v2_config());
+  const auto config = graphx::load_config(file.path());
+  expect(config.version == 2, "version 2 model");
+  const auto& network = config.network_infrastructure.network("semantic-lan");
+  expect(network.profile == graphx::NetworkProfile::ethernet && network.parent.empty(),
+         "semantic profile model");
+  expect(config.network_infrastructure.interfaces.empty() &&
+             config.network_infrastructure.attachments.size() == 2 &&
+             config.network_infrastructure.attachments.front().kind ==
+                 graphx::AttachmentKind::external,
+         "version 2 attachment model");
+
+  const struct ProfileCase {
+    graphx::NetworkProfile profile{graphx::NetworkProfile::ethernet};
+    std::string_view name;
+    std::string_view mac_identity;
+    std::string_view learning;
+    std::string_view filtering;
+    std::string_view arp;
+    std::string_view broadcast;
+    std::string_view multicast;
+    std::string_view routing;
+    std::string_view isolation;
+    std::string_view management;
+  } profiles[] = {
+      {graphx::NetworkProfile::ethernet, "ethernet", "endpoint", "dynamic", "ovs", "endpoint",
+       "flood", "flood", "l2", "none", "separate"},
+      {graphx::NetworkProfile::macvlan, "macvlan", "endpoint", "dynamic", "ovs", "endpoint",
+       "flood", "flood", "l2", "host", "separate"},
+      {graphx::NetworkProfile::ipvlan_l2, "ipvlan-l2", "shared-uplink", "suppressed", "ovs",
+       "endpoint-shared-mac", "flood", "flood", "l2", "host", "separate"},
+      {graphx::NetworkProfile::ipvlan_l3, "ipvlan-l3", "shared-uplink", "none", "route",
+       "suppressed", "suppressed", "suppressed", "l3", "endpoint", "separate"},
+      {graphx::NetworkProfile::ipvlan_l3s, "ipvlan-l3s", "shared-uplink", "none",
+       "source-validated", "suppressed", "suppressed", "suppressed", "l3-source-validated",
+       "endpoint", "separate"},
+  };
+  for (const auto& profile : profiles) {
+    expect(graphx::to_string(profile.profile) == profile.name, "profile name");
+    const auto& semantics = graphx::profile_semantics(profile.profile);
+    expect(semantics.mac_identity == profile.mac_identity &&
+               semantics.learning == profile.learning && semantics.filtering == profile.filtering &&
+               semantics.arp == profile.arp && semantics.broadcast == profile.broadcast &&
+               semantics.multicast == profile.multicast && semantics.routing == profile.routing &&
+               semantics.isolation == profile.isolation &&
+               semantics.management == profile.management,
+           "exact profile behavior");
+  }
+}
+
+void version_two_is_strict_and_not_realized_by_v1_planner() {
+  const std::pair<std::string, std::string> invalid[] = {
+      {"version: 2", "version: \"2\""},
+      {"profile: ethernet", "driver: bridge"},
+      {"profile: ethernet", "profile: mystery"},
+      {"profile: ethernet", "profile: macvlan"},
+      {"external: false", "external: \"false\""},
+      {"subnets: [10.80.0.0/24]", "subnets: [10.80.0.0/24, 10.81.0.0/24]"},
+  };
+  for (const auto& [from, to] : invalid) {
+    auto source = valid_v2_config();
+    source.replace(source.find(from), from.size(), to);
+    TemporaryConfig file(source);
+    try {
+      [[maybe_unused]] const auto ignored = graphx::load_config(file.path());
+      throw std::runtime_error("invalid version 2 configuration was accepted");
+    } catch (const graphx::ConfigError&) {
+    }
+  }
+
+  TemporaryConfig file(valid_v2_config());
+  const auto config = graphx::load_config(file.path());
+  try {
+    [[maybe_unused]] const auto ignored =
+        graphx::infrastructure_plan(config, graphx::InfraAction::create);
+    throw std::runtime_error("version 2 used the legacy infrastructure planner");
+  } catch (const std::invalid_argument& error) {
+    expect(std::string_view(error.what()).find("migration M3") != std::string_view::npos,
+           "version 2 planner boundary diagnostic");
+  }
+}
+
+void version_one_migration_is_deterministic() {
+  const auto source =
+      std::filesystem::path(GRAPHX_SOURCE_DIR) / "examples/mixed-network/graphx.yaml";
+  const auto first = graphx::migrate_config_v1_to_v2(source);
+  const auto second = graphx::migrate_config_v1_to_v2(source);
+  expect(first == second, "migration byte determinism");
+  ::setenv("GRAPHX_OVERRIDES", "version=2", 1);
+  try {
+    const auto overridden_environment = graphx::migrate_config_v1_to_v2(source);
+    ::unsetenv("GRAPHX_OVERRIDES");
+    expect(overridden_environment == first, "migration ignores ambient overrides");
+  } catch (...) {
+    ::unsetenv("GRAPHX_OVERRIDES");
+    throw;
+  }
+  expect(first.find("version: 2") != std::string::npos &&
+             first.find("profile: macvlan") != std::string::npos &&
+             first.find("profile: ipvlan-l2") != std::string::npos &&
+             first.find("kind: container_veth") != std::string::npos &&
+             first.find("kind: namespace_veth") != std::string::npos &&
+             first.find("kind: mirror") != std::string::npos &&
+             first.find("driver:") == std::string::npos &&
+             first.find("\n  interfaces:") == std::string::npos,
+         "reviewable migration mapping");
+  TemporaryConfig migrated(first);
+  const auto config = graphx::load_config(migrated.path());
+  expect(config.version == 2 && config.network_infrastructure.attachments.size() == 7,
+         "migrated version 2 validates");
+
+  const auto expect_invalid_attachment = [&](std::string candidate, std::string_view marker,
+                                             std::string_view from, std::string_view to,
+                                             std::string_view diagnostic) {
+    const auto marker_position = candidate.find(marker);
+    expect(marker_position != std::string::npos, "attachment test marker");
+    const auto position = candidate.find(from, marker_position);
+    expect(position != std::string::npos, "attachment test field");
+    candidate.replace(position, from.size(), to);
+    TemporaryConfig invalid(candidate);
+    try {
+      [[maybe_unused]] const auto ignored = graphx::load_config(invalid.path());
+      throw std::runtime_error("contradictory attachment was accepted");
+    } catch (const graphx::ConfigError& error) {
+      expect(diagnostic_contains(error, diagnostic), "attachment mismatch diagnostic");
+    }
+  };
+  constexpr std::string_view namespace_marker = "kind: namespace_veth";
+  expect_invalid_attachment(first, namespace_marker, "network: gx-mac-domain",
+                            "network: gx-ipv-domain", "exactly match");
+  expect_invalid_attachment(first, namespace_marker, "address: 10.10.0.1/24",
+                            "address: 10.10.0.2/24", "exactly match");
+  expect_invalid_attachment(first, namespace_marker, "interface: r-mac", "interface: r-other",
+                            "exactly match");
+  expect_invalid_attachment(first, namespace_marker, "peer: ovs-r-mac", "peer: ovs-other",
+                            "exactly match");
+  expect_invalid_attachment(first, namespace_marker, "switch: br-gx-mac", "switch: br-gx-ipv",
+                            "exactly match");
+  expect_invalid_attachment(first, namespace_marker, "switch: br-gx-mac", "switch: nonexistent",
+                            "unknown switch");
+  constexpr std::string_view mirror_marker = "kind: mirror";
+  expect_invalid_attachment(first, mirror_marker, "interface: cap-mac-ovs", "interface: mv-ovs",
+                            "mirror output-port");
+  expect_invalid_attachment(first, "id: mirror-mac\n      kind: mirror", "id: mirror-mac",
+                            "id: mirror-other", "configured on its OVS switch");
+
+  const auto qemu_source =
+      std::filesystem::path(GRAPHX_SOURCE_DIR) / "examples/qemu-node/graphx.yaml";
+  TemporaryConfig qemu(graphx::migrate_config_v1_to_v2(qemu_source));
+  const auto qemu_config = graphx::load_config(qemu.path());
+  expect(std::ranges::any_of(qemu_config.network_infrastructure.attachments,
+                             [](const auto& item) {
+                               return item.kind == graphx::AttachmentKind::qemu_tap &&
+                                      item.owner == "qemu-node";
+                             }),
+         "QEMU attachment migration");
 }
 
 void authoritative_config_loads() {
@@ -1277,6 +1456,9 @@ int main() {
   ::unsetenv("GRAPHX_OVERRIDES");
   const std::pair<const char*, std::function<void()>> tests[] = {
       {"authoritative config", authoritative_config_loads},
+      {"version 2 profiles and attachments", version_two_profiles_and_attachments_load},
+      {"strict version 2 planner boundary", version_two_is_strict_and_not_realized_by_v1_planner},
+      {"deterministic version 1 migration", version_one_migration_is_deterministic},
       {"TCP policy", tcp_policy_loads},
       {"invalid TCP policy", invalid_tcp_policy_is_rejected},
       {"shared-memory config", shared_memory_config_loads},

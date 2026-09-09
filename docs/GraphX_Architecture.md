@@ -16,7 +16,7 @@ GraphX is an educational, configuration-driven framework for describing a direct
 5. the **observability model** says what is measured, retained, exported, and captured; and
 6. the **control and GUI plane** presents those models and applies narrowly scoped runtime commands.
 
-The version-1 `graphx.yaml` file is the authoritative source for these views. The C++ loader and the telemetry service both validate and normalize it, while the browser derives its Application and Network views from the normalized topology instead of keeping a second topology definition.
+The versioned `graphx.yaml` file is the authoritative source for these views. Version 1 retains the implemented Docker-driver data plane. Version 2 expresses OVS semantic profiles and typed attachment intent, while deliberately refusing infrastructure realization until M3. The C++ loader and the telemetry service both validate and normalize configuration, while the browser derives its Application and Network views from the normalized topology instead of keeping a second topology definition.
 
 GraphX supports five GraphX-aware transports—bounded in-process queues, TCP, Unix-domain sockets, POSIX shared memory, and IPv4 UDP—and also represents external raw TCP/UDP edges that GraphX observes but does not instantiate. The same canonical GraphX envelope and `u32be` frame are used by the stream transports, shared memory, UDP datagrams, application capture, and Wireshark tooling. Raw external edges use `framing: none` and are deliberately rejected by the GraphX transport factory.
 
@@ -26,17 +26,18 @@ The QEMU examples prove a second important boundary: an application does not nee
 
 Observability is intentionally best effort and bounded. Runtime events update live WebSocket topology, Prometheus metrics, rolling SLO state, optional OTLP export, optional SQLite metadata history, and capture correlation. GraphX application PCAPNG and standard Ethernet PCAPNG are complementary: the former explains envelopes; the latter explains the real network path. The GUI ties these artifacts together by edge identity, message identity where available, filenames, packet indexes, and capture offsets.
 
-The architecture is suitable for reproducible laboratories and controlled demonstrations. Its present limits are equally important: configuration version 1 allows only DAGs for GraphX-managed execution (external raw device relationships may loop); infrastructure provisioning is create/destroy rather than reconciliation; UDP is bounded but unreliable; multicast remains one logical producer-to-consumer edge; capture does not rotate automatically; OVS and application captures are not automatically cross-correlated; QEMU uses user-mode networking rather than TAP; and the telemetry/control system is a single-collector control domain rather than a distributed control plane.
+The architecture is suitable for reproducible laboratories and controlled demonstrations. Its present limits are equally important: GraphX-managed execution allows only DAGs (external raw device relationships may loop); version-2 OVS realization is not yet implemented; infrastructure provisioning is create/destroy rather than reconciliation; UDP is bounded but unreliable; multicast remains one logical producer-to-consumer edge; capture does not rotate automatically; OVS and application captures are not automatically cross-correlated; QEMU uses user-mode networking rather than TAP; and the telemetry/control system is a single-collector control domain rather than a distributed control plane.
 
 For Apple Silicon development, Migration M1 adds an optional Lima ARM64 Linux
 execution environment. The VM contains rootful Docker, system OVS, Linux
 namespace/veth/TAP, nftables, netem, QEMU, capture, and build tools while the
 repository remains mounted from macOS. High-I/O and privileged runtime state is
-VM-local. M1 verifies these primitives with a disposable topology but does not
-change the application data plane: configuration version 1 and its current
-Docker-driver planner remain implemented, QEMU remains on slirp, and the future
-configuration version 2 OVS-only backend, container veth attachment, and QEMU
-TAP profile remain proposed.
+VM-local. M1 verifies these primitives with a disposable topology. M2 adds the
+strict configuration version 2 intent boundary, fixed OVS semantic profiles,
+typed attachments, and deterministic version-1 migration. It does not change
+the application data plane: version-2 infrastructure commands fail closed,
+version 1 remains realized by the Docker-driver planner, and QEMU remains on
+slirp.
 
 ## 1. Scope and architectural principles
 
@@ -58,7 +59,7 @@ The present design evolved through the following accepted decisions.
 
 | Decision | Architectural effect | Current manifestation |
 |---|---|---|
-| Authoritative versioned configuration | Eliminated drift between descriptive YAML, runtime construction, and GUI topology | Strict config v1 model, JSON Schema, semantic validation, overrides, topology normalization |
+| Authoritative versioned configuration | Eliminated drift between descriptive YAML, runtime construction, and GUI topology | Strict config v1/v2 model, JSON Schema, semantic validation, migration, overrides, topology normalization |
 | Network infrastructure as a peer layer | Separated logical edges from L2/L3 realization and Compose lifetime | `network` objects, `graphx infra`, external networks, edge paths, OVS/router laboratories |
 | Typed receive outcomes and bounded runtime | Distinguished idle, peer completion, cancellation, and failure | `ReceiveResult`; bounded queues, deadlines, close wakeups, idempotent close |
 | Envelope v2 identities | Added stable message, trace, and causal-parent identities without breaking v1 | v2 writers, v1/v2 readers, deduplication key, capture/telemetry correlation |
@@ -73,7 +74,7 @@ The present design evolved through the following accepted decisions.
 | Unified QEMU profiles | Modeled raw network nodes consistently across host and Linux-container execution | Shared guest/observer/UI, external and container profiles, QMP and probe evidence |
 | Explicit manual-route activation | Kept teaching-state transitions declared, reviewable, and narrow | `install: manual`, exact `graphx infra route apply/clear`, strict evidence projection |
 | Lima macOS execution layer | Moved privileged Linux development behind a reproducible Apple Silicon VM boundary | Pinned M1 template, rootful Docker/system OVS provisioning, disposable primitive verifier |
-| OVS semantic network profiles | Accepted OVS as the future single backend while preserving user intent | Proposed configuration v2; MACVLAN/IPVLAN remain current v1 Docker drivers until later phases |
+| OVS semantic network profiles | Accepted OVS as the future single backend while preserving user intent | M2 config v2 profiles and typed attachments; realization remains deferred while v1 Docker drivers continue |
 
 The UDP decision is canonical ADR 0012 and the unified QEMU profiles decision is
 canonical ADR 0013. The decision index records that QEMU was initially assigned
@@ -131,17 +132,17 @@ The React Flow browser console provides Application, Network, History, and captu
 
 ### 4.1 Configuration structure
 
-Configuration version 1 is organized as follows:
+Configuration versions 1 and 2 share the following top-level organization:
 
 | Surface | Purpose | Representative objects |
 |---|---|---|
 | `graph` | Logical computation | graph ID, nodes, typed ports, directed edges |
 | `transport` | Per-edge communication | TCP, UDP, Unix, shared memory, in-process settings |
-| `network` | L2/L3 realization and path | networks, interfaces, switches, routers, edge paths |
+| `network` | L2/L3 realization and path | v1 drivers/interfaces or v2 profiles/attachments, switches, routers, edge paths |
 | `deployment` | Placement and packaging | service image, command, telemetry service/port |
 | `observability` | Signals, export, capture, SLO, history, control limits | telemetry endpoint, PCAPNG, OTLP, SQLite, bounded command settings |
 
-Unknown keys on core surfaces are rejected. Validation includes reference integrity, port direction/schema compatibility, transport/edge consistency, DAG constraints, addresses and subnet membership, MAC and VLAN syntax, mirror outputs, router attachments, and edge-path hops. A file is limited to 1 MiB; the model limits nodes, edges, and ports to bounded counts.
+Unknown keys on core surfaces are rejected. Version 2 rejects legacy `driver`, `parent`, `mode`, `network.interfaces`, and `deployment.network` fields. Its fixed profiles define MAC identity, learning/filtering, ARP, broadcast/multicast, routing, isolation, and management behavior; its typed attachments distinguish container veth, namespace veth, QEMU TAP, external, and mirror intent. Validation includes reference integrity, port direction/schema compatibility, transport/edge consistency, DAG constraints, addresses and subnet membership, MAC and VLAN syntax, mirror outputs, router attachments, and edge-path hops. A file is limited to 1 MiB; the model limits nodes, edges, and ports to bounded counts.
 
 Overrides use dotted paths. Precedence is:
 
@@ -155,7 +156,7 @@ Secrets do not belong in `graphx.yaml`. Compose secret mounts and deployment env
 
 A node has an ID, kind, runtime, execution location, lifecycle owner, control classification, optional accelerator and architecture, and typed input/output ports. These fields let the same GUI represent a GraphX process, Docker service, host program, or QEMU VM without pretending they have the same runtime contract.
 
-An edge references `from` and `to` ports, a transport name, and a data-plane classification. Version 1 requires the GraphX-managed data plane to be a directed acyclic graph because the current blocking startup/lifecycle model cannot safely schedule feedback cycles. External raw edges are descriptive rather than scheduled and may form a physical control/data loop; ADR 0014 records that narrow exception.
+An edge references `from` and `to` ports, a transport name, and a data-plane classification. Both configuration versions require the GraphX-managed data plane to be a directed acyclic graph because the current blocking startup/lifecycle model cannot safely schedule feedback cycles. External raw edges are descriptive rather than scheduled and may form a physical control/data loop; ADR 0014 records that narrow exception.
 
 ### 4.3 Deployment
 
@@ -165,7 +166,7 @@ Common container defaults are read-only root filesystems, small tmpfs mounts, al
 
 ### 4.4 Lifecycle boundaries
 
-The CLI validates and inspects configuration and plans network infrastructure. `graphx infra create`, `status`, and `destroy` manage host/network resources; Compose manages application services; QEMU demo scripts manage their own host or container VM resources. These owners must be stopped in dependency order: application workloads first, then external networks and host infrastructure.
+The CLI validates and inspects both configuration versions. For version 1, `graphx infra create`, `status`, and `destroy` plan or manage host/network resources; version-2 infrastructure operations fail closed until M3. Compose manages current application services, and QEMU demo scripts manage their own host or container VM resources. These owners must be stopped in dependency order: application workloads first, then external networks and host infrastructure.
 
 Infrastructure provisioning is designed for clean laboratories. It does not persist desired state, reconcile drift, or guarantee rollback of every partial direct CLI create; the example launchers add preflight and cleanup behavior around this seam.
 
@@ -227,14 +228,16 @@ The GUI correlates them through `network.edge_paths`, an ordered list whose firs
 
 | Object | Configuration responsibilities | Operational realization |
 |---|---|---|
-| Network | ID, driver, one/more subnets, gateway, parent, mode, ownership | Docker bridge/macvlan/ipvlan network |
-| Node interface | Owner, network, IP/prefix, optional MAC | Container interface/IPAM attachment |
+| Version-1 network | ID, driver, one/more subnets, gateway, parent, mode, ownership | Docker bridge/macvlan/ipvlan network |
+| Version-1 node interface | Owner, network, IP/prefix, optional MAC | Container interface/IPAM attachment |
+| Version-2 network | ID, fixed semantic profile, subnets, gateway, uplink, external intent | OVS-only intent; realization begins in M3 |
+| Version-2 attachment | Kind, owner, network, address/MAC, interface/peer/switch as applicable | Container/namespace veth, QEMU TAP, external, or mirror intent; not realized in M2 |
 | OVS switch | Bridge ID, datapath, ports, veth peer, VLAN access/trunk metadata, optional mirror | OVS bridge/ports and SPAN configuration |
 | Router | Namespace/container kind, interfaces, addresses, forwarding, routes, policies | Linux netns or router container; IP forwarding and nftables |
 | Edge path | Logical edge ID and ordered hops | Presentation/inspection correlation |
 | Fault | Router/interface and delay, jitter, loss, optional rate | `tc netem` qdisc |
 
-The loader validates IPv4 subnet membership, MAC syntax, VLAN ranges, references, mirrors, and path connectivity before infrastructure commands run. Plans execute argument arrays without a shell and can be reviewed with `--dry-run`.
+The loader validates IPv4 subnet membership, MAC syntax, VLAN ranges, references, attachment ownership, mirrors, and path connectivity before infrastructure commands run. Version-1 plans execute argument arrays without a shell and can be reviewed with `--dry-run`; version 2 cannot enter that planner. Source-to-source migration loads the literal version-1 file without runtime `GRAPHX_OVERRIDES`.
 
 ### 7.3 Docker bridge
 
@@ -661,15 +664,17 @@ that acceptance gate passes.
 
 ### Accepted Lima and OVS migration
 
-ADR 0016 and ADR 0017 accept a new migration track without claiming that its
-runtime is already implemented. Migration work packages use `M` identifiers so
+ADR 0016 and ADR 0017 accept a new migration track. M1 supplies the Linux
+execution boundary and M2 supplies the version-2 configuration boundary, but
+the OVS application runtime is not yet implemented. Migration work packages use `M` identifiers so
 they do not collide with the existing feature-phase history. The authoritative
 sequence is maintained in `prompt/ovs_migration_implementation_plan.md`:
 
 1. M0 records the decisions and frozen GraphX 1.1.0 baseline.
 2. M1 provides the Lima macOS Linux execution environment.
-3. M2 introduces configuration version 2 and packet-verifiable MACVLAN/IPVLAN
-   semantic profiles without changing version-1 meaning.
+3. M2 implements configuration version 2, packet-verifiable MACVLAN/IPVLAN
+   semantic profiles, typed attachments, and deterministic migration without
+   changing version-1 meaning.
 4. M3 and M4 add identity-safe ownership, OVS lifecycle, and container veth
    attachment.
 5. M5 migrates the existing network and external-device laboratories.
@@ -677,9 +682,10 @@ sequence is maintained in `prompt/ovs_migration_implementation_plan.md`:
 7. M7 integrates capture, faults, and diagnostics with the common lifecycle.
 8. M8 retires legacy realization paths only after the full compatibility gate.
 
-Until those phases pass, the current Docker-driver, Docker Desktop simulation,
-and QEMU slirp descriptions in this document remain descriptions of implemented
-behavior.
+Until M3 and the later realization phases pass, the current Docker-driver,
+Docker Desktop simulation, and QEMU slirp descriptions in this document remain
+descriptions of implemented runtime behavior. Version-2 infrastructure, route,
+and fault operations fail closed rather than falling back to that legacy path.
 
 ### Completed documentation and consistency foundation
 
@@ -726,7 +732,7 @@ behavior.
 | UDP examples | `examples/udp-unicast`, `examples/udp-broadcast`, `examples/udp-multicast` |
 | QEMU profiles | `examples/qemu-node`, `docs/qemu-demos.md` |
 | SDR profiles | `examples/sdr-node`, `docs/adr/0014-external-device-control-cycles.md` |
-| Verification status | `verification_status.md`, phase verification reports, `migration_m0_baseline.md`, and the active M1 contracts under `prompt/` |
+| Verification status | `verification_status.md`, phase verification reports, `migration_m0_baseline.md`, and the active M2 contracts under `prompt/` |
 
 ## Appendix B. Terminology
 

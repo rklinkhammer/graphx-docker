@@ -10,8 +10,22 @@
 namespace graphx {
 
 enum class NetworkDriver { bridge, macvlan, ipvlan };
+enum class NetworkProfile { ethernet, macvlan, ipvlan_l2, ipvlan_l3, ipvlan_l3s };
+enum class AttachmentKind { container_veth, namespace_veth, qemu_tap, external, mirror };
 enum class SwitchKind { openvswitch };
 enum class RouterKind { linux_namespace, container };
+
+struct NetworkProfileSemantics {
+  std::string_view mac_identity;
+  std::string_view learning;
+  std::string_view filtering;
+  std::string_view arp;
+  std::string_view broadcast;
+  std::string_view multicast;
+  std::string_view routing;
+  std::string_view isolation;
+  std::string_view management;
+};
 
 struct VlanMetadata {
   std::optional<std::uint16_t> access_tag;
@@ -21,11 +35,25 @@ struct VlanMetadata {
 struct NetworkDefinition {
   std::string id;
   NetworkDriver driver{NetworkDriver::bridge};
+  std::optional<NetworkProfile> profile;
   std::vector<std::string> subnets;
   std::string gateway;
   std::string parent;
+  std::string uplink;
   std::string mode;
   bool external{true};
+};
+
+struct AttachmentDefinition {
+  std::string id;
+  AttachmentKind kind{AttachmentKind::external};
+  std::string owner;
+  std::string network;
+  std::string address;
+  std::string mac;
+  std::string interface;
+  std::string peer;
+  std::string network_switch;
 };
 
 struct NetworkInterfaceDefinition {
@@ -100,6 +128,7 @@ struct NetworkInfrastructureConfig {
   std::vector<SwitchDefinition> switches;
   std::vector<RouterDefinition> routers;
   std::vector<NetworkInterfaceDefinition> interfaces;
+  std::vector<AttachmentDefinition> attachments;
   std::vector<EdgeNetworkPath> edge_paths;
 
   [[nodiscard]] const NetworkDefinition& network(std::string_view id) const;
@@ -109,6 +138,9 @@ struct NetworkInfrastructureConfig {
 };
 
 [[nodiscard]] std::string_view to_string(NetworkDriver driver) noexcept;
+[[nodiscard]] std::string_view to_string(NetworkProfile profile) noexcept;
+[[nodiscard]] std::string_view to_string(AttachmentKind kind) noexcept;
+[[nodiscard]] const NetworkProfileSemantics& profile_semantics(NetworkProfile profile) noexcept;
 [[nodiscard]] std::string_view to_string(SwitchKind kind) noexcept;
 [[nodiscard]] std::string_view to_string(RouterKind kind) noexcept;
 

@@ -1,25 +1,94 @@
 #include "graphx/config.hpp"
 #include "graphx/infra.hpp"
+#include "graphx/migration.hpp"
 #include "graphx/version.hpp"
 #include "projection.hpp"
 
 #include <cstdlib>
+#include <cerrno>
 #include <filesystem>
+#include <fcntl.h>
 #include <iostream>
 #include <string>
+#include <system_error>
+#include <unistd.h>
 #include <vector>
 
 namespace {
+
+std::filesystem::path default_config();
 
 void usage(std::ostream& output) {
   output << "usage:\n"
          << "  graphx --version\n"
          << "  graphx <validate|inspect> [config.yaml] [--set path=value]\n"
+         << "  graphx config migrate [config.yaml] [--output FILE]\n"
          << "  graphx project [config.yaml] [--check] [--output-dir DIR]\n"
          << "  graphx infra <create|destroy|status> [config.yaml] [--dry-run] [--transactional]\n"
          << "  graphx infra route <apply|clear> [config.yaml] --router ID --destination CIDR\n"
          << "  graphx infra fault <apply|clear> [config.yaml] --router ID --interface ID\n"
          << "                    [--delay 20ms] [--jitter 3ms] [--loss 1%] [--rate 50mbit]\n";
+}
+
+int migration_command(int argc, char** argv) {
+  if (argc < 3 || std::string_view(argv[2]) != "migrate")
+    throw std::invalid_argument("config requires the 'migrate' action");
+  auto source = default_config();
+  std::filesystem::path output;
+  bool source_set{};
+  for (int index = 3; index < argc; ++index) {
+    const std::string argument = argv[index];
+    if (argument == "--output") {
+      if (!output.empty()) throw std::invalid_argument("--output may be specified only once");
+      if (++index == argc) throw std::invalid_argument("--output requires a file");
+      output = argv[index];
+    } else if (argument.starts_with("--")) {
+      throw std::invalid_argument("unknown option '" + argument + "'");
+    } else if (!source_set) {
+      source = argument;
+      source_set = true;
+    } else {
+      throw std::invalid_argument("unexpected argument '" + argument + "'");
+    }
+  }
+  const auto migrated = graphx::migrate_config_v1_to_v2(source);
+  if (output.empty()) {
+    std::cout << migrated;
+    return 0;
+  }
+  if (std::filesystem::absolute(source).lexically_normal() ==
+      std::filesystem::absolute(output).lexically_normal())
+    throw std::invalid_argument("refusing to overwrite the migration source");
+  int descriptor = ::open(output.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600);
+  if (descriptor < 0) {
+    if (errno == EEXIST || errno == ELOOP)
+      throw std::invalid_argument("refusing to overwrite existing migration output '" +
+                                  output.string() + "'");
+    throw std::system_error(errno, std::generic_category(),
+                            "cannot create migration output '" + output.string() + "'");
+  }
+  std::size_t written{};
+  try {
+    while (written < migrated.size()) {
+      const auto count = ::write(descriptor, migrated.data() + written, migrated.size() - written);
+      if (count < 0 && errno == EINTR) continue;
+      if (count <= 0)
+        throw std::system_error(errno == 0 ? EIO : errno, std::generic_category(),
+                                "cannot write migration output '" + output.string() + "'");
+      written += static_cast<std::size_t>(count);
+    }
+    const auto close_result = ::close(descriptor);
+    descriptor = -1;
+    if (close_result != 0)
+      throw std::system_error(errno, std::generic_category(),
+                              "cannot close migration output '" + output.string() + "'");
+  } catch (...) {
+    if (descriptor >= 0) ::close(descriptor);
+    ::unlink(output.c_str());
+    throw;
+  }
+  std::cout << "Migrated configuration version 1 to version 2: " << output.string() << '\n';
+  return 0;
 }
 
 std::string direction(graphx::Direction value) {
@@ -109,13 +178,36 @@ int topology_command(const std::string& command, int argc, char** argv) {
     std::cout << '\n';
   }
   for (const auto& network : config.network_infrastructure.networks) {
-    std::cout << "network " << network.id << " driver=" << to_string(network.driver) << " subnets=";
+    std::cout << "network " << network.id;
+    if (config.version == 1) {
+      std::cout << " driver=" << to_string(network.driver);
+    } else {
+      const auto profile = *network.profile;
+      const auto& behavior = graphx::profile_semantics(profile);
+      std::cout << " backend=ovs profile=" << to_string(profile) << " mac=" << behavior.mac_identity
+                << " learning=" << behavior.learning << " filtering=" << behavior.filtering
+                << " arp=" << behavior.arp << " broadcast=" << behavior.broadcast
+                << " multicast=" << behavior.multicast << " routing=" << behavior.routing
+                << " isolation=" << behavior.isolation << " management=" << behavior.management;
+    }
+    std::cout << " subnets=";
     for (std::size_t index = 0; index < network.subnets.size(); ++index)
       std::cout << (index == 0 ? "" : ",") << network.subnets[index];
     std::cout << (network.gateway.empty() ? "" : " gateway=" + network.gateway)
               << (network.parent.empty() ? "" : " parent=" + network.parent)
+              << (network.uplink.empty() ? "" : " uplink=" + network.uplink)
               << (network.mode.empty() ? "" : " mode=" + network.mode) << '\n';
   }
+  for (const auto& attachment : config.network_infrastructure.attachments)
+    std::cout << "attachment " << attachment.id << " kind=" << to_string(attachment.kind)
+              << " owner=" << attachment.owner
+              << (attachment.network.empty() ? "" : " network=" + attachment.network)
+              << (attachment.address.empty() ? "" : " address=" + attachment.address)
+              << (attachment.mac.empty() ? "" : " mac=" + attachment.mac)
+              << (attachment.interface.empty() ? "" : " interface=" + attachment.interface)
+              << (attachment.peer.empty() ? "" : " peer=" + attachment.peer)
+              << (attachment.network_switch.empty() ? "" : " switch=" + attachment.network_switch)
+              << '\n';
   for (const auto& network_switch : config.network_infrastructure.switches)
     std::cout << "switch " << network_switch.id << " kind=" << to_string(network_switch.kind)
               << " datapath=" << network_switch.datapath << " ports=" << network_switch.ports.size()
@@ -313,6 +405,7 @@ int main(int argc, char** argv) {
   try {
     const std::string command = argv[1];
     if (command == "validate" || command == "inspect") return topology_command(command, argc, argv);
+    if (command == "config") return migration_command(argc, argv);
     if (command == "project") return project_command(argc, argv);
     if (command == "infra") return infrastructure_command(argc, argv);
     throw std::invalid_argument("unknown command '" + command + "'");

@@ -13,7 +13,8 @@
 
 namespace graphx {
 
-inline constexpr std::uint32_t kConfigVersion = 1;
+inline constexpr std::uint32_t kConfigVersion = 2;
+inline constexpr std::uint32_t kMinimumConfigVersion = 1;
 inline constexpr std::size_t kMaxConfigBytes = 1024 * 1024;
 inline constexpr std::size_t kMaxNodes = 1024;
 inline constexpr std::size_t kMaxEdges = 4096;
@@ -211,6 +212,9 @@ class ConfigError final : public std::runtime_error {
 [[nodiscard]] std::vector<ConfigOverride> environment_overrides();
 [[nodiscard]] GraphConfig load_config(const std::filesystem::path& path,
                                       const std::vector<ConfigOverride>& overrides = {});
+// Loads only the document on disk. Runtime environment overrides are
+// intentionally excluded for source-to-source operations such as migration.
+[[nodiscard]] GraphConfig load_config_literal(const std::filesystem::path& path);
 
 [[nodiscard]] std::string_view to_string(TransportKind kind) noexcept;
 [[nodiscard]] std::string_view to_string(UdpMode mode) noexcept;

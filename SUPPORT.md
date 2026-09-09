@@ -13,6 +13,7 @@ Security reports follow `SECURITY.md`.
 | OCI runtime images | Linux amd64 and arm64 | Tier 1 when published |
 | Native Linux network labs | Docker Engine with macvlan/ipvlan, OVS, netns, nftables, netem | Capability-gated |
 | Lima M1 execution environment | Apple Silicon, Lima 2.2+, ARM64 Ubuntu 24.04 guest | Capability-gated |
+| Configuration v2 model and migration | Native Linux and macOS portable CLI | M2 implemented; realization deferred |
 | Docker Desktop network simulation | Current supported Docker Desktop for macOS | Best effort |
 | Windows native | Not tested | Unsupported |
 
@@ -28,8 +29,10 @@ the exact `graphx --version`, platform, compiler/runtime versions, configuration
 with secrets removed, and the smallest reproduction. Native networking reports
 must also state whether the host has the required Linux capabilities.
 
-The Lima M1 environment is the supported macOS foundation for future privileged
-Linux networking work. M1 verifies rootful Docker, system OVS, disposable
+The Lima M1 environment is the supported macOS foundation for privileged Linux
+networking work. M1 verifies rootful Docker, system OVS, disposable
 namespace/veth/TAP, nftables, netem, capture, and the portable baseline inside
-the VM. It does not yet provide the configuration version 2 OVS-only application
-backend, attach GraphX containers by veth, or replace QEMU slirp with TAP.
+the VM. M2 adds portable parsing, inspection, projection, and deterministic
+migration for configuration version 2. It does not yet realize the OVS-only
+application backend, attach GraphX containers by veth, or replace QEMU slirp
+with TAP; version-2 infrastructure operations fail closed until M3.

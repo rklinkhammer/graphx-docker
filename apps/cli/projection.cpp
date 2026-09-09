@@ -149,12 +149,16 @@ YAML::Node network_projection(const GraphConfig& config) {
     for (const auto& network : infrastructure.networks) {
       YAML::Node item;
       item["id"] = network.id;
-      item["driver"] = std::string(to_string(network.driver));
+      if (config.version == 1)
+        item["driver"] = std::string(to_string(network.driver));
+      else
+        item["profile"] = std::string(to_string(*network.profile));
       YAML::Node subnets(YAML::NodeType::Sequence);
       for (const auto& subnet : network.subnets) subnets.push_back(subnet);
       item["subnets"] = subnets;
       if (!network.gateway.empty()) item["gateway"] = network.gateway;
       if (!network.parent.empty()) item["parent"] = network.parent;
+      if (!network.uplink.empty()) item["uplink"] = network.uplink;
       if (!network.mode.empty()) item["mode"] = network.mode;
       item["external"] = network.external;
       networks.push_back(item);
@@ -254,6 +258,23 @@ YAML::Node network_projection(const GraphConfig& config) {
       interfaces.push_back(item);
     }
     root["interfaces"] = interfaces;
+  }
+  if (!infrastructure.attachments.empty()) {
+    YAML::Node attachments(YAML::NodeType::Sequence);
+    for (const auto& attachment : infrastructure.attachments) {
+      YAML::Node item;
+      item["id"] = attachment.id;
+      item["kind"] = std::string(to_string(attachment.kind));
+      item["owner"] = attachment.owner;
+      if (!attachment.network.empty()) item["network"] = attachment.network;
+      if (!attachment.address.empty()) item["address"] = attachment.address;
+      if (!attachment.mac.empty()) item["mac"] = attachment.mac;
+      if (!attachment.interface.empty()) item["interface"] = attachment.interface;
+      if (!attachment.peer.empty()) item["peer"] = attachment.peer;
+      if (!attachment.network_switch.empty()) item["switch"] = attachment.network_switch;
+      attachments.push_back(item);
+    }
+    root["attachments"] = attachments;
   }
   if (!infrastructure.edge_paths.empty()) {
     YAML::Node edge_paths(YAML::NodeType::Sequence);

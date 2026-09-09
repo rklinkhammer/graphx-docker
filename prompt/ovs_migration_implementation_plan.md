@@ -3,7 +3,7 @@
 **Repository:** `~/workspace/graphx-docker`  
 **Decision sources:** ADR 0016 and ADR 0017  
 **Baseline:** `migration_m0_baseline.md`  
-**Plan status:** M0 implemented; M1 is the active work package
+**Plan status:** M0, M1, and M2 implemented and independently verified
 
 ## Objective
 
@@ -116,4 +116,3 @@ The final release matrix covers macOS with a fresh Lima VM, native ARM64 Linux,
 native x86_64 Linux with TCG, and supported x86_64 Linux with KVM. Completion
 requires two clean lifecycle cycles, deliberate failure/recovery cases, packet
 evidence for every semantic profile, and no unrelated host or guest drift.
-

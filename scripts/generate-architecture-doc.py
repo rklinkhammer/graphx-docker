@@ -343,8 +343,8 @@ def build_docx():
     normal.paragraph_format.space_after = Pt(5.5)
     normal.paragraph_format.line_spacing = 1.08
     for name, size, color, before, after in (
-        ("Title", 31, NAVY, 0, 14), ("Heading 1", 19, NAVY, 15, 7),
-        ("Heading 2", 14, BLUE, 11, 5), ("Heading 3", 11.5, TEAL, 9, 4)):
+        ("Title", 31, BLACK, 0, 14), ("Heading 1", 19, BLACK, 15, 7),
+        ("Heading 2", 14, BLACK, 11, 5), ("Heading 3", 11.5, BLACK, 9, 4)):
         style = styles[name]
         style.font.name = "Aptos Display"; style.font.size = Pt(size); style.font.bold = True
         style.font.color.rgb = RGBColor.from_string(color)
@@ -352,6 +352,10 @@ def build_docx():
         style._element.rPr.rFonts.set(qn("w:hAnsi"), "Aptos Display")
         style.paragraph_format.space_before = Pt(before); style.paragraph_format.space_after = Pt(after)
         style.paragraph_format.keep_with_next = True
+    title_properties = styles["Title"]._element.get_or_add_pPr()
+    title_border = title_properties.find(qn("w:pBdr"))
+    if title_border is not None:
+        title_properties.remove(title_border)
     # Let Word flow major sections naturally. A forced page break on every
     # section creates nearly empty pages when a preceding section ends late.
     styles["Heading 1"].paragraph_format.page_break_before = False
@@ -375,7 +379,7 @@ def build_docx():
     p.paragraph_format.space_before = Pt(80); p.add_run(title)
     sub = doc.add_paragraph("A living reference for logical graphs, transports, network infrastructure, QEMU integration, observability, capture, history, control, and GUI behavior")
     sub.paragraph_format.space_before = Pt(12); sub.paragraph_format.space_after = Pt(26)
-    for run in sub.runs: set_run_font(run, size=15, color=BLUE)
+    for run in sub.runs: set_run_font(run, size=15, color=BLACK)
     band = doc.add_table(rows=1, cols=1); band.alignment = WD_TABLE_ALIGNMENT.CENTER
     cell = band.cell(0, 0); shade(cell, NAVY); set_cell_margins(cell, 220, 220, 220, 220)
     cp = cell.paragraphs[0]; cp.alignment = WD_ALIGN_PARAGRAPH.LEFT

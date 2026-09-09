@@ -1,136 +1,100 @@
 # GraphX implementation work package
 
-Implement **Migration M1: Lima macOS execution foundation** in
-`~/workspace/graphx-docker`. M1 follows the decisions in ADR 0016 and ADR 0017
-and the frozen evidence in `migration_m0_baseline.md`. The complete sequence is
-recorded in `prompt/ovs_migration_implementation_plan.md`.
+Implement **Migration M2: configuration version 2 and semantic network
+profiles** in `~/workspace/graphx-docker`. M2 follows ADR 0017, retains the M0
+version-1 baseline, and uses the Lima environment delivered by M1 for the Linux
+regression gate. The sequence is recorded in
+`prompt/ovs_migration_implementation_plan.md`.
 
 ## Objective
 
-Deliver a reproducible, disposable Lima Linux VM that becomes the supported
-macOS host for later GraphX OVS networking work. The VM must run rootful Docker,
-the OVS system datapath, Linux namespace/veth/TAP/routing/nftables/netem tools,
-QEMU, packet-capture tools, and the current GraphX portable build and tests.
+Introduce an explicit configuration-version boundary for the future OVS-only
+data plane. Version 1 must keep its Docker `bridge`/`macvlan`/`ipvlan` meaning.
+Version 2 must express fixed semantic profiles and typed endpoint attachments
+without realizing them through the legacy Docker planner.
 
-M1 establishes the execution environment only. Do not implement configuration
-version 2, reinterpret version-1 network drivers, attach application containers
-to OVS, migrate examples, or replace QEMU slirp in this phase.
-
-## Working rules
-
-- Read both M0 ADRs, the ADR index, baseline record, current architecture,
-  support/security documentation, verification scripts, network examples, and
-  this contract before editing.
-- Preserve unrelated work. Do not commit, push, publish, deploy, or mutate the
-  macOS host network beyond Lima's documented VM and loopback forwarding.
-- Keep all waits, downloads, retries, logs, disk allocations, verification
-  resources, and cleanup operations bounded.
-- Pin or otherwise deterministically constrain the guest distribution and
-  provisioned package set. Record versions needed to reproduce the result.
-- Do not call a Docker Desktop simulation or a macOS portable test native OVS
-  evidence.
-- Never place Docker data, OVS databases, QEMU disks, active PCAPs, or GraphX
-  run ownership state on the macOS shared source mount.
-- Do not expose the Docker socket, OVS control socket, QMP socket, or privileged
-  services beyond the minimum documented local boundary.
+M2 models and validates intent only. Do not implement persistent OVS ownership,
+container veth movement, QEMU TAP realization, or packet-level profile behavior;
+those belong to M3–M6.
 
 ## Required implementation
 
-Create `infrastructure/lima` containing:
+- Accept only integer configuration versions 1 and 2 in both the authoritative
+  loader and JSON Schema.
+- Retain version-1 parsing and realization without changing its generated
+  command fingerprints.
+- Add profiles `ethernet`, `macvlan`, `ipvlan-l2`, `ipvlan-l3`, and
+  `ipvlan-l3s`.
+- Define exact MAC identity, learning, filtering, ARP, broadcast, multicast,
+  routing, isolation, and management behavior for every profile.
+- Add attachments `container_veth`, `namespace_veth`, `qemu_tap`, `external`,
+  and `mirror` with strict kind-specific fields and ownership rules.
+- Validate network, node, router, switch, router-interface, mirror ID, mirror
+  output-port, address/subnet, and runtime references. Never accept two
+  contradictory descriptions of the same attachment.
+- Require version-2 OVS switches to use the Linux system datapath.
+- Forbid version-1 driver fields, `network.interfaces`, and
+  `deployment.network` in version 2.
+- Refuse all version-2 infrastructure, route, and fault realization with an M3
+  diagnostic before any legacy Docker command is generated.
 
-- `graphx.yaml`: authoritative Lima instance configuration;
-- `provision.sh`: idempotent bounded guest provisioning;
-- `start.sh`: start or create the expected named instance without adopting a
-  differently configured instance;
-- `verify.sh`: non-destructive environment checks plus transactionally cleaned
-  disposable Linux network checks;
-- `stop.sh`: stop the instance without deleting source or retained evidence;
-- `README.md`: prerequisites, lifecycle, storage, security, verification,
-  troubleshooting, reset/removal, and limitations.
+## Migration command
 
-Use a fixed GraphX Lima instance name and an ARM64 Linux guest on Apple Silicon.
-Mount the repository at `/workspace/graphx-docker`. Allocate a VM-native GraphX
-state root and verify that it is not on the shared mount. Provision at least:
+Provide `graphx config migrate [SOURCE] [--output FILE]`.
 
-- rootful Docker Engine and Compose;
-- Open vSwitch with a working system datapath;
-- iproute2, nftables, `tc`, `ip netns`, and TUN/TAP support;
-- QEMU system tools required by the existing examples;
-- tcpdump, dumpcap/TShark, curl, OpenSSL, Python, CMake, Ninja, a supported C++
-  compiler, and repository build dependencies.
+- Parse and validate the literal source document as version 1. Do not consume
+  `GRAPHX_OVERRIDES` or other runtime overrides.
+- Map every supported v1 driver/mode to exactly one semantic profile.
+- Map node, router, QEMU, and mirror intent to typed attachments.
+- Remove Compose data-plane membership.
+- Emit byte-identical output for byte-identical input and build.
+- Refuse ambiguous legacy meaning, non-system OVS switches, generated-ID
+  collisions, oversized input, the source path, existing output, and symlinks.
+- Use exclusive owner-only file creation and remove partial output after an
+  error. Never modify the source.
 
-Prefer system services managed by the guest init system. Make repeated
-provisioning safe. Fail with actionable diagnostics when virtualization, mount,
-disk, package, service, or kernel facilities are unavailable.
+## Tests and evidence
 
-The verification lifecycle must prove, with fixed disposable `gx-m1-*` names:
-
-1. the expected VM identity, architecture, source mount, and native-state mount;
-2. rootful Docker and Compose operation with a bounded disposable container;
-3. OVS database/vswitchd health and a disposable system-datapath bridge;
-4. a disposable namespace connected to OVS through veth;
-5. a disposable TAP attached to OVS;
-6. address assignment and a bounded packet exchange through the disposable
-   topology;
-7. nftables and netem availability in a disposable namespace;
-8. packet capture on a disposable observation interface when permissions allow;
-9. the GraphX 1.1.0 portable baseline and projection check from the mounted
-   checkout; and
-10. exact cleanup of every `gx-m1-*` container, namespace, link, TAP, bridge,
-    port, rule, qdisc, process, and temporary file.
-
-Record before/after snapshots sufficient to show that unrelated guest Docker,
-OVS, namespace, link, route, rule, nftables, process, and listener state was not
-changed. Cleanup must verify resource identity before deletion and remain safe
-after partial setup or interruption.
-
-Do not require KVM on Apple Silicon. Report the QEMU accelerator capability
-honestly; current x86_64 and future MPC8360E/PowerPC guests are expected to use
-emulation in this environment unless runtime evidence proves otherwise.
-
-## Tests and documentation
-
-- Add portable static tests for the Lima YAML, scripts, bounds, fixed names,
-  storage rules, service configuration, and destructive-command safety.
-- Validate shell syntax and formatting.
-- Run `scripts/verify.sh quick` and `graphx project --check` on macOS.
-- Inside Lima, run the current quick verification profile and all M1 runtime
-  checks twice from a clean state.
-- Test interrupted verification, repeated cleanup, occupied disposable names,
-  an unavailable required service, and immediate retry.
-- Update README/support/security/architecture navigation only where necessary
-  to describe the new optional M1 environment. Do not claim the later OVS-only
-  application data plane is implemented.
+- Test every exact field of all five profile contracts.
+- Test all attachment kinds and every kind-specific required/forbidden field.
+- Adversarially test unknown and mismatched networks, owners, routers, switches,
+  router interfaces, mirror IDs, and mirror output interfaces.
+- Test quoted/non-integer versions against both the C++ loader and JSON Schema.
+- Run migration twice for the root, macvlan, ipvlan-l2, ipvlan-l3,
+  mixed-network, static-route-policy, and qemu-node configurations. Add an
+  explicit ipvlan-l3s case.
+- Run migration with hostile `GRAPHX_OVERRIDES` and prove identical output.
+- Test safe output refusal and all v2 fail-closed realization entry points.
+- Run the portable quick, quality, and sanitizer profiles; projection checks;
+  all five M0 fingerprints; and JSON Schema validation in Lima.
+- Run the retained Lima M1 verification once as a regression gate. Do not call
+  its primitive packet exchange evidence for M2 profile semantics.
 
 ## Acceptance identifiers
 
-- **LIMA-001 Definition:** the VM configuration is deterministic, bounded, and
-  exposes only the intended source mount and loopback services.
-- **LIMA-002 Provisioning:** repeated provisioning produces the required tools
-  and healthy rootful Docker/OVS services.
-- **LIMA-003 Storage:** high-I/O and privileged runtime state is VM-local.
-- **LIMA-004 Linux primitives:** system OVS, namespace, veth, TAP, routing,
-  nftables, netem, and capture checks pass with real runtime evidence.
-- **LIMA-005 GraphX baseline:** the mounted checkout builds and passes the M0
-  portable baseline without projection drift.
-- **LIMA-006 Lifecycle:** start, verify, stop, interruption, retry, and repeated
-  cleanup are bounded and deterministic.
-- **LIMA-007 Isolation:** unrelated macOS and guest state remains unchanged.
-- **LIMA-008 Security:** privileged sockets and services are not broadly
-  exposed; scripts reject unsafe state and targets.
-- **LIMA-009 Architecture honesty:** no v2, container-veth application path,
-  QEMU TAP profile, or KVM capability is claimed prematurely.
-- **LIMA-010 Documentation:** an operator can reproduce, inspect, troubleshoot,
-  stop, and deliberately remove the environment.
+- **M2-001 Boundary:** integer versions and version-aware keys preserve the
+  explicit v1/v2 compatibility event.
+- **M2-002 Profiles:** all five profiles expose exact, reviewable behavior.
+- **M2-003 Attachments:** all five attachment kinds are strict and internally
+  consistent with referenced topology objects.
+- **M2-004 Migration:** literal v1 input migrates deterministically and
+  reviewably without ambient override influence.
+- **M2-005 Output safety:** migration is non-destructive and refuses unsafe
+  destinations.
+- **M2-006 Compatibility:** v1 tests, projections, and M0 fingerprints remain
+  unchanged.
+- **M2-007 Fail closed:** no v2 command reaches legacy Docker realization.
+- **M2-008 Surfaces:** schema, inspect, and projections agree with the typed
+  model.
+- **M2-009 Documentation:** configuration, migration, upgrade/rollback,
+  security, support, and architecture boundaries are explicit.
+- **M2-010 Gates:** portable, quality, sanitizer, schema, compatibility, and
+  Lima regression evidence passes.
 
-## Required evidence and exit
+## Required handoff
 
-Write `migration_m1_handoff.md` with the requirement matrix, changed paths,
-exact commands/results, macOS and guest versions, repository state, artifact
-locations, before/after comparisons, limitations, and independent-verifier
-instructions.
-
-M1 is complete only after two real Lima create/provision/verify/cleanup cycles
-pass on macOS and the VM-local system OVS/veth/TAP checks are recorded. Static
-inspection, YAML validation, Docker Desktop, or a native-Linux result from a
-different host cannot substitute for the Lima runtime gate.
+Write `migration_m2_handoff.md` with the acceptance matrix, changed paths,
+exact commands and results, fingerprints, Lima evidence location, limitations,
+and independent-verifier instructions. Do not commit, push, publish, or advance
+to M3. M2 is implementation-complete only when every M2 gate passes and the
+worktree is ready for an independent verification pass.

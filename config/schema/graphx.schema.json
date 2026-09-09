@@ -1,12 +1,27 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://graphx.dev/schema/graphx-v1.schema.json",
-  "title": "GraphX configuration version 1",
+  "$id": "https://graphx.dev/schema/graphx.schema.json",
+  "title": "GraphX configuration versions 1 and 2",
   "type": "object",
   "additionalProperties": false,
   "required": ["version", "graph", "transport"],
+  "allOf": [
+    {
+      "if": { "properties": { "version": { "const": 1 } }, "required": ["version"] },
+      "then": { "properties": { "network": { "$ref": "#/$defs/networkInfrastructureV1" } } }
+    },
+    {
+      "if": { "properties": { "version": { "const": 2 } }, "required": ["version"] },
+      "then": {
+        "properties": {
+          "network": { "$ref": "#/$defs/networkInfrastructureV2" },
+          "deployment": { "not": { "required": ["network"] } }
+        }
+      }
+    }
+  ],
   "properties": {
-    "version": { "const": 1 },
+    "version": { "enum": [1, 2] },
     "graph": {
       "type": "object",
       "additionalProperties": false,
@@ -34,7 +49,7 @@
         "shared_memory": { "type": "object", "additionalProperties": { "$ref": "#/$defs/sharedMemory" } }
       }
     },
-    "network": { "$ref": "#/$defs/networkInfrastructure" },
+    "network": { "type": "object" },
     "deployment": {
       "type": "object",
       "additionalProperties": false,
@@ -171,10 +186,10 @@
         "send_timeout_ms": { "type": "integer", "minimum": 1, "maximum": 600000 }
       }
     },
-    "networkInfrastructure": {
+    "networkInfrastructureV1": {
       "type": "object", "additionalProperties": false,
       "properties": {
-        "networks": { "type": "array", "items": { "$ref": "#/$defs/networkDefinition" } },
+        "networks": { "type": "array", "items": { "$ref": "#/$defs/networkDefinitionV1" } },
         "switches": { "type": "array", "items": { "$ref": "#/$defs/switchDefinition" } },
         "routers": { "type": "array", "items": { "$ref": "#/$defs/routerDefinition" } },
         "interfaces": {
@@ -187,7 +202,23 @@
         }
       }
     },
-    "networkDefinition": {
+    "networkInfrastructureV2": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "networks": { "type": "array", "items": { "$ref": "#/$defs/networkDefinitionV2" } },
+        "switches": { "type": "array", "items": { "$ref": "#/$defs/switchDefinitionV2" } },
+        "routers": { "type": "array", "items": { "$ref": "#/$defs/routerDefinition" } },
+        "attachments": {
+          "type": "array", "maxItems": 262144,
+          "items": { "$ref": "#/$defs/attachmentDefinition" }
+        },
+        "edge_paths": {
+          "type": "object",
+          "additionalProperties": { "type": "array", "minItems": 2, "items": { "$ref": "#/$defs/id" } }
+        }
+      }
+    },
+    "networkDefinitionV1": {
       "type": "object", "additionalProperties": false,
       "required": ["id", "driver"],
       "allOf": [
@@ -217,6 +248,33 @@
         "gateway": { "type": "string", "minLength": 1, "maxLength": 39 },
         "parent": { "type": "string", "minLength": 1, "maxLength": 15 },
         "mode": { "enum": ["l2", "l3", "l3s"] },
+        "external": { "type": "boolean" }
+      }
+    },
+    "networkDefinitionV2": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "profile", "subnets"],
+      "allOf": [
+        {
+          "if": { "properties": { "profile": { "const": "ethernet" } }, "required": ["profile"] },
+          "then": {},
+          "else": { "required": ["uplink"] }
+        },
+        {
+          "if": { "properties": { "profile": { "enum": ["ipvlan-l3", "ipvlan-l3s"] } }, "required": ["profile"] },
+          "then": {},
+          "else": { "required": ["gateway"], "properties": { "subnets": { "maxItems": 1 } } }
+        }
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "profile": { "enum": ["ethernet", "macvlan", "ipvlan-l2", "ipvlan-l3", "ipvlan-l3s"] },
+        "subnets": {
+          "type": "array", "minItems": 1, "maxItems": 16, "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1, "maxLength": 43 }
+        },
+        "gateway": { "type": "string", "minLength": 1, "maxLength": 39 },
+        "uplink": { "type": "string", "minLength": 1, "maxLength": 15 },
         "external": { "type": "boolean" }
       }
     },
@@ -254,6 +312,44 @@
             "select_all": { "type": "boolean" }
           }
         }
+      }
+    },
+    "switchDefinitionV2": {
+      "allOf": [
+        { "$ref": "#/$defs/switchDefinition" },
+        { "properties": { "datapath": { "const": "system" } } }
+      ]
+    },
+    "attachmentDefinition": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "kind", "owner"],
+      "allOf": [
+        {
+          "if": { "properties": { "kind": { "const": "mirror" } }, "required": ["kind"] },
+          "then": {
+            "required": ["interface", "switch"],
+            "not": { "anyOf": [
+              { "required": ["network"] }, { "required": ["address"] },
+              { "required": ["mac"] }, { "required": ["peer"] }
+            ] }
+          },
+          "else": { "required": ["network"] }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "namespace_veth" } }, "required": ["kind"] },
+          "then": { "required": ["address", "interface", "peer", "switch"] }
+        }
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "kind": { "enum": ["container_veth", "namespace_veth", "qemu_tap", "external", "mirror"] },
+        "owner": { "$ref": "#/$defs/id" },
+        "network": { "$ref": "#/$defs/id" },
+        "address": { "type": "string", "minLength": 1, "maxLength": 43 },
+        "mac": { "type": "string", "pattern": "^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$" },
+        "interface": { "type": "string", "minLength": 1, "maxLength": 15 },
+        "peer": { "type": "string", "minLength": 1, "maxLength": 15 },
+        "switch": { "type": "string", "minLength": 1, "maxLength": 15 }
       }
     },
     "routerInterface": {

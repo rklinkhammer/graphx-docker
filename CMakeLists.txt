@@ -103,6 +103,7 @@ add_library(graphx
   src/framing.cpp
   src/in_process_transport.cpp
   src/infra.cpp
+  src/migration.cpp
   src/network.cpp
   src/observability.cpp
   src/shared_memory_transport.cpp
@@ -270,6 +271,10 @@ if(GRAPHX_BUILD_TESTS)
   endif()
   add_test(NAME graphx-config-cli
     COMMAND graphx-cli validate ${CMAKE_SOURCE_DIR}/graphx.yaml)
+  add_test(NAME graphx-config-v2 COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/test_config_v2.py $<TARGET_FILE:graphx-cli>
+    ${CMAKE_SOURCE_DIR})
+  set_tests_properties(graphx-config-v2 PROPERTIES TIMEOUT 45 ENVIRONMENT "GRAPHX_OVERRIDES=")
   add_test(NAME graphx-config-projections
     COMMAND graphx-cli project ${CMAKE_SOURCE_DIR}/graphx.yaml --check
             --output-dir ${CMAKE_SOURCE_DIR}/config)

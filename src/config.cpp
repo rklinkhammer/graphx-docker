@@ -109,10 +109,10 @@ class ConfigParser {
     if (!require_map(root_, "$")) throw ConfigError(std::move(errors_));
     strict_keys(root_, "$",
                 {"version", "graph", "transport", "network", "deployment", "observability"});
-    config.version = unsigned_value(root_["version"], "version");
-    if (config.version != kConfigVersion)
+    config.version = strict_unsigned_value(root_["version"], "version");
+    if (config.version < kMinimumConfigVersion || config.version > kConfigVersion)
       error("version", "unsupported version " + std::to_string(config.version) +
-                           "; this build supports version 1");
+                           "; this build supports versions 1 and 2");
 
     const auto graph = root_["graph"];
     if (require_map(graph, "graph")) {
@@ -205,6 +205,14 @@ class ConfigParser {
     }
   }
 
+  std::uint32_t strict_unsigned_value(const YAML::Node& node, const std::string& path) {
+    if (node && (node.Tag() == "!" || node.Tag() == "tag:yaml.org,2002:str")) {
+      error(path, "must be an unsigned integer, not a string");
+      return 0;
+    }
+    return unsigned_value(node, path);
+  }
+
   std::uint64_t unsigned_64_value(const YAML::Node& node, const std::string& path) {
     if (!node) {
       error(path, "is required");
@@ -284,6 +292,15 @@ class ConfigParser {
       error(path, "must be a boolean");
       return fallback;
     }
+  }
+
+  bool strict_bool_value(const YAML::Node& node, const std::string& path, bool fallback) {
+    if (!node) return fallback;
+    if (!node.IsScalar() || node.Tag() == "!" || node.Tag() == "tag:yaml.org,2002:str") {
+      error(path, "must be a boolean, not a string");
+      return fallback;
+    }
+    return bool_value(node, path, fallback);
   }
 
   bool udp_bool_value(const YAML::Node& node, const std::string& path, bool fallback) {
@@ -746,12 +763,19 @@ class ConfigParser {
   void parse_network_infrastructure(const YAML::Node& infrastructure, GraphConfig& config) {
     if (!infrastructure) return;
     if (!require_map(infrastructure, "network")) return;
-    strict_keys(infrastructure, "network",
-                {"networks", "switches", "routers", "interfaces", "edge_paths"});
+    if (config.version == 1)
+      strict_keys(infrastructure, "network",
+                  {"networks", "switches", "routers", "interfaces", "edge_paths"});
+    else
+      strict_keys(infrastructure, "network",
+                  {"networks", "switches", "routers", "attachments", "edge_paths"});
     parse_networks(infrastructure["networks"], config);
     parse_switches(infrastructure["switches"], config);
     parse_routers(infrastructure["routers"], config);
-    parse_network_interfaces(infrastructure["interfaces"], config);
+    if (config.version == 1)
+      parse_network_interfaces(infrastructure["interfaces"], config);
+    else
+      parse_attachments(infrastructure["attachments"], config);
     parse_edge_paths(infrastructure["edge_paths"], config);
   }
 
@@ -763,29 +787,54 @@ class ConfigParser {
       const auto path = "network.networks[" + std::to_string(index) + "]";
       const auto value = values[index];
       if (!require_map(value, path)) continue;
-      strict_keys(value, path,
-                  {"id", "driver", "subnet", "subnets", "gateway", "parent", "mode", "external"});
       NetworkDefinition network;
       network.id = text(value["id"], path + ".id", 64);
       identifier(network.id, path + ".id");
       if (!network.id.empty() && !ids.insert(network.id).second)
         error(path + ".id", "duplicate network id '" + network.id + "'");
-      const auto driver = text(value["driver"], path + ".driver", 16);
-      if (driver == "bridge")
-        network.driver = NetworkDriver::bridge;
-      else if (driver == "macvlan")
-        network.driver = NetworkDriver::macvlan;
-      else if (driver == "ipvlan")
-        network.driver = NetworkDriver::ipvlan;
-      else
-        error(path + ".driver", "must be 'bridge', 'macvlan', or 'ipvlan'");
-      if (value["parent"]) network.parent = text(value["parent"], path + ".parent", 15);
-      if (value["mode"]) network.mode = text(value["mode"], path + ".mode", 8);
-      const bool layer_three = network.driver == NetworkDriver::ipvlan &&
-                               (network.mode == "l3" || network.mode == "l3s");
+      const bool version_two = config.version == 2;
+      bool layer_three{};
+      if (!version_two) {
+        strict_keys(value, path,
+                    {"id", "driver", "subnet", "subnets", "gateway", "parent", "mode", "external"});
+        const auto driver = text(value["driver"], path + ".driver", 16);
+        if (driver == "bridge")
+          network.driver = NetworkDriver::bridge;
+        else if (driver == "macvlan")
+          network.driver = NetworkDriver::macvlan;
+        else if (driver == "ipvlan")
+          network.driver = NetworkDriver::ipvlan;
+        else
+          error(path + ".driver", "must be 'bridge', 'macvlan', or 'ipvlan'");
+        if (value["parent"]) network.parent = text(value["parent"], path + ".parent", 15);
+        if (value["mode"]) network.mode = text(value["mode"], path + ".mode", 8);
+        layer_three = network.driver == NetworkDriver::ipvlan &&
+                      (network.mode == "l3" || network.mode == "l3s");
+      } else {
+        strict_keys(value, path, {"id", "profile", "subnets", "gateway", "uplink", "external"});
+        const auto profile = text(value["profile"], path + ".profile", 16);
+        if (profile == "ethernet")
+          network.profile = NetworkProfile::ethernet;
+        else if (profile == "macvlan")
+          network.profile = NetworkProfile::macvlan;
+        else if (profile == "ipvlan-l2")
+          network.profile = NetworkProfile::ipvlan_l2;
+        else if (profile == "ipvlan-l3")
+          network.profile = NetworkProfile::ipvlan_l3;
+        else if (profile == "ipvlan-l3s")
+          network.profile = NetworkProfile::ipvlan_l3s;
+        else
+          error(path + ".profile",
+                "must be 'ethernet', 'macvlan', 'ipvlan-l2', 'ipvlan-l3', or 'ipvlan-l3s'");
+        if (value["uplink"]) network.uplink = text(value["uplink"], path + ".uplink", 15);
+        layer_three = network.profile == NetworkProfile::ipvlan_l3 ||
+                      network.profile == NetworkProfile::ipvlan_l3s;
+      }
       if (value["subnet"] && value["subnets"])
         error(path, "must use either 'subnet' or 'subnets', not both");
-      if (value["subnet"])
+      if (version_two && value["subnet"])
+        error(path + ".subnet", "version 2 requires canonical 'subnets'");
+      else if (value["subnet"])
         network.subnets.push_back(text(value["subnet"], path + ".subnet", 43));
       else if (value["subnets"] && require_sequence(value["subnets"], path + ".subnets")) {
         if (value["subnets"].size() == 0 || value["subnets"].size() > 16)
@@ -802,13 +851,18 @@ class ConfigParser {
         network.gateway = text(value["gateway"], path + ".gateway", 39);
       else if (!layer_three)
         error(path + ".gateway", "is required except for ipvlan l3/l3s");
-      network.external = bool_value(value["external"], path + ".external", true);
-      if ((network.driver == NetworkDriver::macvlan || network.driver == NetworkDriver::ipvlan) &&
+      network.external = version_two
+                             ? strict_bool_value(value["external"], path + ".external", true)
+                             : bool_value(value["external"], path + ".external", true);
+      if (!version_two &&
+          (network.driver == NetworkDriver::macvlan || network.driver == NetworkDriver::ipvlan) &&
           network.parent.empty())
         error(path + ".parent", "is required for macvlan and ipvlan");
-      if (network.driver == NetworkDriver::ipvlan && network.mode != "l2" && network.mode != "l3" &&
-          network.mode != "l3s")
+      if (!version_two && network.driver == NetworkDriver::ipvlan && network.mode != "l2" &&
+          network.mode != "l3" && network.mode != "l3s")
         error(path + ".mode", "must be 'l2', 'l3', or 'l3s' for ipvlan");
+      if (version_two && network.profile != NetworkProfile::ethernet && network.uplink.empty())
+        error(path + ".uplink", "is required for macvlan and ipvlan semantic profiles");
       config.network_infrastructure.networks.push_back(std::move(network));
     }
   }
@@ -833,6 +887,8 @@ class ConfigParser {
         network_switch.datapath = text(value["datapath"], path + ".datapath", 16);
       if (network_switch.datapath != "system" && network_switch.datapath != "netdev")
         error(path + ".datapath", "must be 'system' or 'netdev'");
+      if (config.version == 2 && network_switch.datapath != "system")
+        error(path + ".datapath", "version 2 requires the Open vSwitch system datapath");
       const auto ports = value["ports"];
       if (ports && require_sequence(ports, path + ".ports")) {
         std::unordered_set<std::string> port_ids;
@@ -994,6 +1050,67 @@ class ConfigParser {
     }
   }
 
+  void parse_attachments(const YAML::Node& values, GraphConfig& config) {
+    if (!values) return;
+    if (!require_sequence(values, "network.attachments")) return;
+    if (values.size() > kMaxNodes * kMaxPortsPerNode)
+      error("network.attachments", "exceeds maximum attachment count 262144");
+    std::unordered_set<std::string> ids;
+    const auto count = std::min<std::size_t>(values.size(), kMaxNodes * kMaxPortsPerNode);
+    for (std::size_t index = 0; index < count; ++index) {
+      const auto path = "network.attachments[" + std::to_string(index) + "]";
+      const auto value = values[index];
+      if (!require_map(value, path)) continue;
+      strict_keys(
+          value, path,
+          {"id", "kind", "owner", "network", "address", "mac", "interface", "peer", "switch"});
+      AttachmentDefinition attachment;
+      attachment.id = text(value["id"], path + ".id", 64);
+      identifier(attachment.id, path + ".id");
+      if (!attachment.id.empty() && !ids.insert(attachment.id).second)
+        error(path + ".id", "duplicate attachment id '" + attachment.id + "'");
+      const auto kind = text(value["kind"], path + ".kind", 32);
+      if (kind == "container_veth")
+        attachment.kind = AttachmentKind::container_veth;
+      else if (kind == "namespace_veth")
+        attachment.kind = AttachmentKind::namespace_veth;
+      else if (kind == "qemu_tap")
+        attachment.kind = AttachmentKind::qemu_tap;
+      else if (kind == "external")
+        attachment.kind = AttachmentKind::external;
+      else if (kind == "mirror")
+        attachment.kind = AttachmentKind::mirror;
+      else
+        error(path + ".kind",
+              "must be 'container_veth', 'namespace_veth', 'qemu_tap', 'external', or 'mirror'");
+      attachment.owner = text(value["owner"], path + ".owner", 64);
+      identifier(attachment.owner, path + ".owner");
+      if (value["network"]) attachment.network = text(value["network"], path + ".network", 64);
+      if (value["address"]) attachment.address = text(value["address"], path + ".address", 43);
+      if (value["mac"]) attachment.mac = text(value["mac"], path + ".mac", 17);
+      if (!attachment.mac.empty() && !std::regex_match(attachment.mac, kMacAddress))
+        error(path + ".mac", "must be a six-octet MAC address");
+      if (value["interface"])
+        attachment.interface = text(value["interface"], path + ".interface", 15);
+      if (value["peer"]) attachment.peer = text(value["peer"], path + ".peer", 15);
+      if (value["switch"]) attachment.network_switch = text(value["switch"], path + ".switch", 15);
+      if (attachment.kind == AttachmentKind::mirror) {
+        if (!attachment.network.empty() || !attachment.address.empty() || !attachment.mac.empty() ||
+            !attachment.peer.empty())
+          error(path, "mirror attachments allow only id, kind, owner, interface, and switch");
+        if (attachment.interface.empty()) error(path + ".interface", "is required for a mirror");
+        if (attachment.network_switch.empty()) error(path + ".switch", "is required for a mirror");
+      } else if (attachment.network.empty()) {
+        error(path + ".network", "is required except for mirror attachments");
+      }
+      if (attachment.kind == AttachmentKind::namespace_veth &&
+          (attachment.interface.empty() || attachment.peer.empty() ||
+           attachment.network_switch.empty() || attachment.address.empty()))
+        error(path, "namespace_veth requires address, interface, peer, and switch");
+      config.network_infrastructure.attachments.push_back(std::move(attachment));
+    }
+  }
+
   void parse_edge_paths(const YAML::Node& paths, GraphConfig& config) {
     if (!paths) return;
     if (!require_map(paths, "network.edge_paths")) return;
@@ -1020,6 +1137,9 @@ class ConfigParser {
     strict_keys(deployment, "deployment", {"network", "services", "telemetry"});
     if (deployment["network"])
       config.deployment.network = text(deployment["network"], "deployment.network", 128);
+    if (config.version == 2 && deployment["network"])
+      error("deployment.network",
+            "version 2 forbids Docker/Compose data-plane membership; use network.attachments");
 
     const auto services = deployment["services"];
     if (services && require_map(services, "deployment.services")) {
@@ -1451,7 +1571,8 @@ class ConfigParser {
       if (visit(node.id)) {
         error("graph.edges",
               "cycles are not supported in the GraphX-managed data plane by "
-              "configuration version 1");
+              "configuration version " +
+                  std::to_string(config.version));
         break;
       }
     }
@@ -1485,7 +1606,7 @@ class ConfigParser {
       auto& parsed_subnets = subnets[network.id];
       std::unordered_set<std::string> seen_subnets;
       for (std::size_t subnet_index = 0; subnet_index < network.subnets.size(); ++subnet_index) {
-        const auto subnet_path = network.subnets.size() == 1
+        const auto subnet_path = config.version == 1 && network.subnets.size() == 1
                                      ? path + ".subnet"
                                      : path + ".subnets[" + std::to_string(subnet_index) + "]";
         const auto& literal_cidr = network.subnets[subnet_index];
@@ -1603,6 +1724,83 @@ class ConfigParser {
       }
     }
 
+    if (config.version == 2) {
+      std::unordered_set<std::string> placed_nodes;
+      for (const auto& service : config.deployment.services) placed_nodes.insert(service.node_id);
+      for (std::size_t index = 0; index < infrastructure.attachments.size(); ++index) {
+        const auto& attachment = infrastructure.attachments[index];
+        const auto path = "network.attachments[" + std::to_string(index) + "]";
+        if (attachment.kind != AttachmentKind::mirror && !network_ids.contains(attachment.network))
+          error(path + ".network", "references unknown network '" + attachment.network + "'");
+        if (!attachment.address.empty()) {
+          const auto address = ipv4_cidr(attachment.address);
+          if (!address)
+            error(path + ".address", "must be an IPv4 CIDR");
+          else if (const auto subnet = subnets.find(attachment.network);
+                   subnet != subnets.end() &&
+                   std::ranges::none_of(subnet->second, [&](const auto& candidate) {
+                     return address->network == candidate.network &&
+                            address->mask == candidate.mask;
+                   }))
+            error(path + ".address", "must be inside one of its network subnets");
+        }
+        const auto node = std::ranges::find_if(
+            config.nodes, [&](const auto& candidate) { return candidate.id == attachment.owner; });
+        const auto router = std::ranges::find_if(
+            infrastructure.routers,
+            [&](const auto& candidate) { return candidate.id == attachment.owner; });
+        const auto network_switch = std::ranges::find_if(
+            infrastructure.switches,
+            [&](const auto& candidate) { return candidate.id == attachment.network_switch; });
+        if (!attachment.network_switch.empty() && network_switch == infrastructure.switches.end())
+          error(path + ".switch", "references unknown switch '" + attachment.network_switch + "'");
+        switch (attachment.kind) {
+          case AttachmentKind::container_veth:
+            if (node == config.nodes.end() || !placed_nodes.contains(attachment.owner) ||
+                node->runtime == "qemu")
+              error(path + ".owner", "container_veth owner must be a deployed non-QEMU node");
+            break;
+          case AttachmentKind::namespace_veth:
+            if (router == infrastructure.routers.end() ||
+                router->kind != RouterKind::linux_namespace)
+              error(path + ".owner", "namespace_veth owner must be a Linux namespace router");
+            else if (std::ranges::count_if(router->interfaces, [&](const auto& interface) {
+                       return interface.network == attachment.network &&
+                              interface.address == attachment.address &&
+                              interface.device == attachment.interface &&
+                              interface.peer == attachment.peer &&
+                              interface.network_switch == attachment.network_switch;
+                     }) != 1)
+              error(path, "namespace_veth must exactly match one interface on its owner router");
+            break;
+          case AttachmentKind::qemu_tap:
+            if (node == config.nodes.end() || node->runtime != "qemu")
+              error(path + ".owner", "qemu_tap owner must be a QEMU node");
+            break;
+          case AttachmentKind::external:
+            if (node == config.nodes.end())
+              error(path + ".owner", "external owner must be a graph node");
+            break;
+          case AttachmentKind::mirror:
+            if (network_switch == infrastructure.switches.end() ||
+                attachment.owner != attachment.network_switch)
+              error(path + ".owner", "mirror owner and switch must name the same OVS switch");
+            else if (!network_switch->mirror || network_switch->mirror->id != attachment.id)
+              error(path + ".id", "must match the mirror configured on its OVS switch");
+            else {
+              const auto output_port = std::ranges::find_if(
+                  network_switch->ports,
+                  [&](const auto& port) { return port.id == network_switch->mirror->output_port; });
+              if (output_port == network_switch->ports.end() ||
+                  output_port->interface != attachment.interface)
+                error(path + ".interface",
+                      "must match the configured mirror output-port interface");
+            }
+            break;
+        }
+      }
+    }
+
     std::unordered_set<std::string> edge_ids;
     for (const auto& edge : config.edges) edge_ids.insert(edge.edge.id);
     std::unordered_set<std::string> known_hops = node_ids;
@@ -1663,8 +1861,10 @@ std::vector<ConfigOverride> environment_overrides() {
   return overrides;
 }
 
-GraphConfig load_config(const std::filesystem::path& path,
-                        const std::vector<ConfigOverride>& overrides) {
+namespace {
+
+GraphConfig load_config_with_overrides(const std::filesystem::path& path,
+                                       const std::vector<ConfigOverride>& overrides) {
   std::error_code error_code;
   const auto size = std::filesystem::file_size(path, error_code);
   if (error_code)
@@ -1684,11 +1884,22 @@ GraphConfig load_config(const std::filesystem::path& path,
         std::vector<ConfigDiagnostic>{{"$", "invalid YAML: " + std::string(error.what())}});
   }
   std::vector<ConfigDiagnostic> override_errors;
-  for (const auto& override : environment_overrides())
-    apply_override(root, override, override_errors);
   for (const auto& override : overrides) apply_override(root, override, override_errors);
   if (!override_errors.empty()) throw ConfigError(std::move(override_errors));
   return ConfigParser(std::move(root)).parse();
+}
+
+}  // namespace
+
+GraphConfig load_config(const std::filesystem::path& path,
+                        const std::vector<ConfigOverride>& overrides) {
+  auto combined = environment_overrides();
+  combined.insert(combined.end(), overrides.begin(), overrides.end());
+  return load_config_with_overrides(path, combined);
+}
+
+GraphConfig load_config_literal(const std::filesystem::path& path) {
+  return load_config_with_overrides(path, {});
 }
 
 std::string_view to_string(TransportKind kind) noexcept {

@@ -21,10 +21,12 @@ On Apple Silicon, the optional [Lima execution environment](infrastructure/lima/
 provides an ARM64 Linux VM for rootful Docker, system Open vSwitch, namespaces,
 veth/TAP, nftables, netem, QEMU tooling, and packet capture. This M1 environment
 contains the privileged `graphx-docker` toolchain; it is not a container on
-macOS. The application still uses configuration version 1 and its current
-Docker bridge/MACVLAN/IPVLAN realization, while QEMU still uses slirp. The
-configuration version 2 OVS-only backend, container veth attachment, and QEMU
-TAP data path are later migration phases.
+macOS. M2 adds a strict [configuration version 2 model](docs/configuration-v2.md)
+and deterministic version-1 migration for the future OVS-only data plane.
+Version 1 and its Docker bridge/MACVLAN/IPVLAN realization remain supported;
+version-2 infrastructure commands fail closed until M3, and QEMU still uses
+slirp until the TAP phase. Migration reads the literal source and ignores
+runtime `GRAPHX_OVERRIDES`.
 
 ## Architecture and decisions
 
@@ -428,7 +430,7 @@ key. Version-1 traffic has no protocol-level message identity.
 
 ### Three related topologies
 
-[`graphx.yaml`](graphx.yaml) is the authoritative source model and holds the logical graph, transport choices, network infrastructure, deployment hints, and observability settings. Version 1 is described by [`config/schema/graphx.schema.json`](config/schema/graphx.schema.json) and enforced by the C++ loader. The files in [`config/`](config/) are human-readable projections that make each concern easy to discuss. [`compose.yaml`](compose.yaml) is checked in as a static deployment projection for now.
+[`graphx.yaml`](graphx.yaml) is the authoritative source model and holds the logical graph, transport choices, network infrastructure, deployment hints, and observability settings. Versions 1 and 2 are described by [`config/schema/graphx.schema.json`](config/schema/graphx.schema.json) and enforced by the C++ loader. Version 1 retains its existing Docker-driver meaning. Version 2 expresses OVS semantic profiles and typed attachments, but M2 does not realize them yet. The files in [`config/`](config/) are human-readable projections that make each concern easy to discuss. [`compose.yaml`](compose.yaml) is checked in as a static deployment projection for now.
 
 Logical nodes contain only GraphX identity, kind, and ports. Container image and
 command hints belong under `deployment.services`, so runtime semantics remain
@@ -456,8 +458,14 @@ path; selecting a logical edge highlights its macvlan/OVS/router/OVS/ipvlan path
 ./build/dev/graphx project graphx.yaml --check --output-dir config
 ./build/dev/graphx inspect graphx.yaml \
   --set transport.tcp.samples.host=127.0.0.1
+./build/dev/graphx config migrate graphx.yaml --output graphx-v2.yaml
 ./build/dev/graphx infra status examples/mixed-network/graphx.yaml --dry-run
 ```
+
+Migration never edits the source and refuses to overwrite an existing output.
+Review and validate the generated version-2 file before adopting it. Version-2
+`infra`, route, and fault commands intentionally fail until the M3 OVS lifecycle
+is implemented.
 
 The configuration path defaults to `graphx.yaml` and can be set with
 `GRAPHX_CONFIG`. Scalar overrides use existing dotted paths. Precedence is:
@@ -494,7 +502,7 @@ Retry backoff doubles up to `max_backoff_ms`. A timed receive that expires befor
 any frame byte arrives returns no envelope; expiry after a partial header or
 payload is an error and closes the connection.
 
-Version 1 limits configuration files to 1 MiB, graphs to 1,024 nodes and 4,096
+Configuration limits files to 1 MiB, graphs to 1,024 nodes and 4,096
 edges, and nodes to 256 ports. Identifiers match
 `[A-Za-z][A-Za-z0-9_-]{0,63}`. An edge must connect an output to an input with
 the same schema. Cycles are rejected because the current blocking startup model
