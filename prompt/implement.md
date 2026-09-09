@@ -1,126 +1,136 @@
 # GraphX implementation work package
 
-Implement **Phase 14: static-route and deny-policy laboratory** in
-`~/workspace/graphx-docker`. The roadmap source is
-`prompt/architectural_roadmap_implementation_plan.md`, section 7.
+Implement **Migration M1: Lima macOS execution foundation** in
+`~/workspace/graphx-docker`. M1 follows the decisions in ADR 0016 and ADR 0017
+and the frozen evidence in `migration_m0_baseline.md`. The complete sequence is
+recorded in `prompt/ovs_migration_implementation_plan.md`.
 
 ## Objective
 
-Deliver one small native-Linux teaching laboratory with three isolated IPv4
-domains and three diagnostic flows:
+Deliver a reproducible, disposable Lima Linux VM that becomes the supported
+macOS host for later GraphX OVS networking work. The VM must run rootful Docker,
+the OVS system datapath, Linux namespace/veth/TAP/routing/nftables/netem tools,
+QEMU, packet-capture tools, and the current GraphX portable build and tests.
 
-```text
-left -> middle   allowed and observable
-middle -> left   denied by an ordered forwarding policy
-left -> right    initially no route; succeeds only after route apply
-```
-
-The topology must make endpoint routes, the namespace router, OVS switches,
-ordered policies, observation points, and `edge_paths` explicit. It must
-distinguish a policy denial from a missing route and from an application error.
+M1 establishes the execution environment only. Do not implement configuration
+version 2, reinterpret version-1 network drivers, attach application containers
+to OVS, migrate examples, or replace QEMU slirp in this phase.
 
 ## Working rules
 
-- Inspect repository instructions, status, Phase 13, existing native network
-  labs, schema/configuration, infrastructure planner, telemetry, GUI, tests,
-  documentation, and this contract before editing. Preserve unrelated changes.
-- Do not commit, push, publish, deploy, attach a physical interface, or mutate
-  unrelated host routes, firewall rules, namespaces, links, networks, or OVS.
-- Keep configuration version 1 unless the existing model is demonstrably
-  insufficient. Prefer the current router route/policy and ordered edge-path
-  fields over a new public schema.
-- Use only fixed `gx-route-*` laboratory names and private lab subnets that do
-  not overlap checked-in examples.
-- Every command, packet, wait, retry, log, artifact, capture, and cleanup action
-  must be bounded. Native mutation requires an explicit Linux/sudo/tool gate.
-- Portable validation and dry-run are inspection evidence only. They cannot
-  prove OVS, namespaces, kernel routes, nftables counters, or packet outcomes.
+- Read both M0 ADRs, the ADR index, baseline record, current architecture,
+  support/security documentation, verification scripts, network examples, and
+  this contract before editing.
+- Preserve unrelated work. Do not commit, push, publish, deploy, or mutate the
+  macOS host network beyond Lima's documented VM and loopback forwarding.
+- Keep all waits, downloads, retries, logs, disk allocations, verification
+  resources, and cleanup operations bounded.
+- Pin or otherwise deterministically constrain the guest distribution and
+  provisioned package set. Record versions needed to reproduce the result.
+- Do not call a Docker Desktop simulation or a macOS portable test native OVS
+  evidence.
+- Never place Docker data, OVS databases, QEMU disks, active PCAPs, or GraphX
+  run ownership state on the macOS shared source mount.
+- Do not expose the Docker socket, OVS control socket, QMP socket, or privileged
+  services beyond the minimum documented local boundary.
 
 ## Required implementation
 
-Create `examples/static-route-policy` with an authoritative `graphx.yaml`,
-portable dry-run/configuration inspection, diagnostic endpoint code, and a
-native-Linux lifecycle exposing:
+Create `infrastructure/lima` containing:
 
-```text
-scripts/demo.sh start
-scripts/demo.sh status
-scripts/demo.sh verify
-scripts/demo.sh apply-route
-scripts/demo.sh clear-route
-scripts/demo.sh logs
-scripts/demo.sh stop
-```
+- `graphx.yaml`: authoritative Lima instance configuration;
+- `provision.sh`: idempotent bounded guest provisioning;
+- `start.sh`: start or create the expected named instance without adopting a
+  differently configured instance;
+- `verify.sh`: non-destructive environment checks plus transactionally cleaned
+  disposable Linux network checks;
+- `stop.sh`: stop the instance without deleting source or retained evidence;
+- `README.md`: prerequisites, lifecycle, storage, security, verification,
+  troubleshooting, reset/removal, and limitations.
 
-The lab must use three OVS-backed address domains, one disposable Linux
-namespace router with three explicit interfaces, three disposable endpoint
-namespaces, an OVS mirror for each domain, ordered allow/deny policies, and
-ordered paths for all diagnostic edges. `start` must leave the selected static
-route absent and prove the initial three-state baseline. `apply-route` must add
-only the declared route to the declared endpoint and make only the missing-route
-flow succeed. `clear-route` must restore the initial state.
+Use a fixed GraphX Lima instance name and an ARM64 Linux guest on Apple Silicon.
+Mount the repository at `/workspace/graphx-docker`. Allocate a VM-native GraphX
+state root and verify that it is not on the shared mount. Provision at least:
 
-Use deterministic bounded UDP diagnostic datagrams and endpoint receipt logs so
-one-way delivery can be proven without return traffic confusing directional
-deny rules. Use packet capture and nftables counters as independent evidence.
-Retain bounded PCAP evidence after teardown. Do not represent these packets as
-GraphX envelopes or application-message history.
+- rootful Docker Engine and Compose;
+- Open vSwitch with a working system datapath;
+- iproute2, nftables, `tc`, `ip netns`, and TUN/TAP support;
+- QEMU system tools required by the existing examples;
+- tcpdump, dumpcap/TShark, curl, OpenSSL, Python, CMake, Ninja, a supported C++
+  compiler, and repository build dependencies.
 
-Lifecycle scripts must preflight Linux, required tools, sudo, fixed names,
-subnet/address conflicts, and the GraphX CLI before mutation. They must record
-ownership, reject stale/forged state and unowned collisions, roll back partial
-startup and interruption, allow repeated stop, and prove exact cleanup. Cleanup
-must delete only resources owned by the active run and must preserve unrelated
-host state.
+Prefer system services managed by the guest init system. Make repeated
+provisioning safe. Fail with actionable diagnostics when virtualization, mount,
+disk, package, service, or kernel facilities are unavailable.
 
-Expose diagnostic state to the existing GUI without inventing application
-failures. The network view must show the three ordered paths and distinct
-`allowed`, `policy-denied`, and `missing-route` classifications, followed by a
-`route-applied` transition for the third flow. Reuse existing telemetry and GUI
-contracts where possible; any extension must be bounded, allow-listed, tested,
-and backward compatible.
+The verification lifecycle must prove, with fixed disposable `gx-m1-*` names:
 
-Add configuration/schema/planner/script/diagnostic tests, dry-run golden
-assertions, lifecycle/static safety checks, telemetry/GUI tests, QEMU/SDR and
-existing network-example regressions, and a manual native-Linux acceptance gate.
+1. the expected VM identity, architecture, source mount, and native-state mount;
+2. rootful Docker and Compose operation with a bounded disposable container;
+3. OVS database/vswitchd health and a disposable system-datapath bridge;
+4. a disposable namespace connected to OVS through veth;
+5. a disposable TAP attached to OVS;
+6. address assignment and a bounded packet exchange through the disposable
+   topology;
+7. nftables and netem availability in a disposable namespace;
+8. packet capture on a disposable observation interface when permissions allow;
+9. the GraphX 1.1.0 portable baseline and projection check from the mounted
+   checkout; and
+10. exact cleanup of every `gx-m1-*` container, namespace, link, TAP, bridge,
+    port, rule, qdisc, process, and temporary file.
 
-Update the architecture source and DOCX, example indexes, network and graphical
-guides, test procedure/reference, changelog, and support/compatibility text as
-needed. Regenerate authoritative projections only if their source changes.
+Record before/after snapshots sufficient to show that unrelated guest Docker,
+OVS, namespace, link, route, rule, nftables, process, and listener state was not
+changed. Cleanup must verify resource identity before deletion and remain safe
+after partial setup or interruption.
+
+Do not require KVM on Apple Silicon. Report the QEMU accelerator capability
+honestly; current x86_64 and future MPC8360E/PowerPC guests are expected to use
+emulation in this environment unless runtime evidence proves otherwise.
+
+## Tests and documentation
+
+- Add portable static tests for the Lima YAML, scripts, bounds, fixed names,
+  storage rules, service configuration, and destructive-command safety.
+- Validate shell syntax and formatting.
+- Run `scripts/verify.sh quick` and `graphx project --check` on macOS.
+- Inside Lima, run the current quick verification profile and all M1 runtime
+  checks twice from a clean state.
+- Test interrupted verification, repeated cleanup, occupied disposable names,
+  an unavailable required service, and immediate retry.
+- Update README/support/security/architecture navigation only where necessary
+  to describe the new optional M1 environment. Do not claim the later OVS-only
+  application data plane is implemented.
 
 ## Acceptance identifiers
 
-- **ROUTE-001 Model:** three domains, router interfaces, static route, ordered
-  policies, OVS observation points, and complete ordered edge paths validate.
-- **ROUTE-002 Realization:** native Linux state matches the declaration across
-  namespaces, links, OVS, addresses, forwarding, nftables, and capture points.
-- **ROUTE-003 Static-route transition:** the declared flow fails specifically
-  for missing route, succeeds after apply, and fails again after clear.
-- **ROUTE-004 Deny policy:** the denied flow never reaches its receiver, the
-  matching nftables counter advances, and allowed flows remain unaffected.
-- **ROUTE-005 Observation and GUI:** logs, packet evidence, telemetry, and GUI
-  show honest distinct classifications and ordered paths.
-- **ROUTE-006 Idempotence:** two lifecycle cycles, rollback, interruption,
-  stale state, repeated stop, and route apply/clear are deterministic.
-- **ROUTE-007 Host isolation:** unrelated routes, rules, namespaces, links,
-  Docker networks, processes, and OVS state are unchanged.
-- **ROUTE-008 Bounds:** datagrams, files, capture, logs, waits, retries, state,
-  diagnostics, and cleanup are bounded and validated.
-- **ROUTE-009 Compatibility:** config v1, existing transports, Phase 13 SDR,
-  QEMU, network labs, telemetry, GUI, packaging, and quality gates still pass.
-- **ROUTE-010 Documentation:** architecture and operator guides accurately cover
-  intent, commands, state transitions, inspection, evidence, cleanup, security,
-  limitations, and troubleshooting.
+- **LIMA-001 Definition:** the VM configuration is deterministic, bounded, and
+  exposes only the intended source mount and loopback services.
+- **LIMA-002 Provisioning:** repeated provisioning produces the required tools
+  and healthy rootful Docker/OVS services.
+- **LIMA-003 Storage:** high-I/O and privileged runtime state is VM-local.
+- **LIMA-004 Linux primitives:** system OVS, namespace, veth, TAP, routing,
+  nftables, netem, and capture checks pass with real runtime evidence.
+- **LIMA-005 GraphX baseline:** the mounted checkout builds and passes the M0
+  portable baseline without projection drift.
+- **LIMA-006 Lifecycle:** start, verify, stop, interruption, retry, and repeated
+  cleanup are bounded and deterministic.
+- **LIMA-007 Isolation:** unrelated macOS and guest state remains unchanged.
+- **LIMA-008 Security:** privileged sockets and services are not broadly
+  exposed; scripts reject unsafe state and targets.
+- **LIMA-009 Architecture honesty:** no v2, container-veth application path,
+  QEMU TAP profile, or KVM capability is claimed prematurely.
+- **LIMA-010 Documentation:** an operator can reproduce, inspect, troubleshoot,
+  stop, and deliberately remove the environment.
 
 ## Required evidence and exit
 
-Run feasible non-destructive builds, CTest, schema/configuration, projection,
-Compose if used, telemetry/web, format/static, sanitizer/fuzz gates proportional
-to changed code, and all portable dry-run tests. On native Linux, run two full
-start/baseline/apply/verify/clear/stop cycles and the adversarial lifecycle
-matrix, comparing recorded host state before and after.
+Write `migration_m1_handoff.md` with the requirement matrix, changed paths,
+exact commands/results, macOS and guest versions, repository state, artifact
+locations, before/after comparisons, limitations, and independent-verifier
+instructions.
 
-Write `phase_14_handoff.md` with the requirement matrix, changed paths, exact
-commands/results, platform and repository state, evidence classification,
-native-Linux operator steps, and remaining limitations. Phase 14 cannot be
-claimed complete from macOS or dry-run evidence alone.
+M1 is complete only after two real Lima create/provision/verify/cleanup cycles
+pass on macOS and the VM-local system OVS/veth/TAP checks are recorded. Static
+inspection, YAML validation, Docker Desktop, or a native-Linux result from a
+different host cannot substitute for the Lima runtime gate.

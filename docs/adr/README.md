@@ -21,6 +21,8 @@ view is maintained in [`../GraphX_Architecture.md`](../GraphX_Architecture.md).
 | 0013 | Unified external and containerized QEMU profiles | Accepted for Phase 12 | 2026-09-05 | [`0013-unified-qemu-profiles.md`](0013-unified-qemu-profiles.md) |
 | 0014 | External device attachment and control relationships | Accepted for Phase 13 | 2026-09-06 | [`0014-external-device-control-cycles.md`](0014-external-device-control-cycles.md) |
 | 0015 | Explicit manual route activation | Accepted for Phase 14 implementation | 2026-09-06 | [`0015-explicit-manual-route-activation.md`](0015-explicit-manual-route-activation.md) |
+| 0016 | Lima hosts the macOS GraphX network runtime | Accepted for the OVS migration | 2026-09-08 | [`0016-lima-ovs-runtime.md`](0016-lima-ovs-runtime.md) |
+| 0017 | OVS is the single backend for semantic network profiles | Accepted for the OVS migration | 2026-09-08 | [`0017-ovs-semantic-network-profiles.md`](0017-ovs-semantic-network-profiles.md) |
 
 ## Historical number mapping
 

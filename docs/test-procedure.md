@@ -246,7 +246,7 @@ Phase 14 portable acceptance validates the static-route configuration, manual
 route command generation, bounded probe parser, telemetry projection, and GUI
 mapping. Its native routing verdict is a separate operator gate: follow the
 example README through two complete baseline/apply/clear/stop cycles and the
-adversarial checks in `prompt/verifier.md`. Do not report dry-run output as OVS,
+adversarial checks recorded in `phase_14_verification.md`. Do not report dry-run output as OVS,
 nftables, route-table, capture, or packet-delivery evidence.
 
 For the browser topology, control tokens, history, and capture workflow across

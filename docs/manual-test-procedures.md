@@ -280,7 +280,8 @@ For each cycle, prove receiver-confirmed allowed delivery, receiver absence plus
 an advancing named nftables counter for denied traffic, exact kernel-route
 absence/presence for the route transition, readable mirrored capture, live GUI
 state changes, and preservation of unrelated canary resources. Follow the
-additional failure-injection contract in [`prompt/verifier.md`](../prompt/verifier.md).
+additional failure-injection evidence in
+[`phase_14_verification.md`](../phase_14_verification.md).
 
 ### 4.5 Linux cleanup audit
 

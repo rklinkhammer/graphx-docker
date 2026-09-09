@@ -323,7 +323,8 @@ absence and an advancing named nftables counter. The route transition requires
 the exact declared kernel route and receiver result. Mirrored PCAP and GUI state
 are corroborating evidence. Cleanup checks run ownership before deleting fixed
 names and retains the run directory. Full native acceptance requires two cycles
-and the adversarial checks in [`prompt/verifier.md`](../prompt/verifier.md).
+and the adversarial evidence in
+[`phase_14_verification.md`](../phase_14_verification.md).
 
 ## 8. Common options, evidence, and cleanup
 

@@ -1,8 +1,8 @@
 # GraphX Architecture and Network Topology
 
-**Version:** 1.2
+**Version:** 1.3
 **Repository baseline:** GraphX 1.1.0
-**Review date:** 2026-09-07
+**Review date:** 2026-09-08
 **Status:** Living architecture document
 
 ## Executive summary
@@ -633,13 +633,41 @@ exit gate.
 
 ### 12.5 QEMU TAP profile
 
-**Priority: later.** Add a native-Linux-only QEMU TAP/OVS profile after a dedicated security/lifecycle ADR. It would enable real guest MAC identity, VLANs, L2 multicast/broadcast, and direct SPAN capture, but requires `NET_ADMIN`/TAP handling and stronger cleanup/ownership controls than the current slirp profile.
+**Accepted migration direction; not yet implemented.** ADR 0016 places the
+macOS runtime in Lima and ADR 0017 selects OVS with an owned TAP as the future
+QEMU data plane. Implementation remains sequenced after the generic ownership
+and endpoint lifecycle. It will enable real guest MAC identity, VLANs, L2
+multicast/broadcast, and direct SPAN capture without granting broad network
+privilege to QEMU itself. The current slirp profiles remain authoritative until
+that acceptance gate passes.
 
 ### 12.6 Degraded observability laboratory
 
 **Priority: later.** Intentionally fill history queues, reach capture limits, interrupt OTLP, rotate credentials, and sever graph edges while proving that graph traffic, service readiness, graph readiness, SLO status, and GUI diagnostics remain distinct.
 
 ## 13. Recommended architectural roadmap
+
+### Accepted Lima and OVS migration
+
+ADR 0016 and ADR 0017 accept a new migration track without claiming that its
+runtime is already implemented. Migration work packages use `M` identifiers so
+they do not collide with the existing feature-phase history. The authoritative
+sequence is maintained in `prompt/ovs_migration_implementation_plan.md`:
+
+1. M0 records the decisions and frozen GraphX 1.1.0 baseline.
+2. M1 provides the Lima macOS Linux execution environment.
+3. M2 introduces configuration version 2 and packet-verifiable MACVLAN/IPVLAN
+   semantic profiles without changing version-1 meaning.
+4. M3 and M4 add identity-safe ownership, OVS lifecycle, and container veth
+   attachment.
+5. M5 migrates the existing network and external-device laboratories.
+6. M6 adds the owned QEMU TAP/OVS profile.
+7. M7 integrates capture, faults, and diagnostics with the common lifecycle.
+8. M8 retires legacy realization paths only after the full compatibility gate.
+
+Until those phases pass, the current Docker-driver, Docker Desktop simulation,
+and QEMU slirp descriptions in this document remain descriptions of implemented
+behavior.
 
 ### Completed documentation and consistency foundation
 
@@ -653,13 +681,16 @@ exit gate.
 1. Independently verify the single-SDR example on macOS and native Linux.
 2. Independently verify the implemented static-route/deny-policy laboratory on native Linux.
 3. Add an application/Ethernet dual-capture correlation prototype.
-4. Decide whether one-to-many logical edges belong in config v1 extension rules or require config v2.
+4. Decide the one-to-many logical-edge contract separately from the accepted
+   network-profile configuration-v2 migration; the latter does not implicitly
+   authorize a graph fan-out schema change.
 
 ### Later platform capabilities
 
-1. Define reconcile/rollback/ownership semantics for infrastructure before expanding beyond laboratories.
+1. Implement the accepted M3 reconcile/rollback/ownership contract before expanding beyond laboratories.
 2. Decide capture rotation, indexing, retention, and cross-capture correlation contracts.
-3. Define a QEMU TAP/OVS security model and physical-node attachment boundary.
+3. Implement the accepted QEMU TAP/OVS direction after M3 while keeping any
+   broader physical-node attachment behind a separate operator/security gate.
 4. Evaluate IPv6 and authenticated UDP/DTLS only with explicit compatibility and threat-model decisions.
 5. Define distributed telemetry/control state only if multi-collector availability becomes a requirement.
 
@@ -667,7 +698,7 @@ exit gate.
 
 | Concern | Primary implementation or documentation evidence |
 |---|---|
-| Architecture decisions | `docs/adr/README.md`, with records `docs/adr/0001-*.md` through `docs/adr/0015-*.md` |
+| Architecture decisions | `docs/adr/README.md`, with records `docs/adr/0001-*.md` through `docs/adr/0017-*.md` |
 | Configuration model | `include/graphx/config.hpp`, `include/graphx/network.hpp`, `src/config.cpp`, `config/schema/graphx.schema.json` |
 | CLI/infrastructure | `apps/cli/main.cpp`, `include/graphx/infra.hpp`, `src/infra.cpp` |
 | Envelope/framing | `include/graphx/envelope.hpp`, `src/envelope.cpp`, `src/framing.cpp`, `docs/protocol.md` |
@@ -683,7 +714,7 @@ exit gate.
 | UDP examples | `examples/udp-unicast`, `examples/udp-broadcast`, `examples/udp-multicast` |
 | QEMU profiles | `examples/qemu-node`, `docs/qemu-demos.md` |
 | SDR profiles | `examples/sdr-node`, `docs/adr/0014-external-device-control-cycles.md` |
-| Verification status | `verification_status.md`, `phase_3_verification.md` through `phase_13_verification.md`; Phase 14 verifier contract in `prompt/verifier.md` |
+| Verification status | `verification_status.md`, phase verification reports, `migration_m0_baseline.md`, and the active M1 contracts under `prompt/` |
 
 ## Appendix B. Terminology
 

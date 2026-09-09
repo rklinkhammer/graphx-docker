@@ -40,6 +40,13 @@ unrelated canaries, browser History checks, exact successful cleanup, and the
 full Linux profile pass. F-014-09 remains open because failed-probe cleanup
 deletes an unrelated same-named replacement introduced during that probe.
 
+Migration M0 is a documentation and decision baseline, not a runtime networking
+phase. ADR 0016 and ADR 0017 accept the Lima/OVS direction, and
+`migration_m0_baseline.md` records a clean macOS quick profile with all 36 tests
+passing. The active implementation and verifier contracts now cover M1. No M0
+record claims that Lima, configuration version 2, container veth attachment, or
+QEMU TAP is implemented.
+
 ## Phase status
 
 | Phase | Verification record | Current status | Completion evidence or remaining action |
@@ -70,3 +77,5 @@ deletes an unrelated same-named replacement introduced during that probe.
 5. Phase 14 remediation passed independent native, canary, PCAP, browser, and
    full regression checks but remains unaccepted because failed identity-probe
    cleanup deletes a same-named replacement of the current resource.
+6. Migration M0 accepted the new architecture and froze the portable baseline;
+   M1 remains unimplemented until its Lima runtime gates pass.

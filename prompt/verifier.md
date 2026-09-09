@@ -1,99 +1,112 @@
 # GraphX independent verification work package
 
-Independently verify **Phase 14: static-route and deny-policy laboratory** in
-`~/workspace/graphx-docker` against `prompt/implement.md`, the repository, and
-acceptance identifiers ROUTE-001 through ROUTE-010. Read
-`phase_14_handoff.md` only as an implementation claim. Write the result to
-`phase_14_verification.md`.
+Independently verify **Migration M1: Lima macOS execution foundation** in
+`~/workspace/graphx-docker` against ADR 0016, ADR 0017,
+`migration_m0_baseline.md`, and acceptance identifiers LIMA-001 through
+LIMA-010. Use `prompt/ovs_migration_implementation_plan.md` only for scope and
+sequencing. Read `migration_m1_handoff.md` only as an implementation claim.
+Write the result to `migration_m1_verification.md`.
 
 ## Independence and evidence
 
-- Read the complete contracts, roadmap, repository state/history, schema,
-  implementation, tests, architecture, examples, and operator documentation.
-- Do not make product fixes, discard work, commit, publish, attach a physical
-  interface, or trust a handoff, filename, dry-run, or claimed log as proof.
-- Derive the traceability matrix independently and map every status to direct
-  implementation evidence plus the required runtime evidence.
-- Classify checks as portable runtime, native-Linux runtime, automated simulated
-  dependency, inspection only, blocked, not applicable, or failed.
-- Portable configuration and dry-run output cannot prove kernel, OVS, namespace,
-  nftables, capture, privilege, ownership, rollback, or cleanup behavior.
+- Derive the traceability matrix from the decisions and implementation rather
+  than copying the handoff.
+- Do not make product fixes, discard work, commit, publish, alter unrelated
+  macOS networking, or trust filenames, dry-runs, static tests, or claimed logs
+  as runtime proof.
+- Classify evidence as macOS host runtime, Lima guest runtime, portable runtime,
+  automated simulated dependency, inspection only, blocked, not applicable, or
+  failed.
+- Only a real Lima guest can prove M1 OVS, namespace, veth, TAP, nftables,
+  netem, capture, service, storage, and cleanup claims.
+- Keep all commands, waits, packets, files, retries, and cleanup bounded.
 
 ## Verification procedure
 
-### 1. Baseline and compatibility
+### 1. Baseline and definition
 
-Record OS/kernel/architecture, Docker/Compose, OVS, iproute2, nftables,
-tcpdump/TShark, privileges, compilers/build tools, and repository state. Run the
-existing portable acceptance baseline and focused prior-example regressions.
-Confirm configuration version and existing public behavior remain compatible.
+Record repository status/history, macOS version and architecture, Lima version,
+virtualization support, available disk/memory, and existing Lima instances.
+Review both M0 ADRs, the VM definition, every lifecycle script, tests, and
+operator documentation. Confirm that M1 does not change configuration semantics
+or the current GraphX network planner.
 
-### 2. Configuration and planned topology
+Run the macOS quick profile and projection check. Compare affected results with
+`migration_m0_baseline.md`; explain any difference rather than modifying the
+baseline.
 
-Validate, inspect, and project the Phase 14 configuration. Independently compare
-declared domains, addresses, router interfaces, static route, ordered policies,
-mirrors, and every `edge_path` with create/status/destroy dry-run output.
-Adversarially test duplicate identifiers, bad references, overlapping or invalid
-subnets/addresses, invalid next hops/devices, missing switches, incomplete paths,
-policy action/order changes, unknown keys, and bounds.
+### 2. Clean creation and provisioning
 
-### 3. Native realization and flow states
+From an absent GraphX instance, run the documented start/provision workflow.
+Inspect the actual VM configuration, architecture, mounts, port forwards,
+service listeners, users/groups, package versions, and storage filesystems.
 
-On native Linux, record relevant host routes, rules, namespaces, links, Docker
-networks, processes, nftables, and OVS state before mutation. Start the lab and
-inspect every declared object directly. Prove with receiver and packet evidence:
+Confirm Docker is rootful, Docker and OVS are init-managed and healthy, and no
+privileged socket or service is exposed beyond the documented boundary. Run
+provisioning again and prove idempotence.
 
-1. the allowed left-to-middle datagram arrives;
-2. the middle-to-left datagram does not arrive and its deny counter advances;
-3. the left-to-right datagram initially fails because the declared endpoint
-   route is absent, not because of policy or an application error;
-4. `apply-route` installs exactly the declared route and only the third outcome
-   changes to success; and
-5. `clear-route` removes it and restores the original classification.
+### 3. Runtime primitives
 
-Repeat the complete lifecycle twice. Validate OVS mirrors and retained PCAPs
-with an independent reader and correlate frames with diagnostic receipt logs and
-nftables counters.
+Run `infrastructure/lima/verify.sh`, then independently inspect:
 
-### 4. GUI and diagnostic honesty
+- OVS bridge and port UUIDs and `datapath_type=system`;
+- namespace and network-namespace identity;
+- veth peer identities and placement;
+- TAP type, owner, permissions, and OVS attachment;
+- addresses, routes, nftables objects, and qdiscs;
+- the bounded packet exchange and packet capture;
+- Docker container identity and cleanup;
+- VM-local locations for Docker, OVS, QEMU, capture, and GraphX state.
 
-Use a real browser to inspect every relevant tab and History to Network
-transitions. Confirm the topology and ordered paths are accurate; allowed,
-policy-denied, missing-route, and route-applied states are visually distinct;
-live changes occur without refresh; and no policy or routing condition is called
-an application failure. Confirm diagnostic events are bounded and allow-listed.
+Repeat the complete verification cycle twice. Do not infer packet delivery from
+configuration alone.
 
-### 5. Lifecycle ownership and failure injection
+### 4. Adversarial lifecycle
 
-Test missing tools/privilege/CLI, occupied names/subnets/addresses, stale and
-forged state, wrong-owner fixtures, duplicate resources, invalid next hops,
-capture failure/limit, endpoint failure, interruption after each startup stage,
-partial cleanup, repeated start/stop/apply/clear, and immediate restart. Every
-failure must be actionable, bounded, roll back owned resources, and preserve
-unrelated state.
+Test occupied `gx-m1-*` names, forged/stale state, missing required tools,
+stopped Docker and OVS services, an unavailable capture permission, source-mount
+failure, native-state path on the wrong filesystem, interruption after each
+mutation stage, partial cleanup, repeated cleanup, and immediate retry.
 
-After stop, compare the host baseline and prove that all owned `gx-route-*`
-namespaces, links, OVS bridges/ports/mirrors, nftables objects, processes, and
-listeners are gone while retained evidence remains readable by the operator.
+Every failure must be bounded and actionable. It must remove only resources
+created by the active attempt and preserve same-named replacements or unrelated
+objects whose recorded identity no longer matches.
 
-### 6. Regression and documentation
+### 5. Isolation and teardown
 
-Run unit/CTest, configuration/schema, projection, telemetry/web, formatting,
-static analysis, sanitizer/fuzz gates proportional to changes, and all affected
-existing examples. Review architecture source/DOCX, ADR index, example indexes,
-network/GUI guides, test procedure/reference, changelog, support, and
-compatibility text for accurate commands, risks, limits, and evidence labels.
+Compare macOS and guest state before and after both cycles. Confirm all owned
+containers, namespaces, links, TAPs, OVS bridges/ports, nftables objects,
+qdiscs, processes, listeners, and temporary files are gone. Confirm retained
+evidence is bounded and readable.
+
+Stop and restart the VM. Verify source persistence and intended VM-local state
+behavior. Test the documented deliberate instance-removal procedure only after
+resolving the exact instance and confirming that no unrelated instance or host
+path is targeted.
+
+### 6. Architecture honesty and documentation
+
+Confirm documentation distinguishes:
+
+- the Lima environment delivered by M1;
+- the still-current version-1 Docker-driver network implementation;
+- the later version-2 OVS-only application data plane;
+- current QEMU slirp from future TAP attachment;
+- TCG-capable Apple Silicon evidence from native-Linux KVM evidence.
+
+Verify that operator commands, paths, prerequisites, storage boundaries,
+security risks, troubleshooting, and cleanup steps match runtime behavior.
 
 ## Acceptance matrix and verdict
 
-Report ROUTE-001 through ROUTE-010 with requirement, implementation path and
-evidence, validation evidence, status (`Implemented`, `Partial`, `Missing`, or
-`Not Yet Applicable`), and precise remediation. Also report commands/results,
-architectural drift, stale documentation, missing tests, security/resource
-risks, and environmental limitations.
+Report LIMA-001 through LIMA-010 with requirement, implementation path,
+independent evidence, status (`Implemented`, `Partial`, `Missing`, or `Not Yet
+Applicable`), and precise remediation. Also report commands/results,
+architectural drift, unsafe defaults, stale documentation, resource leaks, and
+environmental limitations.
 
-Phase 14 passes only when the native Linux laboratory completes two repeated
-baseline/apply/clear/cleanup cycles, the deny and missing-route classifications
-are independently proven, and host state returns to its baseline. Portable
-dry-run and macOS checks are supporting evidence only; without native Linux the
-overall result is incomplete.
+M1 passes only when a real macOS/Lima environment completes two independent
+provision/verify/cleanup cycles, real system-OVS/veth/TAP packet evidence is
+observed, high-I/O state is proven VM-local, and host/guest state returns to its
+documented baseline. Portable or inspection-only evidence makes the overall
+verdict incomplete.

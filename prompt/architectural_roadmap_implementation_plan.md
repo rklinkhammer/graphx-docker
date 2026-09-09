@@ -3,7 +3,9 @@
 **Repository:** `~/workspace/graphx-docker`  
 **Roadmap source:** `docs/GraphX_Architecture.md`, section 13  
 **Baseline:** GraphX 1.0.0 with Phases 3–12 accepted and the documentation and configuration consistency foundation implemented  
-**Plan status:** Proposed for review  
+**Plan status:** Active historical feature roadmap; its infrastructure-backend,
+configuration-v2, ownership, and QEMU TAP sequencing is superseded by ADR 0016,
+ADR 0017, and `prompt/ovs_migration_implementation_plan.md`
 **Proposed phase range:** 13 through 21
 
 ## 1. Objective
@@ -25,6 +27,13 @@ The plan covers:
 7. a QEMU TAP/OVS and physical-node attachment security boundary;
 8. conditional IPv6 and authenticated UDP/DTLS evaluation; and
 9. conditional distributed telemetry/control state.
+
+This roadmap remains authoritative for feature work that does not conflict with
+the accepted Lima/OVS migration. In particular, the one-to-many graph decision,
+capture-correlation contract, IPv6/DTLS evaluation, and distributed-state
+evaluation remain separate decisions. Use the M0-M8 migration plan for the
+network backend, configuration version 2, ownership lifecycle, container veth,
+and QEMU TAP work.
 
 The phase numbers below are proposed. Approving this master plan does not by
 itself approve every later or conditional capability. Each phase requires a
@@ -341,6 +350,10 @@ decision and examples rather than creating config v2 unnecessarily.
 
 ## 10. Phase 17 — Infrastructure ownership, reconciliation, and rollback
 
+> **Sequencing update:** this scope is retained as design input but is now
+> implemented by migration phases M3 and M4 after the Lima and configuration-v2
+> foundations.
+
 ### Goal
 
 Move `graphx infra` from laboratory-oriented create/destroy plans toward an
@@ -430,6 +443,10 @@ execution.
 `CAPLIFE-009` security/bounds; `CAPLIFE-010` compatibility/documentation.
 
 ## 12. Phase 19 — QEMU TAP/OVS and physical-node attachment boundary
+
+> **Sequencing update:** QEMU TAP/OVS is now migration phase M6 under ADR 0016
+> and ADR 0017. Broader physical-node attachment still requires the separate
+> security and operator opt-in decision described below.
 
 ### Goal
 

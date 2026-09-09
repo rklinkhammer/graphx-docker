@@ -588,7 +588,7 @@ networks. It does not certify macvlan or ipvlan behavior.
 
 Run this only on a dedicated native Linux host as the normal login user. Record
 host routes, namespaces, links, nftables, OVS, and Docker state before starting.
-Then follow the full matrix in `prompt/verifier.md`; the core two-cycle sequence
+The full completed matrix is recorded in `phase_14_verification.md`; the core two-cycle sequence
 is:
 
 ```sh
