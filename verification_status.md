@@ -1,6 +1,6 @@
 # GraphX verification status
 
-Review date: 2026-09-07
+Review date: 2026-09-09
 Reviewed repository: `/home/rklinkhammer/workspace/graphx-docker`
 Reviewed branch: `main`
 
@@ -43,9 +43,12 @@ deletes an unrelated same-named replacement introduced during that probe.
 Migration M0 is a documentation and decision baseline, not a runtime networking
 phase. ADR 0016 and ADR 0017 accept the Lima/OVS direction, and
 `migration_m0_baseline.md` records a clean macOS quick profile with all 36 tests
-passing. The active implementation and verifier contracts now cover M1. No M0
-record claims that Lima, configuration version 2, container veth attachment, or
-QEMU TAP is implemented.
+passing. M1 through M3 have accepted re-verification records. M4's copied-marker
+replacement, architecture wording, and pinned formatting findings are closed by
+the remediation records and `migration_m4_final_verification.md`. Fresh macOS
+and ARM64 Lima profiles, privileged lifecycle/adversarial checks, compatibility
+fingerprints, documentation render, and exact cleanup pass. M4 is accepted;
+QEMU TAP remains deferred.
 
 ## Phase status
 
@@ -78,4 +81,5 @@ QEMU TAP is implemented.
    full regression checks but remains unaccepted because failed identity-probe
    cleanup deletes a same-named replacement of the current resource.
 6. Migration M0 accepted the new architecture and froze the portable baseline;
-   M1 remains unimplemented until its Lima runtime gates pass.
+   M1 through M4 are independently verified. M5 is the next migration work
+   package; QEMU TAP remains deferred to M6.

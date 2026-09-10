@@ -1,34 +1,33 @@
 # GraphX independent verification work package
 
-Independently verify **Migration M3: generic ownership and OVS lifecycle** in
-`~/workspace/graphx-docker`. Derive M3-001 through M3-010 from
-`prompt/implement.md`, ADR 0017, and the M0 baseline. Treat the handoff as a
-claim and write `migration_m3_verification.md` without product fixes.
+Independently verify **Migration M4: managed container veth attachment** in
+`~/workspace/graphx-docker`. Derive M4-001 through M4-010 from
+`prompt/implement.md`, ADR 0017, and the M3 re-verification. Treat the handoff as
+a claim and write `migration_m4_verification.md` without product fixes.
 
 ## Required checks
 
-1. Build from a fresh out-of-tree directory and run every portable test,
-   quality profile, sanitizer profile, projection check, and M0 fingerprint.
-2. Confirm v1 output is unchanged and v2 dry-run contains only the M3 bridge
-   ownership plan—no Docker network, port, veth, namespace, TAP, mirror, route,
-   fault, capture, or process mutation.
-3. In the real Lima ARM64 guest, inspect the state directory/file modes,
-   configuration digest, random token, expected set, UUID records, system
-   datapath, and all three bridge `external_ids`.
-4. Exercise normal create/status/destroy, repeated create, missing state,
-   unowned collision, missing bridge, configuration edits, malformed and
-   permissive state, state-root/file symlinks, and concurrent graph locking.
-5. Interrupt after every mutation using both rollback and hard-crash points.
-   Prove recovery finds an unrecorded atomic mutation by marker and immediate
-   retry succeeds.
-6. Replace every resource between state capture and cleanup, including a
-   replacement with copied markers but a different UUID. Cleanup must refuse
-   before deleting any owned sibling and must preserve every replacement.
-7. Inspect the deletion command: UUID and intrinsic markers must be conditions
-   in the same OVSDB transaction as removal.
-8. Run the retained Lima M1 verifier as a regression gate, compare unrelated
-   state before/after, and return Lima to its initial state.
-9. Confirm docs distinguish M3 bridge ownership from M4/M6 endpoints and later
-   route/fault/capture work.
-10. Report each requirement as Implemented, Partial, Missing, or Not Yet
-    Applicable. M3 passes only with real OVS evidence and exact cleanup.
+1. Build fresh and run portable, quality, sanitizer, fingerprint, projection,
+   documentation, M2, and M3 regression gates.
+2. Confirm dry-run declares Compose identity, veth, OVS port, address, and MTU,
+   but no Docker network, MACVLAN/IPVLAN driver, namespace, TAP, mirror, fault,
+   capture, or process mutation.
+3. In Lima ARM64 Linux, verify exactly one service is selected by project and
+   service labels and that image, full ID, PID, and namespace inode match.
+4. Verify host/peer ifindices and aliases, OVS Port/Interface UUIDs and intrinsic
+   markers, target MAC/address/MTU/routes, and an OVS-only data path.
+5. Exercise two clean create/status/destroy cycles and prove management access
+   remains separate from the GraphX data interface.
+6. Restart and replace the service container. Status must fail closed and must
+   not adopt the new namespace; explicit safe destroy/create must reattach it.
+7. Exercise unowned host, target-interface, OVS Port, and OVS Interface
+   collisions plus marker/UUID/ifindex replacement. Cleanup must preserve every
+   unrelated replacement and preflight siblings before mutation.
+8. Inject ordinary failure and hard interruption at each exposed endpoint stage;
+   prove rollback/recovery and immediate retry with exact cleanup.
+9. Confirm M2 migration stays deterministic and validates when legacy addresses
+   are absent, while M4 realization refuses to invent an address.
+10. Confirm documentation accurately defers namespace veth, TAP, profile flows,
+    mirrors, general routing/policy, faults, and capture realization.
+
+M4 passes only with real Docker namespace, Linux veth, and system-OVS evidence.

@@ -19,7 +19,11 @@ struct OwnedResourceIdentity {
   std::string kind;
   std::string name;
   std::string stable_id;
+  std::string secondary_id;
+  std::string attachment_id;
+  std::string target_interface;
   std::optional<std::uint32_t> ifindex;
+  std::optional<std::uint32_t> peer_ifindex;
   std::optional<std::uint64_t> namespace_inode;
   std::string container_id;
   std::string tap_owner;
@@ -30,8 +34,8 @@ struct OwnedResourceIdentity {
   std::string process_identity;
 };
 
-// Realizes only the M3-owned OVS bridge boundary. Endpoint ports, namespaces,
-// container veths, TAPs, routes, faults, and captures remain later milestones.
+// Realizes M3-owned OVS bridges and M4-owned container veth endpoints. Linux
+// namespace veths, TAPs, profile flows, faults, and captures remain later milestones.
 int execute_ovs_lifecycle(const GraphConfig& config, const std::filesystem::path& config_path,
                           OvsLifecycleAction action, bool dry_run,
                           const std::filesystem::path& state_root, std::ostream& output,

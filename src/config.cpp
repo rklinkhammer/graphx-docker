@@ -1061,9 +1061,9 @@ class ConfigParser {
       const auto path = "network.attachments[" + std::to_string(index) + "]";
       const auto value = values[index];
       if (!require_map(value, path)) continue;
-      strict_keys(
-          value, path,
-          {"id", "kind", "owner", "network", "address", "mac", "interface", "peer", "switch"});
+      strict_keys(value, path,
+                  {"id", "kind", "owner", "network", "address", "mac", "interface", "peer",
+                   "switch", "mtu", "routes"});
       AttachmentDefinition attachment;
       attachment.id = text(value["id"], path + ".id", 64);
       identifier(attachment.id, path + ".id");
@@ -1094,6 +1094,26 @@ class ConfigParser {
         attachment.interface = text(value["interface"], path + ".interface", 15);
       if (value["peer"]) attachment.peer = text(value["peer"], path + ".peer", 15);
       if (value["switch"]) attachment.network_switch = text(value["switch"], path + ".switch", 15);
+      if (value["mtu"]) {
+        const auto mtu = unsigned_value(value["mtu"], path + ".mtu");
+        if (mtu < 576 || mtu > 9216)
+          error(path + ".mtu", "must be between 576 and 9216");
+        else
+          attachment.mtu = static_cast<std::uint32_t>(mtu);
+      }
+      const auto routes = value["routes"];
+      if (routes && require_sequence(routes, path + ".routes")) {
+        for (std::size_t route_index = 0; route_index < routes.size(); ++route_index) {
+          const auto route_path = path + ".routes[" + std::to_string(route_index) + "]";
+          const auto route_value = routes[route_index];
+          if (!require_map(route_value, route_path)) continue;
+          strict_keys(route_value, route_path, {"destination", "via"});
+          RouteDefinition route;
+          route.destination = text(route_value["destination"], route_path + ".destination", 43);
+          if (route_value["via"]) route.via = text(route_value["via"], route_path + ".via", 39);
+          attachment.routes.push_back(std::move(route));
+        }
+      }
       if (attachment.kind == AttachmentKind::mirror) {
         if (!attachment.network.empty() || !attachment.address.empty() || !attachment.mac.empty() ||
             !attachment.peer.empty())
@@ -1103,6 +1123,10 @@ class ConfigParser {
       } else if (attachment.network.empty()) {
         error(path + ".network", "is required except for mirror attachments");
       }
+      if (attachment.kind == AttachmentKind::container_veth &&
+          (attachment.interface.empty() || attachment.peer.empty() ||
+           attachment.network_switch.empty()))
+        error(path, "container_veth requires interface, peer, and switch");
       if (attachment.kind == AttachmentKind::namespace_veth &&
           (attachment.interface.empty() || attachment.peer.empty() ||
            attachment.network_switch.empty() || attachment.address.empty()))
@@ -1134,12 +1158,17 @@ class ConfigParser {
   void parse_deployment(const YAML::Node& deployment, GraphConfig& config) {
     if (!deployment) return;
     if (!require_map(deployment, "deployment")) return;
-    strict_keys(deployment, "deployment", {"network", "services", "telemetry"});
+    strict_keys(deployment, "deployment", {"network", "project", "services", "telemetry"});
     if (deployment["network"])
       config.deployment.network = text(deployment["network"], "deployment.network", 128);
     if (config.version == 2 && deployment["network"])
       error("deployment.network",
             "version 2 forbids Docker/Compose data-plane membership; use network.attachments");
+    if (deployment["project"])
+      config.deployment.project = text(deployment["project"], "deployment.project", 63);
+    if (!config.deployment.project.empty() &&
+        !std::regex_match(config.deployment.project, std::regex("^[a-z0-9][a-z0-9_-]*$")))
+      error("deployment.project", "must be a lowercase Docker Compose project name");
 
     const auto services = deployment["services"];
     if (services && require_map(services, "deployment.services")) {
@@ -1727,6 +1756,8 @@ class ConfigParser {
     if (config.version == 2) {
       std::unordered_set<std::string> placed_nodes;
       for (const auto& service : config.deployment.services) placed_nodes.insert(service.node_id);
+      std::unordered_set<std::string> container_peers;
+      std::unordered_set<std::string> container_targets;
       for (std::size_t index = 0; index < infrastructure.attachments.size(); ++index) {
         const auto& attachment = infrastructure.attachments[index];
         const auto path = "network.attachments[" + std::to_string(index) + "]";
@@ -1759,6 +1790,21 @@ class ConfigParser {
             if (node == config.nodes.end() || !placed_nodes.contains(attachment.owner) ||
                 node->runtime == "qemu")
               error(path + ".owner", "container_veth owner must be a deployed non-QEMU node");
+            if (config.deployment.project.empty())
+              error("deployment.project", "is required when container_veth attachments exist");
+            if (!container_peers.insert(attachment.peer).second)
+              error(path + ".peer", "must be unique for container_veth host interfaces");
+            if (!container_targets.insert(attachment.owner + "\n" + attachment.interface).second)
+              error(path + ".interface", "must be unique within its container owner");
+            for (std::size_t route_index = 0; route_index < attachment.routes.size();
+                 ++route_index) {
+              const auto& route = attachment.routes[route_index];
+              const auto route_path = path + ".routes[" + std::to_string(route_index) + "]";
+              if (!ipv4_cidr(route.destination))
+                error(route_path + ".destination", "must be an IPv4 CIDR");
+              if (!route.via.empty() && !ipv4_address(route.via))
+                error(route_path + ".via", "must be an IPv4 address");
+            }
             break;
           case AttachmentKind::namespace_veth:
             if (router == infrastructure.routers.end() ||

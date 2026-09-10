@@ -281,11 +281,20 @@ if(GRAPHX_BUILD_TESTS)
     ${CMAKE_SOURCE_DIR}/tests/test_m3_ownership.py $<TARGET_FILE:graphx-cli>
     ${CMAKE_SOURCE_DIR})
   set_tests_properties(graphx-m3-ownership PROPERTIES TIMEOUT 30 ENVIRONMENT "GRAPHX_OVERRIDES=")
+  add_test(NAME graphx-m4-container-veth COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/test_m4_container_veth.py $<TARGET_FILE:graphx-cli>
+    ${CMAKE_SOURCE_DIR})
+  set_tests_properties(graphx-m4-container-veth PROPERTIES TIMEOUT 30
+    ENVIRONMENT "GRAPHX_OVERRIDES=")
   if(GRAPHX_ENABLE_LINUX_OVS_TESTS AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_test(NAME graphx-m3-ownership-live COMMAND ${Python3_EXECUTABLE}
       ${CMAKE_SOURCE_DIR}/tests/test_m3_ownership_live.py $<TARGET_FILE:graphx-cli>
       ${CMAKE_SOURCE_DIR})
     set_tests_properties(graphx-m3-ownership-live PROPERTIES TIMEOUT 60
+      ENVIRONMENT "GRAPHX_OVERRIDES=")
+    add_test(NAME graphx-m4-container-veth-live COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_SOURCE_DIR}/tests/test_m4_container_veth_live.py $<TARGET_FILE:graphx-cli>)
+    set_tests_properties(graphx-m4-container-veth-live PROPERTIES TIMEOUT 120
       ENVIRONMENT "GRAPHX_OVERRIDES=")
   endif()
   add_test(NAME graphx-config-projections

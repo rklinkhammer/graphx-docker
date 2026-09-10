@@ -1,48 +1,44 @@
 # GraphX implementation work package
 
-Implement **Migration M3: generic ownership and OVS lifecycle** in
-`~/workspace/graphx-docker` after the independently verified M2 boundary.
+Implement **Migration M4: managed container veth attachment** in
+`~/workspace/graphx-docker` after the independently verified M3 boundary.
 
 ## Objective
 
-Introduce persistent, identity-safe version-2 run ownership and realize only
-the OVS bridge layer. Keep normalized planning, OVS realization, endpoint
-attachment, and state persistence separate. Do not implement container or
-namespace veth attachment, QEMU TAP, profile flows, mirrors, routes, faults, or
-capture realization; those remain M4 and later.
+Keep Compose management connectivity separate from the GraphX data plane.
+Resolve managed services by verified deployment identity, attach owned veth
+pairs only through OVS, configure declared endpoint state, and fail closed on
+container or namespace replacement.
 
 ## Required implementation
 
-- Store state under `/var/lib/graphx/runs` by default, with an explicit bounded
-  override for tests.
-- Use a mode-0700 non-symlink state root, mode-0600 non-symlink state files,
-  atomic publication, and one non-blocking per-graph mutation lock.
-- Record the literal configuration SHA-256, graph ID, cryptographically random
-  owner token, lifecycle status, expected bridges, and stable OVS UUIDs.
-- Create every bridge with `datapath_type=system` and owner token, configuration
-  digest, and graph ID in OVS `external_ids` in one OVSDB transaction.
-- Refuse existing state and every unowned name collision. Never adopt a bridge
-  based on its name alone.
-- Update state after each mutation. Recover a crash between the atomic OVS
-  mutation and state update by matching intrinsic token/digest markers.
-- Preflight the complete resource set before deletion and recheck UUID and
-  markers atomically with each deletion. Preserve unrelated replacements.
-- Provide create, status, destroy, recover, and non-mutating dry-run CLI paths.
-- Keep version-1 plans and all five M0 fingerprints unchanged.
-
-The persistent resource model must leave explicit extension points for later
-ifindices, namespace inodes, container identities, TAP owners, routes, rules,
-qdiscs, captures, and process identities. Do not fabricate identities for
-resources M3 does not create.
+- Add an explicit bounded Compose project identity to version-2 deployment.
+- Require explicit host peer, target interface, OVS switch, and reviewed static
+  address for realization; support declared MAC, MTU, and endpoint routes.
+- Resolve exactly one running container by Compose project and service labels.
+  Verify its full ID, running state, PID, image, labels, and network-namespace
+  inode before publishing ownership state or mutating the host.
+- Preflight all host, OVS, and target-namespace names without adopting names.
+- Create an aliased veth pair, record both ifindices, create intrinsically marked
+  OVS Interface and Port rows, move the peer, and configure it in the recorded
+  namespace.
+- Persist OVS UUIDs, container ID, namespace inode, interface names, attachment
+  identity, and declared endpoint intent in the M3 ownership ledger extension.
+- Detect restart/replacement during status. Permit reattachment only through an
+  explicit identity-safe destroy/create cycle.
+- Roll endpoints back before bridges and recover an endpoint completed between
+  mutation and ledger update from intrinsic markers.
+- Preserve version-1 behavior and deterministic version-1 migration. Never
+  create or join a Docker data-plane network.
+- Keep namespace veth, QEMU TAP, profile flows, mirrors, general routing/policy,
+  faults, and capture realization deferred.
 
 ## Verification
 
-Test normal lifecycle, repeated create refusal, missing state, unowned
-collisions, malformed/permissive/symlink state, concurrent operations,
-configuration drift, missing owned resources, replacements with and without
-copied markers, failure rollback, hard interruption after every bridge
-mutation, recovery, repeated cleanup, and immediate retry. Prove no endpoint or
-legacy Docker command is emitted. Run portable quick, quality, sanitizer,
-fingerprint, projection, documentation, and real Lima system-OVS gates.
+Run portable configuration, schema, migration, planning, ownership, full test,
+quality, sanitizer, fingerprint, projection, and documentation gates. In Lima
+or native Linux with rootful Docker and system OVS, prove two create/status/
+destroy cycles, endpoint settings, intrinsic identities, restart detection,
+replacement preservation, interruption/recovery, and exact cleanup.
 
-Write `migration_m3_handoff.md`. Do not commit, publish, or advance to M4.
+Write `migration_m4_handoff.md`. Do not commit, publish, or advance to M5.

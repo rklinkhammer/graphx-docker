@@ -5,7 +5,10 @@
 #include <yaml-cpp/yaml.h>
 
 #include <algorithm>
+#include <cstdint>
 #include <fstream>
+#include <iomanip>
+#include <sstream>
 #include <set>
 #include <stdexcept>
 #include <string_view>
@@ -54,6 +57,37 @@ std::string attachment_id(std::string_view owner, std::string_view interface) {
   return result;
 }
 
+std::string interface_name(std::string_view prefix, std::string_view identity) {
+  std::uint64_t hash = 1469598103934665603ULL;
+  for (const auto character : identity) {
+    hash ^= static_cast<unsigned char>(character);
+    hash *= 1099511628211ULL;
+  }
+  std::ostringstream output;
+  output << prefix << std::hex << std::setfill('0') << std::setw(12) << (hash & 0xffffffffffffULL);
+  return output.str();
+}
+
+std::string switch_for_network(const GraphConfig& config, std::string_view network_id) {
+  const auto network =
+      std::ranges::find_if(config.network_infrastructure.networks,
+                           [&](const auto& candidate) { return candidate.id == network_id; });
+  if (network == config.network_infrastructure.networks.end())
+    throw std::invalid_argument("unknown container network '" + std::string(network_id) + "'");
+  if (network->parent.empty()) return interface_name("gxb", network_id);
+  std::string result;
+  for (const auto& network_switch : config.network_infrastructure.switches)
+    for (const auto& port : network_switch.ports)
+      if (port.peer == network->parent) {
+        if (!result.empty() && result != network_switch.id)
+          throw std::invalid_argument("ambiguous OVS switch for container network '" +
+                                      std::string(network_id) + "'");
+        result = network_switch.id;
+      }
+  if (result.empty()) return interface_name("gxb", network_id);
+  return result;
+}
+
 void append_attachment(YAML::Node& attachments, std::set<std::string>& ids,
                        const AttachmentDefinition& attachment) {
   if (!ids.insert(attachment.id).second)
@@ -68,6 +102,7 @@ void append_attachment(YAML::Node& attachments, std::set<std::string>& ids,
   if (!attachment.interface.empty()) item["interface"] = attachment.interface;
   if (!attachment.peer.empty()) item["peer"] = attachment.peer;
   if (!attachment.network_switch.empty()) item["switch"] = attachment.network_switch;
+  if (attachment.mtu != 1500) item["mtu"] = attachment.mtu;
   attachments.push_back(item);
 }
 
@@ -109,6 +144,7 @@ std::string migrate_config_v1_to_v2(const std::filesystem::path& source) {
 
     YAML::Node attachments(YAML::NodeType::Sequence);
     std::set<std::string> attachment_ids;
+    std::set<std::string> synthetic_switches;
     for (const auto& interface : config.network_infrastructure.interfaces) {
       AttachmentDefinition attachment;
       attachment.id = attachment_id(interface.owner, interface.id);
@@ -117,6 +153,15 @@ std::string migrate_config_v1_to_v2(const std::filesystem::path& source) {
       attachment.network = interface.network;
       attachment.address = interface.address;
       attachment.mac = interface.mac;
+      if (attachment.kind == AttachmentKind::container_veth) {
+        attachment.interface = interface_name("gxc", attachment.id);
+        attachment.peer = interface_name("gxh", attachment.id);
+        attachment.network_switch = switch_for_network(config, interface.network);
+        if (std::ranges::none_of(
+                config.network_infrastructure.switches,
+                [&](const auto& candidate) { return candidate.id == attachment.network_switch; }))
+          synthetic_switches.insert(attachment.network_switch);
+      }
       append_attachment(attachments, attachment_ids, attachment);
     }
     for (const auto& router : config.network_infrastructure.routers) {
@@ -148,9 +193,20 @@ std::string migrate_config_v1_to_v2(const std::filesystem::path& source) {
       append_attachment(attachments, attachment_ids, attachment);
     }
     network.remove("interfaces");
+    for (const auto& name : synthetic_switches) {
+      YAML::Node network_switch;
+      network_switch["id"] = name;
+      network_switch["kind"] = "openvswitch";
+      network_switch["datapath"] = "system";
+      network_switch["ports"] = YAML::Node(YAML::NodeType::Sequence);
+      network["switches"].push_back(network_switch);
+    }
     if (attachments.size() > 0) network["attachments"] = attachments;
   }
-  if (root["deployment"]) root["deployment"].remove("network");
+  if (root["deployment"]) {
+    root["deployment"].remove("network");
+    root["deployment"]["project"] = config.id;
+  }
 
   YAML::Emitter output;
   output.SetIndent(2);

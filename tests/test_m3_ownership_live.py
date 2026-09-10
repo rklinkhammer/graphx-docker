@@ -50,10 +50,23 @@ def main() -> int:
     with tempfile.TemporaryDirectory(prefix="graphx-m3-live-", dir="/var/tmp") as raw:
         temporary = Path(raw)
         config = temporary / "mixed-v2.yaml"
-        config.write_text(run(
-            graphx, "config", "migrate",
-            root / "examples" / "mixed-network" / "graphx.yaml",
-        ).stdout, encoding="utf-8")
+        # Keep this M3 regression bridge-only now that migrated container
+        # attachments are intentionally realized by M4.
+        config.write_text("""\
+version: 2
+graph:
+  id: mixed-network
+  nodes:
+    - { id: observer, kind: external, runtime: external, lifecycle: external, ports: [] }
+  edges: []
+transport: {}
+network:
+  networks: []
+  switches:
+    - { id: br-gx-mac, kind: openvswitch, datapath: system, ports: [] }
+    - { id: br-gx-ipv, kind: openvswitch, datapath: system, ports: [] }
+  attachments: []
+""", encoding="utf-8")
 
         missing_root = temporary / "missing-state"
         status = run(

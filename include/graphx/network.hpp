@@ -44,6 +44,13 @@ struct NetworkDefinition {
   bool external{true};
 };
 
+struct RouteDefinition {
+  std::string destination;
+  std::string via;
+  std::string device;
+  bool install_on_create{true};
+};
+
 struct AttachmentDefinition {
   std::string id;
   AttachmentKind kind{AttachmentKind::external};
@@ -54,6 +61,8 @@ struct AttachmentDefinition {
   std::string interface;
   std::string peer;
   std::string network_switch;
+  std::uint32_t mtu{1500};
+  std::vector<RouteDefinition> routes;
 };
 
 struct NetworkInterfaceDefinition {
@@ -83,13 +92,6 @@ struct SwitchDefinition {
   std::string datapath{"system"};
   std::vector<SwitchPortDefinition> ports;
   std::optional<MirrorDefinition> mirror;
-};
-
-struct RouteDefinition {
-  std::string destination;
-  std::string via;
-  std::string device;
-  bool install_on_create{true};
 };
 
 struct PolicyDefinition {

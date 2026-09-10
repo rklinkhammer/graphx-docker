@@ -53,9 +53,8 @@ def main() -> int:
                 "external_ids:graphx_config_hash=" in create and
                 "external_ids:graphx_graph=mixed-network" in create,
                 "dry-run ownership markers")
-        require("docker network" not in create and "ip link" not in create and
-                "add-port" not in create and "Mirror" not in create,
-                "M3 does not cross the endpoint or legacy boundary")
+        require("docker network" not in create and "Mirror" not in create,
+                "M3 bridge ownership remains free of legacy Docker networks and later mirrors")
         digest = re.search(r"graphx_config_hash=([0-9a-f]{64})", create)
         require(digest is not None, "configuration SHA-256")
         require(not state.exists(), "dry-run does not create state")

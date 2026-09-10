@@ -55,6 +55,7 @@
       "additionalProperties": false,
       "properties": {
         "network": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "project": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$" },
         "services": {
           "type": "object",
           "additionalProperties": { "$ref": "#/$defs/service" }
@@ -336,6 +337,10 @@
           "else": { "required": ["network"] }
         },
         {
+          "if": { "properties": { "kind": { "const": "container_veth" } }, "required": ["kind"] },
+          "then": { "required": ["interface", "peer", "switch"] }
+        },
+        {
           "if": { "properties": { "kind": { "const": "namespace_veth" } }, "required": ["kind"] },
           "then": { "required": ["address", "interface", "peer", "switch"] }
         }
@@ -349,7 +354,18 @@
         "mac": { "type": "string", "pattern": "^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$" },
         "interface": { "type": "string", "minLength": 1, "maxLength": 15 },
         "peer": { "type": "string", "minLength": 1, "maxLength": 15 },
-        "switch": { "type": "string", "minLength": 1, "maxLength": 15 }
+        "switch": { "type": "string", "minLength": 1, "maxLength": 15 },
+        "mtu": { "type": "integer", "minimum": 576, "maximum": 9216 },
+        "routes": {
+          "type": "array",
+          "items": {
+            "type": "object", "additionalProperties": false, "required": ["destination"],
+            "properties": {
+              "destination": { "type": "string", "minLength": 1, "maxLength": 43 },
+              "via": { "type": "string", "minLength": 1, "maxLength": 39 }
+            }
+          }
+        }
       }
     },
     "routerInterface": {
