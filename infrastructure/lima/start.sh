@@ -39,4 +39,18 @@ esac
 "${GRAPHX_M1_RUNNER}" 120 limactl shell --workdir "${GRAPHX_M1_GUEST_ROOT}" \
   "${GRAPHX_M1_INSTANCE}" -- \
   sudo bash -c 'test "$1" = "$(cat /etc/graphx-m1-config.sha256)"' _ "${config_digest}"
+
+# Lima establishes its initial SSH control session before system provisioning
+# adds the login user to the docker group. Refresh the VM once when that session
+# still has the pre-provisioning supplementary groups, then fail closed if the
+# documented non-sudo Docker workflow is not available.
+if ! "${GRAPHX_M1_RUNNER}" 120 limactl shell --workdir "${GRAPHX_M1_GUEST_ROOT}" \
+  "${GRAPHX_M1_INSTANCE}" -- docker info >/dev/null 2>&1; then
+  echo "Refreshing the Lima login session for Docker group membership..."
+  "${GRAPHX_M1_RUNNER}" 300 limactl stop "${GRAPHX_M1_INSTANCE}"
+  "${GRAPHX_M1_RUNNER}" 1800 limactl start "${GRAPHX_M1_INSTANCE}"
+fi
+"${GRAPHX_M1_RUNNER}" 120 limactl shell --workdir "${GRAPHX_M1_GUEST_ROOT}" \
+  "${GRAPHX_M1_INSTANCE}" -- bash -c \
+  'docker info >/dev/null && docker buildx version >/dev/null'
 echo "GraphX M1 is running. Verify it with ${script_dir}/verify.sh"

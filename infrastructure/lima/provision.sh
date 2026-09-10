@@ -10,7 +10,7 @@ set -euo pipefail
 
 export DEBIAN_FRONTEND=noninteractive
 packages=(
-  build-essential ca-certificates clang cmake curl docker-compose-v2 docker.io
+  build-essential ca-certificates clang cmake curl docker-buildx docker-compose-v2 docker.io
   gnupg iproute2 jq libssl-dev libyaml-cpp-dev nftables ninja-build nodejs npm
   openvswitch-switch openssl pkg-config python3 python3-jsonschema python3-yaml
   qemu-system-arm qemu-system-ppc qemu-system-x86 qemu-utils tcpdump tshark
@@ -68,6 +68,8 @@ systemctl enable docker.service docker.socket openvswitch-switch.service
 systemctl restart docker.service openvswitch-switch.service
 timeout 60 bash -c 'until systemctl is-active --quiet docker.service; do sleep 2; done'
 timeout 60 bash -c 'until systemctl is-active --quiet openvswitch-switch.service; do sleep 2; done'
+usermod --append --groups docker "${GRAPHX_LIMA_USER}"
+timeout 60 runuser --user "${GRAPHX_LIMA_USER}" -- docker info >/dev/null
 timeout 180 docker pull hello-world:linux
 
 printf '%s\n' "${GRAPHX_M1_CONFIG_DIGEST}" >/etc/graphx-m1-config.sha256
@@ -79,5 +81,6 @@ dpkg-query -W -f='${binary:Package}\t${Version}\n' "${packages[@]}" \
   printf 'architecture='; dpkg --print-architecture
   printf 'config_digest=%s\n' "${GRAPHX_M1_CONFIG_DIGEST}"
   printf 'docker_probe_image='; docker image inspect hello-world:linux --format '{{index .RepoDigests 0}}'
+  printf 'docker_buildx='; docker buildx version
 } >/var/lib/graphx/m1/provisioned
 chown -R "${GRAPHX_LIMA_USER}:${GRAPHX_LIMA_USER}" /var/lib/graphx/m1

@@ -386,6 +386,13 @@ for command in docker ovs-vsctl ovs-ofctl ip tc nft tcpdump tshark qemu-system-a
 done
 [[ $(uname -m) == aarch64 ]] || fail "guest architecture is not aarch64"
 [[ $(cat /etc/graphx-m1-config.sha256) == "${GRAPHX_M1_CONFIG_DIGEST:?missing expected digest}" ]] || fail "guest configuration identity does not match"
+login_user=${GRAPHX_LIMA_USER:-${SUDO_USER:-}}
+if [[ -z ${login_user} ]]; then
+  login_user=$(stat -c %U /workspace/graphx-docker)
+fi
+[[ ${login_user} != root ]] || fail "Lima verification must be entered through the login user"
+id -nG "${login_user}" | tr ' ' '\n' | grep -Fxq docker || fail "Lima login user lacks Docker access"
+sudo -u "${login_user}" docker info >/dev/null || fail "Lima login user cannot access rootful Docker"
 mountpoint -q /workspace/graphx-docker || fail "source checkout is not mounted"
 source_type=$(findmnt -n -o FSTYPE -T /workspace/graphx-docker)
 state_type=$(findmnt -n -o FSTYPE -T /var/lib/graphx)
@@ -398,6 +405,7 @@ systemctl is-active --quiet openvswitch-switch.service || fail "Open vSwitch sys
 [[ $(docker info --format '{{.DockerRootDir}}') == /var/lib/docker ]] || fail "Docker data root is unexpected"
 install -d -m 0750 "${evidence_root}"
 docker compose version >"${evidence_root}/compose-version.txt"
+docker buildx version >"${evidence_root}/buildx-version.txt"
 ovs-vsctl --timeout=10 show >/dev/null
 
 [[ ! -e ${state_dir} ]] || fail "verifier state already exists: ${state_dir}"
@@ -509,6 +517,7 @@ compare_snapshot
   echo "source_fstype=${source_type}"
   echo "state_fstype=${state_type}"
   echo "docker=$(docker version --format '{{.Server.Version}}')"
+  echo "buildx=$(docker buildx version)"
   echo "ovs=$(ovs-vsctl --version | head -n 1)"
 } >"${evidence_dir}/result.txt"
 

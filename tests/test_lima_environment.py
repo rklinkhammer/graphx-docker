@@ -33,6 +33,10 @@ def main() -> int:
         require(token in raw, f"Lima definition omits {token}")
     require(raw.count("  - location:") == 2, "unexpected image or host mounts were added")
     require("guestSocket" not in raw and "hostSocket" not in raw, "privileged socket forwarding is forbidden")
+    require("docker buildx version >/dev/null" in raw,
+            "Lima readiness does not require the Buildx plugin")
+    require('id -nG "{{.User}}" | grep -qw docker' in raw,
+            "Lima readiness does not require login-user Docker access")
 
     scripts = [lima / name for name in ("common.sh", "provision.sh", "start.sh", "stop.sh", "verify.sh")]
     for script in scripts:
@@ -40,16 +44,27 @@ def main() -> int:
         text = script.read_text(encoding="utf-8")
         require("rm -rf" not in text and "rm -fr" not in text, f"unsafe recursive deletion in {script.name}")
     provision = (lima / "provision.sh").read_text(encoding="utf-8")
-    for token in ("docker.io", "docker-compose-v2", "openvswitch-switch", "nftables", "qemu-system-ppc", "tcpdump", "tshark", "/var/lib/graphx"):
+    for token in ("docker.io", "docker-buildx", "docker-compose-v2", "openvswitch-switch", "nftables", "qemu-system-ppc", "tcpdump", "tshark", "/var/lib/graphx"):
         require(token in provision, f"provisioning omits {token}")
+    require("docker buildx version" in provision,
+            "provisioning does not record the required Buildx plugin")
+    require('usermod --append --groups docker "${GRAPHX_LIMA_USER}"' in provision,
+            "provisioning does not grant the Lima user Docker access")
+    require('runuser --user "${GRAPHX_LIMA_USER}" -- docker info' in provision,
+            "provisioning does not prove Lima-user Docker access")
     require("install -d -m 0700 /var/lib/graphx/runs" in provision,
             "the GraphX ownership-ledger parent must enforce mode 0700")
     require(re.search(r"timeout [0-9]+", provision) is not None, "package/service operations are not bounded")
 
+    start = (lima / "start.sh").read_text(encoding="utf-8")
+    for token in ("Refreshing the Lima login session", 'limactl stop "${GRAPHX_M1_INSTANCE}"',
+                  "docker info >/dev/null && docker buildx version >/dev/null"):
+        require(token in start, f"Lima start lifecycle omits {token}")
+
     verify = (lima / "verify.sh").read_text(encoding="utf-8")
     for name in ("gx-m1-br", "gx-m1-ns", "gx-m1-vh", "gx-m1-vn", "gx-m1-tap", "gx-m1-int", "gx-m1-docker"):
         require(name in verify, f"verification omits fixed name {name}")
-    for token in ("external_ids:graphx_m1_owner", "graphx-m1:", "datapath_type=system", "ip tuntap", "netem", "nft", "tcpdump", "scripts/verify.sh quick", "GRAPHX_DEV_BUILD_DIR=/var/lib/graphx/m1/build/dev", "project graphx.yaml --check", "snapshot before", "snapshot after"):
+    for token in ("external_ids:graphx_m1_owner", "graphx-m1:", "datapath_type=system", "ip tuntap", "netem", "nft", "tcpdump", "docker buildx version", "Lima login user cannot access rootful Docker", "scripts/verify.sh quick", "GRAPHX_DEV_BUILD_DIR=/var/lib/graphx/m1/build/dev", "project graphx.yaml --check", "snapshot before", "snapshot after"):
         require(token in verify, f"verification omits {token}")
     require("/workspace/graphx-docker" in verify and "/var/lib/graphx" in verify, "storage boundary is not verified")
     require("GRAPHX_M1_TEST_FAIL_AFTER" in verify, "bounded failure injection hook is missing")

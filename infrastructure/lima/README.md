@@ -48,8 +48,13 @@ infrastructure/lima/stop.sh
 `start.sh` validates the template and creates or starts only the fixed `graphx`
 instance. It refuses an existing instance whose architecture, virtualization
 type, source path, or configuration digest differs. Provisioning is idempotent,
-bounded, records installed package versions, and leaves Docker and OVS as
-systemd-managed rootful services.
+bounded, records installed package versions, installs Docker Compose and
+Buildx for the repository's BuildKit Dockerfiles, and leaves Docker and OVS as
+systemd-managed rootful services. The Lima login user is added to the `docker`
+group because the checked-in build and example scripts invoke Docker directly;
+that group is root-equivalent inside this dedicated development VM. On initial
+creation, `start.sh` performs one bounded VM restart if needed to replace Lima's
+pre-provisioning SSH session and activate the new supplementary group.
 
 `verify.sh` rejects occupied fixed names, then creates a disposable
 `gx-m1-*` OVS/namespace/veth/TAP topology. It verifies system-datapath packet

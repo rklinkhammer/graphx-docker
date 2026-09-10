@@ -7,6 +7,10 @@ source "$repo_dir/scripts/configure-build-trust.sh"
 
 command -v docker >/dev/null || { echo "Missing required command: docker" >&2; exit 2; }
 docker info >/dev/null 2>&1 || { echo "Docker is not available" >&2; exit 2; }
+docker buildx version >/dev/null 2>&1 || {
+  echo "Docker Buildx is required for the BuildKit QEMU builder image" >&2
+  exit 2
+}
 
 builder_image="${GRAPHX_QEMU_BUILDER_IMAGE:-graphx-qemu-builder:2025.02.17}"
 build=(docker build --file "$example_dir/build-env/Dockerfile"

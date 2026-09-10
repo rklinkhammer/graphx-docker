@@ -48,6 +48,8 @@ probes:
       test -f /var/lib/graphx/m1/provisioned
       systemctl is-active --quiet docker.service
       systemctl is-active --quiet openvswitch-switch.service
+      docker buildx version >/dev/null
+      id -nG "{{.User}}" | grep -qw docker
       test "$(cat /etc/graphx-m1-config.sha256)" = "{{.Param.configDigest}}"
     hint: Inspect /var/log/cloud-init-output.log and run infrastructure/lima/provision.sh in the guest.
 

@@ -17,10 +17,11 @@ python3 -m py_compile "$example_dir/host/peer.py" \
   "$example_dir/host/relay.py" "$example_dir/tools/capture_history.py" \
   "$example_dir/tools/packet_observer.py" "$example_dir/tools/query_history.py" \
   "$example_dir/tools/qmp_control.py" "$example_dir/tools/artifact_manifest.py"
-bash -n "$example_dir/scripts/demo-profile.sh" \
+bash -n "$example_dir/scripts/build.sh" "$example_dir/scripts/demo-profile.sh" \
   "$example_dir/scripts/inspect-capture.sh" \
   "$example_dir/external/scripts/demo.sh" "$example_dir/container/scripts/demo.sh" \
   "$example_dir/container/qemu-entrypoint.sh" "$example_dir/container/qemu-healthcheck.sh"
+grep -q 'docker buildx version' "$example_dir/scripts/build.sh"
 
 python3 - "$test_dir/fixture.pcap" <<'PY'
 import socket
