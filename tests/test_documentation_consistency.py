@@ -82,7 +82,7 @@ def main() -> int:
         "M5 adds owned router namespaces",
         "semantic profile flows",
         "M6 adds GraphX-owned TAP lifecycle",
-        "declarative capture/fault ownership remains deferred to M7",
+        "M7 adds bounded declarative Ethernet capture",
     ):
         if required not in normalized_architecture:
             fail(f"architecture does not describe the accepted M5 boundary: {required}")

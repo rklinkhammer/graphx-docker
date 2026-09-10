@@ -10,6 +10,8 @@ deployment, observability, and GUI/control. The versioned `network` section of
 - `routers`: Linux namespace or container router interfaces, routes, forwarding,
   and backend-neutral policies;
 - `edge_paths`: ordered infrastructure hops for each logical GraphX edge.
+- `captures`: bounded Ethernet PCAPNG observers attached to mirror endpoints;
+- `faults`: bounded, timed netem profiles attached to realized veth/TAP endpoints.
 
 The C++ loader validates references, IPv4 subnet membership, MAC syntax, VLAN
 ranges, mirror output ports, router interfaces, and graph-edge path hops. The
@@ -17,10 +19,12 @@ ranges, mirror output ports, router interfaces, and graph-edge path hops. The
 
 ## Infrastructure lifecycle
 
-On native Linux, `graphx infra create` creates veth pairs, OVS bridges and ports,
-router namespaces, addresses, forwarding, nftables hooks, mirrors, and external
-Docker networks. Container deployment remains a separate step. `destroy` reverses
-that boundary and `status` shows OVS, namespace, qdisc, nftables, and Docker state.
+On native Linux, the version-2 `graphx infra create` lifecycle creates and
+identity-records OVS bridges/ports, veth or TAP endpoints, router namespaces,
+addresses, forwarding, nftables policy, mirrors, bounded capture processes, and
+timed qdiscs. Container deployment remains separate. `destroy` verifies exact
+kernel, OVS, process, directory, and qdisc identities before changing anything.
+`status` reports drift, active capture, and active or expired faults.
 
 Commands are executed without a shell. Review the exact plan on any platform:
 
@@ -28,8 +32,9 @@ Commands are executed without a shell. Review the exact plan on any platform:
 ./build/dev/graphx infra create examples/mixed-network/graphx.yaml --dry-run
 ```
 
-The provisioner targets clean development labs. It does not yet persist state,
-reconcile drift, or roll back a partially failed create operation.
+The lifecycle persists an owner-token ledger beneath its state directory and
+rolls back partial creates. It intentionally does not reconcile replacement
+resources: identity drift fails closed and requires explicit recovery.
 
 Focused examples are available for a single macvlan domain, three independently
 routed IPvlan L2 domains, and three IPvlan L3 subnet domains in one external
@@ -53,7 +58,42 @@ sudo ./build/dev/graphx infra route clear examples/static-route-policy/graphx.ya
 Use `--dry-run` without sudo on any platform for inspection. Runtime route,
 policy, OVS, and packet claims require the native-Linux lab procedure.
 
-## Faults and inspection
+## Declarative capture and faults
+
+Version-2 captures name a `mirror` attachment and a directory beneath
+`/var/lib/graphx/captures`, whose root-owned boundary and contents are VM-local
+storage in Lima. Size, file-count,
+rotation-time, retention, and snap-length bounds are mandatory and strictly
+validated. Each run uses a root-owned mode-0700 owner-specific directory whose
+device, inode, UID, GID, and mode are recorded and rechecked. Capture files must
+remain root-owned and non-writable by group or other. Destroy stops only the
+recorded dumpcap process, removes every write bit from the identity-checked
+root-owned capture files, and then seals that session mode 0550; the bounded
+evidence is intentionally retained. Expired, unmodified owner-shaped sessions
+are pruned on the next create only when every approved file remains root-owned,
+single-link, and read-only; unexpected files or identity changes are never
+removed as retention cleanup.
+
+Export one complete PCAPNG snapshot without exposing the live directory:
+
+```sh
+sudo ./build/dev/graphx infra capture export \
+  examples/network-observability/graphx.yaml --capture ovs-ethernet \
+  --output /tmp/ovs-ethernet.pcapng
+```
+
+Export refuses an existing or symlink destination and rejects incomplete,
+oversized, replaced, or unhealthy capture state. Ethernet PCAPNG remains a
+separate trust domain from application-level GraphX LINKTYPE_USER0 capture.
+
+Declarative faults target a realized `container_veth`, `namespace_veth`, or
+`qemu_tap`. The lifecycle records the interface ifindex, exact netem text, and
+an identity-checked timer plus the current boot identity and monotonic
+application/expiry deadline. Status reports `active` until automatic expiry and
+`expired` afterward. A missing timer/qdisc before the recorded deadline, a boot
+change, or an unrelated replacement qdisc fails closed.
+
+The earlier explicit operational command remains available for manual labs:
 
 `graphx infra fault apply` places `tc netem` on a selected router interface:
 
@@ -67,6 +107,8 @@ sudo ./build/dev/graphx infra fault clear examples/mixed-network/graphx.yaml \
 Each OVS bridge has a SPAN output. The native example exposes `cap-mac` and
 `cap-ipv`; the macOS container exposes `mirror-mac` and `mirror-ipv` internally.
 Use `tcpdump`, `dumpcap`, or Wireshark against those interfaces.
+
+See `examples/network-observability` for the M7 declarative form.
 
 ## macOS execution model
 

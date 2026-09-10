@@ -14,6 +14,7 @@ export function EdgeInspector({ edge, networkPath, observationToken }) {
       <div><dt>Framing</dt><dd>{d.framing === 'none' ? 'None · raw application traffic' : 'u32 big-endian'}</dd></div>
       <div><dt>Observation</dt><dd>{d.observationSource || 'runtime telemetry'}</dd></div>
       {d.diagnosticState && <div><dt>Network diagnostic</dt><dd>{d.diagnosticState} · {d.diagnosticEvidence}</dd></div>}
+      {d.diagnosticLayer && <div><dt>Failure layer</dt><dd>{d.diagnosticLayer}</dd></div>}
     </dl>
     <div className="metric-grid">
       <div><Waves/><span>Throughput</span><strong>{d.rate}</strong></div>

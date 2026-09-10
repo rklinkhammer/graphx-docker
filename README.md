@@ -468,8 +468,9 @@ path; selecting a logical edge highlights its macvlan/OVS/router/OVS/ipvlan path
 Migration never edits the source and refuses to overwrite an existing output.
 Review and validate the generated version-2 file before adopting it. Version-2
 `infra` commands use the M3/M4 ownership lifecycle for OVS bridges and fully
-declared `container_veth` attachments. Route and fault commands outside those
-container endpoint declarations remain deferred.
+declared veth/TAP attachments. M7 additionally owns bounded mirror captures and
+timed endpoint faults. See `examples/network-observability` for lifecycle,
+status, exclusive PCAPNG export, and cleanup commands.
 
 The configuration path defaults to `graphx.yaml` and can be set with
 `GRAPHX_CONFIG`. Scalar overrides use existing dotted paths. Precedence is:

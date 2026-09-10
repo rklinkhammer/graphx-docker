@@ -50,6 +50,8 @@ install -d -m 0700 /var/lib/graphx/runs
 install -d -m 0750 /var/lib/graphx/captures /var/lib/graphx/m1 /var/lib/graphx/m1/evidence
 install -d -m 0755 /var/log/graphx
 chown -R "${GRAPHX_LIMA_USER}:${GRAPHX_LIMA_USER}" /var/lib/graphx /var/log/graphx
+chown root:root /var/lib/graphx/captures
+chmod 0750 /var/lib/graphx/captures
 
 # M6 runs QEMU without root while GraphX retains privileged ownership of the
 # TAP/OVS lifecycle. Keep this numeric identity aligned with tap_uid/tap_gid in

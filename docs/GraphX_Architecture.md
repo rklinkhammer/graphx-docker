@@ -16,7 +16,7 @@ GraphX is an educational, configuration-driven framework for describing a direct
 5. the **observability model** says what is measured, retained, exported, and captured; and
 6. the **control and GUI plane** presents those models and applies narrowly scoped runtime commands.
 
-The versioned `graphx.yaml` file is the authoritative source for these views. Version 1 retains the implemented Docker-driver data plane. Version 2 expresses OVS semantic profiles and typed attachment intent; M3 realizes identity-owned OVS bridges, M4 attaches verified managed containers with owned veth pairs, M5 realizes namespace veths, mirrors, router forwarding/routes/policy, semantic profile flows, and the migrated network laboratories, and M6 adds identity-owned QEMU TAP endpoints with exact non-root access. The C++ loader and the telemetry service both validate and normalize configuration, while the browser derives its Application and Network views from the normalized topology instead of keeping a second topology definition.
+The versioned `graphx.yaml` file is the authoritative source for these views. Version 1 retains the implemented Docker-driver data plane. Version 2 expresses OVS semantic profiles and typed attachment intent; M3 realizes identity-owned OVS bridges, M4 attaches verified managed containers with owned veth pairs, M5 realizes namespace veths, mirrors, router forwarding/routes/policy, semantic profile flows, and the migrated network laboratories, M6 adds identity-owned QEMU TAP endpoints with exact non-root access, and M7 owns bounded mirror capture and timed netem faults. The C++ loader and the telemetry service both validate and normalize configuration, while the browser derives its Application and Network views from the normalized topology instead of keeping a second topology definition.
 
 GraphX supports five GraphX-aware transports—bounded in-process queues, TCP, Unix-domain sockets, POSIX shared memory, and IPv4 UDP—and also represents external raw TCP/UDP edges that GraphX observes but does not instantiate. The same canonical GraphX envelope and `u32be` frame are used by the stream transports, shared memory, UDP datagrams, application capture, and Wireshark tooling. Raw external edges use `framing: none` and are deliberately rejected by the GraphX transport factory.
 
@@ -26,7 +26,7 @@ The QEMU examples prove a second important boundary: an application does not nee
 
 Observability is intentionally best effort and bounded. Runtime events update live WebSocket topology, Prometheus metrics, rolling SLO state, optional OTLP export, optional SQLite metadata history, and capture correlation. GraphX application PCAPNG and standard Ethernet PCAPNG are complementary: the former explains envelopes; the latter explains the real network path. The GUI ties these artifacts together by edge identity, message identity where available, filenames, packet indexes, and capture offsets.
 
-The architecture is suitable for reproducible laboratories and controlled demonstrations. Its present limits are equally important: GraphX-managed execution allows only DAGs (external raw device relationships may loop); version-2 realization owns OVS bridges, container and namespace veth endpoints, QEMU TAP endpoints, mirrors, router state, and semantic profile flows, but not declarative capture/fault processes; infrastructure provisioning is create/destroy rather than reconciliation; UDP is bounded but unreliable; multicast remains one logical producer-to-consumer edge; capture does not rotate automatically; OVS and application captures are not automatically cross-correlated; the older QEMU profiles still use user-mode networking for compatibility; and the telemetry/control system is a single-collector control domain rather than a distributed control plane.
+The architecture is suitable for reproducible laboratories and controlled demonstrations. Its present limits are equally important: GraphX-managed execution allows only DAGs (external raw device relationships may loop); infrastructure provisioning is create/destroy rather than reconciliation; UDP is bounded but unreliable; multicast remains one logical producer-to-consumer edge; OVS and application captures are intentionally separate and are not automatically cross-correlated; fault realization currently supports timed netem rather than OVS drop rules; the older QEMU profiles still use user-mode networking for compatibility; and the telemetry/control system is a single-collector control domain rather than a distributed control plane.
 
 For Apple Silicon development, Migration M1 adds an optional Lima ARM64 Linux
 execution environment. The VM contains rootful Docker, system OVS, Linux
@@ -42,8 +42,9 @@ M5 adds owned router namespaces, namespace veths, mirrors, forwarding, routes,
 nftables policy, semantic profile flows, and migrated OVS laboratories.
 M6 adds GraphX-owned TAP lifecycle, exact UID/GID access for non-root QEMU,
 access/trunk VLAN realization, QMP pause/resume, and OVS SPAN evidence. Version 1
-and QEMU slirp remain compatibility paths, while declarative capture/fault
-ownership remains deferred to M7.
+and QEMU slirp remain compatibility paths. M7 adds bounded declarative Ethernet
+capture, timed netem ownership, safe snapshot export, and
+policy/route/link/attachment/application diagnostics.
 
 ## 1. Scope and architectural principles
 
@@ -273,7 +274,7 @@ flowchart LR
   NS --> K[sink\n10.41.3.30]
 ```
 
-This topology makes switching, routing, security policy, fault injection, and observation points explicit. It is particularly useful when testing where packet loss or a route/policy error occurs.
+This topology makes switching, routing, security policy, fault injection, and observation points explicit. M7 diagnostics identify policy, route, link, attachment, and application failure layers rather than collapsing them into generic disconnection.
 
 ### 7.6 IPvlan L3
 
@@ -313,7 +314,7 @@ The first logical edge crosses both domains; the second remains inside the IPvla
 
 Only Open vSwitch is presently modeled. Ports may identify a host interface/veth peer and carry access-tag or trunk metadata. A switch can mirror all selected traffic to an output port. Standard Ethernet capture should occur on those SPAN interfaces, not through the GraphX application capture writer.
 
-Routers can be Linux namespaces or containers. They expose named interfaces, routes, forwarding, and backend-neutral source/destination/action policies realized with nftables in the native implementation. `tc netem` can apply bounded delay, jitter, loss, and rate behavior to a selected router interface; it is an operational action, not a permanent graph property.
+Routers can be Linux namespaces or containers. They expose named interfaces, routes, forwarding, and backend-neutral source/destination/action policies realized with nftables in the native implementation. M7 declarations apply bounded delay, jitter, loss, and rate behavior to a selected realized endpoint for a mandatory duration; the recorded netem qdisc self-expires and remains exactly cleanable.
 
 ### 7.9 Static-route and deny-policy laboratory
 
@@ -614,7 +615,9 @@ kernel evidence.
 - Shared memory is SPSC, fixed-size, copy-based, and sensitive to IPC namespace design.
 - Unix-domain transport accepts one peer for its v1 listener lifetime.
 - Telemetry and control are single-collector; pending commands do not survive restart.
-- Capture stops at its limit; it does not rotate, index, or enforce an external retention workflow.
+- Application USER0 capture stops at its limit; M7 Ethernet mirror capture uses
+  a bounded rotating ring and retains sealed sessions for an external evidence
+  retention workflow.
 - GraphX application PCAPNG uses private USER0 and requires a dedicated Wireshark profile.
 - OVS Ethernet and GraphX application captures are not automatically correlated.
 - QEMU slirp compatibility profiles do not model physical L2; the M6 TAP profile covers OVS L2/VLAN behavior but not physical-network attachment or guest-native GraphX control.
@@ -703,7 +706,8 @@ legacy simulation. Version-2 create, status, destroy, and interrupted-create
 recovery use the ownership ledger. Managed containers use veth without Docker
 data-plane networks; M5 router namespaces, mirrors, policy, and IPvlan flows use
 the same system-OVS path on native Linux and in Lima. M6 QEMU uses an owned TAP
-on that path. Declarative fault and capture ownership remain M7.
+on that path. M7 integrates declarative mirror capture and timed netem
+ownership on that same identity-checked lifecycle.
 
 ### Completed documentation and consistency foundation
 

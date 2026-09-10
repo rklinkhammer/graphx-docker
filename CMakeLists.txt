@@ -309,6 +309,10 @@ if(GRAPHX_BUILD_TESTS)
       ${CMAKE_SOURCE_DIR}/tests/test_m6_qemu_tap_live.py $<TARGET_FILE:graphx-cli>)
     set_tests_properties(graphx-m6-qemu-tap-live PROPERTIES TIMEOUT 120
       ENVIRONMENT "GRAPHX_OVERRIDES=")
+    add_test(NAME graphx-m7-network-observability-live COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_SOURCE_DIR}/tests/test_m7_network_observability_live.py $<TARGET_FILE:graphx-cli>)
+    set_tests_properties(graphx-m7-network-observability-live PROPERTIES TIMEOUT 180
+      ENVIRONMENT "GRAPHX_OVERRIDES=")
   endif()
   add_test(NAME graphx-config-projections
     COMMAND graphx-cli project ${CMAKE_SOURCE_DIR}/graphx.yaml --check
@@ -373,6 +377,15 @@ if(GRAPHX_BUILD_TESTS)
       $<TARGET_FILE:graphx-cli> ${CMAKE_SOURCE_DIR})
   set_tests_properties(graphx-m6-qemu-tap PROPERTIES
     TIMEOUT 30 ENVIRONMENT "GRAPHX_OVERRIDES=")
+  add_test(NAME graphx-m7-network-observability
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_m7_network_observability.py
+      $<TARGET_FILE:graphx-cli> ${CMAKE_SOURCE_DIR})
+  set_tests_properties(graphx-m7-network-observability PROPERTIES
+    TIMEOUT 30 ENVIRONMENT "GRAPHX_OVERRIDES=")
+  add_test(NAME graphx-config-network-observability
+    COMMAND graphx-cli validate ${CMAKE_SOURCE_DIR}/examples/network-observability/graphx.yaml)
+  set_tests_properties(graphx-config-network-observability PROPERTIES
+    ENVIRONMENT "GRAPHX_OVERRIDES=")
   add_test(NAME graphx-config-qemu-external
     COMMAND graphx-cli validate ${CMAKE_SOURCE_DIR}/examples/qemu-node/external/graphx.yaml)
   add_test(NAME graphx-config-qemu-container

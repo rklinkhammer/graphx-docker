@@ -54,6 +54,8 @@ def main() -> int:
             "provisioning does not prove Lima-user Docker access")
     require("install -d -m 0700 /var/lib/graphx/runs" in provision,
             "the GraphX ownership-ledger parent must enforce mode 0700")
+    require("chown root:root /var/lib/graphx/captures" in provision,
+            "dumpcap storage root is not provisioned with root ownership")
     require(re.search(r"timeout [0-9]+", provision) is not None, "package/service operations are not bounded")
 
     start = (lima / "start.sh").read_text(encoding="utf-8")

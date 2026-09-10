@@ -127,6 +127,30 @@ struct EdgeNetworkPath {
   std::vector<std::string> hops;
 };
 
+// M7 network observation is deliberately separate from application USER0
+// capture. These definitions describe Ethernet frames emitted by an owned OVS
+// mirror attachment and retained on the Linux host/VM native filesystem.
+struct NetworkCaptureDefinition {
+  std::string id;
+  std::string attachment;
+  std::string directory;
+  std::uint32_t snaplen{65535};
+  std::uint64_t max_file_bytes{64ULL * 1024 * 1024};
+  std::uint32_t max_files{4};
+  std::uint32_t rotation_seconds{300};
+  std::uint32_t retention_seconds{86400};
+};
+
+struct NetworkFaultDefinition {
+  std::string id;
+  std::string attachment;
+  std::uint32_t delay_ms{};
+  std::uint32_t jitter_ms{};
+  double loss_percent{};
+  std::uint32_t rate_kbit{};
+  std::uint32_t duration_seconds{30};
+};
+
 struct NetworkInfrastructureConfig {
   std::vector<NetworkDefinition> networks;
   std::vector<SwitchDefinition> switches;
@@ -134,6 +158,8 @@ struct NetworkInfrastructureConfig {
   std::vector<NetworkInterfaceDefinition> interfaces;
   std::vector<AttachmentDefinition> attachments;
   std::vector<EdgeNetworkPath> edge_paths;
+  std::vector<NetworkCaptureDefinition> captures;
+  std::vector<NetworkFaultDefinition> faults;
 
   [[nodiscard]] const NetworkDefinition& network(std::string_view id) const;
   [[nodiscard]] const SwitchDefinition& network_switch(std::string_view id) const;

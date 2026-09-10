@@ -14,6 +14,7 @@
 | `qemu-node` | QEMU user-mode Ethernet | external or Linux-containerized raw TCP/UDP node with PCAP and bounded SQLite packet history | Linux and macOS hosts; x86_64 guest |
 | `sdr-node` | isolated bridge simulation or macvlan + OVS/SPAN | raw UDP IQ, mutual-TLS TCP control, raw TCP results | portable simulated profile; native-Linux external profile |
 | `static-route-policy` | three OVS-backed L2 domains | namespace router, nftables deny policy, and explicit manual route | portable plan inspection; native-Linux runtime |
+| `network-observability` | one OVS domain with mirror | declarative bounded PCAPNG capture and timed netem | portable plan inspection; native Linux and Lima runtime |
 
 See the [`GraphX demo guide`](../docs/demo-guide.md) for each scenario's purpose,
 prerequisites, commands, expected evidence, and cleanup procedure. Formal macOS
@@ -38,3 +39,7 @@ The [`static-route-policy`](static-route-policy/README.md) laboratory uses
 receiver results, nftables counters, exact route state, mirrored capture, and
 GUI diagnostics to distinguish allowed, denied, missing-route, and
 route-applied outcomes.
+
+The [`network-observability`](network-observability/README.md) laboratory owns
+an OVS mirror capture and a self-expiring endpoint fault, then exports a
+complete PCAPNG snapshot from VM-local storage.

@@ -56,9 +56,12 @@ test('route-policy evidence drives bounded topology diagnostics', { timeout: 100
     assert.equal(first.topology.networkDiagnostic.routeApplied, false)
     assert.equal(first.edges['allowed-flow'].connection, 'allowed')
     assert.equal(first.edges['denied-flow'].diagnosticEvidence, 'nft-counter')
+    assert.equal(first.edges['denied-flow'].diagnosticLayer, 'policy')
     assert.equal(first.edges['routed-flow'].connection, 'missing-route')
     assert.equal(first.topology.edges.find(edge => edge.id === 'routed-flow').diagnosticState,
       'missing-route')
+    assert.equal(first.topology.edges.find(edge => edge.id === 'routed-flow').diagnosticLayer,
+      'route')
 
     await writeFile(evidence, JSON.stringify({ ...initial, updatedAt: Date.now(), routeApplied: true,
       flows: { ...initial.flows,
@@ -66,6 +69,14 @@ test('route-policy evidence drives bounded topology diagnostics', { timeout: 100
     const applied = await (await fetch(`http://127.0.0.1:${port}/api/topology`)).json()
     assert.equal(applied.edges['routed-flow'].connection, 'route-applied')
     assert.equal(applied.topology.networkDiagnostic.routeApplied, true)
+
+    await writeFile(evidence, JSON.stringify({ ...initial, updatedAt: Date.now(), flows: {
+      ...initial.flows,
+      'routed-flow': { state: 'attachment-missing', evidence: 'attachment-absent' } } }))
+    const attachment = await (await fetch(`http://127.0.0.1:${port}/api/topology`)).json()
+    assert.equal(attachment.edges['routed-flow'].diagnosticLayer, 'attachment')
+    assert.equal(attachment.topology.edges.find(edge => edge.id === 'routed-flow').diagnosticState,
+      'attachment-missing')
 
     await writeFile(evidence, JSON.stringify({ ...initial, flows: { ...initial.flows,
       'denied-flow': { state: 'policy-denied', evidence: 'route-installed' } } }))

@@ -213,6 +213,14 @@
           "type": "array", "maxItems": 262144,
           "items": { "$ref": "#/$defs/attachmentDefinition" }
         },
+        "captures": {
+          "type": "array", "maxItems": 64, "uniqueItems": true,
+          "items": { "$ref": "#/$defs/networkCapture" }
+        },
+        "faults": {
+          "type": "array", "maxItems": 64, "uniqueItems": true,
+          "items": { "$ref": "#/$defs/networkFault" }
+        },
         "edge_paths": {
           "type": "object",
           "additionalProperties": { "type": "array", "minItems": 2, "items": { "$ref": "#/$defs/id" } }
@@ -378,6 +386,37 @@
             }
           }
         }
+      }
+    },
+    "networkCapture": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "attachment", "directory"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "attachment": { "$ref": "#/$defs/id" },
+        "directory": { "type": "string", "pattern": "^/", "minLength": 1, "maxLength": 1024 },
+        "snaplen": { "type": "integer", "minimum": 256, "maximum": 262144 },
+        "max_file_bytes": { "type": "integer", "minimum": 65536, "maximum": 4294967296 },
+        "max_files": { "type": "integer", "minimum": 1, "maximum": 1024 },
+        "rotation_seconds": { "type": "integer", "minimum": 1, "maximum": 86400 },
+        "retention_seconds": { "type": "integer", "minimum": 1, "maximum": 31536000 }
+      }
+    },
+    "networkFault": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "attachment", "duration_seconds"],
+      "anyOf": [
+        { "required": ["delay_ms"] }, { "required": ["loss_percent"] },
+        { "required": ["rate_kbit"] }
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "attachment": { "$ref": "#/$defs/id" },
+        "delay_ms": { "type": "integer", "minimum": 0, "maximum": 600000 },
+        "jitter_ms": { "type": "integer", "minimum": 0, "maximum": 600000 },
+        "loss_percent": { "type": "number", "minimum": 0, "maximum": 100 },
+        "rate_kbit": { "type": "integer", "minimum": 0, "maximum": 100000000 },
+        "duration_seconds": { "type": "integer", "minimum": 1, "maximum": 86400 }
       }
     },
     "routerInterface": {

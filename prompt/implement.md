@@ -1,40 +1,44 @@
 # GraphX implementation work package
 
-Implement **Migration M6: QEMU TAP and OVS attachment** in
-`~/workspace/graphx-docker` after the independently verified M5 boundary.
+Implement **Migration M7: declarative capture, faults, and diagnostics** in
+`~/workspace/graphx-docker` after the independently verified M6 boundary.
 
 ## Objective
 
-Run the existing QEMU guest through a GraphX-owned TAP and system-OVS path on
-native Linux and in Lima. QEMU must run without root and receive access to only
-its declared TAP. Retain slirp as an explicit compatibility profile.
+Bring OVS observation points and timed network faults into the identity-owned
+version-2 infrastructure lifecycle. Store bounded Ethernet PCAPNG in VM-local
+storage, export only complete snapshots, and distinguish failure layers in
+telemetry and the GUI.
 
 ## Required implementation
 
-- Extend strict version-2 QEMU TAP configuration with explicit non-root TAP UID
-  and GID; preserve version-1 behavior and deterministic migration.
-- Create, mark, record, inspect, recover, and exactly delete the TAP through the
-  privileged ownership lifecycle. Record kernel ifindex/alias, TAP owner,
-  OVS Port/Interface UUIDs, VLAN state, graph/config identity, and owner token.
-- Refuse unowned name collisions and any replaced TAP, Port, Interface, bridge,
-  or sibling before cleanup changes the managed set.
-- Add a Linux/Lima QEMU profile that reuses the current Buildroot guest, QMP
-  evidence, TCP/UDP services, packet observer, telemetry semantics, and SPAN.
-- Prove guest MAC learning, TCP/UDP unicast, allowed broadcast/multicast,
-  access-VLAN reachability, distinct-VLAN isolation, pause/resume, a bounded
-  fault hook, and exact cleanup.
-- Report Apple Silicon x86_64 emulation as TCG; never label it KVM.
-- Keep capture and fault helpers explicit until M7 owns their declarative
-  lifecycle. Do not add Docker data-plane networking to the M6 path.
-- Add portable contract coverage and a privileged two-cycle Linux lifecycle
-  regression with failure, hard-crash recovery, replacement refusal, and no
-  residue.
+- Add strict version-2 `network.captures` declarations for mirror attachments,
+  VM-local directories, snap length, size/file/time rotation, and retention.
+- Add strict version-2 `network.faults` declarations for realized veth/TAP
+  attachments, bounded delay/jitter/loss/rate, and mandatory duration.
+- Start `dumpcap` and `tc netem` only through the privileged ownership
+  lifecycle. Record directory, interface, process/timer, qdisc, graph/config,
+  and owner identities; status and cleanup must fail closed on replacement.
+- Publish captures in owner-specific mode-0700 sessions, bound the ring, stop
+  the exact process, and retain completed sessions read-only. Never combine
+  Ethernet capture with GraphX LINKTYPE_USER0 application capture.
+- Provide an exclusive, no-symlink export command that copies one bounded,
+  complete-block PCAPNG snapshot from VM-local storage.
+- Make faults self-expire, observable as active or expired, and exactly
+  cleanable without touching an unrelated/replaced qdisc or timer.
+- Surface policy, route, link, attachment, and application diagnostic layers in
+  telemetry and the GUI while preserving the bounded evidence contract.
+- Add a focused example, strict negative tests, portable contracts, and a
+  privileged two-cycle Linux/Lima lifecycle regression with injected failure,
+  hard-crash recovery, bounded rotation/export, expiry, and zero infrastructure
+  residue. Retained read-only evidence is intentional.
 
 ## Verification
 
 Run formatting, the full portable suite, quality/sanitizer, frozen fingerprint,
-schema, migration, and documentation gates. In Lima or native Linux, run the
-privileged lifecycle test and the actual QEMU TAP profile, including QMP
-pause/resume and SPAN evidence.
+schema, migration, documentation, and prior-milestone gates. In Lima or native
+Linux, run the M7 lifecycle regression twice and inspect system OVS, dumpcap,
+PCAPNG, timer/qdisc identity, automatic expiry, exclusive export, recovery, and
+cleanup.
 
-Write `migration_m6_handoff.md`. Do not commit, publish, or advance to M7.
+Write `migration_m7_handoff.md`. Do not commit, publish, or advance to M8.

@@ -505,6 +505,25 @@ fallback), packet index, and byte offset.
 The current acceptance criterion does not require automatic matching between
 those two independent capture files.
 
+For the M7 identity-owned lifecycle, run in native Linux or the GraphX Lima VM:
+
+```sh
+sudo python3 tests/test_m7_network_observability_live.py \
+  /var/lib/graphx/m1/build/dev/graphx
+```
+
+The regression runs two cycles and requires injected rollback, hard-crash
+recovery, a bounded dumpcap ring on the declared OVS mirror, complete exclusive
+PCAPNG export, timed netem expiry, premature timer/qdisc-loss refusal, capture
+directory/file permission-drift refusal, identity-safe destroy, and no live
+process, qdisc, ledger, or network residue. Read-only owner-scoped capture
+sessions are retained intentionally; the test requires mode `0550` on the
+directory, no write bits on any approved retained file, and an unprivileged
+write refusal. It also proves that pruning preserves a complete expired session
+when one retained file becomes writable, then removes it after the seal is
+restored. `tests/test_m7_network_observability.py` covers strict configuration
+and dry-run contracts on all platforms.
+
 ## 8. macOS userspace-OVS simulation
 
 On Docker Desktop:

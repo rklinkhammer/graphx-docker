@@ -3,7 +3,7 @@
 **Repository:** `~/workspace/graphx-docker`  
 **Decision sources:** ADR 0016 and ADR 0017  
 **Baseline:** `migration_m0_baseline.md`  
-**Plan status:** M0 through M5 independently verified; M6 implemented and
+**Plan status:** M0 through M6 independently verified; M7 implemented and
 awaiting independent verification
 
 ## Objective

@@ -1,0 +1,58 @@
+version: 2
+graph:
+  id: m7-network-observability
+  nodes:
+    - id: packet-source
+      kind: virtual-machine
+      runtime: qemu
+      execution: host
+      lifecycle: external
+      control: none
+      accelerator: tcg
+      architecture: x86_64
+      ports: []
+  edges: []
+transport: {}
+network:
+  networks:
+    - {id: observed-lan, profile: ethernet, subnets: [10.77.0.0/24], gateway: 10.77.0.1, external: false}
+  switches:
+    - id: br-gxm7-demo
+      kind: openvswitch
+      datapath: system
+      ports:
+        - {id: source, interface: gxm7tap0}
+        - {id: capture, interface: gxm7cap0, peer: gxm7cap1}
+      mirror: {id: observed-span, output_port: capture, select_all: true}
+  attachments:
+    - id: source-data
+      kind: qemu_tap
+      owner: packet-source
+      network: observed-lan
+      address: 10.77.0.2/24
+      interface: gxm7tap0
+      switch: br-gxm7-demo
+      tap_uid: 65532
+      tap_gid: 65532
+    - id: observed-span
+      kind: mirror
+      owner: br-gxm7-demo
+      interface: gxm7cap0
+      switch: br-gxm7-demo
+  captures:
+    - id: ethernet-span
+      attachment: observed-span
+      directory: /var/lib/graphx/captures/m7-demo
+      snaplen: 65535
+      max_file_bytes: 1048576
+      max_files: 4
+      rotation_seconds: 60
+      retention_seconds: 3600
+  faults:
+    - id: source-delay
+      attachment: source-data
+      delay_ms: 20
+      jitter_ms: 3
+      loss_percent: 1
+      duration_seconds: 30
+

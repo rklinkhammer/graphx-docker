@@ -29,6 +29,7 @@ void usage(std::ostream& output) {
          << "               [--transactional] [--state-dir DIR]\n"
          << "  graphx infra route <apply|clear> [config.yaml] --router ID --destination CIDR\n"
          << "  graphx infra fault <apply|clear> [config.yaml] --router ID --interface ID\n"
+         << "  graphx infra capture export [config.yaml] --capture ID --output FILE\n"
          << "                    [--delay 20ms] [--jitter 3ms] [--loss 1%] [--rate 50mbit]\n";
 }
 
@@ -273,6 +274,43 @@ int project_command(int argc, char** argv) {
 int infrastructure_command(int argc, char** argv) {
   if (argc < 3) throw std::invalid_argument("infra requires an action");
   const std::string action = argv[2];
+  if (action == "capture") {
+    if (argc < 4 || std::string_view(argv[3]) != "export")
+      throw std::invalid_argument("infra capture requires the export action");
+    auto path = default_config();
+    auto state_root = graphx::default_ownership_state_root();
+    std::string capture, destination;
+    bool path_set{};
+    for (int index = 4; index < argc; ++index) {
+      const std::string argument = argv[index];
+      auto value = [&](std::string& target) {
+        if (++index == argc) throw std::invalid_argument(argument + " requires a value");
+        target = argv[index];
+      };
+      if (argument == "--capture")
+        value(capture);
+      else if (argument == "--output")
+        value(destination);
+      else if (argument == "--state-dir") {
+        std::string value_text;
+        value(value_text);
+        state_root = value_text;
+      } else if (!path_set) {
+        path = argument;
+        path_set = true;
+      } else
+        throw std::invalid_argument("unexpected argument '" + argument + "'");
+    }
+    if (capture.empty() || destination.empty())
+      throw std::invalid_argument("infra capture export requires --capture and --output");
+#if !defined(__linux__)
+    throw std::runtime_error("network capture export requires Linux VM-native storage");
+#else
+    const auto config = graphx::load_config(path);
+    return graphx::export_owned_network_capture(config, path, capture, state_root, destination,
+                                                std::cout);
+#endif
+  }
   if (action == "route") {
     if (argc < 4) throw std::invalid_argument("infra route requires apply or clear");
     const bool clear = std::string_view(argv[3]) == "clear";

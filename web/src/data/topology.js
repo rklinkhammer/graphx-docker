@@ -47,7 +47,7 @@ export function applicationEdges(topology) {
       port: edge.port, schema: edge.schema, transport: edge.transport,
       framing: edge.framing, dataPlane: edge.dataPlane,
       observationSource: edge.observationSource, diagnosticState: edge.diagnosticState,
-      diagnosticEvidence: edge.diagnosticEvidence } }))
+      diagnosticEvidence: edge.diagnosticEvidence, diagnosticLayer: edge.diagnosticLayer } }))
 }
 
 export function infrastructureNodes(topology) {
@@ -74,6 +74,7 @@ export function networkEdges(selectedId, topology) {
       data: { logicalEdge, highlighted: logicalEdge === selectedId,
         diagnosticState: definition?.diagnosticState,
         diagnosticEvidence: definition?.diagnosticEvidence,
+        diagnosticLayer: definition?.diagnosticLayer,
         rate: '—', latency: index === 3 ? 'router' : 'L2' },
     }))
   }

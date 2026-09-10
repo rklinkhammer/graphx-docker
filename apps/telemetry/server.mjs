@@ -234,6 +234,18 @@ const diagnosticEvidenceByState = new Map([
   ['policy-denied', 'nft-counter'],
   ['missing-route', 'route-absent'],
   ['route-applied', 'route-installed'],
+  ['link-down', 'carrier-down'],
+  ['attachment-missing', 'attachment-absent'],
+  ['application-unavailable', 'receiver-unavailable'],
+])
+const diagnosticLayerByState = new Map([
+  ['allowed', 'application'],
+  ['policy-denied', 'policy'],
+  ['missing-route', 'route'],
+  ['route-applied', 'route'],
+  ['link-down', 'link'],
+  ['attachment-missing', 'attachment'],
+  ['application-unavailable', 'application'],
 ])
 function networkDiagnosticEvidence() {
   if (!networkDiagnosticFile) return null
@@ -261,6 +273,7 @@ function topologyView(evidence, diagnosticEvidence = null) {
       ...(diagnosticEvidence.flows[edge.id] ? {
         diagnosticState: diagnosticEvidence.flows[edge.id].state,
         diagnosticEvidence: diagnosticEvidence.flows[edge.id].evidence,
+        diagnosticLayer: diagnosticLayerByState.get(diagnosticEvidence.flows[edge.id].state),
       } : {}),
     })),
     networkDiagnostic: { routeApplied: diagnosticEvidence.routeApplied,
@@ -448,7 +461,8 @@ function snapshot() {
   if (diagnosticEvidence)
     for (const [edgeId, flow] of Object.entries(diagnosticEvidence.flows))
       if (edgeViews[edgeId]) edgeViews[edgeId] = { ...edgeViews[edgeId],
-        connection: flow.state, diagnosticEvidence: flow.evidence }
+        connection: flow.state, diagnosticEvidence: flow.evidence,
+        diagnosticLayer: diagnosticLayerByState.get(flow.state) }
   return { kind: 'snapshot', graph: graph.id,
     topology: topologyView(evidence, diagnosticEvidence),
     telemetry: { websocket: websocketPath, heartbeatTimeoutMs: heartbeatTimeout,

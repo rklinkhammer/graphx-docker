@@ -31,8 +31,10 @@ graphx inspect graphx-v2.yaml
 The migration is deterministic, refuses an existing output or symlink, and
 fails rather than guessing when legacy network intent is ambiguous. Compare the
 semantic profiles and typed attachments with the source before adopting the new
-file. Version-2 infrastructure uses the M3 identity-safe OVS bridge lifecycle;
-route, fault, and endpoint realization remain deferred to later phases.
+file. Version-2 infrastructure uses the identity-safe OVS lifecycle for
+container/namespace veth, QEMU TAP, routes and policy, bounded mirror capture,
+and timed netem faults. Capture evidence is retained outside the ownership
+ledger; archive or remove it under the deployment's evidence-retention policy.
 
 Migration reads the literal source file and intentionally ignores
 `GRAPHX_OVERRIDES`. Clear or retain runtime overrides as needed for normal

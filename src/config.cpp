@@ -767,8 +767,9 @@ class ConfigParser {
       strict_keys(infrastructure, "network",
                   {"networks", "switches", "routers", "interfaces", "edge_paths"});
     else
-      strict_keys(infrastructure, "network",
-                  {"networks", "switches", "routers", "attachments", "edge_paths"});
+      strict_keys(
+          infrastructure, "network",
+          {"networks", "switches", "routers", "attachments", "edge_paths", "captures", "faults"});
     parse_networks(infrastructure["networks"], config);
     parse_switches(infrastructure["switches"], config);
     parse_routers(infrastructure["routers"], config);
@@ -777,6 +778,10 @@ class ConfigParser {
     else
       parse_attachments(infrastructure["attachments"], config);
     parse_edge_paths(infrastructure["edge_paths"], config);
+    if (config.version == 2) {
+      parse_network_captures(infrastructure["captures"], config);
+      parse_network_faults(infrastructure["faults"], config);
+    }
   }
 
   void parse_networks(const YAML::Node& values, GraphConfig& config) {
@@ -1176,6 +1181,104 @@ class ConfigParser {
         path.hops.push_back(
             text(entry.second[index], item_path + "[" + std::to_string(index) + "]", 64));
       config.network_infrastructure.edge_paths.push_back(std::move(path));
+    }
+  }
+
+  void parse_network_captures(const YAML::Node& values, GraphConfig& config) {
+    if (!values) return;
+    if (!require_sequence(values, "network.captures")) return;
+    if (values.size() > 64) error("network.captures", "exceeds maximum capture count 64");
+    std::unordered_set<std::string> ids;
+    const auto count = std::min<std::size_t>(values.size(), 64);
+    for (std::size_t index = 0; index < count; ++index) {
+      const auto path = "network.captures[" + std::to_string(index) + "]";
+      const auto value = values[index];
+      if (!require_map(value, path)) continue;
+      strict_keys(value, path,
+                  {"id", "attachment", "directory", "snaplen", "max_file_bytes", "max_files",
+                   "rotation_seconds", "retention_seconds"});
+      NetworkCaptureDefinition capture;
+      capture.id = text(value["id"], path + ".id", 64);
+      identifier(capture.id, path + ".id");
+      if (!capture.id.empty() && !ids.insert(capture.id).second)
+        error(path + ".id", "duplicate network capture id '" + capture.id + "'");
+      capture.attachment = text(value["attachment"], path + ".attachment", 64);
+      identifier(capture.attachment, path + ".attachment");
+      capture.directory = text(value["directory"], path + ".directory", 1024);
+      if (!capture.directory.starts_with("/var/lib/graphx/captures/") ||
+          capture.directory.find("..") != std::string::npos)
+        error(path + ".directory", "must be beneath /var/lib/graphx/captures without '..'");
+      if (value["snaplen"]) capture.snaplen = unsigned_value(value["snaplen"], path + ".snaplen");
+      if (capture.snaplen < 256 || capture.snaplen > 262144)
+        error(path + ".snaplen", "must be between 256 and 262144");
+      if (value["max_file_bytes"])
+        capture.max_file_bytes =
+            unsigned_64_value(value["max_file_bytes"], path + ".max_file_bytes");
+      if (capture.max_file_bytes < 65536 || capture.max_file_bytes > 4ULL * 1024 * 1024 * 1024)
+        error(path + ".max_file_bytes", "must be between 65536 and 4294967296");
+      if (value["max_files"])
+        capture.max_files = unsigned_value(value["max_files"], path + ".max_files");
+      if (capture.max_files == 0 || capture.max_files > 1024)
+        error(path + ".max_files", "must be between 1 and 1024");
+      if (value["rotation_seconds"])
+        capture.rotation_seconds =
+            unsigned_value(value["rotation_seconds"], path + ".rotation_seconds");
+      if (capture.rotation_seconds == 0 || capture.rotation_seconds > 86400)
+        error(path + ".rotation_seconds", "must be between 1 and 86400");
+      if (value["retention_seconds"])
+        capture.retention_seconds =
+            unsigned_value(value["retention_seconds"], path + ".retention_seconds");
+      if (capture.retention_seconds < capture.rotation_seconds ||
+          capture.retention_seconds > 31536000)
+        error(path + ".retention_seconds",
+              "must be at least rotation_seconds and no more than 31536000");
+      if (static_cast<std::uint64_t>(capture.max_files) * capture.rotation_seconds >
+          capture.retention_seconds)
+        error(path, "max_files times rotation_seconds must not exceed retention_seconds");
+      config.network_infrastructure.captures.push_back(std::move(capture));
+    }
+  }
+
+  void parse_network_faults(const YAML::Node& values, GraphConfig& config) {
+    if (!values) return;
+    if (!require_sequence(values, "network.faults")) return;
+    if (values.size() > 64) error("network.faults", "exceeds maximum fault count 64");
+    std::unordered_set<std::string> ids;
+    const auto count = std::min<std::size_t>(values.size(), 64);
+    for (std::size_t index = 0; index < count; ++index) {
+      const auto path = "network.faults[" + std::to_string(index) + "]";
+      const auto value = values[index];
+      if (!require_map(value, path)) continue;
+      strict_keys(value, path,
+                  {"id", "attachment", "delay_ms", "jitter_ms", "loss_percent", "rate_kbit",
+                   "duration_seconds"});
+      NetworkFaultDefinition fault;
+      fault.id = text(value["id"], path + ".id", 64);
+      identifier(fault.id, path + ".id");
+      if (!fault.id.empty() && !ids.insert(fault.id).second)
+        error(path + ".id", "duplicate network fault id '" + fault.id + "'");
+      fault.attachment = text(value["attachment"], path + ".attachment", 64);
+      identifier(fault.attachment, path + ".attachment");
+      if (value["delay_ms"]) fault.delay_ms = unsigned_value(value["delay_ms"], path + ".delay_ms");
+      if (value["jitter_ms"])
+        fault.jitter_ms = unsigned_value(value["jitter_ms"], path + ".jitter_ms");
+      if (fault.delay_ms > 600000 || fault.jitter_ms > fault.delay_ms)
+        error(path, "delay_ms must be at most 600000 and jitter_ms must not exceed delay_ms");
+      if (value["loss_percent"])
+        fault.loss_percent = double_value(value["loss_percent"], path + ".loss_percent", 0.0);
+      if (fault.loss_percent < 0.0 || fault.loss_percent > 100.0)
+        error(path + ".loss_percent", "must be between 0 and 100");
+      if (value["rate_kbit"])
+        fault.rate_kbit = unsigned_value(value["rate_kbit"], path + ".rate_kbit");
+      if (fault.rate_kbit > 100000000) error(path + ".rate_kbit", "must be no more than 100000000");
+      if (value["duration_seconds"])
+        fault.duration_seconds =
+            unsigned_value(value["duration_seconds"], path + ".duration_seconds");
+      if (fault.duration_seconds == 0 || fault.duration_seconds > 86400)
+        error(path + ".duration_seconds", "must be between 1 and 86400");
+      if (fault.delay_ms == 0 && fault.loss_percent == 0.0 && fault.rate_kbit == 0)
+        error(path, "must declare delay_ms, loss_percent, or rate_kbit");
+      config.network_infrastructure.faults.push_back(std::move(fault));
     }
   }
 
@@ -1868,6 +1971,34 @@ class ConfigParser {
             }
             break;
         }
+      }
+      std::unordered_set<std::string> capture_targets;
+      for (std::size_t index = 0; index < infrastructure.captures.size(); ++index) {
+        const auto& capture = infrastructure.captures[index];
+        const auto path = "network.captures[" + std::to_string(index) + "]";
+        const auto attachment = std::ranges::find_if(
+            infrastructure.attachments,
+            [&](const auto& candidate) { return candidate.id == capture.attachment; });
+        if (attachment == infrastructure.attachments.end() ||
+            attachment->kind != AttachmentKind::mirror)
+          error(path + ".attachment", "must reference a mirror attachment");
+        if (!capture_targets.insert(capture.attachment).second)
+          error(path + ".attachment", "must be unique across network captures");
+      }
+      std::unordered_set<std::string> fault_targets;
+      for (std::size_t index = 0; index < infrastructure.faults.size(); ++index) {
+        const auto& fault = infrastructure.faults[index];
+        const auto path = "network.faults[" + std::to_string(index) + "]";
+        const auto attachment = std::ranges::find_if(
+            infrastructure.attachments,
+            [&](const auto& candidate) { return candidate.id == fault.attachment; });
+        if (attachment == infrastructure.attachments.end() ||
+            (attachment->kind != AttachmentKind::container_veth &&
+             attachment->kind != AttachmentKind::namespace_veth &&
+             attachment->kind != AttachmentKind::qemu_tap))
+          error(path + ".attachment", "must reference a realized data attachment");
+        if (!fault_targets.insert(fault.attachment).second)
+          error(path + ".attachment", "must be unique across network faults");
       }
     }
 
