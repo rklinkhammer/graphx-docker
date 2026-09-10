@@ -144,19 +144,20 @@ def create_diagrams():
     d.text((70, 865), "Logical transformed path: transform domain → router → sink domain", fill="#17324D", font=font(25, True))
     image.save(ASSETS / "ipvlan-l2-path.png", quality=95)
 
-    image, d = canvas("One QEMU application, two deployment profiles")
-    d.text((85, 170), "Portable external profile", fill="#17324D", font=font(31, True))
-    d.text((965, 170), "Native Linux container profile", fill="#17324D", font=font(31, True))
-    for offset, external in ((0, True), (880, False)):
-        rounded_box(d, (70+offset, 250, 300+offset, 420), "Origin", "Docker service\nTCP + UDP", "#E8F5F2", "#16877A")
-        middle_title = "Host QEMU" if external else "QEMU container"
-        middle_sub = "x86_64 VM + slirp\nQMP + guest probes" if external else "non-root; KVM or TCG\nx86_64 VM + relay"
-        rounded_box(d, (350+offset, 225, 650+offset, 445), middle_title, middle_sub, "#EAF2FA", "#2563A6")
-        rounded_box(d, (700+offset, 250, 900+offset, 420), "Receiver", "Docker service\nTCP + UDP", "#E8F5F2", "#16877A")
-        arrow(d, (300+offset, 335), (350+offset, 335)); arrow(d, (650+offset, 335), (700+offset, 335))
-        rounded_box(d, (280+offset, 565, 690+offset, 745), "Passive packet observer", "network_packet telemetry\nEthernet PCAPNG + packet SQLite", "#F3F5F7", "#687482")
-        arrow(d, (500+offset, 445), (500+offset, 565))
-    d.text((75, 855), "Same guest image • same four raw external edges • same telemetry and GUI • only the QEMU ownership boundary changes", fill="#465564", font=font(27, True))
+    image, d = canvas("One QEMU application, three deployment profiles")
+    profiles = (
+        (55, "External compatibility", "Host QEMU + slirp", "macOS or Linux\nQMP + guest probes"),
+        (630, "Container compatibility", "QEMU container", "non-root; KVM or TCG\nslirp + relay"),
+        (1205, "M6 TAP and OVS", "Non-root QEMU", "owned TAP + VLAN\nQMP + OVS SPAN"),
+    )
+    for offset, heading, middle_title, middle_sub in profiles:
+        d.text((offset, 165), heading, fill="#17324D", font=font(27, True))
+        rounded_box(d, (offset, 230, offset+190, 380), "Peer", "TCP + UDP", "#E8F5F2", "#16877A")
+        rounded_box(d, (offset+225, 210, offset+520, 400), middle_title, middle_sub, "#EAF2FA", "#2563A6")
+        arrow(d, (offset+190, 305), (offset+225, 305))
+        rounded_box(d, (offset+55, 515, offset+465, 695), "Passive packet observer", "network_packet telemetry\nEthernet PCAPNG + packet SQLite", "#F3F5F7", "#687482")
+        arrow(d, (offset+370, 400), (offset+300, 515))
+    d.text((75, 830), "Same x86_64 guest and TCP/UDP application • M6 moves the primary data plane to GraphX-owned OVS", fill="#465564", font=font(27, True))
     image.save(ASSETS / "qemu-profiles.png", quality=95)
 
     image, d = canvas("Observation evidence to operator interfaces")
@@ -373,6 +374,11 @@ def build_docx():
     for run in section.footer.paragraphs[0].runs: set_run_font(run, size=8, color=MID_GRAY)
 
     lines = SOURCE.read_text(encoding="utf-8").splitlines()
+    review_date = next(
+        line.removeprefix("**Review date:** ")
+        for line in lines
+        if line.startswith("**Review date:** ")
+    )
     # Cover page
     title = lines[0].removeprefix("# ")
     p = doc.add_paragraph(style="Title"); p.alignment = WD_ALIGN_PARAGRAPH.LEFT
@@ -383,7 +389,7 @@ def build_docx():
     band = doc.add_table(rows=1, cols=1); band.alignment = WD_TABLE_ALIGNMENT.CENTER
     cell = band.cell(0, 0); shade(cell, NAVY); set_cell_margins(cell, 220, 220, 220, 220)
     cp = cell.paragraphs[0]; cp.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    add_inline(cp, f"GraphX {VERSION}\nRepository architecture baseline\nReviewed 2026-09-09")
+    add_inline(cp, f"GraphX {VERSION}\nRepository architecture baseline\nReviewed {review_date}")
     for run in cp.runs: set_run_font(run, size=12, bold=True, color=WHITE)
     doc.add_paragraph()
     note = doc.add_paragraph("Document status: maintained source and editable Word edition. Implemented behavior is separated from proposed work.")
@@ -433,7 +439,7 @@ def build_docx():
             heading = raw[4:]
             doc.add_heading(heading, level=2)
             if heading.startswith("8.1 "):
-                add_figure(doc, ASSETS / "qemu-profiles.png", "Figure 4. Shared QEMU application with two deployment ownership profiles.")
+                add_figure(doc, ASSETS / "qemu-profiles.png", "Figure 4. Shared QEMU application with three deployment ownership profiles.")
             i += 1; continue
         if raw.startswith("#### "):
             doc.add_heading(raw[5:], level=3); i += 1; continue

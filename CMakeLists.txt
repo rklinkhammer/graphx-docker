@@ -286,6 +286,11 @@ if(GRAPHX_BUILD_TESTS)
     ${CMAKE_SOURCE_DIR})
   set_tests_properties(graphx-m4-container-veth PROPERTIES TIMEOUT 30
     ENVIRONMENT "GRAPHX_OVERRIDES=")
+  add_test(NAME graphx-m5-lab-migration COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/test_m5_lab_migration.py $<TARGET_FILE:graphx-cli>
+    ${CMAKE_SOURCE_DIR})
+  set_tests_properties(graphx-m5-lab-migration PROPERTIES TIMEOUT 60
+    ENVIRONMENT "GRAPHX_OVERRIDES=")
   if(GRAPHX_ENABLE_LINUX_OVS_TESTS AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_test(NAME graphx-m3-ownership-live COMMAND ${Python3_EXECUTABLE}
       ${CMAKE_SOURCE_DIR}/tests/test_m3_ownership_live.py $<TARGET_FILE:graphx-cli>
@@ -295,6 +300,14 @@ if(GRAPHX_BUILD_TESTS)
     add_test(NAME graphx-m4-container-veth-live COMMAND ${Python3_EXECUTABLE}
       ${CMAKE_SOURCE_DIR}/tests/test_m4_container_veth_live.py $<TARGET_FILE:graphx-cli>)
     set_tests_properties(graphx-m4-container-veth-live PROPERTIES TIMEOUT 120
+      ENVIRONMENT "GRAPHX_OVERRIDES=")
+    add_test(NAME graphx-m5-lab-live COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_SOURCE_DIR}/tests/test_m5_lab_live.py $<TARGET_FILE:graphx-cli>)
+    set_tests_properties(graphx-m5-lab-live PROPERTIES TIMEOUT 180
+      ENVIRONMENT "GRAPHX_OVERRIDES=")
+    add_test(NAME graphx-m6-qemu-tap-live COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_SOURCE_DIR}/tests/test_m6_qemu_tap_live.py $<TARGET_FILE:graphx-cli>)
+    set_tests_properties(graphx-m6-qemu-tap-live PROPERTIES TIMEOUT 120
       ENVIRONMENT "GRAPHX_OVERRIDES=")
   endif()
   add_test(NAME graphx-config-projections
@@ -355,6 +368,11 @@ if(GRAPHX_BUILD_TESTS)
   add_test(NAME graphx-qemu-node-static
     COMMAND ${CMAKE_SOURCE_DIR}/examples/qemu-node/scripts/test.sh $<TARGET_FILE:graphx-cli>)
   set_tests_properties(graphx-qemu-node-static PROPERTIES TIMEOUT 30)
+  add_test(NAME graphx-m6-qemu-tap
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_m6_qemu_tap.py
+      $<TARGET_FILE:graphx-cli> ${CMAKE_SOURCE_DIR})
+  set_tests_properties(graphx-m6-qemu-tap PROPERTIES
+    TIMEOUT 30 ENVIRONMENT "GRAPHX_OVERRIDES=")
   add_test(NAME graphx-config-qemu-external
     COMMAND graphx-cli validate ${CMAKE_SOURCE_DIR}/examples/qemu-node/external/graphx.yaml)
   add_test(NAME graphx-config-qemu-container

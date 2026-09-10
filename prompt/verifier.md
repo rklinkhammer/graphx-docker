@@ -1,33 +1,35 @@
 # GraphX independent verification work package
 
-Independently verify **Migration M4: managed container veth attachment** in
-`~/workspace/graphx-docker`. Derive M4-001 through M4-010 from
-`prompt/implement.md`, ADR 0017, and the M3 re-verification. Treat the handoff as
-a claim and write `migration_m4_verification.md` without product fixes.
+Independently verify **Migration M6: QEMU TAP and OVS attachment** in
+`~/workspace/graphx-docker`. Derive M6-001 through M6-010 from
+`prompt/implement.md`, ADR 0017, and the accepted M5 report. Treat
+`migration_m6_handoff.md` as a claim and write `migration_m6_verification.md`
+without product fixes.
 
 ## Required checks
 
-1. Build fresh and run portable, quality, sanitizer, fingerprint, projection,
-   documentation, M2, and M3 regression gates.
-2. Confirm dry-run declares Compose identity, veth, OVS port, address, and MTU,
-   but no Docker network, MACVLAN/IPVLAN driver, namespace, TAP, mirror, fault,
-   capture, or process mutation.
-3. In Lima ARM64 Linux, verify exactly one service is selected by project and
-   service labels and that image, full ID, PID, and namespace inode match.
-4. Verify host/peer ifindices and aliases, OVS Port/Interface UUIDs and intrinsic
-   markers, target MAC/address/MTU/routes, and an OVS-only data path.
-5. Exercise two clean create/status/destroy cycles and prove management access
-   remains separate from the GraphX data interface.
-6. Restart and replace the service container. Status must fail closed and must
-   not adopt the new namespace; explicit safe destroy/create must reattach it.
-7. Exercise unowned host, target-interface, OVS Port, and OVS Interface
-   collisions plus marker/UUID/ifindex replacement. Cleanup must preserve every
-   unrelated replacement and preflight siblings before mutation.
-8. Inject ordinary failure and hard interruption at each exposed endpoint stage;
-   prove rollback/recovery and immediate retry with exact cleanup.
-9. Confirm M2 migration stays deterministic and validates when legacy addresses
-   are absent, while M4 realization refuses to invent an address.
-10. Confirm documentation accurately defers namespace veth, TAP, profile flows,
-    mirrors, general routing/policy, faults, and capture realization.
+1. Build fresh and run the full portable, quality, sanitizer, fingerprint,
+   projection, documentation, M2, M3, M4, and M5 gates.
+2. Validate the M6 configuration and migration output; prove missing, root, or
+   misplaced TAP UID/GID and QEMU TAP peer/routes are rejected.
+3. Inspect dry-run and live realization to prove GraphX creates system OVS and
+   TAP directly, without Docker data networks, macvlan, ipvlan, or slirp.
+4. In Lima ARM64 Linux, run the M6 privileged lifecycle regression twice and
+   inspect TAP ifindex/alias/owner, OVS UUIDs/markers, VLAN state, ledger phase,
+   failure rollback, crash recovery, replacement refusal, and exact cleanup.
+5. Run the actual guest profile. Prove QMP reports TCG on Apple Silicon, QEMU's
+   UID/GID is 65532, and the process can use only the declared TAP.
+6. Prove guest TCP and UDP unicast, guest MAC learning, allowed broadcast and
+   multicast forwarding, VLAN-42 communication, and VLAN-43 isolation.
+7. Prove OVS SPAN capture grows and the packet observer produces bounded
+   PCAPNG/history evidence on the VM-native filesystem.
+8. Pause and resume the VM through QMP and require confirmed state transitions
+   plus restored TCP/UDP readiness.
+9. Exercise the explicit netem hook, remove it, stop all identity-checked
+   processes, and prove no bridge, TAP, veth, namespace, qdisc, ledger, or live
+   process remains.
+10. Confirm both slirp profiles retain their compatibility meaning, M6 does not
+    claim KVM on Apple Silicon, and declarative capture/fault ownership remains
+    M7.
 
-M4 passes only with real Docker namespace, Linux veth, and system-OVS evidence.
+M6 passes only with real system-OVS, TAP, QEMU guest, and packet evidence.

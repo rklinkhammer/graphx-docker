@@ -103,6 +103,8 @@ void append_attachment(YAML::Node& attachments, std::set<std::string>& ids,
   if (!attachment.peer.empty()) item["peer"] = attachment.peer;
   if (!attachment.network_switch.empty()) item["switch"] = attachment.network_switch;
   if (attachment.mtu != 1500) item["mtu"] = attachment.mtu;
+  if (attachment.tap_uid != 0) item["tap_uid"] = attachment.tap_uid;
+  if (attachment.tap_gid != 0) item["tap_gid"] = attachment.tap_gid;
   attachments.push_back(item);
 }
 
@@ -157,6 +159,15 @@ std::string migrate_config_v1_to_v2(const std::filesystem::path& source) {
         attachment.interface = interface_name("gxc", attachment.id);
         attachment.peer = interface_name("gxh", attachment.id);
         attachment.network_switch = switch_for_network(config, interface.network);
+        if (std::ranges::none_of(
+                config.network_infrastructure.switches,
+                [&](const auto& candidate) { return candidate.id == attachment.network_switch; }))
+          synthetic_switches.insert(attachment.network_switch);
+      } else if (attachment.kind == AttachmentKind::qemu_tap) {
+        attachment.interface = interface_name("gxt", attachment.id);
+        attachment.network_switch = switch_for_network(config, interface.network);
+        attachment.tap_uid = 65532;
+        attachment.tap_gid = 65532;
         if (std::ranges::none_of(
                 config.network_infrastructure.switches,
                 [&](const auto& candidate) { return candidate.id == attachment.network_switch; }))

@@ -1,5 +1,11 @@
 # Native-Linux external-SDR profile
 
+> **M5 configuration:** `graphx-ovs.yaml` uses the common OVS lifecycle for the
+> managed processor/sink ports and SPAN output. The SDR device attachment stays
+> explicitly external and is never adopted by GraphX. Use `ovs-lab.sh` for the
+> M5 ownership lifecycle or `demo.sh` for the version-1 full-observability
+> compatibility workflow.
+
 This profile proves the same logical graph through Open vSwitch `br-sdr`. A
 disposable Linux namespace runs the shared SDR simulator at `10.63.0.10`; Docker
 processor and sink services join the external macvlan network at `.20` and
@@ -66,3 +72,20 @@ drops to that operator so initial and rotated capture files remain readable by
 the bounded observer. Repeated `stop` succeeds when the owned resources are already absent.
 Native Linux runtime output is required for OVS/SPAN acceptance. A real SDR is
 optional and is never implied by simulator success.
+## M5 OVS lifecycle
+
+`graphx-ovs.yaml` and `compose.ovs.yaml` provide the M5 migration path. Docker
+Compose supplies only the processor and sink management containers; GraphX
+creates their data-plane veths and owns the OVS bridge and SPAN mirror. The lab
+launcher owns only the simulated external SDR namespace and its boundary veth:
+
+```sh
+examples/sdr-node/external/scripts/ovs-lab.sh up
+examples/sdr-node/external/scripts/ovs-lab.sh status
+examples/sdr-node/external/scripts/ovs-lab.sh down
+```
+
+The existing `demo.sh` and `compose.yaml` remain the version-1 compatibility
+and full observability demonstration. Packet capture remains planned for M7;
+M5 realizes and verifies the mirror endpoint but does not launch a capture
+process.

@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
+
+echo "NOTICE: this is the legacy Docker Desktop userspace-OVS simulation." >&2
+echo "Use scripts/ovs-up.sh inside the GraphX Lima VM for the M5 topology." >&2
 example_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 repo_dir="$(cd "$example_dir/../.." && pwd)"
 source "$repo_dir/scripts/configure-build-trust.sh"

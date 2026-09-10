@@ -45,10 +45,24 @@ cat >/etc/docker/daemon.json <<'EOF'
 }
 EOF
 
-install -d -m 0755 /var/lib/graphx /var/lib/graphx/runs /var/lib/graphx/qemu
+install -d -m 0755 /var/lib/graphx /var/lib/graphx/qemu
+install -d -m 0700 /var/lib/graphx/runs
 install -d -m 0750 /var/lib/graphx/captures /var/lib/graphx/m1 /var/lib/graphx/m1/evidence
 install -d -m 0755 /var/log/graphx
 chown -R "${GRAPHX_LIMA_USER}:${GRAPHX_LIMA_USER}" /var/lib/graphx /var/log/graphx
+
+# M6 runs QEMU without root while GraphX retains privileged ownership of the
+# TAP/OVS lifecycle. Keep this numeric identity aligned with tap_uid/tap_gid in
+# the checked-in QEMU TAP profile.
+if ! getent group graphx-qemu >/dev/null; then
+  groupadd --system --gid 65532 graphx-qemu
+fi
+if ! getent passwd graphx-qemu >/dev/null; then
+  useradd --system --uid 65532 --gid graphx-qemu --home-dir /var/lib/graphx/qemu \
+    --shell /usr/sbin/nologin graphx-qemu
+fi
+chown graphx-qemu:graphx-qemu /var/lib/graphx/qemu
+chmod 0750 /var/lib/graphx/qemu
 
 systemctl enable docker.service docker.socket openvswitch-switch.service
 systemctl restart docker.service openvswitch-switch.service

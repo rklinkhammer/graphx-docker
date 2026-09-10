@@ -1,5 +1,10 @@
 # Standalone IPvlan L3 pipeline
 
+> **M5 OVS path:** use `graphx-ovs.yaml`, `compose.ovs.yaml`, and
+> `scripts/ovs-{up,status,down}.sh` on native Linux or in Lima. GraphX realizes
+> IPvlan-L3 semantics with veth and OVS destination-IP flows and suppresses
+> non-ARP broadcast/multicast. The commands below are the v1 compatibility path.
+
 Generator, transform, and sink each belong to a distinct IPvlan L3 subnet. The
 three subnets are IPAM domains of one external Docker IPvlan network on one
 parent interface. This is Docker's supported layout for routing between L3

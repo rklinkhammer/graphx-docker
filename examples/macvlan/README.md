@@ -1,5 +1,10 @@
 # Standalone macvlan pipeline
 
+> **M5 OVS path:** use `graphx-ovs.yaml`, `compose.ovs.yaml`, and
+> `scripts/ovs-{up,status,down}.sh` on native Linux or in Lima. The MACVLAN name
+> is now a semantic profile; this path creates veth/OVS data ports and no Docker
+> macvlan network. The commands below document the version-1 compatibility lab.
+
 This Linux-only example places all three independently deployed GraphX nodes on
 one macvlan L2 domain. Every container has an explicit IP and MAC address. The
 helper creates an isolated dummy parent, so the demo does not touch the host's

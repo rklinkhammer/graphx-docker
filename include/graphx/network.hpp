@@ -62,6 +62,8 @@ struct AttachmentDefinition {
   std::string peer;
   std::string network_switch;
   std::uint32_t mtu{1500};
+  std::uint32_t tap_uid{};
+  std::uint32_t tap_gid{};
   std::vector<RouteDefinition> routes;
 };
 

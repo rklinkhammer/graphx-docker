@@ -8,6 +8,8 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+import zipfile
+from xml.etree import ElementTree
 
 
 def fail(message: str) -> None:
@@ -75,6 +77,25 @@ def main() -> int:
     architecture = (root / "docs" / "GraphX_Architecture.md").read_text(encoding="utf-8")
     if f"**Repository baseline:** GraphX {version}" not in architecture:
         fail("architecture baseline does not match VERSION")
+    normalized_architecture = re.sub(r"\s+", " ", architecture)
+    for required in (
+        "M5 adds owned router namespaces",
+        "semantic profile flows",
+        "M6 adds GraphX-owned TAP lifecycle",
+        "declarative capture/fault ownership remains deferred to M7",
+    ):
+        if required not in normalized_architecture:
+            fail(f"architecture does not describe the accepted M5 boundary: {required}")
+    architecture_docx = root / "docs" / "GraphX_Architecture.docx"
+    with zipfile.ZipFile(architecture_docx) as archive:
+        document = ElementTree.fromstring(archive.read("word/document.xml"))
+    word_namespace = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+    docx_text = re.sub(r"\s+", " ", " ".join(
+        node.text or "" for node in document.iter(f"{word_namespace}t")
+    ))
+    for required in ("M5 adds owned router namespaces", "M6 adds GraphX-owned TAP lifecycle"):
+        if required not in docx_text:
+            fail(f"editable architecture document is stale at M5: {required}")
     license_inventory = (root / "docs" / "release-license-inventory.md").read_text(
         encoding="utf-8")
     if f"# GraphX {version} release license inventory" not in license_inventory:

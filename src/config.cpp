@@ -1063,7 +1063,7 @@ class ConfigParser {
       if (!require_map(value, path)) continue;
       strict_keys(value, path,
                   {"id", "kind", "owner", "network", "address", "mac", "interface", "peer",
-                   "switch", "mtu", "routes"});
+                   "switch", "mtu", "tap_uid", "tap_gid", "routes"});
       AttachmentDefinition attachment;
       attachment.id = text(value["id"], path + ".id", 64);
       identifier(attachment.id, path + ".id");
@@ -1101,6 +1101,20 @@ class ConfigParser {
         else
           attachment.mtu = static_cast<std::uint32_t>(mtu);
       }
+      if (value["tap_uid"]) {
+        const auto uid = unsigned_value(value["tap_uid"], path + ".tap_uid");
+        if (uid == 0 || uid >= UINT32_MAX)
+          error(path + ".tap_uid", "must identify a non-root UID below 4294967295");
+        else
+          attachment.tap_uid = static_cast<std::uint32_t>(uid);
+      }
+      if (value["tap_gid"]) {
+        const auto gid = unsigned_value(value["tap_gid"], path + ".tap_gid");
+        if (gid == 0 || gid >= UINT32_MAX)
+          error(path + ".tap_gid", "must identify a non-root GID below 4294967295");
+        else
+          attachment.tap_gid = static_cast<std::uint32_t>(gid);
+      }
       const auto routes = value["routes"];
       if (routes && require_sequence(routes, path + ".routes")) {
         for (std::size_t route_index = 0; route_index < routes.size(); ++route_index) {
@@ -1131,6 +1145,16 @@ class ConfigParser {
           (attachment.interface.empty() || attachment.peer.empty() ||
            attachment.network_switch.empty() || attachment.address.empty()))
         error(path, "namespace_veth requires address, interface, peer, and switch");
+      if (attachment.kind == AttachmentKind::qemu_tap &&
+          (attachment.interface.empty() || attachment.network_switch.empty() ||
+           attachment.address.empty() || attachment.tap_uid == 0 || attachment.tap_gid == 0))
+        error(path, "qemu_tap requires address, interface, switch, tap_uid, and tap_gid");
+      if (attachment.kind == AttachmentKind::qemu_tap &&
+          (!attachment.peer.empty() || !attachment.routes.empty()))
+        error(path, "qemu_tap does not allow peer or host-installed routes");
+      if (attachment.kind != AttachmentKind::qemu_tap &&
+          (attachment.tap_uid != 0 || attachment.tap_gid != 0))
+        error(path, "tap_uid and tap_gid are allowed only for qemu_tap");
       config.network_infrastructure.attachments.push_back(std::move(attachment));
     }
   }

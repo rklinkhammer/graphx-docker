@@ -1,5 +1,27 @@
 # Static route and policy laboratory
 
+> **M5 configuration:** `graphx-ovs.yaml` moves the shared bridges, router
+> namespace, namespace veths, mirrors, and nftables policy into the GraphX
+> ownership lifecycle. Its endpoint attachments remain `external` because the
+> diagnostic process namespaces are deliberately lab-owned. `demo.sh` remains
+> the complete version-1 compatibility launcher during this window.
+
+Run the M5 ownership lifecycle with:
+
+```sh
+examples/static-route-policy/scripts/ovs-lab.sh up
+examples/static-route-policy/scripts/ovs-lab.sh status
+examples/static-route-policy/scripts/ovs-lab.sh apply-route
+examples/static-route-policy/scripts/ovs-lab.sh clear-route
+examples/static-route-policy/scripts/ovs-lab.sh down
+```
+
+The launcher creates only the three external diagnostic endpoints. GraphX owns
+the bridges, router namespace, router and namespace veths, nftables policy, and
+mirrors declared by `graphx-ovs.yaml`. Its `apply-route` and `clear-route`
+actions constrain the privileged mutation to the exact manual route declared
+by that same version-2 configuration.
+
 This Phase 14 example is a native-Linux acceptance laboratory for three outcomes
 that a topology diagram alone cannot prove:
 

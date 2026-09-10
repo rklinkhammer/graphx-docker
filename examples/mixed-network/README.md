@@ -1,5 +1,11 @@
 # Mixed network example
 
+> **M5 OVS path:** use `graphx-ovs.yaml`, `compose.ovs.yaml`, and
+> `scripts/ovs-{up,status,down}.sh` on native Linux or inside the GraphX Lima
+> VM. Docker supplies management connectivity only. The older `graphx.yaml`,
+> `linux-up.sh`, and Docker Desktop `macos-up.sh` path is the compatibility
+> implementation; the macOS path is a legacy userspace-OVS simulation.
+
 The reference topology routes a GraphX TCP edge across two Docker domains:
 
 ```text

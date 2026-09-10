@@ -235,6 +235,37 @@ thread.join()
 refreshed = json.loads(arguments.output.read_text())
 assert refreshed["vmState"] == "running" and refreshed["qmpStatus"]["status"] == "running"
 
+def control_server(expected_command, status):
+    if path.exists():
+        path.unlink()
+    started = threading.Event()
+    def serve():
+        with socket.socket(socket.AF_UNIX) as listener:
+            listener.bind(str(path)); listener.listen(1); started.set()
+            connection, _ = listener.accept()
+            with connection:
+                connection.sendall(b'{"QMP":{"version":{}}}\n')
+                stream = connection.makefile("rb")
+                for expected, response in (("qmp_capabilities", {}),
+                                           (expected_command, {}),
+                                           ("query-status", status)):
+                    request = json.loads(stream.readline())
+                    assert request["execute"] == expected
+                    connection.sendall((json.dumps({"return": response}) + "\n").encode())
+    candidate = threading.Thread(target=serve); candidate.start()
+    assert started.wait(1)
+    return candidate
+
+control = type("Arguments", (), {"socket": path, "output": arguments.output,
+    "timeout": 1.0, "action": "pause"})()
+thread = control_server("stop", {"running": False, "status": "paused"})
+qmp.vm_control(control); thread.join()
+assert json.loads(arguments.output.read_text())["vmState"] == "paused"
+control.action = "resume"
+thread = control_server("cont", {"running": True, "status": "running"})
+qmp.vm_control(control); thread.join()
+assert json.loads(arguments.output.read_text())["vmState"] == "running"
+
 def free_port():
     with socket.socket() as candidate:
         candidate.bind(("127.0.0.1", 0))

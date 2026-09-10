@@ -34,8 +34,9 @@ struct OwnedResourceIdentity {
   std::string process_identity;
 };
 
-// Realizes M3-owned OVS bridges and M4-owned container veth endpoints. Linux
-// namespace veths, TAPs, profile flows, faults, and captures remain later milestones.
+// Realizes owned OVS bridges, container/namespace veth endpoints, QEMU TAPs,
+// Linux router namespaces, and OVS SPAN ports. Declarative fault/capture
+// processes remain a later milestone.
 int execute_ovs_lifecycle(const GraphConfig& config, const std::filesystem::path& config_path,
                           OvsLifecycleAction action, bool dry_run,
                           const std::filesystem::path& state_root, std::ostream& output,

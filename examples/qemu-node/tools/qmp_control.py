@@ -339,6 +339,35 @@ def shutdown(arguments: argparse.Namespace) -> None:
         pass
 
 
+def vm_control(arguments: argparse.Namespace) -> None:
+    command = "stop" if arguments.action == "pause" else "cont"
+    expected = "paused" if arguments.action == "pause" else "running"
+    with QmpClient(arguments.socket, arguments.timeout) as client:
+        client.command(command)
+        status = client.command("query-status")
+    if not isinstance(status, dict) or qmp_vm_state(status) != expected:
+        raise QmpError(f"QMP did not confirm VM state {expected}")
+    if arguments.output is not None:
+        value = existing_evidence(arguments.output)
+        value.update({
+            "qmpStatus": status,
+            "vmState": expected,
+            "state": "degraded" if expected == "paused" else value.get("state", "booting"),
+            "updatedAt": int(time.time() * 1000),
+        })
+        if expected == "paused":
+            value.update({
+                "guestState": "unavailable",
+                "guestProtocols": {"tcp": False, "udp": False},
+                "reason": "VM intentionally paused through QMP",
+            })
+        else:
+            value.pop("reason", None)
+        atomic_json(arguments.output, value)
+    print(json.dumps({"action": arguments.action, "vmState": expected,
+                      "qmpStatus": status}, sort_keys=True))
+
+
 def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser()
     commands = result.add_subparsers(dest="command", required=True)
@@ -353,6 +382,11 @@ def parser() -> argparse.ArgumentParser:
     shutdown_parser.add_argument("--socket", type=Path, required=True)
     shutdown_parser.add_argument("--timeout", type=float, default=2.0)
     shutdown_parser.add_argument("--wait", type=float, default=5.0)
+    control_parser = commands.add_parser("vm-control")
+    control_parser.add_argument("--socket", type=Path, required=True)
+    control_parser.add_argument("--action", choices=("pause", "resume"), required=True)
+    control_parser.add_argument("--output", type=Path)
+    control_parser.add_argument("--timeout", type=float, default=2.0)
     state_parser = commands.add_parser("state")
     state_parser.add_argument("--output", type=Path, required=True)
     state_parser.add_argument("--state", choices=("not-started", "booting", "ready", "degraded", "stopped", "unavailable"), required=True)
@@ -380,6 +414,8 @@ def main() -> int:
             probe(arguments)
         elif arguments.command == "shutdown":
             shutdown(arguments)
+        elif arguments.command == "vm-control":
+            vm_control(arguments)
         elif arguments.command == "guest-readiness":
             if not 1 <= arguments.port <= 65535:
                 raise ValueError("guest readiness port must be from 1 through 65535")

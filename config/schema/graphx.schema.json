@@ -343,6 +343,16 @@
         {
           "if": { "properties": { "kind": { "const": "namespace_veth" } }, "required": ["kind"] },
           "then": { "required": ["address", "interface", "peer", "switch"] }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "qemu_tap" } }, "required": ["kind"] },
+          "then": {
+            "required": ["address", "interface", "switch", "tap_uid", "tap_gid"],
+            "not": { "anyOf": [{ "required": ["peer"] }, { "required": ["routes"] }] }
+          },
+          "else": { "not": { "anyOf": [
+            { "required": ["tap_uid"] }, { "required": ["tap_gid"] }
+          ] } }
         }
       ],
       "properties": {
@@ -356,6 +366,8 @@
         "peer": { "type": "string", "minLength": 1, "maxLength": 15 },
         "switch": { "type": "string", "minLength": 1, "maxLength": 15 },
         "mtu": { "type": "integer", "minimum": 576, "maximum": 9216 },
+        "tap_uid": { "type": "integer", "minimum": 1, "maximum": 4294967294 },
+        "tap_gid": { "type": "integer", "minimum": 1, "maximum": 4294967294 },
         "routes": {
           "type": "array",
           "items": {

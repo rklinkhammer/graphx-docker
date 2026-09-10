@@ -293,9 +293,9 @@ std::vector<InfraCommand> infrastructure_plan(const GraphConfig& config, InfraAc
 
 InfraCommand route_command(const GraphConfig& config, std::string_view router_id,
                            std::string_view destination, bool clear) {
-  if (config.version == 2)
-    throw std::invalid_argument("configuration version 2 route realization is deferred beyond M3");
   const auto& router = config.network_infrastructure.router(router_id);
+  if (router.kind != RouterKind::linux_namespace)
+    throw std::invalid_argument("manual route realization requires a Linux namespace router");
   const auto found = std::ranges::find_if(
       router.routes, [&](const auto& value) { return value.destination == destination; });
   if (found == router.routes.end()) throw std::invalid_argument("unknown declared route");

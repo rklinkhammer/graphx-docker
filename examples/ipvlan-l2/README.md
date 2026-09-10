@@ -1,5 +1,11 @@
 # Standalone IPvlan L2 routed pipeline
 
+> **M5 OVS path:** use `graphx-ovs.yaml`, `compose.ovs.yaml`, and
+> `scripts/ovs-{up,status,down}.sh` on native Linux or in Lima. GraphX owns the
+> OVS bridges, router namespace, veths, mirrors, and IP-steering flows; Compose
+> has management connectivity only. The commands below are the v1 compatibility
+> path.
+
 Each GraphX node has its own Docker IPvlan L2 network and subnet. The domains
 are genuinely independent: three Compose projects attach to three external
 networks, and traffic can cross domains only through `gx-ipvl2-rtr`.

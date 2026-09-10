@@ -1,5 +1,9 @@
 # Unified QEMU demonstrations
 
+The primary OVS-backed Linux/Lima path is documented in
+[`tap/README.md`](tap/README.md). The external and container profiles remain
+user-mode-networking compatibility paths.
+
 This suite models the same three-node application twice:
 
 ```text
@@ -25,6 +29,7 @@ Only the QEMU deployment boundary changes.
 
 | Profile | QEMU location | Platforms | Acceleration |
 |---|---|---|---|
+| [tap](tap/README.md) | Unprivileged Lima/Linux process on a GraphX-owned OVS TAP | Linux (including Lima on macOS) | TCG for the checked-in x86_64 guest |
 | [external](external/README.md) | Host process | macOS and Linux | HVF on Intel macOS, KVM on Linux, or TCG |
 | [container](container/README.md) | Docker service | Linux x86_64 | KVM or TCG |
 

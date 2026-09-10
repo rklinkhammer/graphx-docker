@@ -42,6 +42,8 @@ def main() -> int:
     provision = (lima / "provision.sh").read_text(encoding="utf-8")
     for token in ("docker.io", "docker-compose-v2", "openvswitch-switch", "nftables", "qemu-system-ppc", "tcpdump", "tshark", "/var/lib/graphx"):
         require(token in provision, f"provisioning omits {token}")
+    require("install -d -m 0700 /var/lib/graphx/runs" in provision,
+            "the GraphX ownership-ledger parent must enforce mode 0700")
     require(re.search(r"timeout [0-9]+", provision) is not None, "package/service operations are not bounded")
 
     verify = (lima / "verify.sh").read_text(encoding="utf-8")

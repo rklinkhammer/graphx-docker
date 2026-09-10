@@ -30,6 +30,7 @@ namespace graphx {
 namespace {
 
 struct ExpectedEndpoint {
+  AttachmentKind kind{AttachmentKind::container_veth};
   std::string id;
   std::string owner;
   std::string host_interface;
@@ -41,9 +42,14 @@ struct ExpectedEndpoint {
   std::vector<RouteDefinition> routes;
   std::string container_id;
   std::uint64_t namespace_inode{};
+  std::string namespace_name;
+  std::uint32_t tap_uid{};
+  std::uint32_t tap_gid{};
+  VlanMetadata vlan;
 };
 
 struct OwnershipState {
+  std::string phase{"M3"};
   std::string graph_id;
   std::string config_hash;
   std::string owner_token;
@@ -52,6 +58,8 @@ struct OwnershipState {
   std::vector<OwnedResourceIdentity> bridges;
   std::vector<ExpectedEndpoint> expected_endpoints;
   std::vector<OwnedResourceIdentity> endpoints;
+  std::vector<std::string> expected_namespaces;
+  std::vector<OwnedResourceIdentity> namespaces;
 };
 
 OwnedResourceIdentity bridge_identity(std::string name, std::string uuid,
@@ -194,6 +202,17 @@ std::vector<std::string> lines(std::string value) {
   return result;
 }
 
+std::string ovs_find_uuid(const std::string& table, const std::string& column,
+                          const std::string& value) {
+  std::string found;
+  if (run({"ovs-vsctl", "--data=bare", "--no-heading", "--columns=_uuid", "find", table,
+           column + "=" + value},
+          &found) != 0)
+    return {};
+  const auto matches = lines(found);
+  return matches.size() == 1 ? matches.front() : std::string{};
+}
+
 struct ResolvedContainer {
   std::string id;
   std::uint32_t pid{};
@@ -261,6 +280,58 @@ std::string link_alias(const std::string& name) {
   return value;
 }
 
+std::optional<std::uint64_t> namespace_inode(const std::string& name) {
+  std::string value;
+  if (run({"ip", "netns", "exec", name, "stat", "-Lc", "%i", "/proc/self/ns/net"}, &value) != 0)
+    return std::nullopt;
+  try {
+    std::size_t consumed{};
+    const auto inode = std::stoull(value, &consumed);
+    if (consumed != value.size() || inode == 0) return std::nullopt;
+    return inode;
+  } catch (...) {
+    return std::nullopt;
+  }
+}
+
+std::string namespace_alias(const OwnershipState& state, std::string_view name) {
+  return "graphx:" + state.owner_token + ":netns:" + std::string(name);
+}
+
+bool namespace_owned(const OwnedResourceIdentity& item, const OwnershipState& state) {
+  const auto inode = namespace_inode(item.name);
+  if (!inode || !item.namespace_inode || *inode != *item.namespace_inode) return false;
+  std::string loopback;
+  return run({"ip", "netns", "exec", item.name, "ip", "-d", "link", "show", "dev", "lo"},
+             &loopback) == 0 &&
+         loopback.find(namespace_alias(state, item.name)) != std::string::npos;
+}
+
+OwnedResourceIdentity create_namespace(const RouterDefinition& router,
+                                       const OwnershipState& state) {
+  if (namespace_inode(router.namespace_name))
+    throw std::runtime_error("refusing unowned Linux namespace collision: " +
+                             router.namespace_name);
+  if (run({"ip", "netns", "add", router.namespace_name}) != 0 ||
+      run({"ip", "netns", "exec", router.namespace_name, "ip", "link", "set", "dev", "lo", "alias",
+           namespace_alias(state, router.namespace_name)}) != 0 ||
+      run({"ip", "netns", "exec", router.namespace_name, "ip", "link", "set", "dev", "lo", "up"}) !=
+          0)
+    throw std::runtime_error("cannot create owned Linux namespace " + router.namespace_name);
+  const auto inode = namespace_inode(router.namespace_name);
+  if (!inode) throw std::runtime_error("cannot capture Linux namespace identity");
+  OwnedResourceIdentity identity;
+  identity.kind = "linux_namespace";
+  identity.name = router.namespace_name;
+  identity.namespace_inode = *inode;
+  return identity;
+}
+
+bool delete_owned_namespace(const OwnedResourceIdentity& item, const OwnershipState& state) {
+  if (!namespace_inode(item.name)) return true;
+  return namespace_owned(item, state) && run({"ip", "netns", "delete", item.name}) == 0;
+}
+
 bool bridge_exists(const std::string& name) { return run({"ovs-vsctl", "br-exists", name}) == 0; }
 
 void ensure_state_root(const std::filesystem::path& root) {
@@ -316,15 +387,17 @@ bool inspect_existing_state_root(const std::filesystem::path& root) {
 YAML::Node state_node(const OwnershipState& state) {
   YAML::Node root;
   root["version"] = 1;
-  root["phase"] = "M4";
+  root["phase"] = state.phase;
   root["graph_id"] = state.graph_id;
   root["config_sha256"] = state.config_hash;
   root["owner_token"] = state.owner_token;
   root["status"] = state.status;
   for (const auto& name : state.expected_bridges) root["expected_bridges"].push_back(name);
+  for (const auto& name : state.expected_namespaces) root["expected_namespaces"].push_back(name);
   for (const auto& endpoint : state.expected_endpoints) {
     YAML::Node item;
     item["id"] = endpoint.id;
+    item["kind"] = std::string(to_string(endpoint.kind));
     item["owner"] = endpoint.owner;
     item["host_interface"] = endpoint.host_interface;
     item["target_interface"] = endpoint.target_interface;
@@ -332,8 +405,13 @@ YAML::Node state_node(const OwnershipState& state) {
     item["address"] = endpoint.address;
     if (!endpoint.mac.empty()) item["mac"] = endpoint.mac;
     item["mtu"] = endpoint.mtu;
-    item["container_id"] = endpoint.container_id;
+    if (!endpoint.container_id.empty()) item["container_id"] = endpoint.container_id;
+    if (!endpoint.namespace_name.empty()) item["namespace_name"] = endpoint.namespace_name;
     item["namespace_inode"] = endpoint.namespace_inode;
+    if (endpoint.tap_uid != 0) item["tap_uid"] = endpoint.tap_uid;
+    if (endpoint.tap_gid != 0) item["tap_gid"] = endpoint.tap_gid;
+    if (endpoint.vlan.access_tag) item["access_tag"] = *endpoint.vlan.access_tag;
+    for (const auto trunk : endpoint.vlan.trunks) item["trunks"].push_back(trunk);
     for (const auto& route : endpoint.routes) {
       YAML::Node route_node;
       route_node["destination"] = route.destination;
@@ -361,7 +439,16 @@ YAML::Node state_node(const OwnershipState& state) {
     item["ifindex"] = *endpoint.ifindex;
     item["peer_ifindex"] = *endpoint.peer_ifindex;
     item["namespace_inode"] = *endpoint.namespace_inode;
-    item["container_id"] = endpoint.container_id;
+    if (!endpoint.container_id.empty()) item["container_id"] = endpoint.container_id;
+    if (!endpoint.tap_owner.empty()) item["tap_owner"] = endpoint.tap_owner;
+    if (!endpoint.route_identity.empty()) item["mirror_uuid"] = endpoint.route_identity;
+    root["resources"].push_back(item);
+  }
+  for (const auto& network_namespace : state.namespaces) {
+    YAML::Node item;
+    item["kind"] = network_namespace.kind;
+    item["name"] = network_namespace.name;
+    item["namespace_inode"] = *network_namespace.namespace_inode;
     root["resources"].push_back(item);
   }
   return root;
@@ -449,9 +536,11 @@ OwnershipState load_state(const std::filesystem::path& path) {
   }
   const auto root = YAML::Load(bytes);
   if (!root.IsMap() || root["version"].as<int>(0) != 1 ||
-      (required_scalar(root, "phase") != "M3" && required_scalar(root, "phase") != "M4"))
+      (required_scalar(root, "phase") != "M3" && required_scalar(root, "phase") != "M4" &&
+       required_scalar(root, "phase") != "M5" && required_scalar(root, "phase") != "M6"))
     throw std::runtime_error("unsupported ownership state format");
   OwnershipState state;
+  state.phase = required_scalar(root, "phase");
   state.graph_id = required_scalar(root, "graph_id");
   state.config_hash = required_scalar(root, "config_sha256");
   state.owner_token = required_scalar(root, "owner_token");
@@ -475,22 +564,51 @@ OwnershipState load_state(const std::filesystem::path& path) {
       throw std::runtime_error("invalid or duplicate expected bridge");
     state.expected_bridges.push_back(name);
   }
+  if (root["expected_namespaces"])
+    for (const auto& value : root["expected_namespaces"]) {
+      const auto name = value.as<std::string>();
+      if (name.empty()) throw std::runtime_error("invalid expected Linux namespace");
+      state.expected_namespaces.push_back(name);
+    }
   std::unordered_set<std::string> expected_endpoint_ids;
   if (root["expected_endpoints"])
     for (const auto& value : root["expected_endpoints"]) {
       ExpectedEndpoint endpoint;
       endpoint.id = required_scalar(value, "id");
+      if (value["kind"]) {
+        const auto kind = value["kind"].as<std::string>();
+        if (kind == "namespace_veth")
+          endpoint.kind = AttachmentKind::namespace_veth;
+        else if (kind == "qemu_tap")
+          endpoint.kind = AttachmentKind::qemu_tap;
+        else if (kind == "mirror")
+          endpoint.kind = AttachmentKind::mirror;
+        else if (kind != "container_veth")
+          throw std::runtime_error("invalid endpoint kind");
+      }
       endpoint.owner = required_scalar(value, "owner");
       endpoint.host_interface = required_scalar(value, "host_interface");
       endpoint.target_interface = required_scalar(value, "target_interface");
       endpoint.network_switch = required_scalar(value, "switch");
-      endpoint.address = required_scalar(value, "address");
+      if (value["address"]) endpoint.address = value["address"].as<std::string>();
       if (value["mac"]) endpoint.mac = value["mac"].as<std::string>();
       endpoint.mtu = value["mtu"].as<std::uint32_t>(1500);
-      endpoint.container_id = required_scalar(value, "container_id");
+      if (value["container_id"]) endpoint.container_id = value["container_id"].as<std::string>();
+      if (value["namespace_name"])
+        endpoint.namespace_name = value["namespace_name"].as<std::string>();
       endpoint.namespace_inode = value["namespace_inode"].as<std::uint64_t>(0);
-      if (!expected_endpoint_ids.insert(endpoint.id).second || endpoint.namespace_inode == 0)
-        throw std::runtime_error("invalid expected container endpoint");
+      endpoint.tap_uid = value["tap_uid"].as<std::uint32_t>(0);
+      endpoint.tap_gid = value["tap_gid"].as<std::uint32_t>(0);
+      if (value["access_tag"]) endpoint.vlan.access_tag = value["access_tag"].as<std::uint16_t>();
+      if (value["trunks"])
+        for (const auto& trunk : value["trunks"])
+          endpoint.vlan.trunks.push_back(trunk.as<std::uint16_t>());
+      if (!expected_endpoint_ids.insert(endpoint.id).second || endpoint.namespace_inode == 0 ||
+          (endpoint.kind == AttachmentKind::container_veth && endpoint.container_id.empty()) ||
+          (endpoint.kind == AttachmentKind::namespace_veth && endpoint.namespace_name.empty()) ||
+          (endpoint.kind == AttachmentKind::qemu_tap &&
+           (endpoint.tap_uid == 0 || endpoint.tap_gid == 0)))
+        throw std::runtime_error("invalid expected endpoint");
       if (value["routes"])
         for (const auto& route_value : value["routes"]) {
           RouteDefinition route;
@@ -504,7 +622,8 @@ OwnershipState load_state(const std::filesystem::path& path) {
   if (root["resources"])
     for (const auto& value : root["resources"]) {
       const auto kind = required_scalar(value, "kind");
-      if (kind == "container_veth") {
+      if (kind == "container_veth" || kind == "namespace_veth" || kind == "qemu_tap" ||
+          kind == "mirror_veth") {
         OwnedResourceIdentity endpoint;
         endpoint.kind = kind;
         endpoint.attachment_id = required_scalar(value, "attachment_id");
@@ -515,11 +634,23 @@ OwnershipState load_state(const std::filesystem::path& path) {
         endpoint.ifindex = value["ifindex"].as<std::uint32_t>(0);
         endpoint.peer_ifindex = value["peer_ifindex"].as<std::uint32_t>(0);
         endpoint.namespace_inode = value["namespace_inode"].as<std::uint64_t>(0);
-        endpoint.container_id = required_scalar(value, "container_id");
+        if (value["container_id"]) endpoint.container_id = value["container_id"].as<std::string>();
+        if (value["tap_owner"]) endpoint.tap_owner = value["tap_owner"].as<std::string>();
+        if (value["mirror_uuid"]) endpoint.route_identity = value["mirror_uuid"].as<std::string>();
         if (!expected_endpoint_ids.contains(endpoint.attachment_id) || !*endpoint.ifindex ||
-            !*endpoint.peer_ifindex || !*endpoint.namespace_inode)
-          throw std::runtime_error("invalid owned container endpoint");
+            !*endpoint.peer_ifindex || !*endpoint.namespace_inode ||
+            (kind == "qemu_tap" && endpoint.tap_owner.empty()))
+          throw std::runtime_error("invalid owned endpoint");
         state.endpoints.push_back(std::move(endpoint));
+        continue;
+      }
+      if (kind == "linux_namespace") {
+        OwnedResourceIdentity item;
+        item.kind = kind;
+        item.name = required_scalar(value, "name");
+        item.namespace_inode = value["namespace_inode"].as<std::uint64_t>(0);
+        if (!*item.namespace_inode) throw std::runtime_error("invalid owned Linux namespace");
+        state.namespaces.push_back(std::move(item));
         continue;
       }
       if (kind != "ovs_bridge") throw std::runtime_error("unsupported owned resource kind");
@@ -553,6 +684,39 @@ bool bridge_owned(const OwnedResourceIdentity& bridge, const OwnershipState& sta
          ovs_get(bridge.name, "external_ids:graphx_owner") == state.owner_token &&
          ovs_get(bridge.name, "external_ids:graphx_config_hash") == state.config_hash &&
          ovs_get(bridge.name, "external_ids:graphx_graph") == state.graph_id;
+}
+
+std::unordered_set<std::string> ovs_uuid_set(std::string value) {
+  std::unordered_set<std::string> result;
+  std::string token;
+  const auto flush = [&] {
+    if (!token.empty()) result.insert(std::exchange(token, {}));
+  };
+  for (const auto character : value) {
+    if (std::isxdigit(static_cast<unsigned char>(character)) || character == '-')
+      token.push_back(character);
+    else
+      flush();
+  }
+  flush();
+  return result;
+}
+
+bool bridge_complete_set_owned(const OwnedResourceIdentity& bridge, const OwnershipState& state) {
+  if (!bridge_owned(bridge, state)) return false;
+  const auto internal_port =
+      bridge.secondary_id.empty() ? ovs_get("Port", bridge.name, "_uuid") : bridge.secondary_id;
+  std::unordered_set<std::string> expected{internal_port};
+  for (const auto& endpoint : state.endpoints) {
+    const auto definition =
+        std::find_if(state.expected_endpoints.begin(), state.expected_endpoints.end(),
+                     [&](const auto& candidate) { return candidate.id == endpoint.attachment_id; });
+    if (definition == state.expected_endpoints.end()) return false;
+    if (definition->network_switch == bridge.name &&
+        ovs_get("Port", endpoint.stable_id, "_uuid") == endpoint.stable_id)
+      expected.insert(endpoint.stable_id);
+  }
+  return ovs_uuid_set(ovs_get("Bridge", bridge.stable_id, "ports")) == expected;
 }
 
 bool delete_owned_bridge(const OwnedResourceIdentity& bridge, const OwnershipState& state) {
@@ -620,6 +784,50 @@ bool host_endpoint_owned(const OwnedResourceIdentity& endpoint, const OwnershipS
          link_alias(endpoint.name) == endpoint_alias(state, endpoint.attachment_id, "host");
 }
 
+std::string tap_owner_identity(std::uint32_t uid, std::uint32_t gid) {
+  return std::to_string(uid) + ":" + std::to_string(gid);
+}
+
+bool tap_owner_matches(const ExpectedEndpoint& expected) {
+  std::string details;
+  if (run({"ip", "tuntap", "show", "dev", expected.host_interface}, &details) != 0) return false;
+  return details.find(" tap ") != std::string::npos &&
+         details.find(" user " + std::to_string(expected.tap_uid)) != std::string::npos &&
+         details.find(" group " + std::to_string(expected.tap_gid)) != std::string::npos;
+}
+
+std::string comma_join(const std::vector<std::uint16_t>& values) {
+  std::ostringstream output;
+  for (std::size_t index = 0; index < values.size(); ++index) {
+    if (index != 0) output << ',';
+    output << values[index];
+  }
+  return output.str();
+}
+
+void configure_endpoint_vlan(const ExpectedEndpoint& endpoint) {
+  if (endpoint.vlan.access_tag && run({"ovs-vsctl", "set", "Port", endpoint.host_interface,
+                                       "tag=" + std::to_string(*endpoint.vlan.access_tag)}) != 0)
+    throw std::runtime_error("cannot configure OVS access VLAN for " + endpoint.id);
+  if (!endpoint.vlan.trunks.empty() && run({"ovs-vsctl", "set", "Port", endpoint.host_interface,
+                                            "trunks=" + comma_join(endpoint.vlan.trunks)}) != 0)
+    throw std::runtime_error("cannot configure OVS trunk VLANs for " + endpoint.id);
+}
+
+bool endpoint_vlan_matches(const ExpectedEndpoint& expected,
+                           const OwnedResourceIdentity& endpoint) {
+  if (expected.vlan.access_tag &&
+      ovs_get("Port", endpoint.stable_id, "tag") != std::to_string(*expected.vlan.access_tag))
+    return false;
+  if (!expected.vlan.trunks.empty()) {
+    const auto observed = ovs_uuid_set(ovs_get("Port", endpoint.stable_id, "trunks"));
+    std::unordered_set<std::string> wanted;
+    for (const auto value : expected.vlan.trunks) wanted.insert(std::to_string(value));
+    if (observed != wanted) return false;
+  }
+  return true;
+}
+
 bool endpoint_names_absent_or_recorded(const OwnedResourceIdentity& endpoint) {
   const auto port_uuid = ovs_get("Port", endpoint.name, "_uuid");
   const auto interface_uuid = ovs_get("Interface", endpoint.name, "_uuid");
@@ -629,6 +837,17 @@ bool endpoint_names_absent_or_recorded(const OwnedResourceIdentity& endpoint) {
 
 bool delete_owned_endpoint(const OwnedResourceIdentity& endpoint, const OwnershipState& state) {
   if (!endpoint_names_absent_or_recorded(endpoint)) return false;
+  if (!endpoint.route_identity.empty()) {
+    if (ovs_get("Mirror", endpoint.route_identity, "external_ids:graphx_owner") !=
+            state.owner_token ||
+        ovs_get("Mirror", endpoint.route_identity, "external_ids:graphx_attachment") !=
+            endpoint.attachment_id)
+      return false;
+    if (run({"ovs-vsctl", "--", "remove", "Bridge",
+             expected_endpoint(state, endpoint.attachment_id).network_switch, "mirrors",
+             endpoint.route_identity, "--", "destroy", "Mirror", endpoint.route_identity}) != 0)
+      return false;
+  }
   if (ovs_get("Port", endpoint.stable_id, "_uuid") == endpoint.stable_id) {
     if (!ovs_endpoint_owned(endpoint, state)) return false;
     const auto& expected = expected_endpoint(state, endpoint.attachment_id);
@@ -664,9 +883,28 @@ bool delete_owned_endpoint(const OwnedResourceIdentity& endpoint, const Ownershi
   }
   if (link_ifindex(endpoint.name)) {
     if (!host_endpoint_owned(endpoint, state)) return false;
-    if (run({"ip", "link", "delete", "dev", endpoint.name}) != 0) return false;
+    const auto& expected = expected_endpoint(state, endpoint.attachment_id);
+    if (expected.kind == AttachmentKind::qemu_tap) {
+      if (!tap_owner_matches(expected) ||
+          endpoint.tap_owner != tap_owner_identity(expected.tap_uid, expected.tap_gid) ||
+          run({"ip", "tuntap", "delete", "dev", endpoint.name, "mode", "tap"}) != 0)
+        return false;
+    } else if (run({"ip", "link", "delete", "dev", endpoint.name}) != 0) {
+      return false;
+    }
   }
   return true;
+}
+
+bool tap_endpoint_healthy(const ExpectedEndpoint& expected, const OwnedResourceIdentity& endpoint,
+                          const OwnershipState& state) {
+  std::string link;
+  return host_endpoint_owned(endpoint, state) && ovs_endpoint_owned(endpoint, state) &&
+         endpoint_vlan_matches(expected, endpoint) && tap_owner_matches(expected) &&
+         endpoint.tap_owner == tap_owner_identity(expected.tap_uid, expected.tap_gid) &&
+         run({"ip", "-d", "-o", "link", "show", "dev", expected.host_interface}, &link) == 0 &&
+         link.find("mtu " + std::to_string(expected.mtu)) != std::string::npos &&
+         link.find("UP") != std::string::npos;
 }
 
 bool container_endpoint_healthy(const ExpectedEndpoint& expected,
@@ -706,6 +944,39 @@ bool container_endpoint_healthy(const ExpectedEndpoint& expected,
       return false;
   }
   return host_endpoint_owned(endpoint, state) && ovs_endpoint_owned(endpoint, state);
+}
+
+bool namespace_endpoint_healthy(const ExpectedEndpoint& expected,
+                                const OwnedResourceIdentity& endpoint,
+                                const OwnershipState& state) {
+  const auto inode = namespace_inode(expected.namespace_name);
+  if (!inode || !endpoint.namespace_inode || *inode != *endpoint.namespace_inode) return false;
+  std::string link;
+  if (run({"ip", "netns", "exec", expected.namespace_name, "ip", "-d", "-o", "link", "show", "dev",
+           expected.target_interface},
+          &link) != 0 ||
+      link.find(endpoint_alias(state, endpoint.attachment_id, "peer")) == std::string::npos)
+    return false;
+  std::string address;
+  if (run({"ip", "netns", "exec", expected.namespace_name, "ip", "-o", "-4", "address", "show",
+           "dev", expected.target_interface},
+          &address) != 0 ||
+      address.find(expected.address) == std::string::npos)
+    return false;
+  return host_endpoint_owned(endpoint, state) && ovs_endpoint_owned(endpoint, state);
+}
+
+bool mirror_endpoint_healthy(const ExpectedEndpoint& expected,
+                             const OwnedResourceIdentity& endpoint, const OwnershipState& state) {
+  return host_endpoint_owned(endpoint, state) && ovs_endpoint_owned(endpoint, state) &&
+         link_ifindex(expected.target_interface) == endpoint.peer_ifindex &&
+         link_alias(expected.target_interface) ==
+             endpoint_alias(state, endpoint.attachment_id, "peer") &&
+         !endpoint.route_identity.empty() &&
+         ovs_get("Mirror", endpoint.route_identity, "external_ids:graphx_owner") ==
+             state.owner_token &&
+         ovs_get("Mirror", endpoint.route_identity, "external_ids:graphx_attachment") ==
+             endpoint.attachment_id;
 }
 
 void check_endpoint_collision(const ExpectedEndpoint& endpoint, std::uint32_t pid) {
@@ -809,6 +1080,283 @@ OwnedResourceIdentity create_endpoint(const ExpectedEndpoint& endpoint, std::uin
   return identity;
 }
 
+OwnedResourceIdentity create_namespace_endpoint(const ExpectedEndpoint& endpoint,
+                                                const OwnershipState& state) {
+  if (run({"ip", "link", "add", endpoint.host_interface, "type", "veth", "peer", "name",
+           endpoint.target_interface}) != 0)
+    throw std::runtime_error("cannot create namespace veth for attachment " + endpoint.id);
+  if (run({"ip", "link", "set", "dev", endpoint.host_interface, "alias",
+           endpoint_alias(state, endpoint.id, "host")}) != 0 ||
+      run({"ip", "link", "set", "dev", endpoint.target_interface, "alias",
+           endpoint_alias(state, endpoint.id, "peer")}) != 0 ||
+      run({"ip", "link", "set", "dev", endpoint.host_interface, "mtu",
+           std::to_string(endpoint.mtu)}) != 0 ||
+      run({"ip", "link", "set", "dev", endpoint.target_interface, "mtu",
+           std::to_string(endpoint.mtu)}) != 0)
+    throw std::runtime_error("cannot mark namespace veth " + endpoint.id);
+  const auto ifindex = link_ifindex(endpoint.host_interface);
+  const auto peer_ifindex = link_ifindex(endpoint.target_interface);
+  if (!ifindex || !peer_ifindex) throw std::runtime_error("cannot capture namespace veth identity");
+  if (run({"ovs-vsctl",
+           "--",
+           "--id=@i",
+           "create",
+           "Interface",
+           "name=" + endpoint.host_interface,
+           "external_ids:graphx_owner=" + state.owner_token,
+           "external_ids:graphx_attachment=" + endpoint.id,
+           "external_ids:graphx_graph=" + state.graph_id,
+           "external_ids:graphx_config_hash=" + state.config_hash,
+           "--",
+           "--id=@p",
+           "create",
+           "Port",
+           "name=" + endpoint.host_interface,
+           "interfaces=@i",
+           "external_ids:graphx_owner=" + state.owner_token,
+           "external_ids:graphx_attachment=" + endpoint.id,
+           "external_ids:graphx_graph=" + state.graph_id,
+           "external_ids:graphx_config_hash=" + state.config_hash,
+           "--",
+           "add",
+           "Bridge",
+           endpoint.network_switch,
+           "ports",
+           "@p"}) != 0)
+    throw std::runtime_error("cannot attach namespace veth to OVS " + endpoint.id);
+  const auto port_uuid = ovs_get("Port", endpoint.host_interface, "_uuid");
+  const auto interface_uuid = ovs_get("Interface", endpoint.host_interface, "_uuid");
+  if (port_uuid.empty() || interface_uuid.empty())
+    throw std::runtime_error("cannot capture namespace OVS identity");
+  configure_endpoint_vlan(endpoint);
+  if (run({"ip", "link", "set", "dev", endpoint.target_interface, "netns",
+           endpoint.namespace_name}) != 0)
+    throw std::runtime_error("cannot move veth into namespace " + endpoint.namespace_name);
+  const auto ns = [&](std::vector<std::string> command) {
+    std::vector<std::string> prefix = {"ip", "netns", "exec", endpoint.namespace_name};
+    prefix.insert(prefix.end(), command.begin(), command.end());
+    if (run(prefix) != 0)
+      throw std::runtime_error("cannot configure namespace endpoint " + endpoint.id);
+  };
+  ns({"ip", "link", "set", "dev", endpoint.target_interface, "mtu", std::to_string(endpoint.mtu)});
+  if (!endpoint.mac.empty())
+    ns({"ip", "link", "set", "dev", endpoint.target_interface, "address", endpoint.mac});
+  ns({"ip", "address", "replace", endpoint.address, "dev", endpoint.target_interface});
+  ns({"ip", "link", "set", "dev", endpoint.target_interface, "up"});
+  for (const auto& route : endpoint.routes) {
+    std::vector<std::string> command = {"ip", "route", "replace", route.destination};
+    if (!route.via.empty()) command.insert(command.end(), {"via", route.via});
+    command.insert(command.end(), {"dev", endpoint.target_interface});
+    ns(std::move(command));
+  }
+  if (run({"ip", "link", "set", "dev", endpoint.host_interface, "up"}) != 0)
+    throw std::runtime_error("cannot enable namespace host veth " + endpoint.id);
+  OwnedResourceIdentity identity;
+  identity.kind = "namespace_veth";
+  identity.name = endpoint.host_interface;
+  identity.target_interface = endpoint.target_interface;
+  identity.attachment_id = endpoint.id;
+  identity.stable_id = port_uuid;
+  identity.secondary_id = interface_uuid;
+  identity.ifindex = *ifindex;
+  identity.peer_ifindex = *peer_ifindex;
+  identity.namespace_inode = endpoint.namespace_inode;
+  return identity;
+}
+
+OwnedResourceIdentity create_tap_endpoint(const ExpectedEndpoint& endpoint,
+                                          const OwnershipState& state) {
+  const auto uid = std::to_string(endpoint.tap_uid);
+  const auto gid = std::to_string(endpoint.tap_gid);
+  if (run({"ip", "tuntap", "add", "dev", endpoint.host_interface, "mode", "tap", "user", uid,
+           "group", gid}) != 0)
+    throw std::runtime_error("cannot create TAP for attachment " + endpoint.id);
+  if (run({"ip", "link", "set", "dev", endpoint.host_interface, "alias",
+           endpoint_alias(state, endpoint.id, "host")}) != 0 ||
+      run({"ip", "link", "set", "dev", endpoint.host_interface, "mtu",
+           std::to_string(endpoint.mtu)}) != 0)
+    throw std::runtime_error("cannot mark TAP ownership for attachment " + endpoint.id);
+  const auto ifindex = link_ifindex(endpoint.host_interface);
+  if (!ifindex)
+    throw std::runtime_error("cannot capture TAP ifindex for attachment " + endpoint.id);
+  if (run({"ovs-vsctl",
+           "--",
+           "--id=@i",
+           "create",
+           "Interface",
+           "name=" + endpoint.host_interface,
+           "external_ids:graphx_owner=" + state.owner_token,
+           "external_ids:graphx_attachment=" + endpoint.id,
+           "external_ids:graphx_graph=" + state.graph_id,
+           "external_ids:graphx_config_hash=" + state.config_hash,
+           "--",
+           "--id=@p",
+           "create",
+           "Port",
+           "name=" + endpoint.host_interface,
+           "interfaces=@i",
+           "external_ids:graphx_owner=" + state.owner_token,
+           "external_ids:graphx_attachment=" + endpoint.id,
+           "external_ids:graphx_graph=" + state.graph_id,
+           "external_ids:graphx_config_hash=" + state.config_hash,
+           "--",
+           "add",
+           "Bridge",
+           endpoint.network_switch,
+           "ports",
+           "@p"}) != 0)
+    throw std::runtime_error("cannot attach owned TAP to OVS for attachment " + endpoint.id);
+  const auto port_uuid = ovs_get("Port", endpoint.host_interface, "_uuid");
+  const auto interface_uuid = ovs_get("Interface", endpoint.host_interface, "_uuid");
+  if (port_uuid.empty() || interface_uuid.empty())
+    throw std::runtime_error("cannot capture TAP OVS identity for attachment " + endpoint.id);
+  configure_endpoint_vlan(endpoint);
+  if (run({"ip", "link", "set", "dev", endpoint.host_interface, "up"}) != 0)
+    throw std::runtime_error("cannot enable TAP for attachment " + endpoint.id);
+  OwnedResourceIdentity identity;
+  identity.kind = "qemu_tap";
+  identity.name = endpoint.host_interface;
+  identity.target_interface = endpoint.host_interface;
+  identity.attachment_id = endpoint.id;
+  identity.stable_id = port_uuid;
+  identity.secondary_id = interface_uuid;
+  identity.ifindex = *ifindex;
+  identity.peer_ifindex = *ifindex;
+  identity.namespace_inode = endpoint.namespace_inode;
+  identity.tap_owner = tap_owner_identity(endpoint.tap_uid, endpoint.tap_gid);
+  return identity;
+}
+
+OwnedResourceIdentity create_mirror_endpoint(const ExpectedEndpoint& endpoint,
+                                             const OwnershipState& state) {
+  if (run({"ip", "link", "add", endpoint.host_interface, "type", "veth", "peer", "name",
+           endpoint.target_interface}) != 0)
+    throw std::runtime_error("cannot create mirror veth " + endpoint.id);
+  if (run({"ip", "link", "set", "dev", endpoint.host_interface, "alias",
+           endpoint_alias(state, endpoint.id, "host")}) != 0 ||
+      run({"ip", "link", "set", "dev", endpoint.target_interface, "alias",
+           endpoint_alias(state, endpoint.id, "peer")}) != 0)
+    throw std::runtime_error("cannot mark mirror veth " + endpoint.id);
+  const auto ifindex = link_ifindex(endpoint.host_interface);
+  const auto peer_ifindex = link_ifindex(endpoint.target_interface);
+  if (!ifindex || !peer_ifindex) throw std::runtime_error("cannot capture mirror veth identity");
+  if (run({"ovs-vsctl",
+           "--",
+           "--id=@i",
+           "create",
+           "Interface",
+           "name=" + endpoint.host_interface,
+           "external_ids:graphx_owner=" + state.owner_token,
+           "external_ids:graphx_attachment=" + endpoint.id,
+           "external_ids:graphx_graph=" + state.graph_id,
+           "external_ids:graphx_config_hash=" + state.config_hash,
+           "--",
+           "--id=@p",
+           "create",
+           "Port",
+           "name=" + endpoint.host_interface,
+           "interfaces=@i",
+           "external_ids:graphx_owner=" + state.owner_token,
+           "external_ids:graphx_attachment=" + endpoint.id,
+           "external_ids:graphx_graph=" + state.graph_id,
+           "external_ids:graphx_config_hash=" + state.config_hash,
+           "--",
+           "add",
+           "Bridge",
+           endpoint.network_switch,
+           "ports",
+           "@p"}) != 0)
+    throw std::runtime_error("cannot attach mirror veth " + endpoint.id);
+  const auto port_uuid = ovs_get("Port", endpoint.host_interface, "_uuid");
+  const auto interface_uuid = ovs_get("Interface", endpoint.host_interface, "_uuid");
+  if (run({"ovs-vsctl", "--", "--id=@m", "create", "Mirror", "name=" + endpoint.id,
+           "select_all=true", "output-port=" + port_uuid,
+           "external_ids:graphx_owner=" + state.owner_token,
+           "external_ids:graphx_attachment=" + endpoint.id,
+           "external_ids:graphx_graph=" + state.graph_id,
+           "external_ids:graphx_config_hash=" + state.config_hash, "--", "add", "Bridge",
+           endpoint.network_switch, "mirrors", "@m"}) != 0)
+    throw std::runtime_error("cannot create OVS mirror " + endpoint.id);
+  const auto mirror_uuid = ovs_get("Mirror", endpoint.id, "_uuid");
+  if (mirror_uuid.empty()) throw std::runtime_error("cannot capture OVS mirror identity");
+  if (run({"ip", "link", "set", "dev", endpoint.host_interface, "up"}) != 0 ||
+      run({"ip", "link", "set", "dev", endpoint.target_interface, "up"}) != 0)
+    throw std::runtime_error("cannot enable mirror veth " + endpoint.id);
+  OwnedResourceIdentity identity;
+  identity.kind = "mirror_veth";
+  identity.name = endpoint.host_interface;
+  identity.target_interface = endpoint.target_interface;
+  identity.attachment_id = endpoint.id;
+  identity.stable_id = port_uuid;
+  identity.secondary_id = interface_uuid;
+  identity.route_identity = mirror_uuid;
+  identity.ifindex = *ifindex;
+  identity.peer_ifindex = *peer_ifindex;
+  identity.namespace_inode = endpoint.namespace_inode;
+  return identity;
+}
+
+std::string address_host(std::string value) {
+  const auto slash = value.find('/');
+  if (slash != std::string::npos) value.resize(slash);
+  return value;
+}
+
+void install_profile_flows(const GraphConfig& config, const OwnershipState& state) {
+  const auto cookie = "0x" + state.owner_token.substr(0, 16);
+  for (const auto& network : config.network_infrastructure.networks) {
+    if (!network.profile || (*network.profile != NetworkProfile::ipvlan_l2 &&
+                             *network.profile != NetworkProfile::ipvlan_l3 &&
+                             *network.profile != NetworkProfile::ipvlan_l3s))
+      continue;
+    std::unordered_set<std::string> switches;
+    for (const auto& attachment : config.network_infrastructure.attachments) {
+      if (attachment.network != network.id || attachment.address.empty() ||
+          (attachment.kind != AttachmentKind::container_veth &&
+           attachment.kind != AttachmentKind::namespace_veth))
+        continue;
+      std::string ofport;
+      if (run({"ovs-vsctl", "get", "Interface", attachment.peer, "ofport"}, &ofport) != 0 ||
+          ofport.empty() || ofport == "-1")
+        throw std::runtime_error("cannot resolve OVS port for profile attachment " + attachment.id);
+      const auto address = address_host(attachment.address);
+      const auto add_flow = [&](const std::string& match) {
+        if (run({"ovs-ofctl", "add-flow", attachment.network_switch,
+                 "cookie=" + cookie + ",priority=200," + match + ",actions=output:" + ofport}) != 0)
+          throw std::runtime_error("cannot install semantic-profile flow for " + attachment.id);
+      };
+      add_flow("ip,nw_dst=" + address);
+      add_flow("arp,arp_tpa=" + address);
+      switches.insert(attachment.network_switch);
+    }
+    for (const auto& network_switch : switches) {
+      const auto router = std::find_if(config.network_infrastructure.attachments.begin(),
+                                       config.network_infrastructure.attachments.end(),
+                                       [&](const auto& attachment) {
+                                         return attachment.network == network.id &&
+                                                attachment.network_switch == network_switch &&
+                                                attachment.kind == AttachmentKind::namespace_veth;
+                                       });
+      if (router != config.network_infrastructure.attachments.end()) {
+        std::string ofport;
+        if (run({"ovs-vsctl", "get", "Interface", router->peer, "ofport"}, &ofport) != 0 ||
+            ofport.empty() || ofport == "-1" ||
+            run({"ovs-ofctl", "add-flow", network_switch,
+                 "cookie=" + cookie +
+                     ",priority=150,ip,dl_dst=00:00:00:00:00:00/01:00:00:00:00:00,actions=output:" +
+                     ofport}) != 0)
+          throw std::runtime_error("cannot install IPvlan router fallback flow");
+      }
+      if (run({"ovs-ofctl", "add-flow", network_switch,
+               "cookie=" + cookie + ",priority=100,dl_dst=ff:ff:ff:ff:ff:ff,actions=drop"}) != 0 ||
+          run({"ovs-ofctl", "add-flow", network_switch,
+               "cookie=" + cookie +
+                   ",priority=90,dl_dst=01:00:00:00:00:00/01:00:00:00:00:00,actions=drop"}) != 0)
+        throw std::runtime_error("cannot install IPvlan broadcast/multicast isolation");
+    }
+  }
+}
+
 }  // namespace
 
 std::filesystem::path default_ownership_state_root() {
@@ -820,7 +1368,7 @@ int execute_ovs_lifecycle(const GraphConfig& config, const std::filesystem::path
                           OvsLifecycleAction action, bool dry_run,
                           const std::filesystem::path& state_root, std::ostream& output,
                           std::ostream& errors) {
-  if (config.version != 2) throw std::invalid_argument("M4 OVS lifecycle requires version 2");
+  if (config.version != 2) throw std::invalid_argument("OVS lifecycle requires version 2");
   const auto hash = configuration_hash(config_path);
   const auto state_path = state_root / (config.id + ".yaml");
   if (dry_run) {
@@ -828,13 +1376,77 @@ int execute_ovs_lifecycle(const GraphConfig& config, const std::filesystem::path
       output << "# ownership-state " << state_path << "\n";
       for (const auto& item : config.network_infrastructure.switches)
         output << planned_create(item, config.id, "<generated-owner-token>", hash) << '\n';
-      for (const auto& item : config.network_infrastructure.attachments)
-        if (item.kind == AttachmentKind::container_veth)
+      for (const auto& router : config.network_infrastructure.routers)
+        if (router.kind == RouterKind::linux_namespace)
+          output << "ip netns add " << router.namespace_name << " # owner=" << router.id << '\n';
+      for (const auto& item : config.network_infrastructure.attachments) {
+        if (item.kind == AttachmentKind::container_veth) {
           output << "docker[project=" << config.deployment.project << ",service=" << item.owner
                  << "] -> ip link add " << item.peer << " type veth peer name "
                  << item.interface << " -> ovs-vsctl add-port " << item.network_switch << ' '
                  << item.peer << " -> netns[verified-container] address=" << item.address
                  << " mtu=" << item.mtu << '\n';
+        } else if (item.kind == AttachmentKind::namespace_veth) {
+          output << "netns[" << item.owner << "] -> ip link add " << item.peer
+                 << " type veth peer name " << item.interface << " -> ovs-vsctl add-port "
+                 << item.network_switch << ' ' << item.peer << " address=" << item.address << '\n';
+        } else if (item.kind == AttachmentKind::qemu_tap) {
+          output << "ip tuntap add dev " << item.interface << " mode tap user " << item.tap_uid
+                 << " group " << item.tap_gid << " -> ovs-vsctl add-port " << item.network_switch
+                 << ' ' << item.interface << " mtu=" << item.mtu << '\n';
+        } else if (item.kind == AttachmentKind::mirror) {
+          output << "mirror " << item.id << " -> ovs-vsctl add-port " << item.network_switch << ' '
+                 << item.interface << " -> OVS SPAN\n";
+        } else if (item.kind == AttachmentKind::external) {
+          output << "external-boundary " << item.id << " owner=" << item.owner << " unchanged\n";
+        }
+        for (const auto& route : item.routes) {
+          output << "netns[" << item.owner << "] ip route replace " << route.destination;
+          if (!route.via.empty()) output << " via " << route.via;
+          output << " dev " << item.interface << '\n';
+        }
+      }
+      for (const auto& network : config.network_infrastructure.networks) {
+        if (!network.profile || (*network.profile != NetworkProfile::ipvlan_l2 &&
+                                 *network.profile != NetworkProfile::ipvlan_l3 &&
+                                 *network.profile != NetworkProfile::ipvlan_l3s))
+          continue;
+        std::unordered_set<std::string> switches;
+        for (const auto& item : config.network_infrastructure.attachments) {
+          if (item.network != network.id || item.address.empty() ||
+              (item.kind != AttachmentKind::container_veth &&
+               item.kind != AttachmentKind::namespace_veth))
+            continue;
+          switches.insert(item.network_switch);
+          output << "ovs-ofctl add-flow " << item.network_switch
+                 << " profile=" << to_string(*network.profile)
+                 << " ip-dst=" << address_host(item.address)
+                 << " arp-target=" << address_host(item.address)
+                 << " output=<resolved-ofport:" << item.peer << ">\n";
+        }
+        for (const auto& network_switch : switches)
+          output << "ovs-ofctl add-flow " << network_switch
+                 << " ipvlan-broadcast-multicast=drop-except-targeted-arp\n";
+      }
+      for (const auto& router : config.network_infrastructure.routers) {
+        if (router.kind != RouterKind::linux_namespace) continue;
+        if (router.forwarding)
+          output << "ip netns exec " << router.namespace_name
+                 << " sysctl -q -w net.ipv4.ip_forward=1\n";
+        for (const auto& route : router.routes) {
+          output << "router-route " << router.id << ' ' << route.destination;
+          if (!route.via.empty()) output << " via " << route.via;
+          if (!route.device.empty()) output << " dev " << route.device;
+          output << " install=" << (route.install_on_create ? "create" : "manual") << '\n';
+        }
+        if (!router.policies.empty())
+          output << "nft add table/chain netns=" << router.namespace_name
+                 << " family=inet table=graphx chain=forward policy=drop\n";
+        for (const auto& policy : router.policies)
+          output << "nft add rule netns=" << router.namespace_name << " policy=" << policy.id
+                 << " source=" << policy.source << " destination=" << policy.destination
+                 << " action=" << policy.action << '\n';
+      }
     } else {
       output << "# " << (action == OvsLifecycleAction::status ? "inspect" : "identity-check-delete")
              << " ownership-state " << state_path << '\n';
@@ -845,7 +1457,7 @@ int execute_ovs_lifecycle(const GraphConfig& config, const std::filesystem::path
   const auto lock_path = state_root / (config.id + ".lock");
   if (action == OvsLifecycleAction::status) {
     if (!inspect_existing_state_root(state_root) || !path_entry_exists(state_path)) {
-      output << "No M4 ownership state for graph " << config.id << '\n';
+      output << "No OVS ownership state for graph " << config.id << '\n';
       return 2;
     }
     FileDescriptor lock(::open(lock_path.c_str(), O_RDONLY | O_NOFOLLOW));
@@ -879,14 +1491,29 @@ int execute_ovs_lifecycle(const GraphConfig& config, const std::filesystem::path
       const auto& expected = expected_endpoint(state, item.attachment_id);
       bool owned{};
       try {
-        owned = container_endpoint_healthy(expected, item, state, config);
+        if (expected.kind == AttachmentKind::container_veth)
+          owned = container_endpoint_healthy(expected, item, state, config);
+        else if (expected.kind == AttachmentKind::namespace_veth)
+          owned = namespace_endpoint_healthy(expected, item, state);
+        else if (expected.kind == AttachmentKind::qemu_tap)
+          owned = tap_endpoint_healthy(expected, item, state);
+        else
+          owned = mirror_endpoint_healthy(expected, item, state);
       } catch (const std::exception& error) {
-        errors << "graphx: container identity check failed for " << item.attachment_id << ": "
+        errors << "graphx: endpoint identity check failed for " << item.attachment_id << ": "
                << error.what() << '\n';
       }
-      output << "container_veth " << item.attachment_id << " host=" << item.name
-             << " container=" << item.container_id << " netns-inode=" << *item.namespace_inode
+      output << to_string(expected.kind) << ' ' << item.attachment_id << " host=" << item.name;
+      if (!item.container_id.empty()) output << " container=" << item.container_id;
+      if (!item.tap_owner.empty()) output << " tap-owner=" << item.tap_owner;
+      output << " netns-inode=" << *item.namespace_inode
              << " state=" << (owned ? "owned" : "missing-replaced-or-restarted") << '\n';
+      healthy = healthy && owned;
+    }
+    for (const auto& item : state.namespaces) {
+      const bool owned = namespace_owned(item, state);
+      output << "linux_namespace " << item.name << " netns-inode=" << *item.namespace_inode
+             << " state=" << (owned ? "owned" : "missing-or-replaced") << '\n';
       healthy = healthy && owned;
     }
     return healthy ? 0 : 2;
@@ -918,18 +1545,45 @@ int execute_ovs_lifecycle(const GraphConfig& config, const std::filesystem::path
     state.config_hash = hash;
     state.owner_token = random_token();
     state.status = "creating";
+    for (const auto& attachment : config.network_infrastructure.attachments) {
+      if (attachment.kind == AttachmentKind::qemu_tap) {
+        state.phase = "M6";
+      } else if (attachment.kind == AttachmentKind::container_veth && state.phase == "M3") {
+        state.phase = "M4";
+      } else if ((attachment.kind == AttachmentKind::namespace_veth ||
+                  attachment.kind == AttachmentKind::mirror) &&
+                 state.phase != "M6") {
+        state.phase = "M5";
+      }
+    }
+    for (const auto& network : config.network_infrastructure.networks)
+      if (network.profile && *network.profile != NetworkProfile::ethernet && state.phase != "M6")
+        state.phase = "M5";
     for (const auto& item : config.network_infrastructure.switches)
       state.expected_bridges.push_back(item.id);
     std::unordered_map<std::string, ResolvedContainer> containers;
+    std::unordered_map<std::string, const RouterDefinition*> routers;
+    for (const auto& router : config.network_infrastructure.routers) {
+      if (router.kind != RouterKind::linux_namespace) continue;
+      if (namespace_inode(router.namespace_name))
+        throw std::runtime_error("refusing unowned Linux namespace collision: " +
+                                 router.namespace_name);
+      state.expected_namespaces.push_back(router.namespace_name);
+      routers.emplace(router.id, &router);
+    }
+    struct stat host_namespace{};
+    if (::stat("/proc/self/ns/net", &host_namespace) != 0)
+      throw std::runtime_error("cannot inspect host network namespace");
     for (const auto& item : config.network_infrastructure.attachments) {
-      if (item.kind != AttachmentKind::container_veth) continue;
-      if (item.address.empty())
-        throw std::runtime_error("M4 realization requires a declared address for attachment " +
+      if (item.kind != AttachmentKind::container_veth &&
+          item.kind != AttachmentKind::namespace_veth && item.kind != AttachmentKind::qemu_tap &&
+          item.kind != AttachmentKind::mirror)
+        continue;
+      if (item.kind != AttachmentKind::mirror && item.address.empty())
+        throw std::runtime_error("M5 realization requires a declared address for attachment " +
                                  item.id);
-      auto [container_entry, inserted] = containers.try_emplace(item.owner);
-      if (inserted) container_entry->second = resolve_container(config, item.owner);
-      const auto& container = container_entry->second;
       ExpectedEndpoint endpoint;
+      endpoint.kind = item.kind;
       endpoint.id = item.id;
       endpoint.owner = item.owner;
       endpoint.host_interface = item.peer;
@@ -939,9 +1593,55 @@ int execute_ovs_lifecycle(const GraphConfig& config, const std::filesystem::path
       endpoint.mac = item.mac;
       endpoint.mtu = item.mtu;
       endpoint.routes = item.routes;
-      endpoint.container_id = container.id;
-      endpoint.namespace_inode = container.namespace_inode;
-      check_endpoint_collision(endpoint, container.pid);
+      endpoint.tap_uid = item.tap_uid;
+      endpoint.tap_gid = item.tap_gid;
+      if (item.kind == AttachmentKind::container_veth) {
+        auto [container_entry, inserted] = containers.try_emplace(item.owner);
+        if (inserted) container_entry->second = resolve_container(config, item.owner);
+        const auto& container = container_entry->second;
+        endpoint.container_id = container.id;
+        endpoint.namespace_inode = container.namespace_inode;
+        check_endpoint_collision(endpoint, container.pid);
+      } else if (item.kind == AttachmentKind::namespace_veth) {
+        const auto router = routers.find(item.owner);
+        if (router == routers.end())
+          throw std::runtime_error("missing Linux namespace router for " + item.id);
+        endpoint.namespace_name = router->second->namespace_name;
+        endpoint.namespace_inode = 1;  // Replaced with the owned inode after namespace creation.
+        if (link_ifindex(endpoint.host_interface) ||
+            !ovs_get("Port", endpoint.host_interface, "_uuid").empty())
+          throw std::runtime_error("refusing namespace endpoint collision: " + item.id);
+      } else if (item.kind == AttachmentKind::qemu_tap) {
+        endpoint.host_interface = item.interface;
+        endpoint.target_interface = item.interface;
+        endpoint.namespace_inode = static_cast<std::uint64_t>(host_namespace.st_ino);
+        if (link_ifindex(endpoint.host_interface) ||
+            !ovs_get("Port", endpoint.host_interface, "_uuid").empty() ||
+            !ovs_get("Interface", endpoint.host_interface, "_uuid").empty())
+          throw std::runtime_error("refusing QEMU TAP collision: " + item.id);
+      } else {
+        const auto& network_switch =
+            config.network_infrastructure.network_switch(item.network_switch);
+        const auto port =
+            std::find_if(network_switch.ports.begin(), network_switch.ports.end(),
+                         [&](const auto& value) { return value.interface == item.interface; });
+        if (port == network_switch.ports.end() || port->peer.empty())
+          throw std::runtime_error("mirror attachment requires a switch port peer: " + item.id);
+        endpoint.host_interface = item.interface;
+        endpoint.target_interface = port->peer;
+        endpoint.namespace_inode = static_cast<std::uint64_t>(host_namespace.st_ino);
+        if (link_ifindex(endpoint.host_interface) || link_ifindex(endpoint.target_interface) ||
+            !ovs_get("Port", endpoint.host_interface, "_uuid").empty())
+          throw std::runtime_error("refusing mirror endpoint collision: " + item.id);
+      }
+      const auto& endpoint_switch =
+          config.network_infrastructure.network_switch(endpoint.network_switch);
+      const auto endpoint_port = std::find_if(endpoint_switch.ports.begin(),
+                                              endpoint_switch.ports.end(), [&](const auto& value) {
+                                                return value.interface == endpoint.host_interface ||
+                                                       value.peer == endpoint.host_interface;
+                                              });
+      if (endpoint_port != endpoint_switch.ports.end()) endpoint.vlan = endpoint_port->vlan;
       state.expected_endpoints.push_back(std::move(endpoint));
     }
     save_state(state_path, state, false);
@@ -982,12 +1682,35 @@ int execute_ovs_lifecycle(const GraphConfig& config, const std::filesystem::path
         state.bridges.push_back(bridge_identity(item.id, uuid, internal_port_uuid));
         save_state(state_path, state);
       }
+      for (const auto& [id, router] : routers) {
+        output << "+ linux_namespace " << router->namespace_name << '\n';
+        state.namespaces.push_back(create_namespace(*router, state));
+        for (auto& endpoint : state.expected_endpoints)
+          if (endpoint.owner == id && endpoint.kind == AttachmentKind::namespace_veth)
+            endpoint.namespace_inode = *state.namespaces.back().namespace_inode;
+        save_state(state_path, state);
+        ++mutation;
+        if (const auto* crash = std::getenv("GRAPHX_M5_CRASH_AFTER");
+            crash && std::to_string(mutation) == crash)
+          ::_exit(99);
+        if (const auto* failure = std::getenv("GRAPHX_M5_FAIL_AFTER");
+            failure && std::to_string(mutation) == failure)
+          throw std::runtime_error("injected M5 interruption after mutation " +
+                                   std::to_string(mutation));
+      }
       for (const auto& endpoint : state.expected_endpoints) {
-        const auto& container = containers.at(endpoint.owner);
-        output << "+ container_veth " << endpoint.id << " host=" << endpoint.host_interface
-               << " switch=" << endpoint.network_switch << " container=" << endpoint.container_id
+        output << "+ " << to_string(endpoint.kind) << ' ' << endpoint.id
+               << " host=" << endpoint.host_interface << " switch=" << endpoint.network_switch
                << '\n';
-        state.endpoints.push_back(create_endpoint(endpoint, container.pid, state));
+        if (endpoint.kind == AttachmentKind::container_veth)
+          state.endpoints.push_back(
+              create_endpoint(endpoint, containers.at(endpoint.owner).pid, state));
+        else if (endpoint.kind == AttachmentKind::namespace_veth)
+          state.endpoints.push_back(create_namespace_endpoint(endpoint, state));
+        else if (endpoint.kind == AttachmentKind::qemu_tap)
+          state.endpoints.push_back(create_tap_endpoint(endpoint, state));
+        else
+          state.endpoints.push_back(create_mirror_endpoint(endpoint, state));
         ++mutation;
         if (const auto* crash = std::getenv("GRAPHX_M4_CRASH_AFTER");
             crash && std::to_string(mutation) == crash)
@@ -996,11 +1719,52 @@ int execute_ovs_lifecycle(const GraphConfig& config, const std::filesystem::path
             failure && std::to_string(mutation) == failure)
           throw std::runtime_error("injected M4 interruption after mutation " +
                                    std::to_string(mutation));
+        if (const auto* crash = std::getenv("GRAPHX_M5_CRASH_AFTER");
+            crash && std::to_string(mutation) == crash)
+          ::_exit(99);
+        if (const auto* failure = std::getenv("GRAPHX_M5_FAIL_AFTER");
+            failure && std::to_string(mutation) == failure)
+          throw std::runtime_error("injected M5 interruption after mutation " +
+                                   std::to_string(mutation));
+        if (const auto* crash = std::getenv("GRAPHX_M6_CRASH_AFTER");
+            crash && std::to_string(mutation) == crash)
+          ::_exit(99);
+        if (const auto* failure = std::getenv("GRAPHX_M6_FAIL_AFTER");
+            failure && std::to_string(mutation) == failure)
+          throw std::runtime_error("injected M6 interruption after mutation " +
+                                   std::to_string(mutation));
         save_state(state_path, state);
+      }
+      install_profile_flows(config, state);
+      for (const auto& [id, router] : routers) {
+        if (router->forwarding && run({"ip", "netns", "exec", router->namespace_name, "sysctl",
+                                       "-q", "-w", "net.ipv4.ip_forward=1"}) != 0)
+          throw std::runtime_error("cannot enable forwarding for router " + id);
+        for (const auto& route : router->routes) {
+          if (!route.install_on_create) continue;
+          std::vector<std::string> command = {"ip", "netns", "exec",    router->namespace_name,
+                                              "ip", "route", "replace", route.destination};
+          if (!route.via.empty()) command.insert(command.end(), {"via", route.via});
+          if (!route.device.empty()) command.insert(command.end(), {"dev", route.device});
+          if (run(command) != 0) throw std::runtime_error("cannot install router route");
+        }
+        if (!router->policies.empty()) {
+          if (run({"ip", "netns", "exec", router->namespace_name, "nft", "add", "table", "inet",
+                   "graphx"}) != 0 ||
+              run({"ip", "netns", "exec", router->namespace_name, "nft", "add", "chain", "inet",
+                   "graphx", "forward", "{ type filter hook forward priority 0; policy drop; }"}) !=
+                  0)
+            throw std::runtime_error("cannot create router policy table");
+          for (const auto& policy : router->policies)
+            if (run({"ip", "netns", "exec", router->namespace_name, "nft", "add", "rule", "inet",
+                     "graphx", "forward", "ip", "saddr", policy.source, "ip", "daddr",
+                     policy.destination, "counter", policy.action}) != 0)
+              throw std::runtime_error("cannot install router policy " + policy.id);
+        }
       }
       state.status = "ready";
       save_state(state_path, state);
-      output << "GraphX M4 OVS/container state ready: " << state_path << '\n';
+      output << "GraphX " << state.phase << " OVS laboratory state ready: " << state_path << '\n';
       return 0;
     } catch (...) {
       errors << "graphx: create interrupted; recovering owned OVS/container mutations\n";
@@ -1013,16 +1777,28 @@ int execute_ovs_lifecycle(const GraphConfig& config, const std::filesystem::path
         const auto port_uuid = ovs_get("Port", expected.host_interface, "_uuid");
         if (!ifindex && port_uuid.empty()) continue;
         OwnedResourceIdentity discovered;
-        discovered.kind = "container_veth";
+        discovered.kind =
+            expected.kind == AttachmentKind::container_veth
+                ? "container_veth"
+                : (expected.kind == AttachmentKind::namespace_veth
+                       ? "namespace_veth"
+                       : (expected.kind == AttachmentKind::qemu_tap ? "qemu_tap" : "mirror_veth"));
         discovered.attachment_id = expected.id;
         discovered.name = expected.host_interface;
         discovered.target_interface = expected.target_interface;
         discovered.ifindex = ifindex.value_or(0);
-        discovered.peer_ifindex = ifindex.value_or(0);
+        discovered.peer_ifindex = expected.kind == AttachmentKind::mirror
+                                      ? link_ifindex(expected.target_interface).value_or(0)
+                                      : ifindex.value_or(0);
         discovered.namespace_inode = expected.namespace_inode;
         discovered.container_id = expected.container_id;
+        if (expected.kind == AttachmentKind::qemu_tap)
+          discovered.tap_owner = tap_owner_identity(expected.tap_uid, expected.tap_gid);
         discovered.stable_id = port_uuid;
         discovered.secondary_id = ovs_get("Interface", expected.host_interface, "_uuid");
+        if (expected.kind == AttachmentKind::mirror)
+          discovered.route_identity =
+              ovs_find_uuid("Mirror", "external_ids:graphx_attachment", expected.id);
         state.endpoints.push_back(std::move(discovered));
       }
       // Include atomic mutations that happened before their ledger update.
@@ -1045,6 +1821,13 @@ int execute_ovs_lifecycle(const GraphConfig& config, const std::filesystem::path
           errors << "graphx: retained ownership state after rollback could not safely remove "
                  << iterator->attachment_id << '\n';
         }
+      for (auto iterator = state.namespaces.rbegin(); iterator != state.namespaces.rend();
+           ++iterator)
+        if (!delete_owned_namespace(*iterator, state)) {
+          cleanup_complete = false;
+          errors << "graphx: retained ownership state after rollback could not safely remove "
+                 << iterator->name << '\n';
+        }
       for (auto iterator = state.bridges.rbegin(); iterator != state.bridges.rend(); ++iterator)
         if (bridge_exists(iterator->name)) {
           if (!bridge_owned(*iterator, state) || !delete_owned_bridge(*iterator, state)) {
@@ -1062,7 +1845,7 @@ int execute_ovs_lifecycle(const GraphConfig& config, const std::filesystem::path
   }
 
   if (!path_entry_exists(state_path)) {
-    throw std::runtime_error("no M4 ownership state for graph " + config.id);
+    throw std::runtime_error("no M5 ownership state for graph " + config.id);
   }
   auto state = load_state(state_path);
   if (state.graph_id != config.id) throw std::runtime_error("ownership state graph mismatch");
@@ -1103,42 +1886,90 @@ int execute_ovs_lifecycle(const GraphConfig& config, const std::filesystem::path
         ovs_get("Port", port_uuid, "external_ids:graphx_attachment") != expected.id)
       throw std::runtime_error("refusing unowned or replaced container endpoint: " + expected.id);
     OwnedResourceIdentity discovered;
-    discovered.kind = "container_veth";
+    discovered.kind =
+        expected.kind == AttachmentKind::container_veth
+            ? "container_veth"
+            : (expected.kind == AttachmentKind::namespace_veth
+                   ? "namespace_veth"
+                   : (expected.kind == AttachmentKind::qemu_tap ? "qemu_tap" : "mirror_veth"));
     discovered.attachment_id = expected.id;
     discovered.name = expected.host_interface;
     discovered.target_interface = expected.target_interface;
     discovered.ifindex = *ifindex;
-    // Recovery cleanup only needs the host identity. Preserve a nonzero slot so
-    // the recovered state remains schema-valid if cleanup is interrupted again.
-    discovered.peer_ifindex = *ifindex;
+    // Container and namespace cleanup only needs the host identity. Mirrors
+    // retain both host-side links, so recover their actual peer identity for
+    // the complete-set replacement check.
+    if (expected.kind == AttachmentKind::mirror) {
+      const auto peer_ifindex = link_ifindex(expected.target_interface);
+      if (!peer_ifindex ||
+          link_alias(expected.target_interface) != endpoint_alias(state, expected.id, "peer"))
+        throw std::runtime_error("refusing unowned or replaced mirror peer: " + expected.id);
+      discovered.peer_ifindex = *peer_ifindex;
+    } else {
+      discovered.peer_ifindex = *ifindex;
+    }
     discovered.namespace_inode = expected.namespace_inode;
     discovered.container_id = expected.container_id;
+    if (expected.kind == AttachmentKind::qemu_tap) {
+      if (!tap_owner_matches(expected))
+        throw std::runtime_error("refusing unowned or replaced QEMU TAP: " + expected.id);
+      discovered.tap_owner = tap_owner_identity(expected.tap_uid, expected.tap_gid);
+    }
     discovered.stable_id = port_uuid;
     discovered.secondary_id = ovs_get("Interface", expected.host_interface, "_uuid");
+    if (expected.kind == AttachmentKind::mirror)
+      discovered.route_identity =
+          ovs_find_uuid("Mirror", "external_ids:graphx_attachment", expected.id);
     state.endpoints.push_back(std::move(discovered));
   }
   // Refuse the entire cleanup before the first mutation when any recorded
   // resource has been replaced. Each item is checked again immediately before
   // its own deletion to close the remaining race window.
   for (const auto& item : state.bridges)
-    if (bridge_exists(item.name) && !bridge_owned(item, state))
-      throw std::runtime_error("refusing to delete replaced OVS bridge: " + item.name);
+    if (bridge_exists(item.name) && !bridge_complete_set_owned(item, state))
+      throw std::runtime_error("refusing OVS bridge with replaced identity or unexpected ports: " +
+                               item.name);
   for (const auto& item : state.endpoints) {
     if (link_ifindex(item.name) && !host_endpoint_owned(item, state))
-      throw std::runtime_error("refusing to delete replaced container veth: " + item.attachment_id);
+      throw std::runtime_error("refusing to delete replaced host endpoint: " + item.attachment_id);
     if (!ovs_get("Port", item.stable_id, "_uuid").empty() && !ovs_endpoint_owned(item, state))
       throw std::runtime_error("refusing to delete replaced OVS endpoint: " + item.attachment_id);
     if (!endpoint_names_absent_or_recorded(item))
       throw std::runtime_error("refusing same-name OVS endpoint replacement: " +
                                item.attachment_id);
+    if (!item.route_identity.empty() &&
+        (ovs_get("Mirror", item.route_identity, "external_ids:graphx_owner") != state.owner_token ||
+         ovs_get("Mirror", item.route_identity, "external_ids:graphx_attachment") !=
+             item.attachment_id))
+      throw std::runtime_error("refusing replaced OVS mirror: " + item.attachment_id);
+    const auto& expected = expected_endpoint(state, item.attachment_id);
+    if (expected.kind == AttachmentKind::qemu_tap &&
+        (!tap_owner_matches(expected) ||
+         item.tap_owner != tap_owner_identity(expected.tap_uid, expected.tap_gid) ||
+         !endpoint_vlan_matches(expected, item)))
+      throw std::runtime_error("refusing replaced QEMU TAP ownership or VLAN: " +
+                               item.attachment_id);
+    if (expected.kind == AttachmentKind::mirror &&
+        (link_ifindex(expected.target_interface) != item.peer_ifindex ||
+         link_alias(expected.target_interface) !=
+             endpoint_alias(state, item.attachment_id, "peer")))
+      throw std::runtime_error("refusing replaced mirror peer: " + item.attachment_id);
   }
+  for (const auto& item : state.namespaces)
+    if (namespace_inode(item.name) && !namespace_owned(item, state))
+      throw std::runtime_error("refusing to delete replaced Linux namespace: " + item.name);
   state.status = "destroying";
   save_state(state_path, state);
   for (auto iterator = state.endpoints.rbegin(); iterator != state.endpoints.rend(); ++iterator) {
-    output << "- container_veth " << iterator->attachment_id << '\n';
+    output << "- " << iterator->kind << ' ' << iterator->attachment_id << '\n';
     if (!delete_owned_endpoint(*iterator, state))
       throw std::runtime_error("identity changed while deleting owned container endpoint " +
                                iterator->attachment_id);
+  }
+  for (auto iterator = state.namespaces.rbegin(); iterator != state.namespaces.rend(); ++iterator) {
+    output << "- linux_namespace " << iterator->name << '\n';
+    if (!delete_owned_namespace(*iterator, state))
+      throw std::runtime_error("identity changed while deleting Linux namespace " + iterator->name);
   }
   for (auto iterator = state.bridges.rbegin(); iterator != state.bridges.rend(); ++iterator) {
     if (!bridge_exists(iterator->name)) continue;
@@ -1150,7 +1981,7 @@ int execute_ovs_lifecycle(const GraphConfig& config, const std::filesystem::path
                                iterator->name);
   }
   std::filesystem::remove(state_path);
-  output << "GraphX M4 OVS/container state removed\n";
+  output << "GraphX " << state.phase << " OVS laboratory state removed\n";
   return 0;
 }
 
