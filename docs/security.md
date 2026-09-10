@@ -50,9 +50,17 @@ requires typed attachments, and cannot enter the version-1 infrastructure,
 route, or fault planner. Migration validates the literal source without
 applying runtime `GRAPHX_OVERRIDES`, never modifies it, and creates output with
 exclusive no-follow semantics so existing paths and symlinks are not
-overwritten. Application-container veth and QEMU TAP
-realization still require later ownership and threat reviews; current QEMU
-profiles continue to use slirp.
+overwritten. M3 stores an owner-only configuration digest, random run token,
+expected resource names, and OVS UUIDs under `/var/lib/graphx/runs`. Each OVS
+bridge also carries the token, digest, and graph ID in `external_ids`; status,
+recovery, and cleanup require all three markers, and cleanup conditions deletion
+atomically on those intrinsic identities and the stable OVS UUID. Initial ledger
+publication refuses every existing directory entry, including a dangling symlink;
+read-only status never creates the state root, lock, or ledger. The lifecycle refuses missing state,
+unowned names, replacements, symlinked state roots, and concurrent graph
+operations. Application-container veth and QEMU TAP realization still require
+later ownership and threat reviews; current QEMU profiles continue to use
+slirp.
 
 ## TCP TLS 1.3 and mutual TLS
 

@@ -383,7 +383,7 @@ def build_docx():
     band = doc.add_table(rows=1, cols=1); band.alignment = WD_TABLE_ALIGNMENT.CENTER
     cell = band.cell(0, 0); shade(cell, NAVY); set_cell_margins(cell, 220, 220, 220, 220)
     cp = cell.paragraphs[0]; cp.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    add_inline(cp, f"GraphX {VERSION}\nRepository architecture baseline\nReviewed 2026-09-08")
+    add_inline(cp, f"GraphX {VERSION}\nRepository architecture baseline\nReviewed 2026-09-09")
     for run in cp.runs: set_run_font(run, size=12, bold=True, color=WHITE)
     doc.add_paragraph()
     note = doc.add_paragraph("Document status: maintained source and editable Word edition. Implemented behavior is separated from proposed work.")

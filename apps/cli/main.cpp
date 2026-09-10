@@ -1,6 +1,7 @@
 #include "graphx/config.hpp"
 #include "graphx/infra.hpp"
 #include "graphx/migration.hpp"
+#include "graphx/ownership.hpp"
 #include "graphx/version.hpp"
 #include "projection.hpp"
 
@@ -24,7 +25,8 @@ void usage(std::ostream& output) {
          << "  graphx <validate|inspect> [config.yaml] [--set path=value]\n"
          << "  graphx config migrate [config.yaml] [--output FILE]\n"
          << "  graphx project [config.yaml] [--check] [--output-dir DIR]\n"
-         << "  graphx infra <create|destroy|status> [config.yaml] [--dry-run] [--transactional]\n"
+         << "  graphx infra <create|destroy|status|recover> [config.yaml] [--dry-run]\n"
+         << "               [--transactional] [--state-dir DIR]\n"
          << "  graphx infra route <apply|clear> [config.yaml] --router ID --destination CIDR\n"
          << "  graphx infra fault <apply|clear> [config.yaml] --router ID --interface ID\n"
          << "                    [--delay 20ms] [--jitter 3ms] [--loss 1%] [--rate 50mbit]\n";
@@ -355,15 +357,24 @@ int infrastructure_command(int argc, char** argv) {
   }
 
   graphx::InfraAction infra_action;
-  if (action == "create")
+  graphx::OvsLifecycleAction ovs_action;
+  if (action == "create") {
     infra_action = graphx::InfraAction::create;
-  else if (action == "destroy")
+    ovs_action = graphx::OvsLifecycleAction::create;
+  } else if (action == "destroy") {
     infra_action = graphx::InfraAction::destroy;
-  else if (action == "status")
+    ovs_action = graphx::OvsLifecycleAction::destroy;
+  } else if (action == "status") {
     infra_action = graphx::InfraAction::status;
-  else
+    ovs_action = graphx::OvsLifecycleAction::status;
+  } else if (action == "recover") {
+    infra_action = graphx::InfraAction::destroy;
+    ovs_action = graphx::OvsLifecycleAction::recover;
+  } else {
     throw std::invalid_argument("unknown infra action '" + action + "'");
+  }
   auto path = default_config();
+  auto state_root = graphx::default_ownership_state_root();
   bool path_set{}, dry_run{}, transactional{};
   for (int index = 3; index < argc; ++index) {
     const std::string argument = argv[index];
@@ -371,13 +382,16 @@ int infrastructure_command(int argc, char** argv) {
       dry_run = true;
     else if (argument == "--transactional")
       transactional = true;
-    else if (!path_set) {
+    else if (argument == "--state-dir") {
+      if (++index == argc) throw std::invalid_argument("--state-dir requires a directory");
+      state_root = argv[index];
+    } else if (!path_set) {
       path = argument;
       path_set = true;
     } else
       throw std::invalid_argument("unexpected argument '" + argument + "'");
   }
-  if (transactional && infra_action != graphx::InfraAction::create)
+  if (transactional && action != "create")
     throw std::invalid_argument("--transactional is supported only for infra create");
 #if !defined(__linux__)
   if (!dry_run)
@@ -385,6 +399,13 @@ int infrastructure_command(int argc, char** argv) {
         "native infrastructure changes require Linux; use --dry-run or the macOS OVS lab profile");
 #endif
   const auto config = graphx::load_config(path);
+  if (config.version == 2) {
+    if (transactional)
+      throw std::invalid_argument("version 2 create is always transactional; omit --transactional");
+    return graphx::execute_ovs_lifecycle(config, path, ovs_action, dry_run, state_root, std::cout,
+                                         std::cerr);
+  }
+  if (action == "recover") throw std::invalid_argument("infra recover requires version 2");
   return graphx::execute_infrastructure_plan(
       graphx::infrastructure_plan(config, infra_action, transactional), dry_run, std::cout,
       std::cerr);

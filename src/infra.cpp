@@ -170,8 +170,8 @@ std::vector<InfraCommand> infrastructure_plan(const GraphConfig& config, InfraAc
                                               bool transactional) {
   if (config.version == 2)
     throw std::invalid_argument(
-        "configuration version 2 realization is not available until migration M3; no legacy "
-        "Docker driver commands were generated");
+        "configuration version 2 uses the M3 OVS lifecycle API; no legacy Docker driver commands "
+        "were generated");
   const auto& infrastructure = config.network_infrastructure;
   std::vector<InfraCommand> commands;
   if (action == InfraAction::create) {
@@ -294,7 +294,7 @@ std::vector<InfraCommand> infrastructure_plan(const GraphConfig& config, InfraAc
 InfraCommand route_command(const GraphConfig& config, std::string_view router_id,
                            std::string_view destination, bool clear) {
   if (config.version == 2)
-    throw std::invalid_argument("configuration version 2 route realization begins in migration M3");
+    throw std::invalid_argument("configuration version 2 route realization is deferred beyond M3");
   const auto& router = config.network_infrastructure.router(router_id);
   const auto found = std::ranges::find_if(
       router.routes, [&](const auto& value) { return value.destination == destination; });
@@ -322,7 +322,7 @@ InfraCommand netem_command(const GraphConfig& config, std::string_view router_id
                            std::string_view interface_id, bool clear, std::string delay,
                            std::string jitter, std::string loss, std::string rate) {
   if (config.version == 2)
-    throw std::invalid_argument("configuration version 2 fault realization begins in migration M3");
+    throw std::invalid_argument("configuration version 2 fault realization is deferred beyond M3");
   const auto& router = config.network_infrastructure.router(router_id);
   const auto found = std::ranges::find_if(router.interfaces, [&](const auto& value) {
     return value.id == interface_id || value.device == interface_id;

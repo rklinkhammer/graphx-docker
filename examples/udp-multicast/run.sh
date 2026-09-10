@@ -18,7 +18,9 @@ trap cleanup EXIT INT TERM
   exit 2
 }
 export GRAPHX_CONFIG="$example_dir/graphx.yaml" GRAPHX_MAX_MESSAGES="${GRAPHX_MAX_MESSAGES:-5}"
-export GRAPHX_START_DELAY_MS="${GRAPHX_START_DELAY_MS:-200}"
+# Give instrumented or freshly loaded subscribers time to join before the
+# publisher sends its finite, intentionally unretried datagram sequence.
+export GRAPHX_START_DELAY_MS="${GRAPHX_START_DELAY_MS:-1000}"
 GRAPHX_NODE=subscriber "$build_dir/graphx-udp-subscriber" >"$log_dir/subscriber.log" 2>&1 & pids+=("$!")
 GRAPHX_NODE=diagnostic "$build_dir/graphx-udp-subscriber" >"$log_dir/diagnostic.log" 2>&1 & pids+=("$!")
 "$build_dir/graphx-udp-publisher"

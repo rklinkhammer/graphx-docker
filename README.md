@@ -23,9 +23,10 @@ veth/TAP, nftables, netem, QEMU tooling, and packet capture. This M1 environment
 contains the privileged `graphx-docker` toolchain; it is not a container on
 macOS. M2 adds a strict [configuration version 2 model](docs/configuration-v2.md)
 and deterministic version-1 migration for the future OVS-only data plane.
-Version 1 and its Docker bridge/MACVLAN/IPVLAN realization remain supported;
-version-2 infrastructure commands fail closed until M3, and QEMU still uses
-slirp until the TAP phase. Migration reads the literal source and ignores
+Version 1 and its Docker bridge/MACVLAN/IPVLAN realization remain supported.
+M3 adds the [persistent OVS ownership lifecycle](docs/ownership-m3.md) for
+version-2 bridges. Container and namespace ports remain M4 work, and QEMU still
+uses slirp until the TAP phase. Migration reads the literal source and ignores
 runtime `GRAPHX_OVERRIDES`.
 
 ## Architecture and decisions
@@ -464,8 +465,8 @@ path; selecting a logical edge highlights its macvlan/OVS/router/OVS/ipvlan path
 
 Migration never edits the source and refuses to overwrite an existing output.
 Review and validate the generated version-2 file before adopting it. Version-2
-`infra`, route, and fault commands intentionally fail until the M3 OVS lifecycle
-is implemented.
+`infra` commands use the M3 OVS bridge lifecycle. Route and fault commands
+remain deferred until later endpoint and data-plane phases.
 
 The configuration path defaults to `graphx.yaml` and can be set with
 `GRAPHX_CONFIG`. Scalar overrides use existing dotted paths. Precedence is:

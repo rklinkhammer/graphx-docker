@@ -2,7 +2,7 @@
 
 **Version:** 1.3
 **Repository baseline:** GraphX 1.1.0
-**Review date:** 2026-09-08
+**Review date:** 2026-09-09
 **Status:** Living architecture document
 
 ## Executive summary
@@ -16,7 +16,7 @@ GraphX is an educational, configuration-driven framework for describing a direct
 5. the **observability model** says what is measured, retained, exported, and captured; and
 6. the **control and GUI plane** presents those models and applies narrowly scoped runtime commands.
 
-The versioned `graphx.yaml` file is the authoritative source for these views. Version 1 retains the implemented Docker-driver data plane. Version 2 expresses OVS semantic profiles and typed attachment intent, while deliberately refusing infrastructure realization until M3. The C++ loader and the telemetry service both validate and normalize configuration, while the browser derives its Application and Network views from the normalized topology instead of keeping a second topology definition.
+The versioned `graphx.yaml` file is the authoritative source for these views. Version 1 retains the implemented Docker-driver data plane. Version 2 expresses OVS semantic profiles and typed attachment intent; M3 realizes its identity-owned OVS bridge boundary while endpoints remain deferred. The C++ loader and the telemetry service both validate and normalize configuration, while the browser derives its Application and Network views from the normalized topology instead of keeping a second topology definition.
 
 GraphX supports five GraphX-aware transports—bounded in-process queues, TCP, Unix-domain sockets, POSIX shared memory, and IPv4 UDP—and also represents external raw TCP/UDP edges that GraphX observes but does not instantiate. The same canonical GraphX envelope and `u32be` frame are used by the stream transports, shared memory, UDP datagrams, application capture, and Wireshark tooling. Raw external edges use `framing: none` and are deliberately rejected by the GraphX transport factory.
 
@@ -26,7 +26,7 @@ The QEMU examples prove a second important boundary: an application does not nee
 
 Observability is intentionally best effort and bounded. Runtime events update live WebSocket topology, Prometheus metrics, rolling SLO state, optional OTLP export, optional SQLite metadata history, and capture correlation. GraphX application PCAPNG and standard Ethernet PCAPNG are complementary: the former explains envelopes; the latter explains the real network path. The GUI ties these artifacts together by edge identity, message identity where available, filenames, packet indexes, and capture offsets.
 
-The architecture is suitable for reproducible laboratories and controlled demonstrations. Its present limits are equally important: GraphX-managed execution allows only DAGs (external raw device relationships may loop); version-2 OVS realization is not yet implemented; infrastructure provisioning is create/destroy rather than reconciliation; UDP is bounded but unreliable; multicast remains one logical producer-to-consumer edge; capture does not rotate automatically; OVS and application captures are not automatically cross-correlated; QEMU uses user-mode networking rather than TAP; and the telemetry/control system is a single-collector control domain rather than a distributed control plane.
+The architecture is suitable for reproducible laboratories and controlled demonstrations. Its present limits are equally important: GraphX-managed execution allows only DAGs (external raw device relationships may loop); version-2 realization currently owns OVS bridges but not endpoint attachments or profile flows; infrastructure provisioning is create/destroy rather than reconciliation; UDP is bounded but unreliable; multicast remains one logical producer-to-consumer edge; capture does not rotate automatically; OVS and application captures are not automatically cross-correlated; QEMU uses user-mode networking rather than TAP; and the telemetry/control system is a single-collector control domain rather than a distributed control plane.
 
 For Apple Silicon development, Migration M1 adds an optional Lima ARM64 Linux
 execution environment. The VM contains rootful Docker, system OVS, Linux
@@ -34,10 +34,10 @@ namespace/veth/TAP, nftables, netem, QEMU, capture, and build tools while the
 repository remains mounted from macOS. High-I/O and privileged runtime state is
 VM-local. M1 verifies these primitives with a disposable topology. M2 adds the
 strict configuration version 2 intent boundary, fixed OVS semantic profiles,
-typed attachments, and deterministic version-1 migration. It does not change
-the application data plane: version-2 infrastructure commands fail closed,
-version 1 remains realized by the Docker-driver planner, and QEMU remains on
-slirp.
+typed attachments, and deterministic version-1 migration. M3 adds a persistent,
+identity-safe OVS bridge lifecycle for version 2 without changing the application
+data plane. Version 1 remains realized by the Docker-driver planner, while
+version-2 endpoints and QEMU TAP remain deferred and QEMU continues to use slirp.
 
 ## 1. Scope and architectural principles
 
@@ -74,7 +74,7 @@ The present design evolved through the following accepted decisions.
 | Unified QEMU profiles | Modeled raw network nodes consistently across host and Linux-container execution | Shared guest/observer/UI, external and container profiles, QMP and probe evidence |
 | Explicit manual-route activation | Kept teaching-state transitions declared, reviewable, and narrow | `install: manual`, exact `graphx infra route apply/clear`, strict evidence projection |
 | Lima macOS execution layer | Moved privileged Linux development behind a reproducible Apple Silicon VM boundary | Pinned M1 template, rootful Docker/system OVS provisioning, disposable primitive verifier |
-| OVS semantic network profiles | Accepted OVS as the future single backend while preserving user intent | M2 config v2 profiles and typed attachments; realization remains deferred while v1 Docker drivers continue |
+| OVS semantic network profiles | Accepted OVS as the future single backend while preserving user intent | M2 config v2 profiles and typed attachments; M3 identity-owned bridge lifecycle; endpoint realization remains deferred while v1 Docker drivers continue |
 
 The UDP decision is canonical ADR 0012 and the unified QEMU profiles decision is
 canonical ADR 0013. The decision index records that QEMU was initially assigned
@@ -166,7 +166,7 @@ Common container defaults are read-only root filesystems, small tmpfs mounts, al
 
 ### 4.4 Lifecycle boundaries
 
-The CLI validates and inspects both configuration versions. For version 1, `graphx infra create`, `status`, and `destroy` plan or manage host/network resources; version-2 infrastructure operations fail closed until M3. Compose manages current application services, and QEMU demo scripts manage their own host or container VM resources. These owners must be stopped in dependency order: application workloads first, then external networks and host infrastructure.
+The CLI validates and inspects both configuration versions. For version 1, `graphx infra create`, `status`, and `destroy` plan or manage host/network resources. For version 2, M3 provides persistent, identity-safe OVS bridge create, status, destroy, and interrupted-create recovery; endpoint attachment remains deferred. Compose manages current application services, and QEMU demo scripts manage their own host or container VM resources. These owners must be stopped in dependency order: application workloads first, then external networks and host infrastructure.
 
 Infrastructure provisioning is designed for clean laboratories. It does not persist desired state, reconcile drift, or guarantee rollback of every partial direct CLI create; the example launchers add preflight and cleanup behavior around this seam.
 
@@ -665,8 +665,9 @@ that acceptance gate passes.
 ### Accepted Lima and OVS migration
 
 ADR 0016 and ADR 0017 accept a new migration track. M1 supplies the Linux
-execution boundary and M2 supplies the version-2 configuration boundary, but
-the OVS application runtime is not yet implemented. Migration work packages use `M` identifiers so
+execution boundary, M2 supplies the version-2 configuration boundary, and M3
+supplies persistent identity-safe OVS bridge ownership. Endpoint attachment and
+profile realization are not yet implemented. Migration work packages use `M` identifiers so
 they do not collide with the existing feature-phase history. The authoritative
 sequence is maintained in `prompt/ovs_migration_implementation_plan.md`:
 
@@ -675,17 +676,19 @@ sequence is maintained in `prompt/ovs_migration_implementation_plan.md`:
 3. M2 implements configuration version 2, packet-verifiable MACVLAN/IPVLAN
    semantic profiles, typed attachments, and deterministic migration without
    changing version-1 meaning.
-4. M3 and M4 add identity-safe ownership, OVS lifecycle, and container veth
-   attachment.
+4. M3 implements locked persistent ownership state and an identity-safe OVS
+   bridge lifecycle; M4 adds container and namespace veth attachment.
 5. M5 migrates the existing network and external-device laboratories.
 6. M6 adds the owned QEMU TAP/OVS profile.
 7. M7 integrates capture, faults, and diagnostics with the common lifecycle.
 8. M8 retires legacy realization paths only after the full compatibility gate.
 
-Until M3 and the later realization phases pass, the current Docker-driver,
+Until the later endpoint realization phases pass, the current Docker-driver,
 Docker Desktop simulation, and QEMU slirp descriptions in this document remain
-descriptions of implemented runtime behavior. Version-2 infrastructure, route,
-and fault operations fail closed rather than falling back to that legacy path.
+descriptions of implemented runtime behavior. Version-2 bridge create, status,
+destroy, and interrupted-create recovery use the M3 ownership ledger; ports,
+routes, faults, capture, containers, namespaces, and TAP remain deferred rather
+than falling back to the legacy path.
 
 ### Completed documentation and consistency foundation
 
@@ -705,7 +708,7 @@ and fault operations fail closed rather than falling back to that legacy path.
 
 ### Later platform capabilities
 
-1. Implement the accepted M3 reconcile/rollback/ownership contract before expanding beyond laboratories.
+1. Independently verify the implemented M3 reconcile/rollback/ownership contract before expanding beyond laboratories.
 2. Decide capture rotation, indexing, retention, and cross-capture correlation contracts.
 3. Implement the accepted QEMU TAP/OVS direction after M3 while keeping any
    broader physical-node attachment behind a separate operator/security gate.

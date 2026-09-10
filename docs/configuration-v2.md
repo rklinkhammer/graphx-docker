@@ -6,10 +6,10 @@ migration. Version 1 remains accepted with its original Docker
 `parent`, `mode`, `network.interfaces`, or `deployment.network`; it uses
 semantic profiles and explicit attachments instead.
 
-M2 defines and validates intent only. The CLI deliberately refuses `infra`,
-route, and fault realization for version 2 until the identity-safe OVS
-lifecycle arrives in M3. It therefore cannot route a version-2 file through the
-legacy Docker network planner.
+M2 defines and validates intent. M3 adds identity-safe OVS bridge lifecycle
+operations for version 2; route, fault, and endpoint realization remain
+deferred. A version-2 file is never routed through the legacy Docker network
+planner.
 
 ## Semantic profiles
 
@@ -116,5 +116,5 @@ node interfaces map to `external`. Unsupported or ambiguous legacy fields,
 non-system OVS switches, oversized generated IDs, and attachment-ID collisions
 fail with a diagnostic instead of guessing.
 
-The migration does not change the source file or claim that M3–M6 realization
+The migration does not change the source file or claim that M4–M6 realization
 exists. Review the resulting profiles and attachment kinds before adopting it.

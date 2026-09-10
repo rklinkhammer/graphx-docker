@@ -176,7 +176,7 @@ void version_two_is_strict_and_not_realized_by_v1_planner() {
         graphx::infrastructure_plan(config, graphx::InfraAction::create);
     throw std::runtime_error("version 2 used the legacy infrastructure planner");
   } catch (const std::invalid_argument& error) {
-    expect(std::string_view(error.what()).find("migration M3") != std::string_view::npos,
+    expect(std::string_view(error.what()).find("M3 OVS lifecycle API") != std::string_view::npos,
            "version 2 planner boundary diagnostic");
   }
 }

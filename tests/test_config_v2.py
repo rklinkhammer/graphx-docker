@@ -115,10 +115,11 @@ def main() -> int:
                              "--replace", check=False)
         require(unknown_option.returncode != 0 and "unknown option" in unknown_option.stderr,
                 "migration accepted an unknown option")
-        realization = run(graphx, "infra", "create", str(output), "--dry-run", check=False)
-        require(realization.returncode != 0 and "migration M3" in realization.stderr and
+        realization = run(graphx, "infra", "create", str(output), "--dry-run",
+                          "--state-dir", str(temporary_root / "state"))
+        require("ownership-state" in realization.stdout and
                 "docker network create" not in realization.stdout + realization.stderr,
-                "version 2 reached the legacy Docker planner")
+                "version 2 did not enter the M3 OVS lifecycle boundary")
 
     schema = json.loads((root / "config/schema/graphx.schema.json").read_text(encoding="utf-8"))
     require(schema["properties"]["version"]["enum"] == [1, 2], "schema version boundary")

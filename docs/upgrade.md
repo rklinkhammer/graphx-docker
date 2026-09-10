@@ -31,8 +31,8 @@ graphx inspect graphx-v2.yaml
 The migration is deterministic, refuses an existing output or symlink, and
 fails rather than guessing when legacy network intent is ambiguous. Compare the
 semantic profiles and typed attachments with the source before adopting the new
-file. M2 models intent only: version-2 infrastructure, route, and fault commands
-fail closed until the M3 OVS lifecycle exists.
+file. Version-2 infrastructure uses the M3 identity-safe OVS bridge lifecycle;
+route, fault, and endpoint realization remain deferred to later phases.
 
 Migration reads the literal source file and intentionally ignores
 `GRAPHX_OVERRIDES`. Clear or retain runtime overrides as needed for normal

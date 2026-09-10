@@ -33,6 +33,7 @@ The Lima M1 environment is the supported macOS foundation for privileged Linux
 networking work. M1 verifies rootful Docker, system OVS, disposable
 namespace/veth/TAP, nftables, netem, capture, and the portable baseline inside
 the VM. M2 adds portable parsing, inspection, projection, and deterministic
-migration for configuration version 2. It does not yet realize the OVS-only
-application backend, attach GraphX containers by veth, or replace QEMU slirp
-with TAP; version-2 infrastructure operations fail closed until M3.
+migration for configuration version 2. M3 realizes only identity-marked OVS
+bridges with persistent VM-local ownership state and recovery. It does not yet
+attach GraphX containers or namespaces by veth, configure endpoint ports or
+mirrors, or replace QEMU slirp with TAP.

@@ -14,6 +14,7 @@ include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
 option(GRAPHX_BUILD_TESTS "Build GraphX tests" ON)
+option(GRAPHX_ENABLE_LINUX_OVS_TESTS "Enable privileged Linux system-OVS lifecycle tests" OFF)
 option(GRAPHX_BUILD_FUZZERS "Build libFuzzer targets" OFF)
 option(GRAPHX_ENABLE_SANITIZERS "Enable the configured compiler sanitizers" OFF)
 set(GRAPHX_SANITIZERS "address,undefined" CACHE STRING
@@ -106,6 +107,7 @@ add_library(graphx
   src/migration.cpp
   src/network.cpp
   src/observability.cpp
+  src/ownership.cpp
   src/shared_memory_transport.cpp
   src/tcp_transport.cpp
   src/udp_transport.cpp
@@ -275,6 +277,17 @@ if(GRAPHX_BUILD_TESTS)
     ${CMAKE_SOURCE_DIR}/tests/test_config_v2.py $<TARGET_FILE:graphx-cli>
     ${CMAKE_SOURCE_DIR})
   set_tests_properties(graphx-config-v2 PROPERTIES TIMEOUT 45 ENVIRONMENT "GRAPHX_OVERRIDES=")
+  add_test(NAME graphx-m3-ownership COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/test_m3_ownership.py $<TARGET_FILE:graphx-cli>
+    ${CMAKE_SOURCE_DIR})
+  set_tests_properties(graphx-m3-ownership PROPERTIES TIMEOUT 30 ENVIRONMENT "GRAPHX_OVERRIDES=")
+  if(GRAPHX_ENABLE_LINUX_OVS_TESTS AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    add_test(NAME graphx-m3-ownership-live COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_SOURCE_DIR}/tests/test_m3_ownership_live.py $<TARGET_FILE:graphx-cli>
+      ${CMAKE_SOURCE_DIR})
+    set_tests_properties(graphx-m3-ownership-live PROPERTIES TIMEOUT 60
+      ENVIRONMENT "GRAPHX_OVERRIDES=")
+  endif()
   add_test(NAME graphx-config-projections
     COMMAND graphx-cli project ${CMAKE_SOURCE_DIR}/graphx.yaml --check
             --output-dir ${CMAKE_SOURCE_DIR}/config)
