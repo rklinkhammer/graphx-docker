@@ -428,24 +428,52 @@ macOS runs this system-OVS lifecycle inside Lima.
 Native Linux is required for runtime evidence; the portable inspection script
 only validates and prints plans.
 
-1. Start the lab with `examples/static-route-policy/scripts/demo.sh start` and
-   open the loopback URL it prints.
-2. In **Application**, verify `allowed-flow` is green, `denied-flow` is red and
-   dashed, and `routed-flow` is amber and dashed. Select each edge to see
-   `receiver-confirmed`, `nft-counter`, or `route-absent` evidence.
-3. Open **Network path** and select each flow. Confirm that every path includes
-   the matching source domain and OVS bridge, `route-router`, and the matching
-   destination bridge/domain.
-4. Run `examples/static-route-policy/scripts/demo.sh apply-route`. The routed
-   path becomes green with `route-installed`; the other two classifications do
-   not change. Run `clear-route` to restore the amber missing-route state.
-5. Use the capture catalog to download `route-policy.pcapng`. The raw diagnostic
-   traffic uses UDP ports 18601–18603 and standard Ethernet/IP decoding.
-6. Run `demo.sh status`, then `demo.sh stop` twice. Evidence remains in the run
-   directory printed during teardown.
+1. On any supported host, validate and inspect the portable plans without
+   changing host networking:
 
-No observation or control token is needed: the service is loopback-only and the
-lab offers no browser control. Route mutation stays in the narrow native CLI.
+   ```sh
+   examples/static-route-policy/scripts/inspect.sh
+   ```
+
+2. On native Linux, or in the GraphX Lima VM on macOS, create the lab and check
+   the GraphX infrastructure plus the three endpoint namespaces:
+
+   ```sh
+   examples/static-route-policy/scripts/demo.sh up
+   examples/static-route-policy/scripts/demo.sh status
+   ```
+
+3. Prove the three initial states. The left-to-middle ping must succeed; the
+   middle-to-left policy denial and the left-to-manual-address missing route
+   must fail. Inspect the named nftables rule after generating denied traffic:
+
+   ```sh
+   sudo ip netns exec gx-route-left-end ping -c 1 -W 1 10.64.2.10
+   ! sudo ip netns exec gx-route-middle-end ping -c 1 -W 1 10.64.1.10
+   ! sudo ip netns exec gx-route-left-end ping -c 1 -W 1 10.64.30.10
+   sudo ip netns exec gx-route-router nft list chain inet graphx forward
+   ```
+
+4. Apply the declared manual route, inspect the exact kernel route, and require
+   the previously unreachable address to respond. Clear the route afterward:
+
+   ```sh
+   examples/static-route-policy/scripts/demo.sh apply-route
+   sudo ip netns exec gx-route-router ip route show 10.64.30.10/32
+   sudo ip netns exec gx-route-left-end ping -c 1 -W 1 10.64.30.10
+   examples/static-route-policy/scripts/demo.sh clear-route
+   ```
+
+5. Tear down the owned resources, then repeat the complete `up` through `down`
+   sequence once to prove a clean second lifecycle:
+
+   ```sh
+   examples/static-route-policy/scripts/demo.sh down
+   ```
+
+This laboratory has no browser service, GUI state, downloadable capture, or
+observation token. Historical evidence from the retired launcher is archived
+under `docs/archive/`; route mutation remains in the narrow native CLI.
 
 ## 16. Inspect captures in Wireshark
 

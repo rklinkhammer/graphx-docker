@@ -278,6 +278,20 @@ def parse_table(lines, start):
     return rows, i
 
 
+def collect_wrapped_markdown(lines, start, first_line):
+    """Join one logical Markdown paragraph without consuming the next block."""
+    paragraph = [first_line]
+    i = start + 1
+    while i < len(lines):
+        nxt = lines[i].strip()
+        if (not nxt or nxt.startswith(("#", "|", "```", "- ")) or
+                re.match(r"^\d+\. ", nxt)):
+            break
+        paragraph.append(nxt)
+        i += 1
+    return " ".join(paragraph), i
+
+
 def add_table(document, rows):
     table = document.add_table(rows=0, cols=len(rows[0]))
     table.alignment = WD_TABLE_ALIGNMENT.CENTER
@@ -447,19 +461,17 @@ def build_docx():
             p = doc.add_paragraph()
             p.paragraph_format.left_indent = Inches(0.28)
             p.paragraph_format.first_line_indent = Inches(-0.2)
-            add_inline(p, stripped); i += 1; continue
+            text, i = collect_wrapped_markdown(lines, i, stripped)
+            add_inline(p, text); continue
         if stripped.startswith("- "):
-            p = doc.add_paragraph(style="List Bullet"); add_inline(p, stripped[2:]); i += 1; continue
+            p = doc.add_paragraph(style="List Bullet")
+            text, i = collect_wrapped_markdown(lines, i, stripped[2:])
+            add_inline(p, text); continue
         if stripped.startswith("**") and stripped.endswith("**") and ":" in stripped:
             p = doc.add_paragraph(); add_inline(p, stripped); i += 1; continue
         # Join ordinary wrapped Markdown lines into one paragraph.
-        paragraph = [stripped]; i += 1
-        while i < len(lines):
-            nxt = lines[i].strip()
-            if (not nxt or nxt.startswith(("#", "|", "```", "- ")) or re.match(r"^\d+\. ", nxt)):
-                break
-            paragraph.append(nxt); i += 1
-        p = doc.add_paragraph(); add_inline(p, " ".join(paragraph))
+        text, i = collect_wrapped_markdown(lines, i, stripped)
+        p = doc.add_paragraph(); add_inline(p, text)
 
     props = doc.core_properties
     props.title = "GraphX Architecture and Network Topology"

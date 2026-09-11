@@ -83,20 +83,35 @@ def main() -> int:
         "semantic-profile flows",
         "GraphX-owned persistent TAP",
         "Ethernet mirror capture",
+        "does not start a packet-capture or telemetry service",
     ):
         if required not in normalized_architecture:
             fail(f"architecture does not describe the current boundary: {required}")
+    if "explicit route transition, GUI diagnostics" in normalized_architecture:
+        fail("architecture assigns retired GUI evidence to the current static-route lab")
     architecture_docx = root / "docs" / "GraphX_Architecture.docx"
     with zipfile.ZipFile(architecture_docx) as archive:
         document = ElementTree.fromstring(archive.read("word/document.xml"))
     word_namespace = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
-    docx_text = re.sub(r"\s+", " ", " ".join(
-        node.text or "" for node in document.iter(f"{word_namespace}t")
-    ))
+    docx_paragraphs = [
+        re.sub(r"\s+", " ", "".join(
+            node.text or "" for node in paragraph.iter(f"{word_namespace}t")
+        )).strip()
+        for paragraph in document.iter(f"{word_namespace}p")
+    ]
+    docx_text = " ".join(docx_paragraphs)
     for required in ("Version 2 uses one persistent ownership lifecycle",
                      "GraphX-owned persistent TAP"):
         if required not in docx_text:
             fail(f"editable architecture document is stale: {required}")
+    for required in (
+        "An example is a checked-in configuration plus the smallest code or Compose assets "
+        "needed to illustrate one architectural concern.",
+        "Application USER0 capture stops at its limit; Ethernet mirror capture uses a bounded "
+        "rotating ring and retains sealed sessions for an external evidence retention workflow.",
+    ):
+        if required not in docx_paragraphs:
+            fail(f"editable architecture document splits a wrapped list item: {required}")
     license_inventory = (root / "docs" / "release-license-inventory.md").read_text(
         encoding="utf-8")
     if f"# GraphX {version} release license inventory" not in license_inventory:
@@ -145,6 +160,12 @@ def main() -> int:
     manual = (root / "docs/manual-test-procedures.md").read_text(encoding="utf-8")
     procedure = (root / "docs/test-procedure.md").read_text(encoding="utf-8")
     complete_demo = (root / "docs/complete-system-demo.md").read_text(encoding="utf-8")
+    graphical_examples = (root / "docs/graphical-examples-guide.md").read_text(
+        encoding="utf-8")
+    test_reference = (root / "docs/test-reference.md").read_text(encoding="utf-8")
+    route_readme = (root / "examples/static-route-policy/README.md").read_text(
+        encoding="utf-8")
+    verification_script = (root / "scripts/verify.sh").read_text(encoding="utf-8")
     if "docs/project-decisions.md" not in agents:
         fail("AGENTS.md does not route agents to the current decision guide")
     for required in ("## Documentation ownership", "Automated verification profiles",
@@ -202,6 +223,25 @@ def main() -> int:
     ):
         if command not in demo_guide:
             fail(f"demo guide names an obsolete lifecycle action instead of: {command}")
+    route_documents = {
+        "demo guide": demo_guide,
+        "graphical examples guide": graphical_examples,
+        "manual test procedures": manual,
+        "test reference": test_reference,
+        "static-route README": route_readme,
+        "verification script": verification_script,
+    }
+    for label, document_text in route_documents.items():
+        for action in ("up", "status", "apply-route", "clear-route", "down"):
+            command = f"examples/static-route-policy/scripts/demo.sh {action}"
+            if command not in document_text:
+                fail(f"{label} omits current static-route action: {command}")
+        for action in ("start", "verify", "stop"):
+            command = f"examples/static-route-policy/scripts/demo.sh {action}"
+            if command in document_text:
+                fail(f"{label} names retired static-route action: {command}")
+    if "## Phase 14 static-route and policy acceptance" in test_reference:
+        fail("active test reference retains a historical phase heading")
     for required in (
         "examples/qemu-node/scripts/demo.sh start",
         "examples/qemu-node/scripts/demo.sh verify",

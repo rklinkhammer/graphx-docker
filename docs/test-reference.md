@@ -603,7 +603,7 @@ infrastructure/lima/stop.sh
 
 This checks the canonical system-OVS/veth/router lifecycle in the Lima guest.
 
-## Phase 14 static-route and policy acceptance
+## Static-route and policy acceptance
 
 Run this only on a dedicated native Linux host as the normal login user. Record
 host routes, namespaces, links, nftables, OVS, and Docker state before starting.
@@ -612,22 +612,27 @@ The full completed matrix is archived in
 is:
 
 ```sh
-examples/static-route-policy/scripts/demo.sh start
-examples/static-route-policy/scripts/demo.sh verify
+examples/static-route-policy/scripts/demo.sh up
+examples/static-route-policy/scripts/demo.sh status
+sudo ip netns exec gx-route-left-end ping -c 1 -W 1 10.64.2.10
+! sudo ip netns exec gx-route-middle-end ping -c 1 -W 1 10.64.1.10
+! sudo ip netns exec gx-route-left-end ping -c 1 -W 1 10.64.30.10
+sudo ip netns exec gx-route-router nft list chain inet graphx forward
 examples/static-route-policy/scripts/demo.sh apply-route
-examples/static-route-policy/scripts/demo.sh verify
+sudo ip netns exec gx-route-router ip route show 10.64.30.10/32
+sudo ip netns exec gx-route-left-end ping -c 1 -W 1 10.64.30.10
 examples/static-route-policy/scripts/demo.sh clear-route
-examples/static-route-policy/scripts/demo.sh verify
-examples/static-route-policy/scripts/demo.sh stop
-examples/static-route-policy/scripts/demo.sh stop
+examples/static-route-policy/scripts/demo.sh status
+examples/static-route-policy/scripts/demo.sh down
 ```
 
-Repeat the complete sequence once. Inspect the GUI transition in both topology
-views, verify the named nftables counter, inspect all three OVS mirrors, and read
-the retained PCAPNG as the invoking user. Compare the final host snapshot with
-the baseline and prove an unrelated canary namespace, link, bridge, route, and
-nftables table remain unchanged. Portable validation is not a substitute for
-this gate.
+Repeat the complete sequence once. In each cycle, prove allowed delivery, the
+expected policy-denied and missing-route failures, an advancing named nftables
+counter, the exact kernel-route transition, and ownership-safe cleanup. Compare
+the final host snapshot with the baseline and prove an unrelated canary
+namespace, link, bridge, route, and nftables table remain unchanged. The current
+laboratory does not provide a GUI or retained capture; portable validation is
+not a substitute for this native runtime gate.
 
 ## Cleanup and failure triage
 

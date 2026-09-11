@@ -287,15 +287,21 @@ case "$PROFILE" in
     trap - EXIT
     gate "native Linux static-route and deny-policy acceptance"
     route_graphx="${GRAPHX_BUILD_DIR:-$ROOT/build/dev}/graphx"
-    trap 'examples/static-route-policy/scripts/demo.sh stop >/dev/null 2>&1 || true' EXIT
+    trap 'examples/static-route-policy/scripts/demo.sh down >/dev/null 2>&1 || true' EXIT
     for _ in 1 2; do
-      GRAPHX_BIN="$route_graphx" examples/static-route-policy/scripts/demo.sh start
-      GRAPHX_BIN="$route_graphx" examples/static-route-policy/scripts/demo.sh verify
+      GRAPHX_BIN="$route_graphx" examples/static-route-policy/scripts/demo.sh up
+      GRAPHX_BIN="$route_graphx" examples/static-route-policy/scripts/demo.sh status
+      sudo ip netns exec gx-route-left-end ping -c 1 -W 1 10.64.2.10
+      ! sudo ip netns exec gx-route-middle-end ping -c 1 -W 1 10.64.1.10
+      ! sudo ip netns exec gx-route-left-end ping -c 1 -W 1 10.64.30.10
+      sudo ip netns exec gx-route-router nft list chain inet graphx forward
       GRAPHX_BIN="$route_graphx" examples/static-route-policy/scripts/demo.sh apply-route
+      sudo ip netns exec gx-route-router ip route show 10.64.30.10/32
+      sudo ip netns exec gx-route-left-end ping -c 1 -W 1 10.64.30.10
       GRAPHX_BIN="$route_graphx" examples/static-route-policy/scripts/demo.sh clear-route
-      GRAPHX_BIN="$route_graphx" examples/static-route-policy/scripts/demo.sh stop
+      GRAPHX_BIN="$route_graphx" examples/static-route-policy/scripts/demo.sh status
+      GRAPHX_BIN="$route_graphx" examples/static-route-policy/scripts/demo.sh down
     done
-    GRAPHX_BIN="$route_graphx" examples/static-route-policy/scripts/demo.sh stop
     trap - EXIT
     ;;
   release)

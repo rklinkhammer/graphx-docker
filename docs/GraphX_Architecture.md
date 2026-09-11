@@ -346,20 +346,19 @@ but `create` omits it. The CLI may then apply or clear only the exact destinatio
 declared for the selected router. This is deliberately narrower than accepting
 arbitrary route arguments from the browser or shell environment.
 
-Each bridge mirrors traffic to a dedicated capture veth. The lab records a
-bounded, user-readable Ethernet PCAPNG and a strict, atomically replaced JSON
-evidence projection. Telemetry accepts only known edge IDs and the four states
-`allowed`, `policy-denied`, `missing-route`, and `route-applied`; the Application
-and Network views color every logical/path edge consistently and show the
-evidence type in the inspector. Receiver results and nftables/kernel state are
-authoritative; capture and GUI are corroborating views.
+Each bridge declares a dedicated mirror output. The current infrastructure
+launcher realizes those SPAN endpoints but does not start a packet-capture or
+telemetry service. Runtime acceptance therefore uses direct receiver results,
+the named nftables counter, and exact kernel-route state. GUI, retained PCAPNG,
+and projected state from the retired launcher remain historical evidence only.
 
 The native launcher refuses occupied fixed names and address ranges, marks OVS
-and namespace resources with a random run owner, checks those markers before
-cleanup, retains evidence, and supports repeated stop. Portable inspection
-validates configuration and exact command generation only. Native Linux remains
-required to accept routing, policy, mirroring, delivery, and host-isolation
-claims.
+and namespace resources with a random run owner, and checks those markers
+before cleanup. A complete lifecycle uses `up`, `status`, `apply-route`,
+`clear-route`, and `down`; a second clean lifecycle proves repeatability.
+Portable inspection validates configuration and exact command generation only.
+Native Linux remains required to accept routing, policy, delivery, and
+host-isolation claims.
 
 ### 7.10 Native Linux and macOS execution
 
@@ -547,7 +546,7 @@ Credential rotation uses atomic current snapshots plus a bounded redaction-only 
 | IPVLAN L2 semantics | Independent L2 domains, OVS bridges, namespace routing/policy | Native Linux or Lima; privileged infrastructure |
 | IPVLAN L3 semantics | Routed subnets with broadcast-free profile behavior | Native Linux or Lima; privileged infrastructure |
 | Mixed network | Cross-domain routing, OVS, mirrors, nftables, netem, edge paths | Native Linux or Lima |
-| Static route/policy | Three OVS domains, ordered allow/deny rules, explicit route transition, GUI diagnostics | Native Linux; privileged infrastructure lifecycle |
+| Static route/policy | Three OVS domains, ordered allow/deny rules, explicit route transition, kernel route and nftables diagnostics | Native Linux or Lima; privileged infrastructure lifecycle |
 | External QEMU | External raw node, host QEMU, slirp, passive observation, portable GUI | macOS/Linux; host QEMU + Docker |
 | Container QEMU | Nested VM deployment, KVM/TCG evidence, least privilege, packet history | Linux x86_64; optional `/dev/kvm` |
 | QEMU TAP and OVS | Non-root QEMU, owned TAP/OVS/VLAN lifecycle, QMP, SPAN evidence | Linux; Lima on Apple Silicon uses x86_64 TCG |
@@ -601,12 +600,12 @@ flowchart TB
 | Transport factory and lifecycle | Standard TCP, shared memory, UDP examples | CTest transport suites, finite pipelines, SIGTERM and reconnect checks | Process output, delivery counts, clean shutdown |
 | Infrastructure planner/executor | Native network labs, route/policy lab | Config/planner/transaction tests and portable dry-run assertions | Native links, OVS, namespace, route, policy, netem, and cleanup inspection |
 | Deployment and ownership | Root Compose, separate network projects, QEMU/SDR launchers | Compose rendering, hardening and lifecycle script tests | Container/device boundaries, ownership markers, repeated teardown |
-| Telemetry and operations | Root, QEMU, SDR, route/policy demos | Node tests, HTTP/WebSocket integration, Prometheus/SLO/OTLP checks | Live counters, readiness, bounded failure behavior |
+| Telemetry and operations | Root, QEMU, and SDR demos | Node tests, HTTP/WebSocket integration, Prometheus/SLO/OTLP checks | Live counters, readiness, bounded failure behavior |
 | Control and security | Root source control, SDR mTLS relay | Authentication, authorization, anti-replay, rotation, redaction and audit tests | Token workflow, pause/resume, direct SDR command rejection/success |
 | History | Root, QEMU, SDR | SQLite worker, retention, restart, query/auth tests | History navigation and persistence across collector restart |
 | Application capture | Root and capture example | PCAPNG writer, security, catalog, download, Lua/extcap tests | Message identity and frame inspection |
 | Ethernet capture | Native OVS labs, QEMU, SDR, route/policy | Observer/parser tests and portable simulated captures | SPAN/live capture, TShark decode, receiver/counter correlation |
-| Browser presentation | Root and every graphical demo | React/node component tests and production build | Application/Network/History transitions and live updates without refresh |
+| Browser presentation | Root, QEMU, and SDR graphical demos | React/node component tests and production build | Application/Network/History transitions and live updates without refresh |
 | External-node model | QEMU and SDR | Config, raw-edge rejection, observer, QMP/probe, SDR protocol tests | VM acceleration/readiness or native SDR-path evidence |
 
 The shortest path from architecture to evidence is therefore:
