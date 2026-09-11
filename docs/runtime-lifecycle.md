@@ -21,10 +21,21 @@ count as liveness observations. The telemetry service marks a node offline when
 no event or heartbeat arrives before the timeout and broadcasts the transition
 to browser clients.
 
-The telemetry service reads the same `GRAPHX_CONFIG` file and normalizes its
-nodes, edges, transports, deployment images, infrastructure components, and edge
-paths into each API/WebSocket snapshot. The browser therefore does not need a
-second hand-maintained copy of the topology.
+The C++ loader validates the source configuration once. Supported Compose
+launches run `graphx config normalize` in a one-shot service and place the
+versioned JSON in a runtime volume mounted read-only by telemetry. Telemetry
+loads that file through `GRAPHX_NORMALIZED_CONFIG`; it does not independently
+interpret the deployed YAML topology. The runtime volume is Docker-managed (and
+therefore guest-native for Lima laboratories), not a macOS shared directory.
+Canonical demo launchers recreate and complete this one-shot service on every
+start so an exited init container cannot preserve stale configuration.
+
+Direct local Node development temporarily retains a bounded `GRAPHX_CONFIG`
+YAML fallback. It is a compatibility path, not the deployed configuration
+contract. `GRAPHX_CONFIG_DIRECTORY` may identify the original configuration
+directory when normalized configuration contains relative history or capture
+paths. The browser derives both its initial HTTP model and WebSocket snapshots
+from the same loaded normalized topology.
 
 ## Receive outcomes and cancellation
 

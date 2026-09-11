@@ -182,6 +182,7 @@ case "$command_name" in
     test "$disable_capture" = false || GRAPHX_CAPTURE_ENABLED=false
     test "$disable_history" = false || GRAPHX_HISTORY_ENABLED=false
     create_state
+    "${COMPOSE[@]}" up --build --force-recreate normalize-config
     "${COMPOSE[@]}" up -d --build
     verify
     trap - EXIT INT TERM

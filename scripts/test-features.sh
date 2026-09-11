@@ -206,18 +206,38 @@ portable() {
   npm ci --prefix "$ROOT/web" --no-audit --no-fund
   without_graphx_environment npm test --prefix "$ROOT/web"
   npm run build --prefix "$ROOT/web"
-  sed 's/provider: ovs-span/provider: pcapng/' \
+  sed "s|{enabled: true, provider: ovs-span}|{enabled: true, provider: pcapng, directory: $TMP_DIR/captures}|" \
     "$ROOT/examples/ipvlan-l2/graphx.yaml" >"$TMP_DIR/telemetry-graphx.yaml"
+  mkdir -p "$TMP_DIR/captures"
+  "$BUILD_DIR/graphx" config normalize "$TMP_DIR/telemetry-graphx.yaml" \
+    >"$TMP_DIR/telemetry-normalized.json"
   export GRAPHX_TELEMETRY_SHARED_SECRET=telemetry-feature-secret-0123456789
   control_token=control-feature-token-012345678901
   PORT=${GRAPHX_TEST_HTTP_PORT:-18080} GRAPHX_TELEMETRY_PORT=${GRAPHX_TEST_UDP_PORT:-19000} \
-    GRAPHX_HEARTBEAT_TIMEOUT_MS=1000 GRAPHX_CONFIG="$TMP_DIR/telemetry-graphx.yaml" \
+    GRAPHX_HEARTBEAT_TIMEOUT_MS=1000 \
+    GRAPHX_NORMALIZED_CONFIG="$TMP_DIR/telemetry-normalized.json" \
+    GRAPHX_CONFIG_DIRECTORY="$TMP_DIR" \
     GRAPHX_CAPTURE_DIR="$TMP_DIR/captures" \
     GRAPHX_CONTROL_TOKEN="$control_token" \
     GRAPHX_WEB_ROOT="$ROOT/web/dist" node "$ROOT/apps/telemetry/server.mjs" \
     >"$TMP_DIR/telemetry.log" 2>&1 &
   PIDS+=("$!")
   for _ in {1..40}; do curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/health" >/dev/null 2>&1 && break; sleep 0.1; done
+  (cd "$ROOT/apps/telemetry" && GRAPHX_WS_URL="ws://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/ws" \
+    node --input-type=module -e '
+      import { WebSocket } from "ws"
+      const socket = new WebSocket(process.env.GRAPHX_WS_URL)
+      const timeout = setTimeout(() => { socket.terminate(); process.exit(1) }, 3000)
+      socket.on("message", data => {
+        const snapshot = JSON.parse(data.toString())
+        if (snapshot.kind !== "snapshot" || snapshot.graph !== "ipvlan-l2-pipeline" ||
+            !snapshot.topology?.networkNodes?.some(node => node.id === "br-l2-gen")) process.exit(1)
+        clearTimeout(timeout)
+        socket.close()
+      })
+      socket.on("close", () => process.exit(0))
+      socket.on("error", () => process.exit(1))
+    ')
   GRAPHX_TEST_UDP_PORT=${GRAPHX_TEST_UDP_PORT:-19000} node -e '
     const {createHmac, randomBytes} = require("node:crypto");
     const d = require("node:dgram").createSocket("udp4");
@@ -382,7 +402,8 @@ portable() {
   secure_udp_port=$(( ${GRAPHX_TEST_UDP_PORT:-19000} + 1 ))
   observation_token=observation-feature-token-012345678
   PORT=$secure_http_port GRAPHX_TELEMETRY_PORT=$secure_udp_port \
-    GRAPHX_CONFIG="$TMP_DIR/telemetry-graphx.yaml" GRAPHX_WEB_ROOT="$ROOT/web/dist" \
+    GRAPHX_NORMALIZED_CONFIG="$TMP_DIR/telemetry-normalized.json" \
+    GRAPHX_CONFIG_DIRECTORY="$TMP_DIR" GRAPHX_WEB_ROOT="$ROOT/web/dist" \
     GRAPHX_CAPTURE_DIR="$TMP_DIR/captures" \
     GRAPHX_TLS_CERT_FILE="$TMP_DIR/http.pem" GRAPHX_TLS_KEY_FILE="$TMP_DIR/http.key" \
     GRAPHX_OBSERVATION_TOKEN="$observation_token" node "$ROOT/apps/telemetry/server.mjs" \
@@ -398,7 +419,9 @@ portable() {
   curl -kisS "https://127.0.0.1:$secure_http_port/api/health" | \
     grep -qi '^x-content-type-options: nosniff'
   if PORT=$((secure_http_port + 1)) GRAPHX_TELEMETRY_PORT=$((secure_udp_port + 1)) \
-    GRAPHX_HTTP_BIND=0.0.0.0 GRAPHX_CONFIG="$TMP_DIR/telemetry-graphx.yaml" \
+    GRAPHX_HTTP_BIND=0.0.0.0 \
+    GRAPHX_NORMALIZED_CONFIG="$TMP_DIR/telemetry-normalized.json" \
+    GRAPHX_CONFIG_DIRECTORY="$TMP_DIR" \
     GRAPHX_CAPTURE_DIR="$TMP_DIR/captures" \
     node "$ROOT/apps/telemetry/server.mjs" >"$TMP_DIR/insecure-bind.log" 2>&1; then
     echo "plaintext non-loopback telemetry bind was accepted" >&2
@@ -433,6 +456,7 @@ docker_suite() {
   step "Validate and smoke-test the standard Compose deployment"
   export GRAPHX_PUBLISHED_HTTP_PORT=$docker_http_port
   docker compose -f "$ROOT/compose.yaml" config >/dev/null
+  docker compose -f "$ROOT/compose.yaml" up --build --force-recreate normalize-config
   docker compose -f "$ROOT/compose.yaml" up -d --build
   trap 'docker compose -f "$ROOT/compose.yaml" down --remove-orphans; cleanup' EXIT INT TERM
   for _ in {1..60}; do

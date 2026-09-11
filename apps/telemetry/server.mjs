@@ -3,10 +3,10 @@ import { closeSync, constants, createReadStream, existsSync, fstatSync, openSync
   readSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { createServer as createSecureServer } from 'node:https'
-import { dirname, extname, join, normalize, resolve } from 'node:path'
+import { extname, join, normalize, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { WebSocketServer } from 'ws'
-import { parse } from 'yaml'
+import { loadTelemetryConfiguration } from './normalized-config.mjs'
 import { MAX_DATAGRAM_BYTES, RateLimiter, ReplayCache, isLoopback, originAllowed,
   parseRequestUrl, readSecret, sanitizeControlAcknowledgement, sanitizeTelemetryEvent,
   signEnvelope, tokenMatches, validateTelemetryEvent, verifyEnvelope, webSocketBearer } from './security.mjs'
@@ -24,8 +24,9 @@ const port = Number(process.env.PORT || 8080)
 const udpPort = Number(process.env.GRAPHX_TELEMETRY_PORT || 9000)
 const httpBind = process.env.GRAPHX_HTTP_BIND || '127.0.0.1'
 const udpBind = process.env.GRAPHX_TELEMETRY_BIND || '127.0.0.1'
-const configPath = process.env.GRAPHX_CONFIG || normalize(join(fileURLToPath(new URL('.', import.meta.url)), '../../graphx.yaml'))
-const config = parse(readFileSync(configPath, 'utf8'))
+const fallbackConfigPath = normalize(join(fileURLToPath(new URL('.', import.meta.url)), '../../graphx.yaml'))
+const loadedConfiguration = loadTelemetryConfiguration({ fallbackPath: fallbackConfigPath })
+const config = loadedConfiguration.config
 const graph = config.graph || { id: 'graphx', nodes: [], edges: [] }
 const deployment = config.deployment?.services || {}
 const transport = config.transport || {}
@@ -62,7 +63,8 @@ function captureBoolean(name, configured, fallback) {
 const sloEvaluator = new SloEvaluator(config.observability?.slos)
 const configuredOtlp = otlpConfig(config.observability?.otlp)
 const otlpExporter = new OtlpHttpExporter(configuredOtlp)
-const configuredHistory = historyConfig(config.observability?.history, process.env, dirname(configPath))
+const configuredHistory = historyConfig(config.observability?.history, process.env,
+  loadedConfiguration.baseDirectory)
 const historyStore = new HistoryStore(configuredHistory, graph.id)
 const configuredControl = controlConfig(config.observability?.control)
 const captureConfig = { ...configuredCapture,
@@ -314,7 +316,8 @@ const nodes = Object.fromEntries(topology.nodes.map(node => [node.id, {
 }]))
 const nodeIds = new Set(Object.keys(nodes))
 const controllableNodeIds = new Set(graph.nodes.filter(node =>
-  node.control === 'origin' || (node.control == null && node.kind === 'source')).map(node => node.id))
+  node.control === 'origin' ||
+  ((node.control === 'graphx' || node.control == null) && node.kind === 'source')).map(node => node.id))
 const runtimeIdentities = new RuntimeIdentityStore({ manifestFile: runtimeIdentityFile, nodeIds })
 const controlAuthorizer = new ControlAuthorizer({ policyFile: controlPolicyFile,
   legacyToken: controlToken, nodeIds })

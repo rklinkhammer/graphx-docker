@@ -145,3 +145,10 @@ The contract schema is `config/schema/normalized-graph-v1.schema.json`.
 Normalization does not read credential files or include credential environment
 variables. TLS file paths are configuration metadata; private key contents are
 never read or emitted.
+
+Compose deployments generate this contract in a one-shot `normalize-config`
+service and share it with telemetry through a read-only runtime volume at
+`GRAPHX_NORMALIZED_CONFIG`. The volume remains inside the selected Linux Docker
+runtime (OrbStack for ordinary macOS Compose, or Lima for privileged OVS labs).
+Direct local Node telemetry retains a bounded YAML fallback during the staged
+transition only.

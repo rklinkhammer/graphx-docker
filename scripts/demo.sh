@@ -246,6 +246,7 @@ case "$demo_command" in
     configure_demo_features
     if test "$disable_capture" = true; then export GRAPHX_CAPTURE_ENABLED=false; fi
     if test "$disable_history" = true; then export GRAPHX_HISTORY_ENABLED=false; fi
+    "${COMPOSE[@]}" up --build --force-recreate normalize-config
     "${COMPOSE[@]}" up -d --build
     verify
     echo

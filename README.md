@@ -340,7 +340,7 @@ npm install
 npm run dev
 ```
 
-Install and run the lightweight telemetry service separately with `npm install --prefix apps/telemetry && node apps/telemetry/server.mjs`. It reads `GRAPHX_CONFIG` (defaulting to the repository `graphx.yaml`) and derives the application graph, network path, transports, and heartbeat policy from that file. Vite proxies `/api` and the configured WebSocket path to port 8080. The console uses unavailable markers until node processes publish telemetry.
+Install and run the lightweight telemetry service separately with `npm install --prefix apps/telemetry && node apps/telemetry/server.mjs`. Direct local Node development retains a temporary bounded `GRAPHX_CONFIG` YAML fallback (defaulting to the repository `graphx.yaml`). Supported Compose deployments instead run `graphx config normalize` once and provide its versioned JSON through the read-only `GRAPHX_NORMALIZED_CONFIG` runtime volume. Vite proxies `/api` and the configured WebSocket path to port 8080. The console uses unavailable markers until node processes publish telemetry.
 
 The collector keeps sent and received message/byte counters separately, derives
 rates over a five-second window, and publishes receive-latency histograms,

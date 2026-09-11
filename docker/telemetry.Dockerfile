@@ -39,10 +39,10 @@ RUN addgroup -S -g 65532 graphx-capture && addgroup node graphx-capture \
 COPY apps/telemetry/package*.json ./
 RUN npm ci --omit=dev
 COPY --chown=node:node apps/telemetry/server.mjs apps/telemetry/security.mjs apps/telemetry/control.mjs apps/telemetry/operations.mjs \
-  apps/telemetry/history.mjs apps/telemetry/history-worker.mjs apps/telemetry/capture-files.mjs ./
-COPY graphx.yaml ./graphx.yaml
+  apps/telemetry/history.mjs apps/telemetry/history-worker.mjs apps/telemetry/capture-files.mjs \
+  apps/telemetry/normalized-config.mjs ./
 COPY --from=web /app/web/dist ./web/dist
-ENV GRAPHX_WEB_ROOT=/app/web/dist GRAPHX_CONFIG=/app/graphx.yaml PORT=8080 \
+ENV GRAPHX_WEB_ROOT=/app/web/dist GRAPHX_NORMALIZED_CONFIG=/run/graphx/normalized.json PORT=8080 \
     GRAPHX_VERSION=${GRAPHX_VERSION} \
     NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt \
     SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \

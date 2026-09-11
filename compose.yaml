@@ -1,5 +1,28 @@
 name: graphx
 services:
+  normalize-config:
+    build:
+      context: .
+      secrets: [graphx_ca, graphx_cert_installer]
+      args: { GRAPHX_BUILD_TRUST_FINGERPRINT: "${GRAPHX_BUILD_TRUST_FINGERPRINT:-graphx-trust-v1-none}" }
+    image: graphx-demo:latest
+    user: "0:0"
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - >-
+        umask 022;
+        /usr/local/bin/graphx config normalize /config/graphx.yaml > /run/graphx/normalized.json.tmp;
+        chmod 0444 /run/graphx/normalized.json.tmp;
+        mv /run/graphx/normalized.json.tmp /run/graphx/normalized.json
+    volumes:
+      - ./graphx.yaml:/config/graphx.yaml:ro
+      - normalized-config:/run/graphx
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 32
+    restart: "no"
   sink:
     build:
       context: .
@@ -95,6 +118,8 @@ services:
       retries: 6
       start_period: 5s
     environment:
+      GRAPHX_NORMALIZED_CONFIG: /run/graphx/normalized.json
+      GRAPHX_CONFIG_DIRECTORY: /app
       GRAPHX_CAPTURE_ENABLED: ${GRAPHX_CAPTURE_ENABLED:-false}
       GRAPHX_CAPTURE_PROVIDER: pcapng
       GRAPHX_CAPTURE_DIR: /captures
@@ -136,7 +161,9 @@ services:
       GRAPHX_HISTORY_QUERY_TIMEOUT_MS: ${GRAPHX_HISTORY_QUERY_TIMEOUT_MS:-}
       GRAPHX_HISTORY_MAX_PENDING_QUERIES: ${GRAPHX_HISTORY_MAX_PENDING_QUERIES:-}
       GRAPHX_HISTORY_SHUTDOWN_TIMEOUT_MS: ${GRAPHX_HISTORY_SHUTDOWN_TIMEOUT_MS:-}
-    volumes: [captures:/captures:ro]
+    volumes: [captures:/captures:ro, normalized-config:/run/graphx:ro]
+    depends_on:
+      normalize-config: { condition: service_completed_successfully }
     networks: [graphx]
     read_only: true
     tmpfs: [/tmp]
@@ -151,6 +178,7 @@ networks:
 
 volumes:
   captures:
+  normalized-config:
 
 secrets:
   graphx_ca:

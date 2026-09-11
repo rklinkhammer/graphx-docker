@@ -198,6 +198,10 @@ compose_files() {
   fi
 }
 
+normalize_telemetry_config() {
+  "${COMPOSE[@]}" up --build --force-recreate normalize-config
+}
+
 owned_external_pid() {
   local pid command
   test -r "$GRAPHX_QEMU_RUN_DIR/qemu.pid" || return 1
@@ -485,6 +489,7 @@ start_demo() {
   compose_files
   source "$repo_dir/scripts/configure-build-trust.sh"
   if test "$profile" = external; then
+    if ! normalize_telemetry_config; then stop_demo; return 1; fi
     if ! "${COMPOSE[@]}" up -d --build host-receiver telemetry; then stop_demo; return 1; fi
     start_external_observer || { echo "Host packet observer did not become ready" >&2; stop_demo; return 1; }
     start_external_qemu || { echo "External QEMU did not start" >&2; stop_demo; return 1; }
@@ -492,6 +497,7 @@ start_demo() {
     start_external_readiness || { echo "Guest did not become ready on both TCP and UDP" >&2; logs_demo; stop_demo; return 1; }
     if ! "${COMPOSE[@]}" up -d host-origin; then stop_demo; return 1; fi
   else
+    if ! normalize_telemetry_config; then stop_demo; return 1; fi
     if ! "${COMPOSE[@]}" up -d --build; then stop_demo; return 1; fi
   fi
   if ! verify_demo; then
