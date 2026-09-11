@@ -757,7 +757,7 @@ remain separate decisions rather than implied extensions of M0–M8.
 | Envelope/framing | `include/graphx/envelope.hpp`, `src/envelope.cpp`, `src/framing.cpp`, `docs/protocol.md` |
 | Transport abstraction | `include/graphx/transport.hpp`, `src/transport_factory.cpp`, transport-specific headers/sources/docs |
 | Runtime nodes | `apps/generator/main.cpp`, `apps/transform/main.cpp`, `apps/sink/main.cpp`, `apps/common.hpp` |
-| Telemetry/control/history | `apps/telemetry/server.mjs`, `operations.mjs`, `control.mjs`, `history.mjs`, `history-worker.mjs` |
+| Telemetry/control/history | `apps/telemetry/server.mjs` (configuration and listener wiring), `collector.mjs` (in-process collector lifecycle), `http-routes.mjs`, `topology.mjs`, `metric-store.mjs`, `runtime-evidence.mjs`, `operations.mjs`, `control.mjs`, `history.mjs`, `history-worker.mjs` |
 | Browser GUI | `web/src/App.jsx`, `web/src/useTelemetry.js`, `web/src/components`, `web/src/data/topology.js` |
 | Capture/Wireshark | `src/capture.cpp`, `apps/telemetry/capture-files.mjs`, `wireshark/graphx.lua`, `tools/graphx-extcap` |
 | Operations stack | `compose.observability.yaml`, `deploy/observability` |
