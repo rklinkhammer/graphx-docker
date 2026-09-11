@@ -103,6 +103,7 @@ add_library(graphx
   src/envelope.cpp
   src/framing.cpp
   src/in_process_transport.cpp
+  src/infra/command_runner.cpp
   src/infra.cpp
   src/migration.cpp
   src/network.cpp
@@ -121,7 +122,8 @@ configure_file(cmake/GraphXBuildDependencies.json.in
 target_include_directories(graphx PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/generated>
-  $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+  $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+  PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_compile_features(graphx PUBLIC cxx_std_20)
 target_link_libraries(graphx PUBLIC Threads::Threads yaml-cpp::yaml-cpp OpenSSL::SSL OpenSSL::Crypto)
 graphx_enable_analysis(graphx)
@@ -239,6 +241,13 @@ if(GRAPHX_BUILD_TESTS)
   graphx_enable_sanitizers(graphx-tests)
   target_compile_definitions(graphx-tests PRIVATE GRAPHX_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
   add_test(NAME graphx-tests COMMAND graphx-tests)
+  add_executable(graphx-command-runner-tests tests/test_command_runner.cpp)
+  target_link_libraries(graphx-command-runner-tests PRIVATE graphx)
+  target_include_directories(graphx-command-runner-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+  graphx_enable_analysis(graphx-command-runner-tests)
+  graphx_enable_sanitizers(graphx-command-runner-tests)
+  add_test(NAME graphx-command-runner COMMAND graphx-command-runner-tests)
+  set_tests_properties(graphx-command-runner PROPERTIES TIMEOUT 15)
   add_executable(graphx-config-tests tests/test_config.cpp)
   target_link_libraries(graphx-config-tests PRIVATE graphx)
   graphx_enable_analysis(graphx-config-tests)

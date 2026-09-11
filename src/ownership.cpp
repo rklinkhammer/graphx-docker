@@ -1,5 +1,7 @@
 #include "graphx/ownership.hpp"
 
+#include "infra/command_runner.hpp"
+
 #include <yaml-cpp/yaml.h>
 
 #include <openssl/rand.h>
@@ -186,73 +188,24 @@ std::string random_token() {
 }
 
 int run(const std::vector<std::string>& arguments, std::string* captured = nullptr) {
-  int pipefd[2] = {-1, -1};
-  if (captured && ::pipe(pipefd) != 0) throw std::system_error(errno, std::generic_category());
-  const auto child = ::fork();
-  if (child < 0) throw std::system_error(errno, std::generic_category());
-  if (child == 0) {
-    if (captured) {
-      ::close(pipefd[0]);
-      ::dup2(pipefd[1], STDOUT_FILENO);
-      ::close(pipefd[1]);
-    }
-    std::vector<char*> argv;
-    argv.reserve(arguments.size() + 1);
-    for (const auto& argument : arguments) argv.push_back(const_cast<char*>(argument.c_str()));
-    argv.push_back(nullptr);
-    ::execvp(argv.front(), argv.data());
-    _exit(errno == ENOENT ? 127 : 126);
-  }
-  if (captured) {
-    ::close(pipefd[1]);
-    captured->clear();
-    std::array<char, 512> buffer{};
-    for (;;) {
-      const auto count = ::read(pipefd[0], buffer.data(), buffer.size());
-      if (count > 0)
-        captured->append(buffer.data(), static_cast<std::size_t>(count));
-      else if (count < 0 && errno == EINTR)
-        continue;
-      else
-        break;
-    }
-    ::close(pipefd[0]);
-  }
-  int status{};
-  if (::waitpid(child, &status, 0) < 0) throw std::system_error(errno, std::generic_category());
-  if (captured)
-    while (!captured->empty() && (captured->back() == '\n' || captured->back() == '\r'))
-      captured->pop_back();
-  if (WIFEXITED(status)) return WEXITSTATUS(status);
-  return 128 + (WIFSIGNALED(status) ? WTERMSIG(status) : 0);
+  infra::detail::CommandOptions options;
+  options.arguments = arguments;
+  options.capture_output = captured != nullptr;
+  auto result = infra::detail::run_command(options);
+  if (captured) *captured = std::move(result.output);
+  if (result.output_truncated) throw std::runtime_error("command output exceeded safety limit");
+  return result.status;
 }
 
 std::string process_start_time(std::uint32_t pid) {
-  std::ifstream input("/proc/" + std::to_string(pid) + "/stat");
-  std::string value;
-  std::getline(input, value);
-  const auto close = value.rfind(')');
-  if (close == std::string::npos || close + 2 >= value.size()) return {};
-  std::istringstream fields(value.substr(close + 2));
-  std::string field;
-  for (int index = 0; index <= 19; ++index)
-    if (!(fields >> field)) return {};
-  return field;
+  return infra::detail::inspect_process(pid).start_time;
 }
 
 std::string process_command(std::uint32_t pid) {
-  std::ifstream input("/proc/" + std::to_string(pid) + "/cmdline", std::ios::binary);
-  std::string value((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
-  std::replace(value.begin(), value.end(), '\0', ' ');
-  return value;
+  return infra::detail::inspect_process(pid).command;
 }
 
-std::string process_name(std::uint32_t pid) {
-  std::ifstream input("/proc/" + std::to_string(pid) + "/comm");
-  std::string value;
-  std::getline(input, value);
-  return value;
-}
+std::string process_name(std::uint32_t pid) { return infra::detail::inspect_process(pid).name; }
 
 std::string boot_identity() {
   std::ifstream input("/proc/sys/kernel/random/boot_id");
@@ -290,21 +243,13 @@ void detach_child_io() {
 
 std::uint32_t spawn_process(const std::vector<std::string>& arguments, std::string_view marker,
                             const std::filesystem::path& diagnostic_path = {}) {
-  const auto child = ::fork();
-  if (child < 0) throw std::system_error(errno, std::generic_category());
-  if (child == 0) {
-    detach_child_io();
-    if (!diagnostic_path.empty()) {
-      const auto diagnostic =
-          ::open(diagnostic_path.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600);
-      if (diagnostic < 0 || ::dup2(diagnostic, STDERR_FILENO) < 0) ::_exit(126);
-      if (diagnostic > STDERR_FILENO) ::close(diagnostic);
+  const auto spawned =
+      infra::detail::spawn_background({.arguments = arguments, .diagnostic_path = diagnostic_path});
+  const auto child = static_cast<pid_t>(spawned.pid);
+  if (spawned.exec_error != 0) {
+    while (::waitpid(child, nullptr, 0) < 0 && errno == EINTR) {
     }
-    std::vector<char*> argv;
-    for (const auto& argument : arguments) argv.push_back(const_cast<char*>(argument.c_str()));
-    argv.push_back(nullptr);
-    ::execvp(argv.front(), argv.data());
-    ::_exit(errno == ENOENT ? 127 : 126);
+    throw std::system_error(spawned.exec_error, std::generic_category(), "execvp");
   }
   const auto pid = static_cast<std::uint32_t>(child);
   for (int attempt = 0; attempt < 100; ++attempt) {
