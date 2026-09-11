@@ -42,11 +42,17 @@ and manifest SHA-256 values.
 ## Demo 1: canonical TAP/OVS QEMU
 
 Prepare the GraphX Lima environment once on Apple Silicon macOS; native Linux
-does not use this step:
+instead requires the fixed unprivileged QEMU identity:
 
 ```sh
+# Apple Silicon macOS
 infrastructure/lima/start.sh
 infrastructure/lima/verify.sh
+
+# Native Linux
+getent group graphx-qemu >/dev/null || sudo groupadd --system --gid 65532 graphx-qemu
+getent passwd graphx-qemu >/dev/null || sudo useradd --system --uid 65532 --gid graphx-qemu --home-dir /var/lib/graphx/qemu --shell /usr/sbin/nologin graphx-qemu
+sudo install -d -o graphx-qemu -g graphx-qemu -m 0750 /var/lib/graphx/qemu
 ```
 
 The same lifecycle commands then work on both supported hosts:

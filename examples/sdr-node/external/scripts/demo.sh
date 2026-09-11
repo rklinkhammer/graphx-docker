@@ -11,6 +11,9 @@ config=$profile_dir/graphx.yaml
 compose=$profile_dir/compose.yaml
 state=$profile_dir/.state/m5-external.env
 namespace=gx-sdr-device
+GRAPHX_HOST_UID=$(id -u)
+GRAPHX_HOST_GID=$(id -g)
+export GRAPHX_HOST_UID GRAPHX_HOST_GID
 
 load_state() {
   test -r "$state"
@@ -50,6 +53,7 @@ cleanup_external() {
   sudo bash -c "source '$repo_dir/examples/external-ovs-boundary.sh'; graphx_external_namespace_delete '$GRAPHX_M5_EXTERNAL_OWNER' '$namespace' sdr-dev-ovs br-sdr"
 }
 start_sdr() {
+  # shellcheck disable=SC2024
   sudo sh -c 'echo $$ > "$1"; chown "$5:$6" "$1"; chmod 0600 "$1"; exec ip netns exec gx-sdr-device env PYTHONPATH="$2/common" SDR_SAMPLE_TARGET=10.63.0.20 SDR_TLS_CERT="$3/sdr-node.pem" SDR_TLS_KEY="$3/sdr-node.key" SDR_TLS_CLIENT_CA="$3/ca.pem" python3 "$2/common/sdr_simulator.py"' \
     sh "$profile_dir/.state/m5-sdr.pid" "$example_dir" "$GRAPHX_SDR_TLS_DIR" unused \
     "$(id -u)" "$(id -g)" >"$profile_dir/.state/m5-sdr.log" 2>&1 &
@@ -62,7 +66,8 @@ rollback_up() {
   stop_sdr
   cleanup_external || cleanup_status=$?
   sudo "$graphx" infra destroy "$config" || core_status=$?
-  sudo --preserve-env=GRAPHX_SDR_TLS_DIR docker compose -f "$compose" down || compose_status=$?
+  sudo --preserve-env=GRAPHX_SDR_TLS_DIR,GRAPHX_HOST_UID,GRAPHX_HOST_GID \
+    docker compose -f "$compose" down || compose_status=$?
   if test "$cleanup_status" -eq 0 && test "$core_status" -eq 0 && \
      test "$compose_status" -eq 0; then
     rm -f "$state"
@@ -79,7 +84,8 @@ case ${1:-} in
     save_state
     trap rollback_up ERR
     "$example_dir/common/generate_tls.sh" "$GRAPHX_SDR_TLS_DIR"
-    sudo --preserve-env=GRAPHX_SDR_TLS_DIR docker compose -f "$compose" up -d --build
+    sudo --preserve-env=GRAPHX_SDR_TLS_DIR,GRAPHX_HOST_UID,GRAPHX_HOST_GID \
+      docker compose -f "$compose" up -d --build
     sudo "$graphx" infra create "$config"
     sudo bash -c "source '$repo_dir/examples/external-ovs-boundary.sh'; graphx_external_namespace_create '$GRAPHX_M5_EXTERNAL_OWNER' '$namespace' sdr-dev-ovs sdr-dev br-sdr 10.63.0.10/24 02:63:00:00:00:10"
     start_sdr
@@ -88,13 +94,15 @@ case ${1:-} in
     ;;
   status)
     load_state; sudo "$graphx" infra status "$config"
-    sudo --preserve-env=GRAPHX_SDR_TLS_DIR docker compose -f "$compose" ps
+    sudo --preserve-env=GRAPHX_SDR_TLS_DIR,GRAPHX_HOST_UID,GRAPHX_HOST_GID \
+      docker compose -f "$compose" ps
     owned_pid && echo "external SDR simulator: running"
     ;;
   down)
     load_state; stop_sdr; cleanup_external
     sudo "$graphx" infra destroy "$config"
-    sudo --preserve-env=GRAPHX_SDR_TLS_DIR docker compose -f "$compose" down
+    sudo --preserve-env=GRAPHX_SDR_TLS_DIR,GRAPHX_HOST_UID,GRAPHX_HOST_GID \
+      docker compose -f "$compose" down
     rm -f "$state"
     ;;
   *) echo "usage: $0 <up|status|down>" >&2; exit 64 ;;

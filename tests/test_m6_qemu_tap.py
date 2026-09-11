@@ -71,7 +71,9 @@ def main() -> int:
                    "--reuid \"$qemu_uid\"", "mac=02:00:00:00:02:15",
                    "qemu-span.pcap", "vm-control", "ovs-appctl fdb/show",
                    "value[\"records\"] > 0", "set -Eeuo pipefail",
-                   "refusing to signal PID"):
+                   "refusing to signal PID", "UID/GID 65532 must belong to graphx-qemu",
+                   'runtime_images=$run_dir/images', 'python3 "$qmp"',
+                   'trap - ERR', 'exit "$original"'):
         require(marker in launcher, f"missing M6 launcher contract: {marker}")
     require("-netdev user" not in launcher and "docker compose" not in launcher,
             "the M6 launcher must not fall back to slirp or Docker networking")

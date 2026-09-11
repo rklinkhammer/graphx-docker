@@ -100,6 +100,9 @@ def main() -> int:
     require("driver: macvlan" not in sdr_compose and "driver: ipvlan" not in sdr_compose
             and "external: true" not in sdr_compose,
             "active SDR OVS compose still declares a Docker data plane")
+    require('user: "${GRAPHX_HOST_UID:?set by demo.sh}:${GRAPHX_HOST_GID:?set by demo.sh}"'
+            in sdr_compose,
+            "external SDR services must be able to read invoking-user TLS credentials")
 
     source = (root / "src/ownership.cpp").read_text()
     for marker in ("linux_namespace", "create_namespace_endpoint", "create_mirror_endpoint",

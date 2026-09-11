@@ -7,6 +7,7 @@ x-logging: &bounded-logging
 
 x-sdr-service: &sdr-service
   image: graphx-sdr-services:latest
+  user: "${GRAPHX_HOST_UID:?set by demo.sh}:${GRAPHX_HOST_GID:?set by demo.sh}"
   read_only: true
   tmpfs: [/tmp]
   cap_drop: [ALL]

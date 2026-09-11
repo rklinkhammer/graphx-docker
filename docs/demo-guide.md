@@ -245,6 +245,15 @@ The first build downloads Buildroot sources and compiles an x86_64 cross
 toolchain, so it can take substantially longer than later builds and requires
 working access to Docker Hub and the upstream source mirrors.
 
+On native Linux, provision the fixed unprivileged QEMU identity once. These
+commands fail closed if UID/GID 65532 already belongs to another identity:
+
+```sh
+getent group graphx-qemu >/dev/null || sudo groupadd --system --gid 65532 graphx-qemu
+getent passwd graphx-qemu >/dev/null || sudo useradd --system --uid 65532 --gid graphx-qemu --home-dir /var/lib/graphx/qemu --shell /usr/sbin/nologin graphx-qemu
+sudo install -d -o graphx-qemu -g graphx-qemu -m 0750 /var/lib/graphx/qemu
+```
+
 Run the canonical TAP/OVS demo. The dispatcher runs it directly on Linux or in
 the identity-checked GraphX Lima VM on Apple Silicon macOS:
 
@@ -313,16 +322,17 @@ Native Linux moves the same simulator into a namespace connected to macvlan and
 OVS/SPAN:
 
 ```sh
-examples/sdr-node/external/scripts/demo.sh start
-examples/sdr-node/external/scripts/demo.sh verify
+examples/sdr-node/external/scripts/demo.sh up
 examples/sdr-node/external/scripts/demo.sh status
-examples/sdr-node/external/scripts/demo.sh stop
+examples/sdr-node/external/scripts/demo.sh down
 ```
 
-Success means deterministic IQ reaches the processor, results reach the sink,
-mTLS commands change SDR state, raw packet counters advance, and capture/history
-remain distinct from GraphX messages. The external profile proves the disposable
-native path, not a physical radio. See
+For the portable profile, success means deterministic IQ reaches the processor,
+results reach the sink, mTLS commands change SDR state, raw packet counters
+advance, and capture/history remain distinct from GraphX messages. The external
+profile instead proves the disposable native OVS attachments, SPAN topology,
+simulator namespace, and unprivileged processor/sink processes; it is not a
+physical-radio or telemetry-GUI profile. See
 [`examples/sdr-node/README.md`](../examples/sdr-node/README.md) before adapting
 it to hardware.
 
@@ -341,21 +351,26 @@ examples/static-route-policy/scripts/inspect.sh
 Native Linux runs the state transition:
 
 ```sh
-examples/static-route-policy/scripts/demo.sh start
+examples/static-route-policy/scripts/demo.sh up
 examples/static-route-policy/scripts/demo.sh status
-examples/static-route-policy/scripts/demo.sh verify
+sudo ip netns exec gx-route-left-end ping -c 1 -W 1 10.64.2.10
+! sudo ip netns exec gx-route-middle-end ping -c 1 -W 1 10.64.1.10
+! sudo ip netns exec gx-route-left-end ping -c 1 -W 1 10.64.30.10
+sudo ip netns exec gx-route-router nft list chain inet graphx forward
 examples/static-route-policy/scripts/demo.sh apply-route
+sudo ip netns exec gx-route-router ip route show 10.64.30.10/32
+sudo ip netns exec gx-route-left-end ping -c 1 -W 1 10.64.30.10
 examples/static-route-policy/scripts/demo.sh clear-route
-examples/static-route-policy/scripts/demo.sh stop
+examples/static-route-policy/scripts/demo.sh down
 ```
 
-The allowed flow requires receiver evidence. The denied flow requires receiver
-absence and an advancing named nftables counter. The route transition requires
-the exact declared kernel route and receiver result. Mirrored PCAP and GUI state
-are corroborating evidence. Cleanup checks run ownership before deleting fixed
-names and retains the run directory. The completed Phase 14 adversarial record
-is retained in
-[`archive/legacy-phases/phase_14_verification.md`](archive/legacy-phases/phase_14_verification.md).
+The first ping proves the allowed path. The second must fail while advancing the
+named `deny-middle-left` nftables counter, and the third must fail because the
+manual route is absent. After `apply-route`, inspect the exact declared kernel
+route and require the final ping to succeed. Cleanup checks ownership before
+deleting fixed names. Historical GUI, receiver, and capture evidence from the
+retired pre-M8 launcher remains under `docs/archive/` and is not produced by
+this current infrastructure laboratory.
 
 ## 8. Common options, evidence, and cleanup
 

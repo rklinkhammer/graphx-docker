@@ -11,9 +11,13 @@ images=$example_dir/output/images
 run_dir=${GRAPHX_QEMU_M6_RUN_DIR:-/var/lib/graphx/qemu/m6}
 qemu_uid=65532
 qemu_gid=65532
-qmp=$example_dir/tools/qmp_control.py
-peer=$example_dir/host/peer.py
-observer=$example_dir/tools/packet_observer.py
+qmp_source=$example_dir/tools/qmp_control.py
+peer_source=$example_dir/host/peer.py
+observer_source=$example_dir/tools/packet_observer.py
+runtime_images=$run_dir/images
+qmp=$run_dir/qmp_control.py
+peer=$run_dir/peer.py
+observer=$run_dir/packet_observer.py
 
 require() { command -v "$1" >/dev/null || { echo "missing required command: $1" >&2; exit 1; }; }
 owned_pid() {
@@ -45,10 +49,10 @@ stop_owned() {
 }
 qemu_identity() {
   local uid_name gid_name
-  uid_name=$(getent passwd "$qemu_uid" | cut -d: -f1)
-  gid_name=$(getent group "$qemu_gid" | cut -d: -f1)
+  uid_name=$(getent passwd "$qemu_uid" | cut -d: -f1 || true)
+  gid_name=$(getent group "$qemu_gid" | cut -d: -f1 || true)
   test "$uid_name" = graphx-qemu && test "$gid_name" = graphx-qemu || {
-    echo "UID/GID 65532 must belong to graphx-qemu; rerun Lima provisioning" >&2
+    echo "UID/GID 65532 must belong to graphx-qemu; provision the native Linux identity or rerun Lima provisioning" >&2
     return 1
   }
 }
@@ -62,10 +66,16 @@ qmp_in_peer() {
 }
 prepare_run_dir() {
   sudo install -d -o "$qemu_uid" -g "$qemu_gid" -m 0750 "$run_dir"
+  sudo install -d -o "$qemu_uid" -g "$qemu_gid" -m 0750 "$runtime_images"
+  sudo install -o "$qemu_uid" -g "$qemu_gid" -m 0550 -t "$run_dir" \
+    "$qmp_source" "$peer_source" "$observer_source"
+  sudo install -o "$qemu_uid" -g "$qemu_gid" -m 0440 -t "$runtime_images" \
+    "$images/bzImage" "$images/rootfs.cpio.gz"
   sudo rm -f "$run_dir/qemu.qmp" "$run_dir/qemu.pid" "$run_dir/peer.pid" \
     "$run_dir/tcpdump.pid" "$run_dir/observer.pid"
 }
 start_peer() {
+  # shellcheck disable=SC2024
   sudo sh -c 'echo $$ >"$1"; exec ip netns exec gx-qemu-peer python3 "$2" --receiver --bind 10.0.2.2' \
     sh "$run_dir/peer.pid" "$peer" >"/tmp/graphx-m6-peer.$$.log" 2>&1 &
   for _ in {1..30}; do owned_pid peer.pid peer.py && break; sleep 0.1; done
@@ -73,6 +83,7 @@ start_peer() {
   sudo mv "/tmp/graphx-m6-peer.$$.log" "$run_dir/peer.log"
 }
 start_capture() {
+  # shellcheck disable=SC2024
   sudo sh -c 'echo $$ >"$1"; exec tcpdump -U -n -i gxqcap1 -s 65535 -w "$2"' \
     sh "$run_dir/tcpdump.pid" "$run_dir/qemu-span.pcap" \
     >"/tmp/graphx-m6-tcpdump.$$.log" 2>&1 &
@@ -90,7 +101,7 @@ start_capture() {
 start_qemu() {
   sudo setpriv --reuid "$qemu_uid" --regid "$qemu_gid" --clear-groups \
     qemu-system-x86_64 -machine q35,accel=tcg -cpu qemu64 -m 256M -smp 1 \
-      -kernel "$images/bzImage" -initrd "$images/rootfs.cpio.gz" \
+      -kernel "$runtime_images/bzImage" -initrd "$runtime_images/rootfs.cpio.gz" \
       -append "console=ttyS0 panic=1" -no-reboot -display none -monitor none \
       -serial "file:$run_dir/guest-console.log" -daemonize \
       -pidfile "$run_dir/qemu.pid" -qmp "unix:$run_dir/qemu.qmp,server=on,wait=off" \
@@ -119,6 +130,7 @@ stop_runtime() {
 }
 rollback_up() {
   local original=$? runtime_status=0
+  trap - ERR
   set +e
   stop_runtime || runtime_status=$?
   if test "$runtime_status" -eq 0; then
@@ -126,7 +138,7 @@ rollback_up() {
   else
     echo "rollback preserved M6 infrastructure because a process identity changed" >&2
   fi
-  return "$original"
+  exit "$original"
 }
 verify_network() {
   local before after tap_before tap_after pid process_uid process_gid

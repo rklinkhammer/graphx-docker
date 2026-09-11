@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-script_dir=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
-repo_dir=$(CDPATH= cd -- "${script_dir}/../../.." && pwd -P)
+script_dir=$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
+repo_dir=$(CDPATH='' cd -- "${script_dir}/../../.." && pwd -P)
 tap_lab=${script_dir}/../tap/scripts/ovs-lab.sh
 action=${1:-}
 if [[ -n ${action} ]]; then shift; fi
@@ -33,6 +33,7 @@ case $(uname -s) in
     fi
 
     guest_graphx=${GRAPHX_LIMA_GRAPHX_BIN:-/var/lib/graphx/m1/build/dev/graphx}
+    # shellcheck disable=SC2016
     "${GRAPHX_M1_RUNNER}" 120 limactl shell --workdir "${GRAPHX_M1_GUEST_ROOT}" \
       "${GRAPHX_M1_INSTANCE}" -- bash -c \
       'test -x "$1" && test -s examples/qemu-node/output/images/bzImage &&
