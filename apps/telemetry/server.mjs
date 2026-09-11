@@ -1,9 +1,8 @@
 import dgram from 'node:dgram'
-import { closeSync, constants, createReadStream, existsSync, fstatSync, openSync, readFileSync,
-  readSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { createServer as createSecureServer } from 'node:https'
-import { extname, join, normalize, resolve } from 'node:path'
+import { join, normalize, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { WebSocketServer } from 'ws'
 import { loadTelemetryConfiguration } from './normalized-config.mjs'
@@ -12,12 +11,16 @@ import { MAX_DATAGRAM_BYTES, RateLimiter, ReplayCache, isLoopback, originAllowed
   signEnvelope, tokenMatches, validateTelemetryEvent, verifyEnvelope, webSocketBearer } from './security.mjs'
 import { OtlpHttpExporter, SloEvaluator, graphReadiness, otlpConfig, otlpMetricsRequest,
   otlpTraceRequest } from './operations.mjs'
-import { HistoryStore, historyConfig, parseHistoryQuery, sloHistoryRecord,
-  telemetryHistoryRecord } from './history.mjs'
+import { HistoryStore, historyConfig, sloHistoryRecord, telemetryHistoryRecord } from './history.mjs'
 import { ControlAuthorizer, ControlConflictError, ControlPlane, CredentialRegistry,
   PreviousCredentialStore, RuntimeIdentityStore, controlAuditHistoryRecord,
   controlConfig } from './control.mjs'
-import { listValidatedCaptures, openValidatedCapture } from './capture-files.mjs'
+import { listValidatedCaptures } from './capture-files.mjs'
+import { createTopology, topologyView } from './topology.mjs'
+import { createRuntimeEvidence, diagnosticLayerByState } from './runtime-evidence.mjs'
+import { createMetricStore, currentRates, edgeView, LATENCY_BOUNDS_US,
+  RATE_WINDOW_SECONDS } from './metric-store.mjs'
+import { createHttpRequestHandler } from './http-routes.mjs'
 
 const root = normalize(process.env.GRAPHX_WEB_ROOT || join(fileURLToPath(new URL('.', import.meta.url)), '../../web/dist'))
 const port = Number(process.env.PORT || 8080)
@@ -28,8 +31,6 @@ const fallbackConfigPath = normalize(join(fileURLToPath(new URL('.', import.meta
 const loadedConfiguration = loadTelemetryConfiguration({ fallbackPath: fallbackConfigPath })
 const config = loadedConfiguration.config
 const graph = config.graph || { id: 'graphx', nodes: [], edges: [] }
-const deployment = config.deployment?.services || {}
-const transport = config.transport || {}
 const packetHistoryUrl = process.env.GRAPHX_PACKET_HISTORY_URL || ''
 const qemuEvidenceFile = process.env.GRAPHX_QEMU_EVIDENCE_FILE || ''
 const networkDiagnosticFile = process.env.GRAPHX_NETWORK_DIAGNOSTIC_FILE || ''
@@ -111,210 +112,20 @@ if (controlToken && !telemetrySecret)
 if (!tlsCertificateFile && !isLoopback(httpBind) && process.env.GRAPHX_ALLOW_INSECURE_REMOTE !== 'true')
   throw new Error('plaintext telemetry may bind only to loopback; use TLS or explicitly set GRAPHX_ALLOW_INSECURE_REMOTE=true')
 const allowedOrigins = new Set((process.env.GRAPHX_ALLOWED_ORIGINS || '').split(',').map(v => v.trim()).filter(Boolean))
-const rateWindowSeconds = 5
-const latencyBoundsUs = [10, 50, 100, 500, 1000, 5000, 10000]
+const rateWindowSeconds = RATE_WINDOW_SECONDS
+const latencyBoundsUs = LATENCY_BOUNDS_US
 
-function topologyModel() {
-  const requestedQemuAccelerator = process.env.GRAPHX_QEMU_REQUESTED_ACCEL || ''
-  const selectedQemuAccelerator = process.env.GRAPHX_QEMU_ACCEL || ''
-  const externalObservationSource = graph.nodes.some(node => node.runtime === 'qemu')
-    ? 'qemu-pcap'
-    : config.observability?.capture?.provider === 'ovs-span' ? 'ovs-span' : 'ethernet-pcap'
-  const graphNodes = graph.nodes.map(node => ({
-    id: node.id, label: node.id, role: node.kind, image: deployment[node.id]?.image || 'local process',
-    runtime: node.runtime || (deployment[node.id] ? 'docker' : 'process'),
-    execution: node.execution || (deployment[node.id] ? 'container' : 'local'),
-    lifecycle: node.lifecycle || 'managed', control: node.control || 'graphx',
-    accelerator: node.runtime === 'qemu' ? selectedQemuAccelerator || node.accelerator || 'unknown' : null,
-    requestedAccelerator: node.runtime === 'qemu' ? requestedQemuAccelerator || node.accelerator || 'unknown' : null,
-    selectedAccelerator: node.runtime === 'qemu' ? selectedQemuAccelerator || 'unknown' : null,
-    actualAccelerator: null, acceleratorEvidence: null,
-    guestArchitecture: node.runtime === 'qemu' ? node.architecture || 'unknown' : null,
-    input: node.ports.some(port => port.direction === 'input'),
-    output: node.ports.some(port => port.direction === 'output'),
-  }))
-  const graphEdges = graph.edges.map(edge => {
-    const [source] = edge.from.split('.')
-    const [target, targetPort] = edge.to.split('.')
-    const targetNode = graph.nodes.find(node => node.id === target)
-    const schema = targetNode?.ports.find(port => port.name === targetPort)?.schema || 'unknown'
-    const settings = transport[edge.transport]?.[edge.id] || {}
-    return { id: edge.id, source, target, transport: edge.transport,
-      dataPlane: edge.data_plane || 'graphx', framing: settings.framing || 'u32be',
-      observationSource: edge.data_plane === 'external' ? externalObservationSource : 'runtime',
-      port: settings.port || null, schema }
-  })
-  const network = config.network || {}
-  const infrastructure = new Map(graphNodes.map(node => [node.id, node]))
-  for (const item of network.networks || []) infrastructure.set(item.id, {
-    id: item.id, label: item.id, role: `${item.driver}${item.mode ? ` ${item.mode}` : ''}`,
-    image: (item.subnets || [item.subnet]).join(', '), input: true, output: true,
-  })
-  for (const item of network.switches || []) infrastructure.set(item.id, {
-    id: item.id, label: item.id, role: 'Open vSwitch',
-    image: item.mirror ? `SPAN · ${item.mirror.id}` : item.datapath || 'system',
-    input: true, output: true,
-  })
-  for (const item of network.routers || []) infrastructure.set(item.id, {
-    id: item.id, label: item.id, role: item.kind.replaceAll('_', ' '),
-    image: item.forwarding === false ? 'forwarding off' : 'IPv4 forwarding',
-    input: true, output: true,
-  })
-  const qemu = graphNodes.find(node => node.runtime === 'qemu')
-  const paths = structuredClone(network.edge_paths || {})
-  if (qemu) {
-    const boundary = qemu.execution === 'container'
-      ? { id: `${qemu.id}-container`, label: `${qemu.id} container`, role: 'Docker container',
-          image: qemu.image, hierarchy: 'container', input: true, output: true }
-      : { id: `${qemu.id}-host-runtime`, label: 'Host QEMU process', role: 'Host runtime',
-          image: 'externally managed', hierarchy: 'host', input: true, output: true }
-    infrastructure.set(boundary.id, boundary)
-    infrastructure.set(`${qemu.id}-guest-app`, { id: `${qemu.id}-guest-app`,
-      label: 'Raw TCP/UDP guest application', role: 'Guest application', image: qemu.guestArchitecture,
-      hierarchy: 'guest', parent: qemu.id, input: true, output: true })
-    infrastructure.set(qemu.id, { ...infrastructure.get(qemu.id), hierarchy: 'virtual-machine',
-      parent: boundary.id })
-    for (const edge of graphEdges) {
-      const path = paths[edge.id]
-      if (!Array.isArray(path)) continue
-      const replacement = edge.source === qemu.id
-        ? [`${qemu.id}-guest-app`, qemu.id, boundary.id]
-        : [boundary.id, qemu.id, `${qemu.id}-guest-app`]
-      paths[edge.id] = path.flatMap(id => id === qemu.id ? replacement : [id])
-    }
-  }
-  return { graph: graph.id, nodes: graphNodes, edges: graphEdges,
-    networkNodes: [...infrastructure.values()], edgePaths: paths }
-}
-
-const topology = topologyModel()
-function readBoundedJsonFile(path, maximum = 64 * 1024) {
-  let descriptor
-  try {
-    descriptor = openSync(path, constants.O_RDONLY | (constants.O_NOFOLLOW || 0))
-    const metadata = fstatSync(descriptor)
-    if (!metadata.isFile() || metadata.size > maximum) return null
-    const buffer = Buffer.alloc(Math.min(maximum + 1, metadata.size + 1))
-    let offset = 0
-    while (offset < buffer.length) {
-      const count = readSync(descriptor, buffer, offset, buffer.length - offset, null)
-      if (count === 0) break
-      offset += count
-    }
-    if (offset > maximum) return null
-    return JSON.parse(buffer.subarray(0, offset).toString('utf8'))
-  } catch { return null } finally { if (descriptor != null) closeSync(descriptor) }
-}
-const qemuStates = new Set(['not-started', 'booting', 'ready', 'degraded', 'stopped', 'unavailable'])
-const qemuAccelerators = new Set(['auto', 'kvm', 'tcg', 'hvf'])
-function qemuEvidence() {
-  if (!qemuEvidenceFile) return null
-  try {
-    const value = readBoundedJsonFile(qemuEvidenceFile)
-    if (!value || typeof value !== 'object' || !qemuStates.has(value.state) ||
-        !Number.isSafeInteger(value.updatedAt)) return null
-    if (value.actualAccelerator != null && !qemuAccelerators.has(value.actualAccelerator)) return null
-    if (value.selectedAccelerator != null && !qemuAccelerators.has(value.selectedAccelerator)) return null
-    if (value.requestedAccelerator != null && !qemuAccelerators.has(value.requestedAccelerator)) return null
-    if (value.evidenceSource != null && value.evidenceSource !== 'QMP query-status + query-kvm') return null
-    if (value.state === 'ready' && (value.evidenceSource == null ||
-        typeof value.qmpStatus?.running !== 'boolean' ||
-        typeof value.kvm?.present !== 'boolean' || typeof value.kvm?.enabled !== 'boolean' ||
-        value.vmState !== 'running' || value.guestState !== 'ready' ||
-        value.guestProtocols?.tcp !== true || value.guestProtocols?.udp !== true ||
-        !Number.isSafeInteger(value.guestReadinessAt))) return null
-    if (value.state === 'ready' && Date.now() - value.guestReadinessAt > 10_000) {
-      return { ...value, state: 'degraded', guestState: 'unavailable',
-        reason: 'guest application readiness evidence is stale' }
-    }
-    return value
-  } catch { return null }
-}
-
-const diagnosticEvidenceByState = new Map([
-  ['allowed', 'receiver-confirmed'],
-  ['policy-denied', 'nft-counter'],
-  ['missing-route', 'route-absent'],
-  ['route-applied', 'route-installed'],
-  ['link-down', 'carrier-down'],
-  ['attachment-missing', 'attachment-absent'],
-  ['application-unavailable', 'receiver-unavailable'],
-])
-const diagnosticLayerByState = new Map([
-  ['allowed', 'application'],
-  ['policy-denied', 'policy'],
-  ['missing-route', 'route'],
-  ['route-applied', 'route'],
-  ['link-down', 'link'],
-  ['attachment-missing', 'attachment'],
-  ['application-unavailable', 'application'],
-])
-function networkDiagnosticEvidence() {
-  if (!networkDiagnosticFile) return null
-  try {
-    const value = readBoundedJsonFile(networkDiagnosticFile)
-    if (value?.version !== 1 || !Number.isSafeInteger(value.updatedAt) ||
-        typeof value.routeApplied !== 'boolean' || !value.flows ||
-        typeof value.flows !== 'object' || Array.isArray(value.flows) ||
-        Object.keys(value.flows).length > topology.edges.length) return null
-    for (const [edgeId, flow] of Object.entries(value.flows)) {
-      if (!topology.edges.some(edge => edge.id === edgeId) || !flow ||
-          typeof flow !== 'object' || Array.isArray(flow) ||
-        diagnosticEvidenceByState.get(flow.state) !== flow.evidence ||
-          Object.keys(flow).some(key => !['state', 'evidence'].includes(key))) return null
-    }
-    if (value.routeApplied !== Object.values(value.flows)
-          .some(flow => flow.state === 'route-applied')) return null
-    return value
-  } catch { return null }
-}
-
-function topologyView(evidence, diagnosticEvidence = null) {
-  const withDiagnostics = diagnosticEvidence ? { ...topology,
-    edges: topology.edges.map(edge => ({ ...edge,
-      ...(diagnosticEvidence.flows[edge.id] ? {
-        diagnosticState: diagnosticEvidence.flows[edge.id].state,
-        diagnosticEvidence: diagnosticEvidence.flows[edge.id].evidence,
-        diagnosticLayer: diagnosticLayerByState.get(diagnosticEvidence.flows[edge.id].state),
-      } : {}),
-    })),
-    networkDiagnostic: { routeApplied: diagnosticEvidence.routeApplied,
-      updatedAt: diagnosticEvidence.updatedAt },
-  } : topology
-  if (!evidence) return withDiagnostics
-  const qemuNode = topology.nodes.find(node => node.runtime === 'qemu')
-  const runtimeFields = { requestedAccelerator: evidence.requestedAccelerator || 'unknown',
-    selectedAccelerator: evidence.selectedAccelerator || 'unknown',
-    actualAccelerator: evidence.actualAccelerator || null,
-    accelerator: evidence.actualAccelerator || evidence.selectedAccelerator || 'unknown',
-    acceleratorEvidence: evidence.evidenceSource || null,
-    vmState: evidence.vmState || null, guestState: evidence.guestState || null,
-    guestProtocols: evidence.guestProtocols || null }
-  const boundaryState = evidence.state === 'stopped' ? 'stopped'
-    : evidence.vmState === 'unavailable' ? 'unavailable' : 'running'
-  return { ...withDiagnostics,
-    nodes: topology.nodes.map(node => node.runtime === 'qemu' ? { ...node, ...runtimeFields } : node),
-    networkNodes: topology.networkNodes.map(node => {
-      if (!qemuNode) return node
-      if (node.id === qemuNode.id) return { ...node, ...runtimeFields,
-        status: evidence.vmState || evidence.state, runtimeLayer: 'vm' }
-      if (node.id === `${qemuNode.id}-guest-app`) return { ...node,
-        status: evidence.guestState || evidence.state, runtimeLayer: 'guest',
-        guestState: evidence.guestState || null, guestProtocols: evidence.guestProtocols || null }
-      if (node.id === `${qemuNode.id}-${qemuNode.execution === 'container' ? 'container' : 'host-runtime'}`)
-        return { ...node, status: boundaryState, runtimeLayer: 'boundary' }
-      return node
-    }) }
-}
+const topology = createTopology(config)
+const { qemuEvidence, networkDiagnosticEvidence } = createRuntimeEvidence({
+  qemuEvidenceFile, networkDiagnosticFile, topology,
+})
 let state = { paused: false, fault: false, updatedAt: new Date().toISOString() }
-const recent = []
-const captureReferences = []
 const controlEndpoints = new Map()
 const controlStates = new Map()
-const nodes = Object.fromEntries(topology.nodes.map(node => [node.id, {
-  status: 'starting', lastSeen: null, cpuPercent: null,
-}]))
+const metricStore = createMetricStore(topology)
+const { nodes, edges } = metricStore
 const nodeIds = new Set(Object.keys(nodes))
+const edgeIds = new Set(Object.keys(edges))
 const controllableNodeIds = new Set(graph.nodes.filter(node =>
   node.control === 'origin' ||
   ((node.control === 'graphx' || node.control == null) && node.kind === 'source')).map(node => node.id))
@@ -346,76 +157,9 @@ const controlPlane = new ControlPlane(configuredControl, controllableNodeIds, {
       throw new Error('control audit history queue rejected record')
   },
 })
-function emptyEdge(connection = 'disconnected') {
-  return {
-    sent: 0, received: 0, sentWireBytes: 0, receivedWireBytes: 0,
-    drops: 0, errors: 0, reconnects: 0, backpressureEvents: 0,
-    backpressureUs: 0, rejected: 0, connection, lastSequence: 0, lastSeen: null,
-    latencyCount: 0, latencySumUs: 0,
-    latencyBuckets: Array(latencyBoundsUs.length + 1).fill(0), rateBuckets: [],
-  }
-}
-
-const edges = Object.fromEntries(topology.edges.map(edge => [edge.id, emptyEdge()]))
 let serviceState = { httpReady: false, udpReady: false, shuttingDown: false }
 let slo = sloEvaluator.snapshot()
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png' }
-
-function recordRate(edge, timestamp, wireBytes) {
-  const second = Math.floor(timestamp / 1000)
-  edge.rateBuckets = edge.rateBuckets.filter(bucket => bucket.second > second - rateWindowSeconds)
-  let bucket = edge.rateBuckets.find(value => value.second === second)
-  if (!bucket) {
-    bucket = { second, messages: 0, wireBytes: 0 }
-    edge.rateBuckets.push(bucket)
-  }
-  bucket.messages += 1
-  bucket.wireBytes += wireBytes
-}
-
-function currentRates(edge, timestamp = Date.now()) {
-  const second = Math.floor(timestamp / 1000)
-  const buckets = edge.rateBuckets.filter(bucket => bucket.second > second - rateWindowSeconds)
-  if (!buckets.length) return { messageRate: 0, byteRate: 0 }
-  const elapsed = Math.min(rateWindowSeconds,
-    Math.max(1, second - Math.min(...buckets.map(bucket => bucket.second)) + 1))
-  const messages = buckets.reduce((sum, bucket) => sum + bucket.messages, 0)
-  const wireBytes = buckets.reduce((sum, bucket) => sum + bucket.wireBytes, 0)
-  return {
-    messageRate: Math.round(messages / elapsed * 10) / 10,
-    byteRate: Math.round(wireBytes / elapsed),
-  }
-}
-
-function latencyPercentile(edge, percentile) {
-  if (!edge.latencyCount) return null
-  const target = Math.ceil(edge.latencyCount * percentile)
-  let cumulative = 0
-  for (let index = 0; index < edge.latencyBuckets.length; ++index) {
-    cumulative += edge.latencyBuckets[index]
-    if (cumulative >= target)
-      return index < latencyBoundsUs.length ? latencyBoundsUs[index] : latencyBoundsUs.at(-1)
-  }
-  return latencyBoundsUs.at(-1)
-}
-
-function edgeView(edge, timestamp = Date.now()) {
-  const rates = currentRates(edge, timestamp)
-  return {
-    sent: edge.sent, received: edge.received,
-    sentWireBytes: edge.sentWireBytes, receivedWireBytes: edge.receivedWireBytes,
-    ...rates, drops: edge.drops, errors: edge.errors,
-    meanLatencyUs: edge.latencyCount ? Math.round(edge.latencySumUs / edge.latencyCount) : null,
-    p95LatencyUs: latencyPercentile(edge, 0.95), latencyCount: edge.latencyCount,
-    reconnects: edge.reconnects, backpressureEvents: edge.backpressureEvents,
-    backpressureUs: edge.backpressureUs, rejected: edge.rejected,
-    connection: edge.connection, lastSequence: edge.lastSequence, lastSeen: edge.lastSeen,
-    metricSources: {
-      counters: 'measured', latency: edge.latencyCount ? 'measured' : 'unavailable',
-      throughput: 'derived-5s', drops: 'measured',
-    },
-  }
-}
 
 let captureCatalogCache = { expiresAt: 0, catalog: null }
 function captureCatalog() {
@@ -435,15 +179,6 @@ function captureCatalog() {
     })) }
   captureCatalogCache = { expiresAt: now + 1000, catalog }
   return catalog
-}
-
-function recentWithCapture() {
-  return recent.slice(0, 30).map(event => ({ ...event,
-    captures: captureReferences.filter(reference =>
-      (event.messageId ? reference.messageId === event.messageId :
-        reference.traceId === event.traceId && reference.sequence === event.sequence) &&
-      reference.edgeId === event.edgeId).slice(0, 4),
-  }))
 }
 
 function snapshot() {
@@ -467,7 +202,7 @@ function snapshot() {
         connection: flow.state, diagnosticEvidence: flow.evidence,
         diagnosticLayer: diagnosticLayerByState.get(flow.state) }
   return { kind: 'snapshot', graph: graph.id,
-    topology: topologyView(evidence, diagnosticEvidence),
+    topology: topologyView(topology, evidence, diagnosticEvidence, diagnosticLayerByState),
     telemetry: { websocket: websocketPath, heartbeatTimeoutMs: heartbeatTimeout,
       rateWindowSeconds, latencyBoundsUs }, state,
     control: { available: credentialRegistry.lastError == null && controlAuthorizer.available &&
@@ -491,7 +226,7 @@ function snapshot() {
         maxPackets: captureConfig.maxPackets, catalogMaxFiles: captureCatalogMaxFiles,
         catalogMaxEntries: captureCatalogMaxEntries },
       files: catalog.files, catalogTruncated: catalog.truncated,
-      catalogScannedEntries: catalog.scannedEntries }, recent: recentWithCapture(), timestamp }
+      catalogScannedEntries: catalog.scannedEntries }, recent: metricStore.recentWithCapture(), timestamp }
 }
 
 const securityHeaders = {
@@ -527,12 +262,7 @@ function controlTargets(action, requested = null) {
 }
 
 function resetCollectorCounters() {
-  recent.length = 0
-  captureReferences.length = 0
-  for (const edge of Object.values(edges)) {
-    const connection = edge.connection
-    Object.assign(edge, emptyEdge(connection))
-  }
+  metricStore.reset()
   state = { ...state, updatedAt: new Date().toISOString() }
   broadcast()
 }
@@ -798,220 +528,12 @@ function prometheus() {
   return `${lines.join('\n')}\n`
 }
 
-const handleRequest = (request, response) => {
-  if (!request.url || request.url.length > 2048) return json(response, 414, { error: 'request target too long' })
-  const url = parseRequestUrl(request.url)
-  if (!url) return json(response, 400, { error: 'invalid request target' })
-  if (url.pathname === '/api/live') {
-    if (request.method !== 'GET') return json(response, 405, { error: 'method not allowed' }, { allow: 'GET' })
-    return json(response, 200, { status: 'live', service: 'graphx-telemetry' })
-  }
-  if (url.pathname === '/api/ready') {
-    if (request.method !== 'GET') return json(response, 405, { error: 'method not allowed' }, { allow: 'GET' })
-    refreshCredentials()
-    const ready = serviceState.httpReady && serviceState.udpReady && !serviceState.shuttingDown &&
-      credentialRegistry.lastError == null
-    return json(response, ready ? 200 : 503, { status: ready ? 'ready' : 'not-ready', service: 'graphx-telemetry',
-      listeners: { http: serviceState.httpReady, udp: serviceState.udpReady },
-      credentialConfiguration: credentialRegistry.lastError == null ? 'valid' : 'invalid',
-      shuttingDown: serviceState.shuttingDown })
-  }
-  if (url.pathname === '/api/health') {
-    if (request.method !== 'GET') return json(response, 405, { error: 'method not allowed' }, { allow: 'GET' })
-    const readiness = graphReadiness(nodes, edges, Date.now(), heartbeatTimeout)
-    return json(response, 200, { status: 'live', service: 'graphx-telemetry', tls: Boolean(tlsCertificateFile),
-      serviceReady: serviceState.httpReady && serviceState.udpReady && !serviceState.shuttingDown &&
-        credentialRegistry.lastError == null,
-      graphReady: readiness.ready })
-  }
-  if (!withinRateLimit(request, 120)) return json(response, 429, { error: 'rate limit exceeded' }, { 'retry-after': '60' })
-  const observed = ['/api/topology', '/api/captures', '/api/graph/ready', '/api/slo',
-    '/api/history', '/api/history/status', '/api/packet-history', '/metrics'].includes(url.pathname) ||
-    url.pathname.startsWith('/captures/')
-  if (observed && observationToken && !authorized(request, observationToken))
-    return json(response, 401, { error: 'invalid observation token' }, { 'www-authenticate': 'Bearer realm="graphx-observation"' })
-  if (url.pathname === '/api/topology') {
-    if (request.method !== 'GET') return json(response, 405, { error: 'method not allowed' }, { allow: 'GET' })
-    return json(response, 200, snapshot())
-  }
-  if (url.pathname === '/api/graph/ready') {
-    if (request.method !== 'GET') return json(response, 405, { error: 'method not allowed' }, { allow: 'GET' })
-    const readiness = graphReadiness(nodes, edges, Date.now(), heartbeatTimeout)
-    return json(response, readiness.ready ? 200 : 503,
-      { status: readiness.ready ? 'ready' : 'not-ready', ...readiness })
-  }
-  if (url.pathname === '/api/slo') {
-    if (request.method !== 'GET') return json(response, 405, { error: 'method not allowed' }, { allow: 'GET' })
-    return json(response, 200, slo)
-  }
-  if (url.pathname === '/api/history/status') {
-    if (request.method !== 'GET') return json(response, 405, { error: 'method not allowed' }, { allow: 'GET' })
-    return json(response, 200, historyStore.stats)
-  }
-  if (url.pathname === '/api/history') {
-    if (request.method !== 'GET') return json(response, 405, { error: 'method not allowed' }, { allow: 'GET' })
-    let query
-    try { query = parseHistoryQuery(url.searchParams, configuredHistory, nodeIds, edgeIds) }
-    catch (error) { return json(response, 400, { error: error.message }) }
-    historyStore.query({ ...query, excludeControlAudit: true })
-      .then(result => json(response, 200, result))
-      .catch(error => json(response, error.message.includes('capacity') ? 429 : 503,
-        { error: String(error.message).slice(0, 256) },
-        error.message.includes('capacity') ? { 'retry-after': '1' } : {}))
-    return
-  }
-  if (url.pathname === '/api/packet-history') {
-    if (request.method !== 'GET') return json(response, 405, { error: 'method not allowed' }, { allow: 'GET' })
-    if (!packetHistoryUrl) return json(response, 503, { error: 'packet history is disabled' })
-    const permitted = new Set(['limit', 'before', 'protocol'])
-    if ([...url.searchParams.keys()].some(key => !permitted.has(key)))
-      return json(response, 400, { error: 'unknown packet history query parameter' })
-    const limit = url.searchParams.get('limit') || '100'
-    const before = url.searchParams.get('before')
-    const protocol = url.searchParams.get('protocol')
-    if (!/^[1-9][0-9]{0,2}$/.test(limit) || Number(limit) > 500 ||
-        (before != null && !/^[1-9][0-9]{0,18}$/.test(before)) ||
-        (protocol != null && !['TCP', 'UDP'].includes(protocol)))
-      return json(response, 400, { error: 'invalid packet history query' })
-    const target = new URL('/history', packetHistoryUrl)
-    target.searchParams.set('limit', limit)
-    if (before) target.searchParams.set('before', before)
-    if (protocol) target.searchParams.set('protocol', protocol)
-    fetch(target, { signal: AbortSignal.timeout(2000) })
-      .then(async upstream => {
-        const body = await upstream.json()
-        if (!response.headersSent) json(response, upstream.ok ? 200 : 503, body)
-      })
-      .catch(() => { if (!response.headersSent) json(response, 503, { error: 'packet history is unavailable' }) })
-    return
-  }
-  if (url.pathname === '/api/captures') {
-    if (request.method !== 'GET') return json(response, 405, { error: 'method not allowed' }, { allow: 'GET' })
-    return json(response, 200, snapshot().capture)
-  }
-  if (url.pathname === '/metrics') {
-    if (request.method !== 'GET') return json(response, 405, { error: 'method not allowed' }, { allow: 'GET' })
-    response.writeHead(200, { ...securityHeaders, 'cache-control': 'no-store',
-      'content-type': 'text/plain; version=0.0.4; charset=utf-8' })
-    return response.end(prometheus())
-  }
-  if (url.pathname === '/api/control/commands' && request.method === 'GET') {
-    const principal = controlPrincipal(request)
-    if (!principal)
-      return json(response, 401, { error: 'invalid control credential' },
-        { 'www-authenticate': 'Bearer realm="graphx-control"' })
-    const canReadAll = principal.permissions.has('commands:read:any')
-    const commands = controlPlane.list(100).filter(command => canReadAll || command.actor === principal.id)
-    return json(response, 200, { commands })
-  }
-  const commandMatch = url.pathname.match(/^\/api\/control\/commands\/([0-9a-f-]{36})$/)
-  if (commandMatch && request.method === 'GET') {
-    const principal = controlPrincipal(request)
-    if (!principal)
-      return json(response, 401, { error: 'invalid control credential' },
-        { 'www-authenticate': 'Bearer realm="graphx-control"' })
-    const command = controlPlane.get(commandMatch[1])
-    if (!command || (command.actor !== principal.id && !principal.permissions.has('commands:read:any')))
-      return json(response, 404, { error: 'control command not found' })
-    return json(response, 200, command)
-  }
-  if (url.pathname === '/api/control/audit/history' && request.method === 'GET') {
-    const principal = controlPrincipal(request)
-    if (!principal)
-      return json(response, 401, { error: 'invalid control credential' },
-        { 'www-authenticate': 'Bearer realm="graphx-control"' })
-    if (!principal.permissions.has('audit:read'))
-      return json(response, 403, { error: 'control audit access is not authorized' })
-    let query
-    try { query = parseHistoryQuery(url.searchParams, configuredHistory, nodeIds, edgeIds) }
-    catch (error) { return json(response, 400, { error: error.message }) }
-    historyStore.query({ ...query, kind: 'control_audit', excludeControlAudit: false })
-      .then(result => json(response, 200, result))
-      .catch(error => json(response, error.message.includes('capacity') ? 429 : 503,
-        { error: String(error.message).slice(0, 256) },
-        error.message.includes('capacity') ? { 'retry-after': '1' } : {}))
-    return
-  }
-  if (url.pathname === '/api/control/audit' && request.method === 'GET') {
-    const principal = controlPrincipal(request)
-    if (!principal)
-      return json(response, 401, { error: 'invalid control credential' },
-        { 'www-authenticate': 'Bearer realm="graphx-control"' })
-    if (!principal.permissions.has('audit:read'))
-      return json(response, 403, { error: 'control audit access is not authorized' })
-    const limitText = url.searchParams.get('limit')
-    if ([...url.searchParams.keys()].some(key => key !== 'limit') ||
-        (limitText != null && !/^[1-9][0-9]{0,2}$/.test(limitText)))
-      return json(response, 400, { error: 'audit limit must be an integer from 1 through 999' })
-    return json(response, 200, { records: controlPlane.auditRecords(Number(limitText || 100)),
-      stats: controlPlane.stats })
-  }
-  if (url.pathname === '/api/control/commands' && request.method === 'POST') {
-    if (!requestOriginAllowed(request))
-      return json(response, 403, { accepted: false, error: 'origin not allowed' })
-    if (!withinRateLimit(request, 10, 60000, 'control'))
-      return json(response, 429, { accepted: false, error: 'control rate limit exceeded' })
-    const contentType = String(request.headers['content-type'] || '').split(';', 1)[0]
-    if (contentType !== 'application/json')
-      return json(response, 415, { accepted: false, error: 'content-type must be application/json' })
-    readControlBody(request)
-      .then(body => issueControl(request, response, body))
-      .catch(error => {
-        if (!response.headersSent)
-          json(response, error.message.includes('exceeds') ? 413 : 400,
-            { accepted: false, error: String(error.message).slice(0, 256) })
-      })
-    return
-  }
-  if (/^\/api\/control\/(pause|resume|reset)$/.test(url.pathname) && request.method === 'POST') {
-    const action = url.pathname.split('/').pop()
-    if (!requestOriginAllowed(request)) return json(response, 403, { accepted: false, action, error: 'origin not allowed' })
-    if (!withinRateLimit(request, 10, 60000, 'control')) return json(response, 429, { accepted: false, action, error: 'control rate limit exceeded' })
-    if (Number(request.headers['content-length'] || 0) > 0 || request.headers['transfer-encoding'])
-      return json(response, 413, { accepted: false, action, error: 'request body not accepted' })
-    return issueControl(request, response, { action, targetNodes: null })
-  }
-  if (url.pathname.startsWith('/api/control/'))
-    return json(response, 405, { error: 'method not allowed' }, { allow: 'POST' })
-  if (url.pathname.startsWith('/captures/')) {
-    if (request.method !== 'GET') return json(response, 405, { error: 'method not allowed' }, { allow: 'GET' })
-    let name
-    try { name = decodeURIComponent(url.pathname.slice('/captures/'.length)) }
-    catch { return json(response, 400, { error: 'invalid capture name' }) }
-    if (!/^[A-Za-z][A-Za-z0-9_-]{0,63}\.pcapng$/.test(name))
-      return json(response, 404, { error: 'capture not found' })
-    const capturePath = join(captureDirectory, name)
-    let descriptor
-    try {
-      descriptor = openValidatedCapture(capturePath, captureConfig.maxFileBytes,
-        captureConfig.maxPackets + 2).descriptor
-    } catch {
-      if (descriptor != null) closeSync(descriptor)
-      return json(response, 404, { error: 'capture not found' })
-    }
-    response.writeHead(200, { ...securityHeaders, 'cache-control': 'no-store', 'content-type': 'application/vnd.tcpdump.pcap',
-      'content-disposition': `attachment; filename="${name}"` })
-    return createReadStream(null, { fd: descriptor, autoClose: true }).pipe(response)
-  }
-  let requested = url.pathname === '/' ? 'index.html' : url.pathname.slice(1)
-  const file = resolve(root, requested)
-  if ((file !== root && !file.startsWith(`${root}/`)) || !existsSync(file)) requested = 'index.html'
-  const fallback = normalize(join(root, requested))
-  if (!existsSync(fallback)) return json(response, 404, { error: 'web assets not built' })
-  response.writeHead(200, { ...securityHeaders, 'cache-control': fallback.endsWith('index.html') ? 'no-cache' : 'public, max-age=3600',
-    'content-type': types[extname(fallback)] || 'application/octet-stream' })
-  createReadStream(fallback).pipe(response)
-}
-
-const requestHandler = (request, response) => {
-  try { return handleRequest(request, response) }
-  catch (error) {
-    console.error(`telemetry request failed: ${error instanceof Error ? error.message : 'unknown error'}`)
-    if (!response.headersSent) return json(response, 500, { error: 'internal server error' })
-    response.destroy()
-  }
-}
-
+const requestHandler = createHttpRequestHandler({ json, withinRateLimit, observationToken,
+  authorized, snapshot, graphReadiness, nodes, edges, heartbeatTimeout, getSlo: () => slo,
+  historyStore, configuredHistory, nodeIds, edgeIds, packetHistoryUrl, securityHeaders,
+  prometheus, controlPrincipal, controlPlane, requestOriginAllowed, readControlBody, issueControl,
+  captureDirectory, captureConfig, root, types, serviceState, credentialRegistry,
+  refreshCredentials, tlsEnabled: Boolean(tlsCertificateFile) })
 const serverOptions = { maxHeaderSize: 16 * 1024, requestTimeout: 10000,
   headersTimeout: 10000, keepAliveTimeout: 5000 }
 const server = tlsCertificateFile ? createSecureServer({ ...serverOptions,
@@ -1045,7 +567,6 @@ function broadcast() {
 
 const udp = dgram.createSocket('udp4')
 const replayCache = new ReplayCache()
-const edgeIds = new Set(Object.keys(edges))
 udp.on('message', (data, remote) => {
   try {
     if (data.length > MAX_DATAGRAM_BYTES) return
@@ -1088,76 +609,14 @@ udp.on('message', (data, remote) => {
     if (configuredOtlp.enabled && event.kind === 'trace')
       otlpExporter.enqueue(configuredOtlp.tracesPath, otlpTraceRequest(event))
     if (event.kind === 'capture' && event.event === 'frame') {
-      captureReferences.unshift(event)
-      if (captureReferences.length > 200) captureReferences.length = 200
+      metricStore.recordCapture(event)
       broadcast()
       return
     }
-    if (nodes[event.nodeId]) {
-      if (event.kind === 'trace' && controllableNodeIds.has(event.nodeId))
-        controlEndpoints.set(event.nodeId, { address: remote.address, port: remote.port,
-          lastSeen: receivedAt })
-      const cpuPercent = Number(event.cpuPercent)
-      nodes[event.nodeId] = {
-        ...nodes[event.nodeId], status: 'running', lastSeen: receivedAt,
-        ...(Number.isFinite(cpuPercent) && cpuPercent >= 0 ? { cpuPercent } : {}),
-      }
-    }
-    const edge = edges[event.edgeId]
-    if (edge) {
-      edge.lastSeen = receivedAt
-      edge.lastSequence = event.sequence || edge.lastSequence
-      if (event.event === 'send') {
-        // A live data event is authoritative evidence that the transport path is
-        // usable, including after the telemetry service itself has restarted.
-        edge.connection = 'connected'
-        const wireBytes = Math.max(0, Number(event.wireBytes) || 0)
-        edge.sent += 1
-        edge.sentWireBytes += wireBytes
-        recordRate(edge, receivedAt, wireBytes)
-      }
-      if (event.kind === 'network_packet') {
-        edge.connection = 'connected'
-        const wireBytes = Math.max(0, Number(event.wireBytes) || 0)
-        edge.sent += 1
-        edge.received += 1
-        edge.sentWireBytes += wireBytes
-        edge.receivedWireBytes += wireBytes
-        recordRate(edge, receivedAt, wireBytes)
-        const definition = topology.edges.find(value => value.id === event.edgeId)
-        for (const nodeId of [definition?.source, definition?.target]) {
-          if (nodeId && nodes[nodeId]) nodes[nodeId] = {
-            ...nodes[nodeId], status: 'running', lastSeen: receivedAt,
-          }
-        }
-        recent.unshift(event)
-        if (recent.length > 100) recent.length = 100
-      } else if (event.event === 'receive') {
-        edge.connection = 'connected'
-        edge.received += 1
-        edge.receivedWireBytes += Math.max(0, Number(event.wireBytes) || 0)
-        const latencyUs = Math.max(0, Number(event.latencyUs) || 0)
-        edge.latencyCount += 1
-        edge.latencySumUs += latencyUs
-        let bucket = latencyBoundsUs.findIndex(bound => latencyUs <= bound)
-        if (bucket < 0) bucket = latencyBoundsUs.length
-        edge.latencyBuckets[bucket] += 1
-        recent.unshift(event)
-        if (recent.length > 100) recent.length = 100
-      }
-      if (event.event === 'error') { edge.errors += 1; edge.connection = 'error' }
-      if (event.event === 'connection') edge.connection = event.message || 'unknown'
-      if (event.event === 'reconnect') edge.reconnects += 1
-      if (event.event === 'backpressure') {
-        edge.backpressureEvents += 1
-        edge.backpressureUs += event.latencyUs || 0
-        if (event.message === 'rejected') {
-          edge.rejected += 1
-          edge.drops += 1
-        }
-      }
-      if (event.event === 'drop') edge.drops += 1
-    }
+    if (event.kind === 'trace' && nodes[event.nodeId] && controllableNodeIds.has(event.nodeId))
+      controlEndpoints.set(event.nodeId, { address: remote.address, port: remote.port,
+        lastSeen: receivedAt })
+    metricStore.ingest(event, receivedAt)
     broadcast()
   } catch { /* Telemetry is best-effort; malformed datagrams are ignored. */ }
 })

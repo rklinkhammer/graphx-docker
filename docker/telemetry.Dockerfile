@@ -40,7 +40,8 @@ COPY apps/telemetry/package*.json ./
 RUN npm ci --omit=dev
 COPY --chown=node:node apps/telemetry/server.mjs apps/telemetry/security.mjs apps/telemetry/control.mjs apps/telemetry/operations.mjs \
   apps/telemetry/history.mjs apps/telemetry/history-worker.mjs apps/telemetry/capture-files.mjs \
-  apps/telemetry/normalized-config.mjs ./
+  apps/telemetry/normalized-config.mjs apps/telemetry/topology.mjs apps/telemetry/metric-store.mjs \
+  apps/telemetry/runtime-evidence.mjs apps/telemetry/http-routes.mjs ./
 COPY --from=web /app/web/dist ./web/dist
 ENV GRAPHX_WEB_ROOT=/app/web/dist GRAPHX_NORMALIZED_CONFIG=/run/graphx/normalized.json PORT=8080 \
     GRAPHX_VERSION=${GRAPHX_VERSION} \
