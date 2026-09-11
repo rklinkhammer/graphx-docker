@@ -42,6 +42,8 @@ def main() -> int:
                    "mirror mirror-ipv", "ip netns add", "net.ipv4.ip_forward=1",
                    "nft add rule", "ovs-ofctl add-flow"):
         require(marker in mixed_plan, f"mixed lab lacks {marker}")
+    require("policy=established-return ct-state=established,related action=accept" in mixed_plan,
+            "M5 routed plans must permit return traffic for accepted connections")
 
     route_apply = run(graphx, "infra", "route", "apply", labs[4], "--router",
                       "route-router", "--destination", "10.64.30.10/32",

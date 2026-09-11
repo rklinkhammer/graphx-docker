@@ -184,7 +184,11 @@ case ${1:-} in
     sudo "$graphx" infra status "$config"
     owned_pid qemu.pid qemu-system-x86_64 && echo "QEMU: running as UID/GID $qemu_uid:$qemu_gid"
     qmp_as_qemu probe --socket "$run_dir/qemu.qmp" \
-      --output "$run_dir/accelerator-evidence.json" --requested tcg --selected tcg
+      --output "$run_dir/accelerator-evidence.json" --requested tcg --selected tcg >/dev/null
+    qmp_in_peer guest-readiness --target 10.0.2.15 --port 18001 \
+      --socket "$run_dir/qemu.qmp" --output "$run_dir/accelerator-evidence.json" \
+      --wait 10 --interval 1 || true
+    sudo cat "$run_dir/accelerator-evidence.json"
     ;;
   verify) verify_network ;;
   pause|resume)

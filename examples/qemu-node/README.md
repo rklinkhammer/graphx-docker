@@ -48,7 +48,7 @@ target and host package manifests, source archives, and collected license texts
 under `examples/qemu-node/output/legal-info`. Optional organizational trust uses
 the project-wide `GRAPHX_CA_CERT` and `GRAPHX_CERT_INSTALL_SCRIPT` inputs.
 
-## Canonical user interface
+## Canonical lifecycle
 
 The root TAP/OVS launcher supports:
 
@@ -59,20 +59,12 @@ demo.sh status
 demo.sh stop
 ```
 
-Set `GRAPHX_QEMU_GUI_PORT` for `start` to choose another console port. The
-validated value is saved in private state, so later commands do not depend on
-the invoking shell environment.
-
-Capture and packet history are enabled by default and bounded to 64 MiB,
-100,000 capture packets, 50,000 history records, and one day unless overridden.
-The source PCAP is also guarded at 64 MiB; reaching that safety limit stops QEMU
-and leaves a clear diagnostic rather than allowing unbounded host storage.
-
-The default console is <http://127.0.0.1:8080/>. Its Application view shows the
-shared logical graph. Network view shows whether QEMU is host-managed or nested
-inside a Docker service. History displays packet metadata separately from
-GraphX message history. Pause/resume affects only `host-origin`; it does not
-pause the VM.
+On Linux the launcher runs locally. On Apple Silicon macOS it verifies and uses
+the GraphX Lima VM automatically. `start` checks the QEMU identity, TAP and OVS
+state, guest TCP/UDP readiness, VLAN isolation, and SPAN capture growth.
+`pause` and `resume` control the VM through QMP. This canonical infrastructure
+profile has no browser console; use the deprecated external
+compatibility profile when GUI behavior itself is under test.
 
 QMP proves VM liveness and acceleration but leaves the node `booting`. An
 independent bounded TCP-and-UDP probe promotes the guest application to

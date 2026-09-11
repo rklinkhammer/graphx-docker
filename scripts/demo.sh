@@ -48,10 +48,14 @@ preflight_http_endpoint() {
   if grep -Fq '"service":"graphx-telemetry"' <<<"$health"; then
     return
   fi
-  if curl -sS --max-time 2 --output /dev/null "$LOCAL_URL/" 2>/dev/null; then
+  local probe_status=0
+  curl -sS --max-time 2 --output /dev/null "$LOCAL_URL/" 2>/dev/null || probe_status=$?
+  # curl exit 7 means that no process accepted the connection. Timeouts,
+  # resets, and HTTP responses all mean that the requested port is occupied.
+  if test "$probe_status" -ne 7; then
     echo "Cannot start GraphX: $LOCAL_URL is already served by another HTTP process." >&2
     echo "Stop that process or choose another port, for example:" >&2
-    echo "  GRAPHX_PUBLISHED_HTTP_PORT=18080 scripts/demo.sh start" >&2
+    echo "  GRAPHX_PUBLISHED_HTTP_PORT=28080 scripts/demo.sh start" >&2
     return 2
   fi
 }
@@ -132,7 +136,7 @@ observed_get() {
 wait_for_telemetry() {
   printf 'Waiting for the telemetry service'
   for _ in {1..60}; do
-    if curl -fsS "$URL/api/health" >/dev/null 2>&1; then
+    if curl -fsS --max-time 2 "$URL/api/health" >/dev/null 2>&1; then
       printf ' ready\n'
       return
     fi

@@ -176,6 +176,14 @@ def main() -> int:
     if "GRAPHX_ALLOWED_ORIGINS" not in manual or "local port 18080" not in normalized_manual:
         fail("manual procedure omits forwarded WebSocket origin verification")
     demo_guide = (root / "docs/demo-guide.md").read_text(encoding="utf-8")
+    demo_script = (root / "scripts/demo.sh").read_text(encoding="utf-8")
+    if '--max-time 2 "$URL/api/health"' not in demo_script:
+        fail("root demo telemetry wait is not bounded per request")
+    if 'test "$probe_status" -ne 7' not in demo_script:
+        fail("root demo preflight does not reject accepted-but-unresponsive ports")
+    for required in ("OrbStack", "port 18080 is reserved", "28080"):
+        if required not in demo_guide:
+            fail(f"demo guide omits macOS port guidance: {required}")
     for lab in ("macvlan", "ipvlan-l2", "ipvlan-l3", "mixed-network"):
         for action in ("plan", "up", "status", "down"):
             command = f"scripts/network-lab.sh {lab} {action}"
@@ -183,6 +191,20 @@ def main() -> int:
                 fail(f"demo guide omits cross-platform network-lab command: {command}")
     if "OrbStack is not involved" not in demo_guide or "infrastructure/lima/verify.sh" not in demo_guide:
         fail("demo guide does not explain the macOS Lima network-lab boundary")
+    for required in (
+        "examples/qemu-node/scripts/demo.sh start",
+        "examples/qemu-node/scripts/demo.sh verify",
+        "examples/qemu-node/scripts/demo.sh stop",
+        "deprecated external compatibility profile",
+    ):
+        if required not in demo_guide:
+            fail(f"demo guide omits canonical QEMU guidance: {required}")
+    qemu_guide = (root / "docs/qemu-demos.md").read_text(encoding="utf-8")
+    qemu_readme = (root / "examples/qemu-node/README.md").read_text(encoding="utf-8")
+    for document, label in ((qemu_guide, "QEMU guide"), (qemu_readme, "QEMU README")):
+        for required in ("Apple Silicon macOS", "GraphX Lima", "no browser console"):
+            if required not in document:
+                fail(f"{label} omits canonical runtime boundary: {required}")
     root_history = [
         path.name for pattern in ("phase_*_handoff.md", "phase_*_verification.md", "migration_m*.md")
         for path in root.glob(pattern)

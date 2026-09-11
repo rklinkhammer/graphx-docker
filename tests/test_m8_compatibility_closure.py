@@ -152,6 +152,8 @@ def main() -> int:
     tap_config = qemu / "tap/graphx.yaml"
     require("tap/scripts/ovs-lab.sh" in default and "demo-profile.sh" not in default,
             "default QEMU launcher is not TAP/OVS")
+    require("infrastructure/lima/common.sh" in default and "limactl shell" in default,
+            "default QEMU launcher does not dispatch macOS to GraphX Lima")
     require("graphx.yaml" in tap_launcher and "-netdev user" not in tap_launcher,
             "TAP launcher contains a user-network fallback")
     run(graphx, "validate", tap_config)

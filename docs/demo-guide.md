@@ -10,7 +10,7 @@ tests and low-level diagnostics, use [`test-reference.md`](test-reference.md).
 
 | Scenario | What it demonstrates | Host | Primary command |
 | --- | --- | --- | --- |
-| Complete system | Framed TCP graph, telemetry, GUI, control, capture, history | macOS/Linux + Docker | `scripts/demo.sh start` |
+| Complete system | Framed TCP graph, telemetry, GUI, control, capture, history | macOS + OrbStack / Linux + Docker | `scripts/demo.sh start` |
 | Capture | Exact GraphX frames in USER0 PCAPNG | macOS/Linux | `examples/capture/run.sh` |
 | Shared memory | Three processes over bounded POSIX SPSC rings | macOS/Linux | `examples/shared-memory/run.sh` |
 | UDP unicast | Five framed loopback datagrams | macOS/Linux | `examples/udp-unicast/run.sh` |
@@ -21,7 +21,8 @@ tests and low-level diagnostics, use [`test-reference.md`](test-reference.md).
 | IPVLAN L2 semantics | Three routed OVS L2 domains and namespace policy | Native Linux/Lima | `scripts/network-lab.sh ipvlan-l2 up` |
 | IPVLAN L3 semantics | Three routed subnets with broadcast-free profile behavior | Native Linux/Lima | `scripts/network-lab.sh ipvlan-l3 up` |
 | Mixed semantic network | MACVLAN-to-IPVLAN routing, OVS, and nftables | Native Linux/Lima | `scripts/network-lab.sh mixed-network up` |
-| External QEMU | Host VM as an observed raw TCP/UDP node | macOS/Linux + Docker | `examples/qemu-node/external/scripts/demo.sh start --accel auto` |
+| Canonical QEMU | Unprivileged VM on a GraphX-owned OVS TAP | Native Linux/Lima | `examples/qemu-node/scripts/demo.sh start` |
+| External QEMU compatibility | Host VM plus telemetry GUI over user networking | macOS/Linux + Docker | `examples/qemu-node/external/scripts/demo.sh start --accel auto` |
 | Container QEMU | Least-privilege nested VM with TCG/KVM proof | Native Linux x86_64 | `examples/qemu-node/container/scripts/demo.sh start --accel auto` |
 | Simulated SDR | Raw IQ, mTLS device control, packet history and GUI | macOS/Linux + Docker | `examples/sdr-node/simulated/scripts/demo.sh start` |
 | External SDR | Namespace SDR through macvlan and OVS/SPAN | Native Linux | `examples/sdr-node/external/scripts/demo.sh start` |
@@ -72,11 +73,17 @@ and troubleshooting table.
 
 If port 8080 is already occupied, choose another port. The script uses the same
 value for Docker publication, health checks, allowed browser origins, and the
-printed console URL:
+printed console URL. On macOS, port 18080 is reserved by the GraphX Lima
+configuration for forwarding a service listening on guest port 8080, so 28080
+is the recommended alternate while the Lima VM is running:
 
 ```sh
-GRAPHX_PUBLISHED_HTTP_PORT=18080 scripts/demo.sh start
+GRAPHX_PUBLISHED_HTTP_PORT=28080 scripts/demo.sh start
 ```
+
+If a healthy container cannot be reached through `127.0.0.1`, stop the demo,
+restart OrbStack, and retry. A stale SSH tunnel or another listener on the
+selected port must be stopped or assigned a different local port first.
 
 ## 3. Local transport and capture examples
 
@@ -234,7 +241,28 @@ Build the reproducible x86_64 Buildroot guest once:
 examples/qemu-node/scripts/build.sh
 ```
 
-Run QEMU on a macOS or Linux host while peers and telemetry run in Docker:
+The first build downloads Buildroot sources and compiles an x86_64 cross
+toolchain, so it can take substantially longer than later builds and requires
+working access to Docker Hub and the upstream source mirrors.
+
+Run the canonical TAP/OVS demo. The dispatcher runs it directly on Linux or in
+the identity-checked GraphX Lima VM on Apple Silicon macOS:
+
+```sh
+examples/qemu-node/scripts/demo.sh start
+examples/qemu-node/scripts/demo.sh status
+examples/qemu-node/scripts/demo.sh pause
+examples/qemu-node/scripts/demo.sh resume
+examples/qemu-node/scripts/demo.sh verify
+examples/qemu-node/scripts/demo.sh stop
+```
+
+This path proves the unprivileged QEMU identity, TAP ownership, OVS switching
+and SPAN, VLAN isolation, TCP/UDP guest readiness, and QMP pause/resume. Runtime
+evidence stays in the Lima/native-Linux filesystem.
+
+The deprecated external compatibility profile remains useful for exercising
+the telemetry GUI with a host QEMU process and user-mode networking:
 
 ```sh
 examples/qemu-node/external/scripts/demo.sh start --accel auto
@@ -318,7 +346,6 @@ examples/static-route-policy/scripts/demo.sh status
 examples/static-route-policy/scripts/demo.sh verify
 examples/static-route-policy/scripts/demo.sh apply-route
 examples/static-route-policy/scripts/demo.sh clear-route
-examples/static-route-policy/scripts/demo.sh stop
 examples/static-route-policy/scripts/demo.sh stop
 ```
 

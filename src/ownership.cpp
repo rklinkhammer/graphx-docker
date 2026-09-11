@@ -2239,7 +2239,9 @@ int execute_ovs_lifecycle(const GraphConfig& config, const std::filesystem::path
         }
         if (!router.policies.empty())
           output << "nft add table/chain netns=" << router.namespace_name
-                 << " family=inet table=graphx chain=forward policy=drop\n";
+                 << " family=inet table=graphx chain=forward policy=drop\n"
+                 << "nft add rule netns=" << router.namespace_name
+                 << " policy=established-return ct-state=established,related action=accept\n";
         for (const auto& policy : router.policies)
           output << "nft add rule netns=" << router.namespace_name << " policy=" << policy.id
                  << " source=" << policy.source << " destination=" << policy.destination
@@ -2593,6 +2595,9 @@ int execute_ovs_lifecycle(const GraphConfig& config, const std::filesystem::path
                    "graphx"}) != 0 ||
               run({"ip", "netns", "exec", router->namespace_name, "nft", "add", "chain", "inet",
                    "graphx", "forward", "{ type filter hook forward priority 0; policy drop; }"}) !=
+                  0 ||
+              run({"ip", "netns", "exec", router->namespace_name, "nft", "add", "rule", "inet",
+                   "graphx", "forward", "ct", "state", "established,related", "counter", "accept"}) !=
                   0)
             throw std::runtime_error("cannot create router policy table");
           for (const auto& policy : router->policies)

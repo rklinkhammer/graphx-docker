@@ -2,9 +2,11 @@
 
 ## Purpose
 
-GraphX provides two views of one x86_64 QEMU application. The portable profile
-treats QEMU as an external host node. The Linux profile runs QEMU in Docker.
-The guest and all application payloads are identical.
+GraphX provides one canonical TAP/OVS profile and two deprecated compatibility
+profiles for one x86_64 QEMU application. The canonical launcher runs directly
+on native Linux or automatically inside the GraphX Lima VM on Apple Silicon
+macOS. The compatibility profiles use QEMU user networking on the host or in a
+Linux container. The guest and application payloads are identical.
 
 ```text
 host-origin -- raw TCP and UDP --> qemu-node
@@ -15,7 +17,7 @@ GraphX observes packets passively. Raw edges use `data_plane: external` and
 `framing: none`, are shown in the GUI, and cannot be created through
 `TransportFactory`.
 
-The portable compatibility profile runs the shared observer beside host QEMU
+The external compatibility profile runs the shared observer beside host QEMU
 so live PCAP tailing does not depend on container-runtime bind-mount cache timing. Telemetry
 and the GUI remain containerized. On native Linux the observer binds its
 history API and QEMU's TCP/UDP forwards only to the private `172.30.12.1` demo
@@ -37,7 +39,34 @@ Expected artifacts are `examples/qemu-node/output/images/bzImage`,
 creates resources, retains a copy with the run, and prints the kernel, rootfs,
 and manifest SHA-256 values.
 
-## Demo 1: external QEMU
+## Demo 1: canonical TAP/OVS QEMU
+
+Prepare the GraphX Lima environment once on Apple Silicon macOS; native Linux
+does not use this step:
+
+```sh
+infrastructure/lima/start.sh
+infrastructure/lima/verify.sh
+```
+
+The same lifecycle commands then work on both supported hosts:
+
+```sh
+examples/qemu-node/scripts/demo.sh start
+examples/qemu-node/scripts/demo.sh status
+examples/qemu-node/scripts/demo.sh pause
+examples/qemu-node/scripts/demo.sh resume
+examples/qemu-node/scripts/demo.sh verify
+examples/qemu-node/scripts/demo.sh stop
+```
+
+On macOS, the dispatcher verifies the Lima instance identity and provisioning
+digest before using its Linux GraphX executable. The VM runs as UID/GID 65532
+on a GraphX-owned TAP attached to system Open vSwitch. Success proves TCP and
+UDP guest echo, learned guest MAC, VLAN isolation, broadcast/multicast delivery,
+and OVS SPAN growth. This infrastructure profile has no browser console.
+
+## Demo 2: external QEMU compatibility
 
 ```sh
 examples/qemu-node/external/scripts/demo.sh start --accel auto
@@ -75,7 +104,7 @@ GRAPHX_QEMU_GUI_PORT=18080 examples/qemu-node/external/scripts/demo.sh start --a
 examples/qemu-node/external/scripts/demo.sh status
 ```
 
-## Demo 2: QEMU in Docker on Linux
+## Demo 3: QEMU in Docker on Linux compatibility
 
 ```sh
 examples/qemu-node/container/scripts/demo.sh start --accel kvm
@@ -97,7 +126,7 @@ Stop before changing accelerators:
 examples/qemu-node/container/scripts/demo.sh stop
 ```
 
-## GUI behavior
+## Compatibility-profile GUI behavior
 
 - **Application:** three logical nodes and four raw TCP/UDP edges.
 - **Network:** Docker and QEMU user-network boundaries for the active profile.
