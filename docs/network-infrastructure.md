@@ -26,11 +26,17 @@ timed qdiscs. Container deployment remains separate. `destroy` verifies exact
 kernel, OVS, process, directory, and qdisc identities before changing anything.
 `status` reports drift, active capture, and active or expired faults.
 
-Commands are executed without a shell. Review the exact plan on any platform:
+Commands are executed without a shell. Review the exact plan through the
+cross-platform dispatcher:
 
 ```sh
-./build/dev/graphx infra create examples/mixed-network/graphx.yaml --dry-run
+scripts/network-lab.sh mixed-network plan
 ```
+
+On Linux the dispatcher runs locally. On Apple Silicon macOS it requires the
+identity-checked `graphx` Lima instance to be running and invokes the same
+dispatcher inside the guest with `/var/lib/graphx/m1/build/dev/graphx`.
+OrbStack is never selected for system-OVS laboratories.
 
 The lifecycle persists an owner-token ledger beneath its state directory and
 rolls back partial creates. It intentionally does not reconcile replacement

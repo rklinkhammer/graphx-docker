@@ -158,7 +158,7 @@ def main() -> int:
             fail(f"manual procedure names retired runtime or launcher: {retired}")
     for required in (
         "docker context use orbstack", "docker info", "infrastructure/lima/start.sh",
-        "examples/mixed-network/scripts/up.sh",
+        "scripts/network-lab.sh mixed-network up",
     ):
         if required not in manual:
             fail(f"manual procedure omits current command: {required}")
@@ -175,6 +175,14 @@ def main() -> int:
     normalized_manual = re.sub(r"\s+", " ", manual)
     if "GRAPHX_ALLOWED_ORIGINS" not in manual or "local port 18080" not in normalized_manual:
         fail("manual procedure omits forwarded WebSocket origin verification")
+    demo_guide = (root / "docs/demo-guide.md").read_text(encoding="utf-8")
+    for lab in ("macvlan", "ipvlan-l2", "ipvlan-l3", "mixed-network"):
+        for action in ("plan", "up", "status", "down"):
+            command = f"scripts/network-lab.sh {lab} {action}"
+            if command not in demo_guide:
+                fail(f"demo guide omits cross-platform network-lab command: {command}")
+    if "OrbStack is not involved" not in demo_guide or "infrastructure/lima/verify.sh" not in demo_guide:
+        fail("demo guide does not explain the macOS Lima network-lab boundary")
     root_history = [
         path.name for pattern in ("phase_*_handoff.md", "phase_*_verification.md", "migration_m*.md")
         for path in root.glob(pattern)

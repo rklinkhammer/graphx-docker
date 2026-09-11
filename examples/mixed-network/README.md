@@ -9,14 +9,16 @@ created.
 Run on native Linux or inside the GraphX Lima VM:
 
 ```sh
-./build/dev/graphx validate examples/mixed-network/graphx.yaml
-./build/dev/graphx infra create examples/mixed-network/graphx.yaml --dry-run
-examples/mixed-network/scripts/up.sh
-examples/mixed-network/scripts/status.sh
-examples/mixed-network/scripts/down.sh
+scripts/network-lab.sh mixed-network plan
+scripts/network-lab.sh mixed-network up
+scripts/network-lab.sh mixed-network status
+scripts/network-lab.sh mixed-network down
 ```
 
-The common launcher starts `compose.yaml`, then applies the identity-recorded
+The dispatcher runs locally on native Linux and through the identity-checked
+GraphX Lima VM on Apple Silicon macOS. Run `infrastructure/lima/start.sh` and
+`infrastructure/lima/verify.sh` once before the first macOS invocation. The
+common launcher starts `compose.yaml`, then applies the identity-recorded
 OVS lifecycle. Startup rolls back resources created by a failed attempt;
 teardown refuses identity drift. Active capture remains in bounded VM-local
 storage according to the configuration retention policy.

@@ -17,10 +17,10 @@ tests and low-level diagnostics, use [`test-reference.md`](test-reference.md).
 | UDP multicast | Loopback multicast and diagnostic fan-out | macOS/Linux | `examples/udp-multicast/run.sh` |
 | UDP broadcast | Directed broadcast confined to a Docker subnet | macOS/Linux + Docker | `examples/udp-broadcast/run.sh` |
 | Native UDP broadcast | Disposable namespaces, bridge, capture, decode | Native Linux | `examples/udp-broadcast/run-native-linux.sh` |
-| MACVLAN semantics | Explicit container IP/MAC identities on one OVS L2 domain | Native Linux/Lima | `examples/macvlan/scripts/up.sh` |
-| IPVLAN L2 semantics | Three routed OVS L2 domains and namespace policy | Native Linux/Lima | `examples/ipvlan-l2/scripts/up.sh` |
-| IPVLAN L3 semantics | Three routed subnets with broadcast-free profile behavior | Native Linux/Lima | `examples/ipvlan-l3/scripts/up.sh` |
-| Mixed semantic network | MACVLAN-to-IPVLAN routing, OVS, and nftables | Native Linux/Lima | `examples/mixed-network/scripts/up.sh` |
+| MACVLAN semantics | Explicit container IP/MAC identities on one OVS L2 domain | Native Linux/Lima | `scripts/network-lab.sh macvlan up` |
+| IPVLAN L2 semantics | Three routed OVS L2 domains and namespace policy | Native Linux/Lima | `scripts/network-lab.sh ipvlan-l2 up` |
+| IPVLAN L3 semantics | Three routed subnets with broadcast-free profile behavior | Native Linux/Lima | `scripts/network-lab.sh ipvlan-l3 up` |
+| Mixed semantic network | MACVLAN-to-IPVLAN routing, OVS, and nftables | Native Linux/Lima | `scripts/network-lab.sh mixed-network up` |
 | External QEMU | Host VM as an observed raw TCP/UDP node | macOS/Linux + Docker | `examples/qemu-node/external/scripts/demo.sh start --accel auto` |
 | Container QEMU | Least-privilege nested VM with TCG/KVM proof | Native Linux x86_64 | `examples/qemu-node/container/scripts/demo.sh start --accel auto` |
 | Simulated SDR | Raw IQ, mTLS device control, packet history and GUI | macOS/Linux + Docker | `examples/sdr-node/simulated/scripts/demo.sh start` |
@@ -142,20 +142,35 @@ GRAPHX_BUILD_DIR="$PWD/build/dev" GRAPHX_VERIFY_LIVE_CAPTURE=1 \
 examples/udp-broadcast/down-native-linux.sh
 ```
 
-## 4. Native network laboratories
+## 4. System-OVS network laboratories
 
-These examples mutate host networking and require native Linux, Docker Engine,
-iproute2, and sudo. OVS/nftables/capture requirements vary by lab. Always review
-the dry-run first and stop containers before deleting external networks.
+These examples mutate Linux networking and require Docker Engine, iproute2,
+system OVS, and sudo. On native Linux the cross-platform dispatcher runs the
+canonical launcher locally. On Apple Silicon macOS it runs the same launcher
+inside the identity-checked GraphX Lima VM; OrbStack is not involved. Prepare
+Lima once before the first macOS run:
+
+```sh
+infrastructure/lima/start.sh
+infrastructure/lima/verify.sh
+```
+
+If `start.sh` refuses an older instance because its recorded configuration
+digest is stale, preserve any required VM-local evidence and follow the
+deliberate replacement procedure in
+[`infrastructure/lima/README.md`](../infrastructure/lima/README.md#deliberate-reset-or-removal).
+The lifecycle never deletes a VM automatically.
+
+Always run `plan` first. The dispatcher selects the VM-native GraphX executable
+on macOS, so a macOS `build/dev/graphx` binary is never executed in Linux.
 
 ### 4.1 Macvlan
 
 ```sh
-./build/dev/graphx infra create examples/macvlan/graphx.yaml --dry-run
-examples/macvlan/scripts/up.sh
-examples/macvlan/scripts/status.sh
-docker logs -f gx-mac-sink-sink-1
-examples/macvlan/scripts/down.sh
+scripts/network-lab.sh macvlan plan
+scripts/network-lab.sh macvlan up
+scripts/network-lab.sh macvlan status
+scripts/network-lab.sh macvlan down
 ```
 
 The three managed containers receive explicit IP and MAC addresses through
@@ -165,10 +180,10 @@ no Docker macvlan driver or physical parent is involved.
 ### 4.2 IPvlan L2
 
 ```sh
-./build/dev/graphx infra create examples/ipvlan-l2/graphx.yaml --dry-run
-examples/ipvlan-l2/scripts/up.sh
-examples/ipvlan-l2/scripts/status.sh
-examples/ipvlan-l2/scripts/down.sh
+scripts/network-lab.sh ipvlan-l2 plan
+scripts/network-lab.sh ipvlan-l2 up
+scripts/network-lab.sh ipvlan-l2 status
+scripts/network-lab.sh ipvlan-l2 down
 ```
 
 Each node occupies an independent L2 domain. Three OVS bridges and one namespace
@@ -179,10 +194,10 @@ faults.
 ### 4.3 IPvlan L3
 
 ```sh
-./build/dev/graphx infra create examples/ipvlan-l3/graphx.yaml --dry-run
-examples/ipvlan-l3/scripts/up.sh
-examples/ipvlan-l3/scripts/status.sh
-examples/ipvlan-l3/scripts/down.sh
+scripts/network-lab.sh ipvlan-l3 plan
+scripts/network-lab.sh ipvlan-l3 up
+scripts/network-lab.sh ipvlan-l3 status
+scripts/network-lab.sh ipvlan-l3 down
 ```
 
 One IPvlan network owns three subnets on a shared parent. No gateway is declared
@@ -196,10 +211,10 @@ through a Linux namespace router and nftables into an IPVLAN-L2-semantic OVS
 domain. Run it on native Linux or inside the GraphX Lima guest:
 
 ```sh
-./build/dev/graphx infra create examples/mixed-network/graphx.yaml --dry-run
-examples/mixed-network/scripts/up.sh
-examples/mixed-network/scripts/status.sh
-examples/mixed-network/scripts/down.sh
+scripts/network-lab.sh mixed-network plan
+scripts/network-lab.sh mixed-network up
+scripts/network-lab.sh mixed-network status
+scripts/network-lab.sh mixed-network down
 ```
 
 OrbStack supplies unprivileged Compose demos on macOS but is not a privileged

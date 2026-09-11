@@ -4,9 +4,11 @@
 from __future__ import annotations
 
 from pathlib import Path
+import os
 import re
 import subprocess
 import sys
+import tempfile
 
 def require(condition: bool, message: str) -> None:
     if not condition:
@@ -44,6 +46,84 @@ def main() -> int:
         subprocess.run(["bash", "-n", str(script)], check=True)
         text = script.read_text(encoding="utf-8")
         require("rm -rf" not in text and "rm -fr" not in text, f"unsafe recursive deletion in {script.name}")
+    dispatcher = root / "scripts" / "network-lab.sh"
+    require(dispatcher.is_file() and os.access(dispatcher, os.X_OK),
+            "cross-platform network-lab dispatcher is missing or not executable")
+    subprocess.run(["bash", "-n", str(dispatcher)], check=True)
+    dispatcher_text = dispatcher.read_text(encoding="utf-8")
+    for token in (
+        "macvlan|ipvlan-l2|ipvlan-l3|mixed-network",
+        "plan|up|status|down", "graphx_m1_assert_identity",
+        "/var/lib/graphx/m1/build/dev/graphx", "GRAPHX_LIMA_GRAPHX_BIN",
+        'limactl shell --workdir "${GRAPHX_M1_GUEST_ROOT}"',
+        'scripts/network-lab.sh "${lab}" "${action}"',
+    ):
+        require(token in dispatcher_text, f"network-lab dispatcher omits {token}")
+    rejected = subprocess.run(
+        [str(dispatcher), "not-a-lab", "up"], text=True, capture_output=True
+    )
+    require(rejected.returncode == 64 and "unsupported network laboratory" in rejected.stderr,
+            "network-lab dispatcher does not reject an unknown lab before execution")
+
+    with tempfile.TemporaryDirectory(prefix="graphx-network-lab-test-") as temporary:
+        temporary_path = Path(temporary)
+        invocation_log = temporary_path / "invocations"
+        fake_uname = temporary_path / "uname"
+        fake_graphx = temporary_path / "graphx"
+        fake_uname.write_text("#!/bin/sh\nprintf 'Linux\\n'\n", encoding="utf-8")
+        fake_graphx.write_text(
+            f"#!/bin/sh\nprintf '%s\\n' \"$*\" >'{invocation_log}'\n", encoding="utf-8"
+        )
+        fake_uname.chmod(0o755)
+        fake_graphx.chmod(0o755)
+        environment = {**os.environ, "PATH": f"{temporary}:{os.environ['PATH']}",
+                       "GRAPHX_BIN": str(fake_graphx)}
+        subprocess.run([str(dispatcher), "ipvlan-l2", "plan"], env=environment, check=True)
+        invocation = invocation_log.read_text(encoding="utf-8")
+        require("infra create" in invocation and
+                str(root / "examples/ipvlan-l2/graphx.yaml") in invocation and
+                "--dry-run" in invocation,
+                "Linux network-lab plan does not select the requested version-2 topology")
+
+    config_digest = subprocess.run(
+        ["bash", "-c", f'source "{lima / "common.sh"}"; graphx_m1_digest'],
+        text=True, capture_output=True, check=True
+    ).stdout.strip()
+    with tempfile.TemporaryDirectory(prefix="graphx-network-lab-lima-test-") as temporary:
+        temporary_path = Path(temporary)
+        invocation_log = temporary_path / "invocations"
+        fake_uname = temporary_path / "uname"
+        fake_limactl = temporary_path / "limactl"
+        fake_uname.write_text(
+            "#!/bin/sh\ncase \"${1:-}\" in -m) printf 'arm64\\n' ;; *) printf 'Darwin\\n' ;; esac\n",
+            encoding="utf-8",
+        )
+        fake_limactl.write_text(
+            "#!/bin/sh\n"
+            "if [ \"$1\" = list ]; then printf '%s\\n' \"$GRAPHX_TEST_INSTANCE\"; exit 0; fi\n"
+            "if [ \"$1\" = shell ]; then printf '%s\\n' \"$*\" >>\"$GRAPHX_TEST_LOG\"; exit 0; fi\n"
+            "exit 1\n",
+            encoding="utf-8",
+        )
+        fake_uname.chmod(0o755)
+        fake_limactl.chmod(0o755)
+        environment = {
+            **os.environ,
+            "PATH": f"{temporary}:{os.environ['PATH']}",
+            "GRAPHX_TEST_LOG": str(invocation_log),
+            "GRAPHX_TEST_INSTANCE":
+                f"graphx|Running|aarch64|vz|{root}|{config_digest}",
+        }
+        subprocess.run([str(dispatcher), "macvlan", "status"], env=environment, check=True)
+        invocations = invocation_log.read_text(encoding="utf-8").splitlines()
+        require(len(invocations) == 2, "macOS dispatcher did not preflight and invoke Lima")
+        require("test -x" in invocations[0] and "docker info" in invocations[0]
+                and "openvswitch-switch.service" in invocations[0],
+                "macOS dispatcher does not preflight its guest dependencies")
+        require("--workdir /workspace/graphx-docker graphx -- env" in invocations[1]
+                and "GRAPHX_BIN=/var/lib/graphx/m1/build/dev/graphx" in invocations[1]
+                and "scripts/network-lab.sh macvlan status" in invocations[1],
+                "macOS dispatcher does not route the canonical action through Lima")
     provision = (lima / "provision.sh").read_text(encoding="utf-8")
     for token in ("docker.io", "docker-buildx", "docker-compose-v2", "openvswitch-switch", "nftables", "qemu-system-ppc", "tcpdump", "tshark", "/var/lib/graphx"):
         require(token in provision, f"provisioning omits {token}")

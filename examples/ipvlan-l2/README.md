@@ -5,11 +5,14 @@ container veth pairs, and a GraphX-owned Linux router namespace. Docker Compose
 supplies management connectivity only and creates no ipvlan data-plane network.
 
 ```sh
-./build/dev/graphx infra create examples/ipvlan-l2/graphx.yaml --dry-run
-examples/ipvlan-l2/scripts/up.sh
-examples/ipvlan-l2/scripts/status.sh
-examples/ipvlan-l2/scripts/down.sh
+scripts/network-lab.sh ipvlan-l2 plan
+scripts/network-lab.sh ipvlan-l2 up
+scripts/network-lab.sh ipvlan-l2 status
+scripts/network-lab.sh ipvlan-l2 down
 ```
 
-Run on native Linux or in Lima. The version-1 Docker-driver input remains at
+The dispatcher runs locally on native Linux and through the identity-checked
+GraphX Lima VM on Apple Silicon macOS. Run `infrastructure/lima/start.sh` and
+`infrastructure/lima/verify.sh` once before the first macOS invocation. The
+version-1 Docker-driver input remains at
 `examples/compatibility/v1/ipvlan-l2.yaml` solely for migration.

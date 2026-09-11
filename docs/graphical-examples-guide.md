@@ -319,7 +319,9 @@ examples/udp-broadcast/down-native-linux.sh
 
 ## 11. Macvlan example
 
-Native Linux is required for the runtime lab.
+The runtime lab uses native Linux directly or the GraphX Lima VM on Apple
+Silicon macOS. Prepare Lima with `infrastructure/lima/start.sh` and
+`infrastructure/lima/verify.sh` before the first macOS run.
 
 1. Set `CONFIG="$PWD/examples/macvlan/graphx.yaml"` in the topology-console recipe.
 2. Open **Network path** and select each edge. Confirm the three application
@@ -328,19 +330,20 @@ Native Linux is required for the runtime lab.
 3. Start the lab in another terminal:
 
    ```sh
-   examples/macvlan/scripts/up.sh
-   examples/macvlan/scripts/status.sh
+   scripts/network-lab.sh macvlan up
+   scripts/network-lab.sh macvlan status
    ```
 
-4. Inspect sink values with `docker logs -f gx-mac-sink-sink-1`.
-5. Stop with `examples/macvlan/scripts/down.sh`.
+4. Require the `up` and `status` actions to report healthy infrastructure and
+   advancing sink traffic.
+5. Stop with `scripts/network-lab.sh macvlan down`.
 
 This example has no SPAN capture helper and no live console telemetry connection.
 
 ## 12. IPvlan L2 example
 
-Native Linux is required. This is the richest native network-path display after
-the mixed example.
+Use native Linux directly or GraphX Lima on Apple Silicon macOS. This is the
+richest network-path display after the mixed example.
 
 1. Create the capture directory:
 
@@ -360,20 +363,20 @@ the mixed example.
 4. Start and inspect the lab:
 
    ```sh
-   examples/ipvlan-l2/scripts/up.sh
-   examples/ipvlan-l2/scripts/status.sh
+   scripts/network-lab.sh ipvlan-l2 up
+   scripts/network-lab.sh ipvlan-l2 status
    ```
 
 5. Select each edge and compare its OVS bridge, namespace-router hop, and policy
    state with the canonical `status.sh` output.
-6. Stop with `examples/ipvlan-l2/scripts/down.sh`.
+6. Stop with `scripts/network-lab.sh ipvlan-l2 down`.
 
 Use `examples/network-observability` when the acceptance scope requires
 declarative Ethernet capture or timed fault evidence.
 
 ## 13. IPvlan L3 example
 
-Native Linux is required.
+Use native Linux directly or GraphX Lima on Apple Silicon macOS.
 
 1. Set `CONFIG="$PWD/examples/ipvlan-l3/graphx.yaml"` in the topology-console
    recipe.
@@ -382,11 +385,11 @@ Native Linux is required.
 3. Start and inspect the lab:
 
    ```sh
-   examples/ipvlan-l3/scripts/up.sh
-   examples/ipvlan-l3/scripts/status.sh
+   scripts/network-lab.sh ipvlan-l3 up
+   scripts/network-lab.sh ipvlan-l3 status
    ```
 
-4. Stop with `examples/ipvlan-l3/scripts/down.sh`.
+4. Stop with `scripts/network-lab.sh ipvlan-l3 down`.
 
 IPvlan L3 has no L2 broadcast and this example has no OVS SPAN capture helper.
 
@@ -408,13 +411,13 @@ mirror points.
 3. Start the canonical runtime lab on native Linux or inside Lima:
 
    ```sh
-   examples/mixed-network/scripts/up.sh
-   examples/mixed-network/scripts/status.sh
+   scripts/network-lab.sh mixed-network up
+   scripts/network-lab.sh mixed-network status
    ```
 
 4. Select edges and confirm their semantic domains, OVS bridges, namespace
    router, and policy state match `graphx inspect`.
-5. Stop the lab with `examples/mixed-network/scripts/down.sh`.
+5. Stop the lab with `scripts/network-lab.sh mixed-network down`.
 
 Use `examples/network-observability` for declarative bounded Ethernet capture
 and timed fault evidence. OrbStack is not a privileged network-lab backend;

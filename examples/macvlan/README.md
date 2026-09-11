@@ -5,12 +5,14 @@ and attaches each Compose-managed container with an owned veth pair; it does not
 create a Docker macvlan network or touch a physical parent interface.
 
 ```sh
-./build/dev/graphx infra create examples/macvlan/graphx.yaml --dry-run
-examples/macvlan/scripts/up.sh
-examples/macvlan/scripts/status.sh
-examples/macvlan/scripts/down.sh
+scripts/network-lab.sh macvlan plan
+scripts/network-lab.sh macvlan up
+scripts/network-lab.sh macvlan status
+scripts/network-lab.sh macvlan down
 ```
 
-Run on native Linux or in the GraphX Lima VM. Compose supplies management
-connectivity only. The version-1 input is retained at
+The dispatcher runs locally on native Linux and through the identity-checked
+GraphX Lima VM on Apple Silicon macOS. Run `infrastructure/lima/start.sh` and
+`infrastructure/lima/verify.sh` once before the first macOS invocation. Compose
+supplies management connectivity only. The version-1 input is retained at
 `examples/compatibility/v1/macvlan.yaml` for migration, not execution.

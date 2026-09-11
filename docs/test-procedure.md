@@ -241,8 +241,8 @@ GUI, capture, accelerator, and platform-specific evidence.
 | External SDR + OVS/SPAN | `examples/sdr-node/external/scripts/demo.sh start`, then `verify` and `stop` | Native Linux only; creates fixed disposable host resources |
 | Static route/policy | `examples/static-route-policy/scripts/demo.sh start`, then `verify`, `apply-route`, `clear-route`, and `stop` twice | Native Linux only; [`route/policy guide`](../examples/static-route-policy/README.md) |
 | macOS OVS runtime | Start and verify Lima, then run the canonical lab inside it | Apple Silicon + Lima; [`network guide`](network-infrastructure.md) |
-| OVS semantic-network labs | `examples/<lab>/scripts/up.sh`, where `<lab>` is `macvlan`, `ipvlan-l2`, or `ipvlan-l3` | Native Linux or Lima; always use the matching `down.sh` |
-| Mixed OVS network | `examples/mixed-network/scripts/up.sh` | Native Linux or Lima; use `down.sh` afterward |
+| OVS semantic-network labs | `scripts/network-lab.sh <lab> up`, where `<lab>` is `macvlan`, `ipvlan-l2`, or `ipvlan-l3` | Native Linux or Apple Silicon macOS through Lima; always run the matching `down` action |
+| Mixed OVS network | `scripts/network-lab.sh mixed-network up` | Native Linux or Apple Silicon macOS through Lima; run `down` afterward |
 
 The `full` profile runs QEMU configuration, parser, history, QMP simulation, and
 Compose-model tests, but it does not boot a guest. Before accepting QEMU changes,

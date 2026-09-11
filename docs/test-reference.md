@@ -450,15 +450,16 @@ All services should be running while the generator is active, sink logs should
 show doubled values, and the telemetry snapshot should mark all three nodes as
 running.
 
-## 6. Native Linux network drivers
+## 6. System-OVS semantic-network laboratories
 
-Review each generated plan before opting in:
+On native Linux, or from Apple Silicon macOS after starting and verifying the
+GraphX Lima VM, review each generated plan before opting in:
 
 ```sh
-./build/dev/graphx infra create examples/macvlan/graphx.yaml --dry-run
-./build/dev/graphx infra create examples/ipvlan-l2/graphx.yaml --dry-run
-./build/dev/graphx infra create examples/ipvlan-l3/graphx.yaml --dry-run
-./build/dev/graphx infra create examples/mixed-network/graphx.yaml --dry-run
+scripts/network-lab.sh macvlan plan
+scripts/network-lab.sh ipvlan-l2 plan
+scripts/network-lab.sh ipvlan-l3 plan
+scripts/network-lab.sh mixed-network plan
 ```
 
 Then run the privileged tier:
@@ -467,21 +468,21 @@ Then run the privileged tier:
 GRAPHX_ALLOW_PRIVILEGED_TESTS=1 scripts/test-features.sh linux-network
 ```
 
-The standalone macvlan demo verifies explicit container MAC addresses. The
-IPvlan L2 demo verifies three independent Docker domains routed through their
-OVS attachments. The IPvlan L3 demo verifies three independent node subnets in
-one external, multi-subnet IPvlan L3 network on the shared parent path. Docker
-rejects multiple IPvlan network objects that claim the same parent, so
-subnet/IPAM domains—not duplicate parent claims—provide the per-node L3
+The standalone MACVLAN-semantic demo verifies explicit container MAC addresses
+on OVS veth attachments. The IPVLAN-L2 demo verifies three independent OVS
+domains routed through a namespace. The IPVLAN-L3 demo verifies independent
+node subnets with broadcast-free profile behavior. Docker provides process and
+management connectivity only; it does not create macvlan or ipvlan data-plane
+networks. OVS domains, GraphX addressing, and routing provide the per-node L3
 separation. The mixed demo verifies macvlan-to-ipvlan routing through
 10.10.0.1 and 10.20.0.1, forwarding, nftables policy, OVS mirrors and a netem
 apply/clear cycle.
 
-During a manual run, use each example's `scripts/status.sh`. Confirm Docker
-networks are external and owned by the infrastructure layer, and confirm the
-node Compose projects have different project names. Do not interpret failed
-host-to-macvlan-container pings as a routing failure: parent-host reachability is
-blocked by macvlan design unless a host macvlan shim is added.
+During a manual run, use the dispatcher's `status` action. Confirm that Compose
+owns process and management connectivity only, while GraphX owns the OVS
+bridges, namespace routing, and container veth attachments. Do not infer native
+Linux certification from a Lima result; retain it as separate Linux ARM64 guest
+evidence.
 
 ## 7. OVS mirrors, capture and fault behavior
 
@@ -593,10 +594,10 @@ it as Lima ARM64 evidence, separately from native Linux and KVM rows.
 ```sh
 infrastructure/lima/start.sh
 infrastructure/lima/verify.sh
-limactl shell graphx -- bash -lc \
-  'cd /workspace/graphx-docker && examples/mixed-network/scripts/up.sh'
-limactl shell graphx -- bash -lc \
-  'cd /workspace/graphx-docker && examples/mixed-network/scripts/down.sh'
+scripts/network-lab.sh mixed-network plan
+scripts/network-lab.sh mixed-network up
+scripts/network-lab.sh mixed-network status
+scripts/network-lab.sh mixed-network down
 infrastructure/lima/stop.sh
 ```
 

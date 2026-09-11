@@ -172,14 +172,15 @@ infrastructure/lima/verify.sh
 limactl shell graphx
 ```
 
-Then, as the normal Lima login user in `/workspace/graphx-docker`, use the same
-canonical system-OVS launcher as native Linux:
+After those checks, return to the macOS shell. The cross-platform dispatcher
+uses the verified VM-native binary and invokes the same canonical system-OVS
+launcher inside Lima:
 
 ```sh
-cd /workspace/graphx-docker
-examples/mixed-network/scripts/up.sh
-examples/mixed-network/scripts/status.sh
-examples/mixed-network/scripts/down.sh
+scripts/network-lab.sh mixed-network plan
+scripts/network-lab.sh mixed-network up
+scripts/network-lab.sh mixed-network status
+scripts/network-lab.sh mixed-network down
 ```
 
 For the complete M8 Linux/Lima regression, keep build and runtime artifacts on

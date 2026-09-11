@@ -38,7 +38,9 @@ sockets to macOS and therefore does not satisfy the host-side Docker portion of
   infrastructure execution.
 - Canonical infrastructure examples use version 2 and ordinary `up.sh`,
   `status.sh`, and `down.sh` launchers. Parallel OVS manifests, platform-split
-  launchers, and the Docker userspace-OVS simulator must not return.
+  launchers, and the Docker userspace-OVS simulator must not return. The single
+  `scripts/network-lab.sh` entry point runs those launchers locally on Linux or
+  dispatches them into the identity-checked Lima guest on Apple Silicon macOS.
 
 ## Ownership and safety boundary
 

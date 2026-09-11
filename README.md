@@ -248,18 +248,18 @@ Run the same system-OVS lifecycle on native Linux or inside the dedicated GraphX
 Lima guest on macOS:
 
 ```sh
-./build/dev/graphx validate examples/mixed-network/graphx.yaml
-./build/dev/graphx infra create examples/mixed-network/graphx.yaml --dry-run
-
-examples/mixed-network/scripts/up.sh
-examples/mixed-network/scripts/status.sh
-examples/mixed-network/scripts/down.sh
+scripts/network-lab.sh mixed-network plan
+scripts/network-lab.sh mixed-network up
+scripts/network-lab.sh mixed-network status
+scripts/network-lab.sh mixed-network down
 ```
 
 See [`examples/mixed-network/README.md`](examples/mixed-network/README.md) and
 [`docs/network-infrastructure.md`](docs/network-infrastructure.md). OrbStack
 remains the unprivileged Compose runtime on macOS; it is not used as privileged
-network-laboratory evidence.
+network-laboratory evidence. On Apple Silicon macOS, first run
+`infrastructure/lima/start.sh` and `infrastructure/lima/verify.sh`; the dispatcher
+then invokes the same canonical launcher inside Lima with its Linux binary.
 
 Three focused Linux/Lima examples isolate each semantic profile:
 
