@@ -167,9 +167,10 @@ Common causes:
 The standard demo is portable on Docker Engine and Docker Desktop and is the
 canonical system smoke test. The examples under `examples/macvlan`,
 `examples/ipvlan-l2`, `examples/ipvlan-l3`, and `examples/mixed-network` are
-separate, privileged infrastructure laboratories. Their OVS bridges, veth/TAP,
-namespaces, and management-only Compose projects are intentionally not part of
-this startup path. On macOS, run them inside the dedicated Lima Linux VM.
+separate, privileged infrastructure laboratories. Their externally created
+networks and Compose projects are intentionally not part of this startup path.
+Native macvlan and ipvlan behavior requires a Linux host; the macOS mixed-network
+profile is a userspace-OVS simulation.
 
 For exhaustive developer acceptance after this user-level walkthrough, see
 [`test-procedure.md`](test-procedure.md).

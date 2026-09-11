@@ -6,17 +6,6 @@ All notable GraphX changes are recorded here. The format follows
 
 ## [Unreleased]
 
-### Added
-
-- Added M4 managed-container veth realization through OVS, with verified Docker
-  Compose identity, namespace-restart detection, declared address/MAC/MTU/routes,
-  identity-safe rollback/recovery, and exact endpoint cleanup.
-- Accepted the Lima macOS execution boundary and OVS-only version-2 network
-  direction, with MACVLAN/IPVLAN retained as semantic profiles and explicit
-  veth-container and TAP-QEMU attachment contracts.
-- Recorded the clean GraphX 1.1.0 portable pre-migration baseline and dry-run
-  plan fingerprints for the existing network laboratories.
-
 ## [1.1.0] - 2026-09-07
 
 ### Added

@@ -17,25 +17,6 @@ what crosses each edge.
 > no separate independent report. Native-Linux claims rely on the evidence
 > recorded in the relevant reports. See [`verification_status.md`](verification_status.md).
 
-On Apple Silicon, the optional [Lima execution environment](infrastructure/lima/README.md)
-provides an ARM64 Linux VM for rootful Docker, system Open vSwitch, namespaces,
-veth/TAP, nftables, netem, QEMU tooling, and packet capture. This M1 environment
-contains the privileged `graphx-docker` toolchain; it is not a container on
-macOS. M2 adds a strict [configuration version 2 model](docs/configuration-v2.md)
-and deterministic version-1 migration for the future OVS-only data plane.
-M8 retains version 1 only for validation, inspection, projection, and
-deterministic migration; its Docker bridge/MACVLAN/IPVLAN realization is
-retired. OVS is the single version-2 data-plane backend, with veth for
-containers and TAP for QEMU. See the
-[`M8 compatibility guide`](docs/m8-compatibility.md).
-M3 adds the [persistent OVS ownership lifecycle](docs/ownership-m3.md) for
-version-2 bridges. M4 extends it with [managed container veth attachment](docs/ownership-m4.md):
-Compose retains management connectivity, while GraphX resolves each service by
-project/service labels and carries its declared data interface only through OVS.
-Namespace ports, QEMU TAP, declarative capture, and bounded faults are now part
-of that owned lifecycle. Migration reads the literal source and ignores runtime
-`GRAPHX_OVERRIDES`.
-
 ## Architecture and decisions
 
 [`docs/GraphX_Architecture.md`](docs/GraphX_Architecture.md) is the maintained
@@ -249,26 +230,32 @@ end-to-end traffic. Stop the foreground process with `Ctrl-C`, then run
 
 ## Run the mixed network laboratory
 
-GraphX has a first-class network infrastructure layer with semantic Ethernet,
-macvlan, and ipvlan profiles; node interfaces; Open vSwitch ports, VLAN
+GraphX now has a first-class network infrastructure layer with Docker bridge,
+macvlan, and ipvlan definitions; node interfaces; Open vSwitch ports, VLAN
 metadata, and SPAN mirrors; namespace routers, routes, nftables policies, and
 `tc netem` fault hooks. Infrastructure lifetime is independent of Compose.
 
-The exact system-OVS realization requires native Linux, directly or through the
-dedicated Lima VM on macOS:
+The exact macvlan/ipvlan example requires native Linux. A separate Docker Desktop
+profile runs OVS in a privileged userspace-datapath container between two Docker
+bridge domains:
 
 ```sh
 ./build/dev/graphx validate examples/mixed-network/graphx.yaml
 ./build/dev/graphx infra create examples/mixed-network/graphx.yaml --dry-run
 
-examples/mixed-network/scripts/up.sh
+# Native Linux
+examples/mixed-network/scripts/linux-up.sh
+
+# Docker Desktop for macOS (portable simulation)
+examples/mixed-network/scripts/macos-up.sh
 ```
 
 See [`examples/mixed-network/README.md`](examples/mixed-network/README.md) and
-[`docs/network-infrastructure.md`](docs/network-infrastructure.md). The removed
-Docker Desktop simulation is not an M8 execution path.
+[`docs/network-infrastructure.md`](docs/network-infrastructure.md). Docker Desktop
+does not support Docker's macvlan driver, so the macOS profile is deliberately
+identified as a simulation rather than an exact substitute.
 
-Three focused examples isolate each semantic profile:
+Three focused native-Linux examples isolate each driver/mode:
 
 - [`examples/macvlan`](examples/macvlan/README.md): one macvlan L2 domain with
   explicit IP and MAC assignments;
@@ -432,7 +419,7 @@ key. Version-1 traffic has no protocol-level message identity.
 
 ### Three related topologies
 
-[`graphx.yaml`](graphx.yaml) is the authoritative source model and holds the logical graph, transport choices, network infrastructure, deployment hints, and observability settings. Versions 1 and 2 are described by [`config/schema/graphx.schema.json`](config/schema/graphx.schema.json) and enforced by the C++ loader. Version 1 retains its original meaning for inspection and deterministic migration, but cannot execute infrastructure. Version 2 expresses the sole active network path: OVS semantic profiles with owned veth/TAP attachments. The files in [`config/`](config/) are human-readable projections that make each concern easy to discuss. [`compose.yaml`](compose.yaml) is checked in as a static deployment projection for now.
+[`graphx.yaml`](graphx.yaml) is the authoritative source model and holds the logical graph, transport choices, network infrastructure, deployment hints, and observability settings. Version 1 is described by [`config/schema/graphx.schema.json`](config/schema/graphx.schema.json) and enforced by the C++ loader. The files in [`config/`](config/) are human-readable projections that make each concern easy to discuss. [`compose.yaml`](compose.yaml) is checked in as a static deployment projection for now.
 
 Logical nodes contain only GraphX identity, kind, and ports. Container image and
 command hints belong under `deployment.services`, so runtime semantics remain
@@ -460,16 +447,8 @@ path; selecting a logical edge highlights its macvlan/OVS/router/OVS/ipvlan path
 ./build/dev/graphx project graphx.yaml --check --output-dir config
 ./build/dev/graphx inspect graphx.yaml \
   --set transport.tcp.samples.host=127.0.0.1
-./build/dev/graphx config migrate graphx.yaml --output graphx-v2.yaml
 ./build/dev/graphx infra status examples/mixed-network/graphx.yaml --dry-run
 ```
-
-Migration never edits the source and refuses to overwrite an existing output.
-Review and validate the generated version-2 file before adopting it. Version-2
-`infra` commands use the M3/M4 ownership lifecycle for OVS bridges and fully
-declared veth/TAP attachments. M7 additionally owns bounded mirror captures and
-timed endpoint faults. See `examples/network-observability` for lifecycle,
-status, exclusive PCAPNG export, and cleanup commands.
 
 The configuration path defaults to `graphx.yaml` and can be set with
 `GRAPHX_CONFIG`. Scalar overrides use existing dotted paths. Precedence is:
@@ -506,7 +485,7 @@ Retry backoff doubles up to `max_backoff_ms`. A timed receive that expires befor
 any frame byte arrives returns no envelope; expiry after a partial header or
 payload is an error and closes the connection.
 
-Configuration limits files to 1 MiB, graphs to 1,024 nodes and 4,096
+Version 1 limits configuration files to 1 MiB, graphs to 1,024 nodes and 4,096
 edges, and nodes to 256 ports. Identifiers match
 `[A-Za-z][A-Za-z0-9_-]{0,63}`. An edge must connect an output to an input with
 the same schema. Cycles are rejected because the current blocking startup model

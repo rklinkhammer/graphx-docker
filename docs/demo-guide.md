@@ -20,7 +20,8 @@ tests and low-level diagnostics, use [`test-reference.md`](test-reference.md).
 | Macvlan | Explicit container IP/MAC identities on one L2 domain | Native Linux | `examples/macvlan/scripts/up.sh` |
 | IPvlan L2 | Three routed L2 domains with OVS/SPAN and policy | Native Linux | `examples/ipvlan-l2/scripts/up.sh` |
 | IPvlan L3 | Three broadcast-free subnets on one IPvlan parent | Native Linux | `examples/ipvlan-l3/scripts/up.sh` |
-| Mixed network | MACVLAN/IPvlan semantics, OVS, nftables, bounded netem | Native Linux or Lima | `examples/mixed-network/scripts/up.sh` |
+| Mixed network | macvlan-to-IPvlan routing, OVS, nftables, netem | Native Linux | `examples/mixed-network/scripts/linux-up.sh` |
+| Mixed simulation | Bridge/OVS userspace substitute for network inspection | macOS + Docker Desktop | `examples/mixed-network/scripts/macos-up.sh` |
 | External QEMU | Host VM as an observed raw TCP/UDP node | macOS/Linux + Docker | `examples/qemu-node/external/scripts/demo.sh start --accel auto` |
 | Container QEMU | Least-privilege nested VM with TCG/KVM proof | Native Linux x86_64 | `examples/qemu-node/container/scripts/demo.sh start --accel auto` |
 | Simulated SDR | Raw IQ, mTLS device control, packet history and GUI | macOS/Linux + Docker | `examples/sdr-node/simulated/scripts/demo.sh start` |
@@ -168,7 +169,7 @@ from this lab.
 ```sh
 ./build/dev/graphx infra create examples/ipvlan-l2/graphx.yaml --dry-run
 examples/ipvlan-l2/scripts/up.sh
-./build/dev/graphx infra create examples/network-observability/graphx.yaml --dry-run
+examples/ipvlan-l2/scripts/capture.sh transform captures/ipvlan-transform.pcapng
 examples/ipvlan-l2/scripts/down.sh
 ```
 
@@ -190,33 +191,31 @@ One IPvlan network owns three subnets on a shared parent. No gateway is declared
 and no L2 broadcast crosses the domains. `up.sh` waits up to 60 seconds for an
 actual doubled sink value and rolls back on failure.
 
-### 4.4 Mixed network on Linux or Lima
+### 4.4 Mixed network and macOS simulation
 
 The native topology routes generator traffic from macvlan through OVS, a Linux
 namespace router, nftables, and a second OVS bridge into IPvlan L2:
 
 ```sh
 ./build/dev/graphx infra create examples/mixed-network/graphx.yaml --dry-run
-examples/mixed-network/scripts/up.sh
+examples/mixed-network/scripts/linux-up.sh
 examples/mixed-network/scripts/status.sh
-examples/mixed-network/scripts/down.sh
+examples/mixed-network/scripts/fault.sh apply
+examples/mixed-network/scripts/fault.sh clear
+examples/mixed-network/scripts/linux-down.sh
 ```
 
-On macOS, start Lima and run the same commands in the Linux guest:
+On macOS, use the Docker Desktop userspace substitute:
 
 ```sh
-infrastructure/lima/start.sh
-limactl shell graphx -- bash -lc \
-  'cd /workspace/graphx-docker && examples/mixed-network/scripts/up.sh'
-limactl shell graphx -- bash -lc \
-  'cd /workspace/graphx-docker && examples/mixed-network/scripts/status.sh'
-limactl shell graphx -- bash -lc \
-  'cd /workspace/graphx-docker && examples/mixed-network/scripts/down.sh'
-infrastructure/lima/stop.sh
+examples/mixed-network/scripts/macos-up.sh
+examples/mixed-network/scripts/status.sh
+docker logs gx-ovs-ovs-router-1
+examples/mixed-network/scripts/macos-down.sh
 ```
 
-Both platforms use the same OVS/veth/namespace realization. Results remain
-separate native-Linux and Lima evidence rows. See
+Both profiles expose route, policy, fault, and capture concepts. Only native
+Linux proves macvlan/IPvlan and host OVS semantics. See
 [`network-infrastructure.md`](network-infrastructure.md).
 
 ## 5. QEMU demonstrations
@@ -324,8 +323,7 @@ absence and an advancing named nftables counter. The route transition requires
 the exact declared kernel route and receiver result. Mirrored PCAP and GUI state
 are corroborating evidence. Cleanup checks run ownership before deleting fixed
 names and retains the run directory. Full native acceptance requires two cycles
-and the adversarial evidence in
-[`phase_14_verification.md`](../phase_14_verification.md).
+and the adversarial checks in [`prompt/verifier.md`](../prompt/verifier.md).
 
 ## 8. Common options, evidence, and cleanup
 

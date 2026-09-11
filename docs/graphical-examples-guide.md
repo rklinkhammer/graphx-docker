@@ -364,13 +364,14 @@ the mixed example.
    examples/ipvlan-l2/scripts/status.sh
    ```
 
-5. Use the dedicated declarative observability example for bounded Ethernet capture:
+5. In a third terminal, save an Ethernet mirror capture:
 
    ```sh
-   ./build/dev/graphx infra create examples/network-observability/graphx.yaml --dry-run
+   examples/ipvlan-l2/scripts/capture.sh transform \
+     "$PWD/captures/ipvlan-l2-console/transform-span.pcapng"
    ```
 
-6. Review the declared mirror, capture bounds, and export plan.
+6. Let traffic flow briefly and stop capture with `Ctrl-C`.
 7. Select either edge in the console and use **Download Ethernet**. The capture
    catalog refreshes at most once per second.
 8. Stop with `examples/ipvlan-l2/scripts/down.sh`.
@@ -414,33 +415,39 @@ mirror points.
    Native Linux:
 
    ```sh
-   examples/mixed-network/scripts/up.sh
+   examples/mixed-network/scripts/linux-up.sh
    examples/mixed-network/scripts/status.sh
    ```
 
-   Lima on macOS (run the canonical command inside the guest):
+   Docker Desktop on macOS:
 
    ```sh
-   infrastructure/lima/start.sh
-   limactl shell graphx -- bash -lc \
-     'cd /workspace/graphx-docker && examples/mixed-network/scripts/up.sh'
+   examples/mixed-network/scripts/macos-up.sh
+   examples/mixed-network/scripts/status.sh
    ```
 
-4. Use a reviewed, bounded `network.faults` declaration when fault evidence is
-   required; M8 has no imperative fault helper.
+4. Optionally apply and clear a network fault:
+
+   ```sh
+   examples/mixed-network/scripts/fault.sh apply
+   examples/mixed-network/scripts/fault.sh clear
+   ```
 
    Fault injection is intentionally not controlled by the browser button.
 
-5. Use the dedicated declarative observability example for bounded Ethernet capture:
+5. Save one or both Ethernet mirrors in separate terminals:
 
    ```sh
-   ./build/dev/graphx infra create examples/network-observability/graphx.yaml --dry-run
+   examples/mixed-network/scripts/capture.sh mac \
+     "$PWD/captures/mixed-console/mac-span.pcapng"
+   examples/mixed-network/scripts/capture.sh ipv \
+     "$PWD/captures/mixed-console/ipv-span.pcapng"
    ```
 
-6. Select an edge and review the Ethernet-capture metadata.
-7. Stop the lab with the example's canonical `scripts/down.sh` entry point.
+6. Stop each capture with `Ctrl-C`. Select an edge and use **Download Ethernet**.
+7. Stop the lab with `linux-down.sh` or `macos-down.sh`, matching the start command.
 
-The Lima profile validates the system OVS/routing shape in its Linux guest; it does not certify
+The macOS profile validates the userspace OVS/routing shape; it does not certify
 native macvlan or IPvlan semantics.
 
 ## 15. Static-route and deny-policy laboratory
