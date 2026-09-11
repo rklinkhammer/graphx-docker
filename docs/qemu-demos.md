@@ -15,13 +15,13 @@ GraphX observes packets passively. Raw edges use `data_plane: external` and
 `framing: none`, are shown in the GUI, and cannot be created through
 `TransportFactory`.
 
-The portable profile runs the shared observer beside host QEMU so live PCAP
-tailing does not depend on Docker Desktop bind-mount cache timing. Telemetry
+The portable compatibility profile runs the shared observer beside host QEMU
+so live PCAP tailing does not depend on container-runtime bind-mount cache timing. Telemetry
 and the GUI remain containerized. On native Linux the observer binds its
 history API and QEMU's TCP/UDP forwards only to the private `172.30.12.1` demo
 bridge gateway. The containers' `host.docker.internal` name is pinned to that
 same gateway instead of Docker's unrelated default-bridge gateway. On macOS,
-Docker Desktop supplies the hostname and the host services bind to loopback.
+OrbStack supplies the hostname and the host services bind to loopback.
 The Linux QEMU profile runs the same observer code as a container.
 
 ## Build once

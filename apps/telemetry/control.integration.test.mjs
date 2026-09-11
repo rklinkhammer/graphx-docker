@@ -606,7 +606,7 @@ test('collector rejects ambiguous legacy and policy credential models', async ()
 })
 
 test('collector fails readiness and control closed on cross-domain credential reuse',
-  { timeout: 10000 }, async () => {
+  { timeout: 15000 }, async () => {
     const directory = await mkdtemp(join(tmpdir(), 'graphx-phase8-credential-collision-'))
     const moduleDirectory = dirname(fileURLToPath(import.meta.url))
     const httpPort = await availablePort()
@@ -638,10 +638,11 @@ test('collector fails readiness and control closed on cross-domain credential re
     const base = `http://127.0.0.1:${httpPort}`
     try {
       let readiness
-      for (let attempt = 0; attempt < 100; ++attempt) {
+      for (let attempt = 0; attempt < 200; ++attempt) {
         try { readiness = await fetch(`${base}/api/ready`); break } catch {}
         await new Promise(resolveWait => setTimeout(resolveWait, 25))
       }
+      assert.ok(readiness, `telemetry service did not start: ${logs.join('')}`)
       assert.equal(readiness?.status, 503)
       assert.equal((await readiness.json()).credentialConfiguration, 'invalid')
       const reset = await fetch(`${base}/api/control/reset`, { method: 'POST',

@@ -164,13 +164,12 @@ Common causes:
 
 ## Standard demo versus network laboratories
 
-The standard demo is portable on Docker Engine and Docker Desktop and is the
+The standard demo is portable on Docker Engine and OrbStack and is the
 canonical system smoke test. The examples under `examples/macvlan`,
 `examples/ipvlan-l2`, `examples/ipvlan-l3`, and `examples/mixed-network` are
 separate, privileged infrastructure laboratories. Their externally created
 networks and Compose projects are intentionally not part of this startup path.
-Native macvlan and ipvlan behavior requires a Linux host; the macOS mixed-network
-profile is a userspace-OVS simulation.
+On macOS, those system-OVS laboratories run inside the dedicated Lima guest.
 
 For exhaustive developer acceptance after this user-level walkthrough, see
 [`test-procedure.md`](test-procedure.md).

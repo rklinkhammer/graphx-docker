@@ -6,23 +6,21 @@ GraphX is an educational framework for describing a processing graph once,
 running its nodes in processes, containers, or external runtimes, and inspecting
 what crosses each edge.
 
-> Status: GraphX 1.1.0 is a validated educational framework with a C++ runtime,
-> five GraphX-aware transports, raw external-edge modeling, live telemetry and
-> control, bounded history and PCAPNG capture, a React Flow console,
-> native-Linux network laboratories, portable and Linux QEMU demonstrations,
-> accepted Phase 13 SDR profiles, and a Phase 14 static-route/policy laboratory
-> awaiting independent native-Linux verification. Phases 3–13 have accepted
-> independent verification reports. Phase 1 has no
-> checked-in independent report, and Phase 2 has an implementation handoff but
-> no separate independent report. Native-Linux claims rely on the evidence
-> recorded in the relevant reports. See [`verification_status.md`](verification_status.md).
+> Status: GraphX 1.1.0 includes the completed, independently verified M0–M8
+> network migration. Version 2 and system OVS are the active infrastructure
+> boundary; containers use veth, QEMU uses TAP, and version 1 is migration-only.
+> Historical feature-phase and migration evidence is retained under
+> [`docs/archive/`](docs/archive/README.md). Current invariants are summarized in
+> [`docs/project-decisions.md`](docs/project-decisions.md).
 
 ## Architecture and decisions
 
 [`docs/GraphX_Architecture.md`](docs/GraphX_Architecture.md) is the maintained
 architecture source; [`docs/GraphX_Architecture.docx`](docs/GraphX_Architecture.docx)
 is its editable distribution form. The canonical decision register is
-[`docs/adr/README.md`](docs/adr/README.md).
+[`docs/adr/README.md`](docs/adr/README.md). Repository-wide agent instructions
+are in [`AGENTS.md`](AGENTS.md), and the consolidated current-state guide is
+[`docs/project-decisions.md`](docs/project-decisions.md).
 
 Focused operational references cover
 [`network infrastructure`](docs/network-infrastructure.md),
@@ -41,7 +39,8 @@ and cleanup audits.
 
 ## Run the complete demo
 
-Requirements: Docker Engine or Docker Desktop with Compose, plus `curl`.
+Requirements: OrbStack with Compose on macOS, or Docker Engine with Compose on
+Linux, plus `curl`.
 
 ```sh
 cd ~/workspace/graphx-docker
@@ -99,9 +98,13 @@ Use [`docs/manual-test-procedures.md`](docs/manual-test-procedures.md) when a
 platform acceptance report also requires interactive observation and explicit
 host cleanup evidence.
 
-Before a pull request, run the combined local quality and Docker profile:
+Before a pull request, confirm the selected Docker engine is reachable and run
+the combined local quality and Docker profile:
 
 ```sh
+docker context show
+docker info
+docker compose version
 scripts/verify.sh full
 ```
 
@@ -230,39 +233,37 @@ end-to-end traffic. Stop the foreground process with `Ctrl-C`, then run
 
 ## Run the mixed network laboratory
 
-GraphX now has a first-class network infrastructure layer with Docker bridge,
-macvlan, and ipvlan definitions; node interfaces; Open vSwitch ports, VLAN
+GraphX has a first-class network infrastructure layer with OVS-backed Ethernet,
+MACVLAN, and IPVLAN semantic profiles; node interfaces; Open vSwitch ports, VLAN
 metadata, and SPAN mirrors; namespace routers, routes, nftables policies, and
-`tc netem` fault hooks. Infrastructure lifetime is independent of Compose.
+declarative bounded `tc netem` faults. Infrastructure lifetime is independent
+of Compose.
 
-The exact macvlan/ipvlan example requires native Linux. A separate Docker Desktop
-profile runs OVS in a privileged userspace-datapath container between two Docker
-bridge domains:
+Run the same system-OVS lifecycle on native Linux or inside the dedicated GraphX
+Lima guest on macOS:
 
 ```sh
 ./build/dev/graphx validate examples/mixed-network/graphx.yaml
 ./build/dev/graphx infra create examples/mixed-network/graphx.yaml --dry-run
 
-# Native Linux
-examples/mixed-network/scripts/linux-up.sh
-
-# Docker Desktop for macOS (portable simulation)
-examples/mixed-network/scripts/macos-up.sh
+examples/mixed-network/scripts/up.sh
+examples/mixed-network/scripts/status.sh
+examples/mixed-network/scripts/down.sh
 ```
 
 See [`examples/mixed-network/README.md`](examples/mixed-network/README.md) and
-[`docs/network-infrastructure.md`](docs/network-infrastructure.md). Docker Desktop
-does not support Docker's macvlan driver, so the macOS profile is deliberately
-identified as a simulation rather than an exact substitute.
+[`docs/network-infrastructure.md`](docs/network-infrastructure.md). OrbStack
+remains the unprivileged Compose runtime on macOS; it is not used as privileged
+network-laboratory evidence.
 
-Three focused native-Linux examples isolate each driver/mode:
+Three focused Linux/Lima examples isolate each semantic profile:
 
 - [`examples/macvlan`](examples/macvlan/README.md): one macvlan L2 domain with
   explicit IP and MAC assignments;
 - [`examples/ipvlan-l2`](examples/ipvlan-l2/README.md): one independent IPvlan L2
   network per node, connected through OVS and a namespace router;
-- [`examples/ipvlan-l3`](examples/ipvlan-l3/README.md): one independent IPvlan L3
-  subnet per node in Docker's supported multi-subnet network layout.
+- [`examples/ipvlan-l3`](examples/ipvlan-l3/README.md): independent IPvlan L3
+  subnet semantics realized by OVS and GraphX-owned routing.
 
 ## Run the PCAPNG capture demo
 
@@ -611,7 +612,7 @@ boundary for alternate live sources.
 
 ## Tests
 
-On macOS with Docker Desktop (or another local Linux-container runtime), run the
+On macOS with OrbStack, run the
 workspace-owned Linux verifier for the focused TLS gate or the cumulative
 portable suite:
 

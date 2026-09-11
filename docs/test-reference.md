@@ -53,9 +53,10 @@ Explicit compiler locations can be supplied with
 `GRAPHX_SANITIZER_CC`, `GRAPHX_SANITIZER_CXX`, `GRAPHX_FUZZ_CC`, and
 `GRAPHX_FUZZ_CXX`.
 
-Docker Desktop does not expose native macvlan/ipvlan semantics. On macOS, use the
-mixed-network macOS profile to test the containerized userspace OVS simulation;
-use native Linux for driver-accurate results.
+OrbStack provides the unprivileged Docker/Compose tier on macOS. Run the
+OVS-backed MACVLAN/IPVLAN semantic profiles inside the dedicated Lima guest and
+report that result as Lima ARM64 evidence; use a native Linux host for native
+platform certification.
 
 ## 1. Quality automation
 
@@ -217,7 +218,7 @@ For Phase 11 acceptance on a native Linux host, run
 `GRAPHX_VERIFY_LIVE_CAPTURE=1 examples/udp-broadcast/run-native-linux.sh`
 (when `dumpcap` and `tshark` are installed), followed twice by
 `examples/udp-broadcast/down-native-linux.sh`. This creates only two disposable
-network namespaces and an unattached temporary bridge; Docker Desktop is not
+network namespaces and an unattached temporary bridge; OrbStack is not
 accepted as evidence for this gate. The live-capture option observes only the
 disposable publisher veth, decodes the result with the checked-in Lua dissector,
 and requires GraphX sequences 1 through 5. The privileged Linux feature suite
@@ -529,7 +530,7 @@ and dry-run contracts on all platforms.
 
 ### Local Linux verifier container on macOS
 
-Docker Desktop runs Linux containers inside its Linux VM, so the repository's
+OrbStack runs Linux containers inside its managed environment, so the repository's
 Linux verifier image can reproduce Linux process, OpenSSL, socket, and SIGPIPE
 behavior while keeping build products out of the macOS checkout.
 
@@ -565,7 +566,7 @@ scripts/test-features.sh docker
 ```
 
 Either variable may be omitted. The same variables flow through the standard
-Compose deployment, telemetry build, OVS simulation, and native Linux example
+Compose deployment, telemetry build, and native Linux example
 builds. Repository entry-point scripts calculate a non-secret content
 fingerprint so rotating either file invalidates the BuildKit trust layer instead
 of silently reusing its cache. For a manual Compose command, initialize that
@@ -605,7 +606,8 @@ This checks the canonical system-OVS/veth/router lifecycle in the Lima guest.
 
 Run this only on a dedicated native Linux host as the normal login user. Record
 host routes, namespaces, links, nftables, OVS, and Docker state before starting.
-The full completed matrix is recorded in `phase_14_verification.md`; the core two-cycle sequence
+The full completed matrix is archived in
+[`phase_14_verification.md`](archive/legacy-phases/phase_14_verification.md); the core two-cycle sequence
 is:
 
 ```sh

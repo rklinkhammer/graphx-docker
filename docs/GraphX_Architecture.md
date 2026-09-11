@@ -254,13 +254,18 @@ The root demo uses one private bridge (`172.30.0.0/24`) with service-name DNS. I
 
 ### 7.4 Macvlan L2
 
-The macvlan example attaches generator, transform, and sink to one `10.30.0.0/24` domain using explicit addresses and MACs. An isolated dummy parent prevents contact with the physical LAN. This demonstrates LAN-like per-container L2 identities and the important macvlan rule that a parent host cannot directly contact its macvlan children without a host-side macvlan shim.
-
-Macvlan is native-Linux behavior. It is not supported by Docker Desktop for macOS.
+The MACVLAN-semantic example attaches generator, transform, and sink to one
+`10.30.0.0/24` OVS domain using explicit addresses and MACs. GraphX owns the
+container veth attachments; Docker supplies management connectivity only. The
+profile demonstrates LAN-like per-container L2 identity without creating a
+Docker macvlan network.
 
 ### 7.5 IPvlan L2
 
-The IPvlan L2 example creates three independent `/24` networks. Each Docker parent is connected to its own OVS bridge; a namespace router connects the bridges and allows only generator-to-transform and transform-to-sink policy flows. Each OVS bridge has a dedicated SPAN port.
+The IPVLAN-L2-semantic example creates three independent `/24` OVS domains. A
+namespace router connects the bridges and allows only generator-to-transform
+and transform-to-sink policy flows. Container veth pairs provide the endpoint
+attachments.
 
 ```mermaid
 flowchart LR
@@ -280,9 +285,10 @@ This topology makes switching, routing, security policy, fault injection, and ob
 
 ### 7.6 IPvlan L3
 
-The IPvlan L3 example uses one Docker IPvlan network with three repeated subnet definitions: `10.42.1.0/24`, `10.42.2.0/24`, and `10.42.3.0/24`. Docker permits only one IPvlan network to claim a parent, so the supported design places all L3 subnets on one network/parent. No gateway is specified: IPvlan L3 installs device routes and does not provide L2 broadcast between subnets.
-
-Remote systems need routes to each subnet through the Docker host when the isolated parent is replaced by a physical interface.
+The IPVLAN-L3-semantic example uses three subnets: `10.42.1.0/24`,
+`10.42.2.0/24`, and `10.42.3.0/24`. OVS plus the GraphX-owned namespace router
+realize broadcast-free routed behavior without a Docker ipvlan parent or data
+network.
 
 ### 7.7 Mixed macvlan/ipvlan with OVS and routing
 
@@ -310,7 +316,10 @@ generator 10.10.0.10 / explicit MAC
   -> sink 10.20.0.30
 ```
 
-The first logical edge crosses both domains; the second remains inside the IPvlan domain. This contrast shows why each logical edge owns a distinct `edge_path`. The two application domains are separate Compose projects and do not own the external networks.
+The first logical edge crosses both domains; the second remains inside the
+IPVLAN-semantic domain. This contrast shows why each logical edge owns a
+distinct `edge_path`. One Compose project manages the processes and its private
+management network; GraphX owns the OVS data plane.
 
 ### 7.8 Switching, VLANs, mirrors, policies, and faults
 
@@ -364,7 +373,8 @@ claims.
 | SPAN capture | Host-local capture interfaces | VM-local capture interfaces and storage |
 | Evidence | Native platform row | Lima ARM64 platform row |
 
-Docker Desktop remains useful for unprivileged application demonstrations, but it is not an M8 privileged network-infrastructure backend.
+OrbStack runs unprivileged application demonstrations on macOS, but it is not a
+privileged network-infrastructure backend.
 
 ## 8. QEMU connectivity architecture
 
@@ -400,9 +410,16 @@ The GUI reports requested, launcher-selected, and QMP-proven accelerators separa
 
 ### 8.3 External QEMU profile
 
-In the portable profile, QEMU and the packet observer run on the host; origin, receiver, telemetry, and GUI run in Docker. Host-side observation avoids Docker Desktop bind-mount cache delay while a PCAP is growing.
+In the deprecated portable compatibility profile, QEMU and the packet observer
+run on the host; origin, receiver, telemetry, and GUI run in Docker. Host-side
+observation avoids container-runtime bind-mount cache delay while a PCAP grows.
 
-Origin reaches the guest through a QEMU host forward at `host.docker.internal:18001`. The guest reaches the receiver at the slirp gateway `10.0.2.2:19001`. On macOS, Docker Desktop provides `host.docker.internal` and host services bind to loopback. On Linux, the hostname is pinned to the private `172.30.12.1` demo bridge gateway, and QEMU forwards plus the observer history API bind there rather than on a physical interface.
+Origin reaches the guest through a QEMU host forward at
+`host.docker.internal:18001`. The guest reaches the receiver at the slirp
+gateway `10.0.2.2:19001`. On macOS, OrbStack provides
+`host.docker.internal` and host services bind to loopback. On Linux, the
+hostname is pinned to the private `172.30.12.1` demo bridge gateway. This is a
+deprecated compatibility profile; TAP/OVS is the default.
 
 QMP is a private Unix socket in a mode-0700 state directory, used for evidence and graceful shutdown. Explicit KVM or HVF requests fail rather than silently falling back. Apple Silicon runs the x86_64 guest with TCG; HVF applies only to Intel macOS; Linux can select KVM when available.
 
@@ -521,21 +538,21 @@ Credential rotation uses atomic current snapshots plus a bounded redaction-only 
 
 | Example | Architectural concepts illustrated | Platform/privilege |
 |---|---|---|
-| Standard TCP Docker demo | Authoritative config, DAG, framed TCP, service DNS, live GUI, control, capture, history | Docker Desktop or Linux; unprivileged |
+| Standard TCP Docker demo | Authoritative config, DAG, framed TCP, service DNS, live GUI, control, capture, history | OrbStack or Linux Docker Engine; unprivileged |
 | Standalone capture | Application PCAPNG, correlation comments, USER0/Wireshark | Local build; unprivileged |
 | Shared memory | Separate processes, bounded SPSC rings, local IPC lifecycle/backpressure | Linux/macOS; unprivileged |
 | UDP unicast | One framed envelope per datagram, loss-tolerant semantics | Loopback; unprivileged |
 | UDP multicast | Local multicast membership and diagnostic fan-out | Loopback; unprivileged |
 | UDP broadcast | Isolated directed broadcast; native namespace proof | Docker portable; privileged native Linux acceptance |
-| Macvlan | Explicit L2 IP/MAC identity and parent isolation | Native Linux; privileged infrastructure |
-| IPvlan L2 | Independent L2 domains, OVS bridges/SPAN, namespace routing/policy | Native Linux; privileged infrastructure |
-| IPvlan L3 | Multi-subnet single-parent IPvlan L3, broadcast-free routing | Native Linux; privileged infrastructure |
-| Mixed network | Cross-driver routing, OVS, mirrors, nftables, netem, edge paths | Native Linux exact; macOS simulation |
+| MACVLAN semantics | Explicit L2 IP/MAC identity on OVS with container veth | Native Linux or Lima; privileged infrastructure |
+| IPVLAN L2 semantics | Independent L2 domains, OVS bridges, namespace routing/policy | Native Linux or Lima; privileged infrastructure |
+| IPVLAN L3 semantics | Routed subnets with broadcast-free profile behavior | Native Linux or Lima; privileged infrastructure |
+| Mixed network | Cross-domain routing, OVS, mirrors, nftables, netem, edge paths | Native Linux or Lima |
 | Static route/policy | Three OVS domains, ordered allow/deny rules, explicit route transition, GUI diagnostics | Native Linux; privileged infrastructure lifecycle |
 | External QEMU | External raw node, host QEMU, slirp, passive observation, portable GUI | macOS/Linux; host QEMU + Docker |
 | Container QEMU | Nested VM deployment, KVM/TCG evidence, least privilege, packet history | Linux x86_64; optional `/dev/kvm` |
 | QEMU TAP and OVS | Non-root QEMU, owned TAP/OVS/VLAN lifecycle, QMP, SPAN evidence | Linux; Lima on Apple Silicon uses x86_64 TCG |
-| Simulated SDR | Raw UDP IQ, mutual-TLS control, raw results, live GUI, packet history | Docker Desktop or Linux; unprivileged except capture sidecar capabilities |
+| Simulated SDR | Raw UDP IQ, mutual-TLS control, raw results, live GUI, packet history | OrbStack or Linux Docker Engine; unprivileged except capture sidecar capabilities |
 | External SDR | External hardware boundary, macvlan, OVS/SPAN, ordinary Ethernet capture | Native Linux; privileged infrastructure lifecycle |
 
 ### 10.1 How examples, demos, and tests relate to the system
@@ -623,7 +640,7 @@ evidence.
 - GraphX application PCAPNG uses private USER0 and requires a dedicated Wireshark profile.
 - OVS Ethernet and GraphX application captures are not automatically correlated.
 - QEMU slirp compatibility profiles do not model physical L2; the M6 TAP profile covers OVS L2/VLAN behavior but not physical-network attachment or guest-native GraphX control.
-- Docker Desktop is not a privileged network-lab backend; macOS uses Lima.
+- OrbStack is not a privileged network-lab backend; macOS uses Lima.
 
 ### 11.2 Documentation and model consistency
 
@@ -687,8 +704,9 @@ restart-aware container veth attachment through OVS, M5 adds Linux router
 namespaces, namespace veths, mirrors, policy, semantic IPvlan flows, and
 migrated laboratory configurations, and M6 adds owned QEMU TAP/OVS attachment.
 Migration work packages use `M` identifiers so they do not collide with the
-existing feature-phase history. The authoritative sequence is maintained in
-`prompt/ovs_migration_implementation_plan.md`:
+existing feature-phase history. The completed sequence and its original work
+packages are preserved in [`archive/`](archive/README.md); current rules are
+maintained in [`project-decisions.md`](project-decisions.md):
 
 1. M0 records the decisions and frozen GraphX 1.1.0 baseline.
 2. M1 provides the Lima macOS Linux execution environment.
@@ -717,23 +735,14 @@ ownership on that same identity-checked lifecycle.
 3. Root and contributor documentation link the architecture source, editable DOCX, ADR index, and focused references.
 4. `graphx project` generates or verifies the four projections under `config/`; CTest enforces the drift check in local and Linux/macOS CI builds.
 
-### Near-term architectural examples
+### Future architectural changes
 
-1. Independently verify the single-SDR example on macOS and native Linux.
-2. Independently verify the implemented static-route/deny-policy laboratory on native Linux.
-3. Add an application/Ethernet dual-capture correlation prototype.
-4. Decide the one-to-many logical-edge contract separately from the accepted
-   network-profile configuration-v2 migration; the latter does not implicitly
-   authorize a graph fan-out schema change.
-
-### Later platform capabilities
-
-1. Independently verify the implemented M4 container identity, restart, rollback, and cleanup contract in Lima and native Linux.
-2. Decide capture rotation, indexing, retention, and cross-capture correlation contracts.
-3. Independently verify the M6 QEMU TAP/OVS profile while keeping broader
-   physical-node attachment behind a separate operator/security gate.
-4. Evaluate IPv6 and authenticated UDP/DTLS only with explicit compatibility and threat-model decisions.
-5. Define distributed telemetry/control state only if multi-collector availability becomes a requirement.
+New features must preserve the current decision guide and accepted ADRs. A
+change to the configuration authority, OVS-only backend, macOS OrbStack/Lima
+split, compatibility window, or identity-safe ownership boundary requires a
+new or superseding ADR before implementation. IPv6, authenticated UDP/DTLS,
+graph fan-out, physical-device attachment, and distributed telemetry/control
+remain separate decisions rather than implied extensions of M0–M8.
 
 ## Appendix A. Authoritative source map
 
@@ -755,7 +764,7 @@ ownership on that same identity-checked lifecycle.
 | UDP examples | `examples/udp-unicast`, `examples/udp-broadcast`, `examples/udp-multicast` |
 | QEMU profiles | `examples/qemu-node`, `docs/qemu-demos.md` |
 | SDR profiles | `examples/sdr-node`, `docs/adr/0014-external-device-control-cycles.md` |
-| Verification status | `verification_status.md`, phase verification reports, `migration_m0_baseline.md`, and the active M2 contracts under `prompt/` |
+| Current decisions and historical verification | `docs/project-decisions.md`, `docs/archive/README.md`, and accepted records under `docs/adr/` |
 
 ## Appendix B. Terminology
 

@@ -74,8 +74,6 @@ ARCHIVE_PUBLIC_HEADERS = frozenset({
 
 ARCHIVE_DOCUMENTATION_FILES = frozenset({
     "share/doc/graphx/docs/GraphX_New_Graph_Example_User_Guide.md",
-    "share/doc/graphx/docs/GraphX_Phases_1_to_10_Linux_Implementation_and_Verification_Runbook.md",
-    "share/doc/graphx/docs/GraphX_Phases_1_to_7_Linux_Implementation_and_Verification_Runbook.md",
     "share/doc/graphx/docs/adr/0001-authoritative-configuration.md",
     "share/doc/graphx/docs/adr/0002-network-infrastructure-layer.md",
     "share/doc/graphx/docs/adr/0003-typed-receive-and-bounded-runtime.md",
@@ -100,6 +98,7 @@ ARCHIVE_DOCUMENTATION_FILES = frozenset({
     "share/doc/graphx/docs/network-infrastructure.md",
     "share/doc/graphx/docs/observability.md",
     "share/doc/graphx/docs/protocol.md",
+    "share/doc/graphx/docs/project-decisions.md",
     "share/doc/graphx/docs/qemu-demos.md",
     "share/doc/graphx/docs/release-process.md",
     "share/doc/graphx/docs/runtime-lifecycle.md",

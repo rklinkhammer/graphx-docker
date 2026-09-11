@@ -39,7 +39,7 @@ examples/udp-broadcast/down-native-linux.sh
 Both scripts require `sudo` and `iproute2`. The runner refuses pre-existing
 resources with its reserved names, cleans up after normal completion or a
 signal, and expects `PASS received=5`. The cleanup command is idempotent and is
-shown twice deliberately. Docker Desktop does not substitute for this native
+shown twice deliberately. OrbStack does not substitute for this native
 Linux acceptance test.
 
 When `dumpcap` and `tshark` are installed, the same isolated run can also prove

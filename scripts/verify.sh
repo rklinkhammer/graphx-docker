@@ -88,8 +88,31 @@ run_quick() {
   fi
 }
 
+preflight_docker() {
+  local context
+  command -v docker >/dev/null || {
+    echo "full verification requires the Docker CLI" >&2
+    return 2
+  }
+  docker compose version >/dev/null || {
+    echo "full verification requires Docker Compose" >&2
+    return 2
+  }
+  docker info >/dev/null || {
+    echo "full verification requires a reachable Docker engine; start the selected context first" >&2
+    return 2
+  }
+  if test "$(uname -s)" = Darwin; then
+    context=$(docker context show)
+    test "$context" = orbstack || {
+      echo "GraphX macOS Docker acceptance requires the orbstack context; selected: $context" >&2
+      return 2
+    }
+  fi
+}
+
 select_llvm21_sanitizer_toolchain() {
-  local compiler_dir compiler_version macos_major sdk_root
+  local compiler_dir compiler_version compatible_sdk macos_major sdk_major sdk_root
 
   if test -n "${GRAPHX_SANITIZER_CC:-}" || test -n "${GRAPHX_SANITIZER_CXX:-}"; then
     test -n "${GRAPHX_SANITIZER_CC:-}" && test -n "${GRAPHX_SANITIZER_CXX:-}" || {
@@ -113,14 +136,22 @@ select_llvm21_sanitizer_toolchain() {
       echo "LLVM 21 testing on macOS requires Xcode Command Line Tools" >&2
       return 2
     }
+    macos_major=$(sw_vers -productVersion | cut -d. -f1)
     sdk_root=$(xcrun --show-sdk-path)
+    sdk_major=$(xcrun --show-sdk-version | cut -d. -f1)
+    if test "$sdk_major" -gt "$macos_major"; then
+      compatible_sdk=$(dirname "$sdk_root")/MacOSX${macos_major}.sdk
+      if test -d "$compatible_sdk"; then
+        echo "NOTE: LLVM 21 selects installed macOS $macos_major SDK instead of newer SDK $sdk_major."
+        sdk_root=$compatible_sdk
+      fi
+    fi
     test -d "$sdk_root" || {
       echo "active macOS SDK not found: $sdk_root" >&2
       return 2
     }
     SDKROOT=$sdk_root
     export SDKROOT
-    macos_major=$(sw_vers -productVersion | cut -d. -f1)
     if test "$macos_major" -ge 26 && test -z "${GRAPHX_SANITIZERS:-}"; then
       GRAPHX_SANITIZERS=undefined
       export GRAPHX_SANITIZERS
@@ -216,6 +247,8 @@ case "$PROFILE" in
     scripts/test-features.sh portable
     ;;
   full)
+    gate "Docker engine preflight"
+    preflight_docker
     select_llvm21_sanitizer_toolchain
     gate "format"
     scripts/check-format.sh

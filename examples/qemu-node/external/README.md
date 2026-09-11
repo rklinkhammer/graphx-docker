@@ -6,7 +6,7 @@
 
 This portable profile runs QEMU and the shared packet observer on the host
 while the origin, receiver, telemetry service, and GUI run in Docker. Keeping
-the observer beside the host-written PCAP avoids Docker Desktop bind-cache
+the observer beside the host-written PCAP avoids container-runtime bind-cache
 latency; the container profile runs the same observer code in Docker. GraphX
 describes QEMU as an external, host-executed VM.
 
@@ -50,7 +50,7 @@ On native Linux, `host.docker.internal` is pinned to the private QEMU demo
 bridge gateway `172.30.12.1`; both the QEMU forwards and observer history API
 bind to that same private address. This is intentionally not the Docker default
 bridge gateway and is not exposed on a physical interface. macOS retains the
-Docker Desktop hostname mapping and loopback-only host listeners.
+OrbStack hostname mapping and loopback-only host listeners.
 
 Startup verifies all four edges independently. If startup verification fails,
 the launcher tears down its containers and owned host processes while retaining

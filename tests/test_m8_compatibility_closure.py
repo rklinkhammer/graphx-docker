@@ -128,7 +128,8 @@ def main() -> int:
     active_files.extend((root / "examples").rglob("*.sh"))
     active_files.extend(
         path for path in (root / "docs").rglob("*.md")
-        if "adr" not in path.parts and not path.name.startswith("GraphX_Phases_")
+        if "adr" not in path.parts and "archive" not in path.parts
+        and not path.name.startswith("GraphX_Phases_")
     )
     active_text = "\n".join(
         path.read_text(encoding="utf-8", errors="replace") for path in active_files
@@ -139,6 +140,11 @@ def main() -> int:
     feature_runner = (root / "scripts/test-features.sh").read_text(encoding="utf-8")
     require('export GRAPHX_BIN="$BUILD_DIR/graphx"' in feature_runner,
             "native Linux verification does not select its Linux GraphX binary")
+    require("infra fault apply" not in feature_runner,
+            "feature verification invokes the retired imperative fault entry point")
+    require("network-observability.plan" in feature_runner
+            and "auto-clear=identity-checked" in feature_runner,
+            "feature verification does not assert the declarative bounded-fault plan")
 
     qemu = root / "examples/qemu-node"
     default = (qemu / "scripts/demo.sh").read_text(encoding="utf-8")

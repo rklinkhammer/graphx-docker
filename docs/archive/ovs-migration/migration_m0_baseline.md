@@ -87,4 +87,3 @@ Every later migration phase must compare affected portable checks with this
 baseline and add platform-appropriate runtime evidence. A changed dry-run hash
 is expected when its phase intentionally changes realization, but the handoff
 must explain the change rather than updating this record.
-

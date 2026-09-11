@@ -17,11 +17,10 @@ tests and low-level diagnostics, use [`test-reference.md`](test-reference.md).
 | UDP multicast | Loopback multicast and diagnostic fan-out | macOS/Linux | `examples/udp-multicast/run.sh` |
 | UDP broadcast | Directed broadcast confined to a Docker subnet | macOS/Linux + Docker | `examples/udp-broadcast/run.sh` |
 | Native UDP broadcast | Disposable namespaces, bridge, capture, decode | Native Linux | `examples/udp-broadcast/run-native-linux.sh` |
-| Macvlan | Explicit container IP/MAC identities on one L2 domain | Native Linux | `examples/macvlan/scripts/up.sh` |
-| IPvlan L2 | Three routed L2 domains with OVS/SPAN and policy | Native Linux | `examples/ipvlan-l2/scripts/up.sh` |
-| IPvlan L3 | Three broadcast-free subnets on one IPvlan parent | Native Linux | `examples/ipvlan-l3/scripts/up.sh` |
-| Mixed network | macvlan-to-IPvlan routing, OVS, nftables, netem | Native Linux | `examples/mixed-network/scripts/linux-up.sh` |
-| Mixed simulation | Bridge/OVS userspace substitute for network inspection | macOS + Docker Desktop | `examples/mixed-network/scripts/macos-up.sh` |
+| MACVLAN semantics | Explicit container IP/MAC identities on one OVS L2 domain | Native Linux/Lima | `examples/macvlan/scripts/up.sh` |
+| IPVLAN L2 semantics | Three routed OVS L2 domains and namespace policy | Native Linux/Lima | `examples/ipvlan-l2/scripts/up.sh` |
+| IPVLAN L3 semantics | Three routed subnets with broadcast-free profile behavior | Native Linux/Lima | `examples/ipvlan-l3/scripts/up.sh` |
+| Mixed semantic network | MACVLAN-to-IPVLAN routing, OVS, and nftables | Native Linux/Lima | `examples/mixed-network/scripts/up.sh` |
 | External QEMU | Host VM as an observed raw TCP/UDP node | macOS/Linux + Docker | `examples/qemu-node/external/scripts/demo.sh start --accel auto` |
 | Container QEMU | Least-privilege nested VM with TCG/KVM proof | Native Linux x86_64 | `examples/qemu-node/container/scripts/demo.sh start --accel auto` |
 | Simulated SDR | Raw IQ, mTLS device control, packet history and GUI | macOS/Linux + Docker | `examples/sdr-node/simulated/scripts/demo.sh start` |
@@ -159,24 +158,23 @@ docker logs -f gx-mac-sink-sink-1
 examples/macvlan/scripts/down.sh
 ```
 
-The three separately deployed nodes receive explicit IP and MAC addresses on an
-isolated dummy-parent L2 domain. Sink output proves the pipeline. The host cannot
-directly contact macvlan children without a host-side shim, intentionally absent
-from this lab.
+The three managed containers receive explicit IP and MAC addresses through
+GraphX-owned veth pairs on one OVS L2 domain. Sink output proves the pipeline;
+no Docker macvlan driver or physical parent is involved.
 
 ### 4.2 IPvlan L2
 
 ```sh
 ./build/dev/graphx infra create examples/ipvlan-l2/graphx.yaml --dry-run
 examples/ipvlan-l2/scripts/up.sh
-examples/ipvlan-l2/scripts/capture.sh transform captures/ipvlan-transform.pcapng
+examples/ipvlan-l2/scripts/status.sh
 examples/ipvlan-l2/scripts/down.sh
 ```
 
 Each node occupies an independent L2 domain. Three OVS bridges and one namespace
-router provide explicit switching, routing, nftables policy, SPAN, and netem
-points. The saved capture is standard Ethernet PCAPNG, unlike the application
-capture example.
+router provide explicit switching, routing, and nftables policy. Use the focused
+network-observability example for declarative SPAN capture and timed netem
+faults.
 
 ### 4.3 IPvlan L3
 
@@ -191,31 +189,22 @@ One IPvlan network owns three subnets on a shared parent. No gateway is declared
 and no L2 broadcast crosses the domains. `up.sh` waits up to 60 seconds for an
 actual doubled sink value and rolls back on failure.
 
-### 4.4 Mixed network and macOS simulation
+### 4.4 Mixed semantic network
 
-The native topology routes generator traffic from macvlan through OVS, a Linux
-namespace router, nftables, and a second OVS bridge into IPvlan L2:
+The topology routes generator traffic from a MACVLAN-semantic OVS domain
+through a Linux namespace router and nftables into an IPVLAN-L2-semantic OVS
+domain. Run it on native Linux or inside the GraphX Lima guest:
 
 ```sh
 ./build/dev/graphx infra create examples/mixed-network/graphx.yaml --dry-run
-examples/mixed-network/scripts/linux-up.sh
+examples/mixed-network/scripts/up.sh
 examples/mixed-network/scripts/status.sh
-examples/mixed-network/scripts/fault.sh apply
-examples/mixed-network/scripts/fault.sh clear
-examples/mixed-network/scripts/linux-down.sh
+examples/mixed-network/scripts/down.sh
 ```
 
-On macOS, use the Docker Desktop userspace substitute:
-
-```sh
-examples/mixed-network/scripts/macos-up.sh
-examples/mixed-network/scripts/status.sh
-docker logs gx-ovs-ovs-router-1
-examples/mixed-network/scripts/macos-down.sh
-```
-
-Both profiles expose route, policy, fault, and capture concepts. Only native
-Linux proves macvlan/IPvlan and host OVS semantics. See
+OrbStack supplies unprivileged Compose demos on macOS but is not a privileged
+network-lab backend. Declarative fault and capture behavior is demonstrated by
+`examples/network-observability`. See
 [`network-infrastructure.md`](network-infrastructure.md).
 
 ## 5. QEMU demonstrations
@@ -322,8 +311,9 @@ The allowed flow requires receiver evidence. The denied flow requires receiver
 absence and an advancing named nftables counter. The route transition requires
 the exact declared kernel route and receiver result. Mirrored PCAP and GUI state
 are corroborating evidence. Cleanup checks run ownership before deleting fixed
-names and retains the run directory. Full native acceptance requires two cycles
-and the adversarial checks in [`prompt/verifier.md`](../prompt/verifier.md).
+names and retains the run directory. The completed Phase 14 adversarial record
+is retained in
+[`archive/legacy-phases/phase_14_verification.md`](archive/legacy-phases/phase_14_verification.md).
 
 ## 8. Common options, evidence, and cleanup
 

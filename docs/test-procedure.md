@@ -17,13 +17,13 @@ walkthroughs are in [`demo-guide.md`](demo-guide.md).
 | `sanitizers` | Investigating a sanitizer failure | Platform-safe LLVM 21 sanitizer build and CTest | macOS or Linux |
 | `fuzz` | Investigating a fuzzer failure | Bounded LLVM 21 envelope and frame fuzzing | macOS or Linux |
 | `portable` | Preparing a normal change | C++20/23, configurations, process pipelines, telemetry, web, and portable examples | macOS or Linux |
-| `full` | Preparing a pull request | Formatting, static analysis, sanitizers, fuzzing, portable acceptance, and Docker acceptance | macOS or Linux with Docker |
-| `native-linux` | Certifying network behavior | Portable acceptance plus UDP broadcast, macvlan, IPvlan, OVS, namespaces, nftables, netem, and live packet capture | Native Linux only |
+| `full` | Preparing a pull request | Formatting, static analysis, sanitizers, fuzzing, portable acceptance, and Docker acceptance | macOS with OrbStack, or Linux with Docker Engine |
+| `native-linux` | Certifying native network behavior | Portable acceptance plus UDP broadcast, OVS semantic profiles, namespaces, nftables, netem, and live packet capture | Native Linux only |
 | `release` | Building a release candidate | Clean release build, package contract, SBOM, checksums, and independent artifact verification | Supported release host |
 
-`native-linux` is the only profile that validates native Linux network-driver
-behavior. A Linux container or Docker Desktop VM is useful evidence but is not a
-substitute for that profile.
+`native-linux` is the only profile that certifies a native Linux host. The
+underlying OVS lifecycle can also be verified inside Lima, but that result must
+be reported separately as Lima ARM64 evidence.
 
 ## Prerequisites
 
@@ -32,7 +32,7 @@ compiler. Portable testing also needs Node.js, npm, and curl.
 
 Additional requirements:
 
-- `full`: Docker Compose, LLVM/Clang 21 with its sanitizer and libFuzzer
+- `full`: a reachable Docker engine and Docker Compose, LLVM/Clang 21 with its sanitizer and libFuzzer
   runtimes, clang-format 21, clang-tidy 21, cppcheck, and `xxd`. The executable names do not
   have to contain `-21`; use the overrides below when a package manager uses
   unversioned names or keeps LLVM 21 outside `PATH`.
@@ -44,6 +44,10 @@ The commands stop at the first failure and write a combined log under
 `outputs/verification/`. Set `GRAPHX_VERIFY_LOG_DIR` to use another location.
 Portable tests isolate telemetry and web subprocesses from inherited `GRAPHX_*`
 deployment variables, so container-only secret paths cannot affect host tests.
+The configuration sweep validates and inspects every top-level example. It
+generates infrastructure dry-runs only for version-2 configurations and asserts
+that version-1 infrastructure execution is rejected, matching the M8
+compatibility boundary.
 
 ### macOS LLVM 21 setup
 
@@ -52,12 +56,18 @@ Homebrew's `llvm@21` formula is keg-only. It supplies `clang-format` and
 `clang-tidy-21`. Install the pinned tools:
 
 ```sh
-brew install llvm@21 cppcheck
+brew install llvm@21 cppcheck orbstack
+open -a OrbStack
+docker context use orbstack
+docker info
+docker compose version
 scripts/verify.sh full
 ```
 
 The `full` profile discovers Homebrew `llvm@21`, selects its compiler, formatter,
-analyzer, symbolizer, and the active Xcode SDK automatically. To inspect the
+analyzer, symbolizer, and a host-compatible installed macOS SDK automatically.
+If the active Command Line Tools SDK is newer than the running macOS release,
+the profile selects the matching installed major-version SDK. To inspect the
 installed versions independently:
 
 ```sh
@@ -175,9 +185,13 @@ Before handing a change to another implementer or verifier, run:
 scripts/verify.sh portable
 ```
 
-Before a pull request or broad acceptance decision, run:
+Before a pull request or broad acceptance decision, first confirm the selected
+container engine is ready, then run:
 
 ```sh
+docker context show
+docker info
+docker compose version
 scripts/verify.sh full
 ```
 
@@ -227,7 +241,7 @@ GUI, capture, accelerator, and platform-specific evidence.
 | External SDR + OVS/SPAN | `examples/sdr-node/external/scripts/demo.sh start`, then `verify` and `stop` | Native Linux only; creates fixed disposable host resources |
 | Static route/policy | `examples/static-route-policy/scripts/demo.sh start`, then `verify`, `apply-route`, `clear-route`, and `stop` twice | Native Linux only; [`route/policy guide`](../examples/static-route-policy/README.md) |
 | macOS OVS runtime | Start and verify Lima, then run the canonical lab inside it | Apple Silicon + Lima; [`network guide`](network-infrastructure.md) |
-| Native network labs | `examples/<lab>/scripts/up.sh`, where `<lab>` is `macvlan`, `ipvlan-l2`, or `ipvlan-l3` | Native Linux only; always use the matching `down.sh` |
+| OVS semantic-network labs | `examples/<lab>/scripts/up.sh`, where `<lab>` is `macvlan`, `ipvlan-l2`, or `ipvlan-l3` | Native Linux or Lima; always use the matching `down.sh` |
 | Mixed OVS network | `examples/mixed-network/scripts/up.sh` | Native Linux or Lima; use `down.sh` afterward |
 
 The `full` profile runs QEMU configuration, parser, history, QMP simulation, and
@@ -246,7 +260,8 @@ Phase 14 portable acceptance validates the static-route configuration, manual
 route command generation, bounded probe parser, telemetry projection, and GUI
 mapping. Its native routing verdict is a separate operator gate: follow the
 example README through two complete baseline/apply/clear/stop cycles and the
-adversarial checks recorded in `phase_14_verification.md`. Do not report dry-run output as OVS,
+adversarial checks archived in
+[`phase_14_verification.md`](archive/legacy-phases/phase_14_verification.md). Do not report dry-run output as OVS,
 nftables, route-table, capture, or packet-delivery evidence.
 
 For the browser topology, control tokens, history, and capture workflow across

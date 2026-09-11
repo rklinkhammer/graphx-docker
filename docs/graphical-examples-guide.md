@@ -364,17 +364,12 @@ the mixed example.
    examples/ipvlan-l2/scripts/status.sh
    ```
 
-5. In a third terminal, save an Ethernet mirror capture:
+5. Select each edge and compare its OVS bridge, namespace-router hop, and policy
+   state with the canonical `status.sh` output.
+6. Stop with `examples/ipvlan-l2/scripts/down.sh`.
 
-   ```sh
-   examples/ipvlan-l2/scripts/capture.sh transform \
-     "$PWD/captures/ipvlan-l2-console/transform-span.pcapng"
-   ```
-
-6. Let traffic flow briefly and stop capture with `Ctrl-C`.
-7. Select either edge in the console and use **Download Ethernet**. The capture
-   catalog refreshes at most once per second.
-8. Stop with `examples/ipvlan-l2/scripts/down.sh`.
+Use `examples/network-observability` when the acceptance scope requires
+declarative Ethernet capture or timed fault evidence.
 
 ## 13. IPvlan L3 example
 
@@ -410,45 +405,20 @@ mirror points.
 
 2. Open **Network path** and select `samples`. Confirm macvlan → OVS → namespace
    router → OVS → IPvlan. Select `transformed` to see the shorter IPvlan path.
-3. Start the appropriate runtime lab in another terminal.
-
-   Native Linux:
+3. Start the canonical runtime lab on native Linux or inside Lima:
 
    ```sh
-   examples/mixed-network/scripts/linux-up.sh
+   examples/mixed-network/scripts/up.sh
    examples/mixed-network/scripts/status.sh
    ```
 
-   Docker Desktop on macOS:
+4. Select edges and confirm their semantic domains, OVS bridges, namespace
+   router, and policy state match `graphx inspect`.
+5. Stop the lab with `examples/mixed-network/scripts/down.sh`.
 
-   ```sh
-   examples/mixed-network/scripts/macos-up.sh
-   examples/mixed-network/scripts/status.sh
-   ```
-
-4. Optionally apply and clear a network fault:
-
-   ```sh
-   examples/mixed-network/scripts/fault.sh apply
-   examples/mixed-network/scripts/fault.sh clear
-   ```
-
-   Fault injection is intentionally not controlled by the browser button.
-
-5. Save one or both Ethernet mirrors in separate terminals:
-
-   ```sh
-   examples/mixed-network/scripts/capture.sh mac \
-     "$PWD/captures/mixed-console/mac-span.pcapng"
-   examples/mixed-network/scripts/capture.sh ipv \
-     "$PWD/captures/mixed-console/ipv-span.pcapng"
-   ```
-
-6. Stop each capture with `Ctrl-C`. Select an edge and use **Download Ethernet**.
-7. Stop the lab with `linux-down.sh` or `macos-down.sh`, matching the start command.
-
-The macOS profile validates the userspace OVS/routing shape; it does not certify
-native macvlan or IPvlan semantics.
+Use `examples/network-observability` for declarative bounded Ethernet capture
+and timed fault evidence. OrbStack is not a privileged network-lab backend;
+macOS runs this system-OVS lifecycle inside Lima.
 
 ## 15. Static-route and deny-policy laboratory
 

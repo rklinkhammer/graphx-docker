@@ -19,9 +19,12 @@ Record each result as one of these categories:
 - **blocked:** the host lacks a prerequisite or an external dependency failed;
 - **failed:** a required check ran and did not meet its expected result.
 
-Docker Desktop, a Linux VM, and a dry-run are not native-Linux evidence for
-macvlan, IPvlan, OVS system datapaths, namespaces, nftables, `tc netem`, KVM, or
-host packet capture. Do not convert an unavailable or skipped gate into a pass.
+OrbStack, the Lima guest, and a dry-run are separate evidence boundaries. None
+is native-Linux evidence for a native host kernel, KVM, or host packet capture.
+Lima does provide valid ARM64 Linux system-OVS, namespace, nftables, netem,
+veth/TAP, and TCG evidence when those behaviors actually run in the guest. Do
+not convert an unavailable or skipped gate into a pass or relabel Lima evidence
+as native Linux.
 
 ## 2. Common preparation
 
@@ -35,6 +38,8 @@ cmake --version
 ninja --version
 docker version
 docker compose version
+docker context show
+docker info
 node --version
 npm --version
 python3 --version
@@ -67,25 +72,37 @@ log below `outputs/verification/`. Preserve that path in the test report.
 ### 3.1 Prerequisites and platform boundary
 
 Install CMake 3.25 or newer, Ninja, OpenSSL 3, Node.js/npm, Python 3, curl,
-Docker Desktop with Compose, cppcheck, and Homebrew LLVM 21. QEMU is needed only
-for the external-QEMU demo. Wireshark/TShark is optional unless capture decoding
-is part of the acceptance scope.
+OrbStack, cppcheck, Homebrew LLVM 21, and Lima. QEMU tooling is installed in the
+Lima guest for the canonical TAP/OVS demo. Wireshark/TShark on macOS is optional
+unless host-side capture decoding is part of the acceptance scope.
 
 ```sh
 brew install cmake ninja openssl@3 node python llvm@21 cppcheck
-brew install --cask docker
+brew install orbstack lima
 ```
 
-Start Docker Desktop and wait for `docker info` to succeed. The verification
-wrapper discovers the keg-only LLVM 21 tools and active macOS SDK. On macOS 26,
+Open OrbStack, select its Docker context, and wait for the engine and Compose to
+be ready before starting the lengthy `full` profile:
+
+```sh
+open -a OrbStack
+orb status
+docker context use orbstack
+docker info
+docker compose version
+```
+
+The verification wrapper discovers the keg-only LLVM 21 tools and selects a
+host-compatible installed macOS SDK. On macOS 26,
 Homebrew LLVM 21 AddressSanitizer has an upstream startup hang, so GraphX runs
 LLVM 21 UBSan locally and relies on Linux and macOS 15 CI for required ASan
 coverage. The log must state this substitution.
 
-Native macvlan/IPvlan, Linux namespaces, host OVS, nftables, `tc netem`, KVM,
-and the static-route native laboratory are not applicable on macOS. The
-mixed-network macOS profile is a Docker Desktop userspace-OVS simulation, not
-equivalent evidence.
+OrbStack supplies ordinary Docker/Compose application acceptance only. It is
+not the GraphX privileged network backend. System OVS, semantic MACVLAN/IPVLAN
+profiles, Linux namespaces, veth/TAP, nftables, `tc netem`, capture, and the
+static-route laboratory run in the dedicated Lima guest. KVM is unavailable for
+the checked-in x86_64 guest on Apple Silicon; record its Lima execution as TCG.
 
 ### 3.2 Build and automated acceptance
 
@@ -131,16 +148,36 @@ enabled. Then stop it:
 scripts/demo.sh stop
 ```
 
-Exercise the macOS network substitute and inspect the OVS/router container:
+Exercise the privileged network lifecycle in the dedicated Lima guest. Start
+and verify the environment from macOS:
 
 ```sh
-examples/mixed-network/scripts/macos-up.sh
-examples/mixed-network/scripts/status.sh
-docker logs gx-ovs-ovs-router-1
-examples/mixed-network/scripts/fault.sh apply
-examples/mixed-network/scripts/fault.sh clear
-examples/mixed-network/scripts/macos-down.sh
+infrastructure/lima/start.sh
+infrastructure/lima/verify.sh
+limactl shell graphx
 ```
+
+Then, as the normal Lima login user in `/workspace/graphx-docker`, use the same
+canonical system-OVS launcher as native Linux:
+
+```sh
+cd /workspace/graphx-docker
+examples/mixed-network/scripts/up.sh
+examples/mixed-network/scripts/status.sh
+examples/mixed-network/scripts/down.sh
+```
+
+For the complete M8 Linux/Lima regression, keep build and runtime artifacts on
+the guest-native filesystem:
+
+```sh
+GRAPHX_BUILD_DIR=/var/lib/graphx/manual/build \
+GRAPHX_CXX20_BUILD_DIR=/var/lib/graphx/manual/build-cxx20 \
+GRAPHX_ALLOW_PRIVILEGED_TESTS=1 scripts/test-features.sh linux-network
+```
+
+Capture and netem faults are declarative version-2 lifecycle objects. Do not
+restore the removed imperative `fault.sh` or userspace-OVS simulator.
 
 Run the portable external-device profile:
 
@@ -159,18 +196,20 @@ history. Inspect the Phase 14 model without claiming native routing evidence:
 examples/static-route-policy/scripts/inspect.sh
 ```
 
-When QEMU is in scope, build the shared guest and run the host-QEMU profile:
+When QEMU is in scope, build the shared guest and run the canonical TAP/OVS
+profile inside Lima:
 
 ```sh
 examples/qemu-node/scripts/build.sh
-examples/qemu-node/external/scripts/demo.sh start --accel auto
-examples/qemu-node/external/scripts/demo.sh verify
-examples/qemu-node/external/scripts/demo.sh status
-examples/qemu-node/external/scripts/demo.sh stop
+examples/qemu-node/scripts/demo.sh start
+examples/qemu-node/scripts/demo.sh verify
+examples/qemu-node/scripts/demo.sh status
+examples/qemu-node/scripts/demo.sh stop
 ```
 
-Apple Silicon selects TCG for the x86_64 guest. HVF is valid only on Intel
-macOS. Record requested, selected, and QMP-proven accelerator values separately.
+Apple Silicon Lima selects TCG for the x86_64 guest. Record requested, selected,
+and QMP-proven accelerator values separately. The host external/slirp profile
+is retained only as an explicitly deprecated compatibility path.
 
 ### 3.4 macOS cleanup audit
 
@@ -180,9 +219,11 @@ docker network ls --format '{{.Name}}' | grep -E '^(graphx|gx-)' || true
 ps -axo pid,command | grep -E '[q]emu-system|[p]acket_observer|[s]dr-node' || true
 ```
 
-Expected: no resources from stopped demos. Retained captures, history databases,
-credentials, build trees, and verification logs are expected artifacts, not
-active resources.
+These commands audit OrbStack resources. Audit privileged state separately
+inside Lima with the Linux cleanup commands in section 4.5. Expected: no active
+resources from stopped demos. Retained captures, history databases,
+credentials, build trees, verification logs, and zero-byte per-graph lock files
+are expected artifacts, not active resources.
 
 ## 4. Linux manual acceptance
 
@@ -209,6 +250,10 @@ Linux acceptance requires LLVM 21 ASan and UBSan; an ASan skip is not an
 equivalent pass. Require the same final full-profile marker and retained log as
 on macOS.
 
+During portable acceptance, all checked-in topologies are validated and
+inspected. Infrastructure plans are generated only for version-2 examples;
+version-1 transport examples are checked for the required pre-mutation refusal.
+
 ### 4.3 Privileged native-network profile
 
 After reviewing the generated plans and confirming that the example subnets and
@@ -223,8 +268,8 @@ GRAPHX_ALLOW_PRIVILEGED_TESTS=1 scripts/verify.sh native-linux
 ```
 
 The profile reruns portable acceptance, then proves native UDP broadcast/live
-capture, macvlan, IPvlan L2/L3, OVS, namespaces, nftables, netem, the external
-SDR OVS/SPAN profile, and two static-route/policy cycles. A pass requires
+capture, OVS-backed MACVLAN/IPVLAN semantic profiles, namespaces, nftables,
+netem, the external SDR OVS/SPAN profile, and two static-route/policy cycles. A pass requires
 `dumpcap` and TShark; the profile refuses to start without them.
 
 ### 4.4 Manual native observations
@@ -237,16 +282,16 @@ examples/macvlan/scripts/status.sh
 examples/macvlan/scripts/down.sh
 
 examples/ipvlan-l2/scripts/up.sh
-examples/ipvlan-l2/scripts/capture.sh transform captures/ipvlan-transform.pcapng
+examples/ipvlan-l2/scripts/status.sh
 examples/ipvlan-l2/scripts/down.sh
 
 examples/ipvlan-l3/scripts/up.sh
 examples/ipvlan-l3/scripts/status.sh
 examples/ipvlan-l3/scripts/down.sh
 
-examples/mixed-network/scripts/linux-up.sh
+examples/mixed-network/scripts/up.sh
 examples/mixed-network/scripts/status.sh
-examples/mixed-network/scripts/linux-down.sh
+examples/mixed-network/scripts/down.sh
 ```
 
 Require real sink delivery, declared IP/MAC assignments, expected OVS and router
@@ -279,8 +324,9 @@ examples/static-route-policy/scripts/demo.sh stop
 For each cycle, prove receiver-confirmed allowed delivery, receiver absence plus
 an advancing named nftables counter for denied traffic, exact kernel-route
 absence/presence for the route transition, readable mirrored capture, live GUI
-state changes, and preservation of unrelated canary resources. Follow the
-additional failure-injection contract in [`prompt/verifier.md`](../prompt/verifier.md).
+state changes, and preservation of unrelated canary resources. The historical
+Phase 14 failure-injection record is archived at
+[`archive/legacy-phases/phase_14_verification.md`](archive/legacy-phases/phase_14_verification.md).
 
 ### 4.5 Linux cleanup audit
 
@@ -319,7 +365,8 @@ Residual risks or failures:
 Overall platform verdict: PASS | FAIL | INCOMPLETE
 ```
 
-A macOS pass establishes portable and Docker Desktop behavior only. A complete
-Linux platform verdict consists of a successful `full` profile plus the
-explicitly authorized `native-linux` profile and any feature-specific manual
-evidence required by the change.
+A macOS host pass establishes portable and OrbStack Compose behavior only.
+Privileged Lima results are recorded separately as Linux ARM64 guest evidence.
+A complete native-Linux platform verdict consists of a successful `full`
+profile plus the explicitly authorized `native-linux` profile and any
+feature-specific manual evidence required by the change.

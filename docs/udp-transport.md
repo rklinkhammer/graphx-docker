@@ -76,7 +76,7 @@ examples/udp-broadcast/run.sh
 ```
 
 Unicast and loopback multicast are unprivileged. Broadcast requires Docker for
-the isolated example. Docker Desktop results do not replace native Linux
+the isolated example. OrbStack results do not replace native Linux
 verification of namespace, firewall, or physical multicast behavior.
 The broadcast README separates the connected image-preparation step from the
 offline run; its runner uses only a preloaded image and disables builds and pulls.

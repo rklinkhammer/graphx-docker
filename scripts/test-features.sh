@@ -55,6 +55,10 @@ wait_for_exit() {
   return 1
 }
 
+configuration_version() {
+  awk '$1 == "version:" { print $2; exit }' "$1"
+}
+
 portable() {
   require cmake
   require ctest
@@ -101,16 +105,31 @@ portable() {
   ctest --test-dir "$CXX20_BUILD_DIR" --output-on-failure
 
   step "Validate and inspect every checked-in topology"
-  "$BUILD_DIR/graphx" validate "$ROOT/graphx.yaml"
-  "$BUILD_DIR/graphx" inspect "$ROOT/graphx.yaml" >"$TMP_DIR/inspect.txt"
-  for config in "$ROOT"/examples/*/graphx.yaml; do
+  for config in "$ROOT/graphx.yaml" "$ROOT"/examples/*/graphx.yaml; do
+    local example_name version
+    example_name=$(basename "$(dirname "$config")")
+    test "$config" != "$ROOT/graphx.yaml" || example_name=root
+    version=$(configuration_version "$config")
     "$BUILD_DIR/graphx" validate "$config"
-    "$BUILD_DIR/graphx" infra create "$config" --dry-run >"$TMP_DIR/$(basename "$(dirname "$config")").plan"
-    "$BUILD_DIR/graphx" infra status "$config" --dry-run >/dev/null
-    "$BUILD_DIR/graphx" infra destroy "$config" --dry-run >/dev/null
+    "$BUILD_DIR/graphx" inspect "$config" >"$TMP_DIR/$example_name.inspect"
+    if test "$version" = 2; then
+      "$BUILD_DIR/graphx" infra create "$config" --dry-run >"$TMP_DIR/$example_name.plan"
+      "$BUILD_DIR/graphx" infra status "$config" --dry-run >/dev/null
+      "$BUILD_DIR/graphx" infra destroy "$config" --dry-run >/dev/null
+    else
+      test "$version" = 1 || {
+        echo "unsupported checked-in configuration version '$version': $config" >&2
+        return 1
+      }
+      if "$BUILD_DIR/graphx" infra create "$config" --dry-run >/dev/null 2>&1; then
+        echo "version-1 infrastructure execution unexpectedly succeeded: $config" >&2
+        return 1
+      fi
+    fi
   done
-  "$BUILD_DIR/graphx" infra fault apply "$ROOT/examples/mixed-network/graphx.yaml" \
-    --router domain-router --interface mac --delay 20ms --jitter 3ms --loss 1% --dry-run >/dev/null
+  grep -q 'root netem' "$TMP_DIR/network-observability.plan"
+  grep -q 'duration-seconds=30' "$TMP_DIR/network-observability.plan"
+  grep -q 'auto-clear=identity-checked' "$TMP_DIR/network-observability.plan"
 
   step "Run the finite local TCP pipeline"
   export GRAPHX_CONFIG="$ROOT/graphx.yaml"
@@ -401,6 +420,14 @@ portable_isolated() (
 docker_suite() {
   local docker_http_port=${GRAPHX_DOCKER_TEST_HTTP_PORT:-28080}
   require docker
+  docker compose version >/dev/null || {
+    echo "Docker acceptance requires Docker Compose" >&2
+    return 2
+  }
+  docker info >/dev/null || {
+    echo "Docker acceptance requires a reachable engine for the selected context" >&2
+    return 2
+  }
   portable_isolated
   step "Validate and smoke-test the standard Compose deployment"
   export GRAPHX_PUBLISHED_HTTP_PORT=$docker_http_port
@@ -435,6 +462,7 @@ linux_network() {
     exit 2
   }
   export GRAPHX_BUILD_DIR="$BUILD_DIR"
+  export GRAPHX_BIN="$BUILD_DIR/graphx"
   step "Run native isolated UDP broadcast lab"
   if command -v dumpcap >/dev/null && command -v tshark >/dev/null; then
     GRAPHX_VERIFY_LIVE_CAPTURE=1 "$ROOT/examples/udp-broadcast/run-native-linux.sh"
@@ -446,17 +474,9 @@ linux_network() {
   "$ROOT/examples/udp-broadcast/down-native-linux.sh"
   for example in macvlan ipvlan-l2 ipvlan-l3 mixed-network; do
     step "Run native $example lab"
-    if test "$example" = mixed-network; then
-      "$ROOT/examples/$example/scripts/linux-up.sh"
-      "$ROOT/examples/$example/scripts/status.sh"
-      "$ROOT/examples/$example/scripts/fault.sh" apply
-      "$ROOT/examples/$example/scripts/fault.sh" clear
-      "$ROOT/examples/$example/scripts/linux-down.sh"
-    else
-      "$ROOT/examples/$example/scripts/up.sh"
-      "$ROOT/examples/$example/scripts/status.sh"
-      "$ROOT/examples/$example/scripts/down.sh"
-    fi
+    "$ROOT/examples/$example/scripts/up.sh"
+    "$ROOT/examples/$example/scripts/status.sh"
+    "$ROOT/examples/$example/scripts/down.sh"
   done
   step "Privileged Linux network suite passed"
 }

@@ -133,10 +133,44 @@ def main() -> int:
         fail("QEMU guest package license does not match the project license")
     for required in (
         "docs/GraphX_Architecture.md", "docs/GraphX_Architecture.docx",
-        "docs/adr/README.md", "verification_status.md",
+        "docs/adr/README.md", "docs/project-decisions.md",
+        "docs/archive/README.md",
     ):
         if required not in readme:
             fail(f"README does not link {required}")
+
+    agents = (root / "AGENTS.md").read_text(encoding="utf-8")
+    decisions = (root / "docs/project-decisions.md").read_text(encoding="utf-8")
+    manual = (root / "docs/manual-test-procedures.md").read_text(encoding="utf-8")
+    procedure = (root / "docs/test-procedure.md").read_text(encoding="utf-8")
+    if "docs/project-decisions.md" not in agents:
+        fail("AGENTS.md does not route agents to the current decision guide")
+    for required in ("OrbStack", "Lima", "system Open vSwitch", "Version 1"):
+        if required not in decisions:
+            fail(f"current decision guide omits {required}")
+    for retired in (
+        "Docker Desktop", "macos-up.sh", "macos-down.sh", "linux-up.sh",
+        "linux-down.sh", "scripts/fault.sh", "compose.ovs.yaml",
+        "graphx-ovs.yaml",
+    ):
+        if retired in manual:
+            fail(f"manual procedure names retired runtime or launcher: {retired}")
+    for required in (
+        "docker context use orbstack", "docker info", "infrastructure/lima/start.sh",
+        "examples/mixed-network/scripts/up.sh",
+    ):
+        if required not in manual:
+            fail(f"manual procedure omits current command: {required}")
+    if "docker context use orbstack" not in procedure or "docker info" not in procedure:
+        fail("short test procedure does not preflight OrbStack")
+    root_history = [
+        path.name for pattern in ("phase_*_handoff.md", "phase_*_verification.md", "migration_m*.md")
+        for path in root.glob(pattern)
+    ]
+    if root_history:
+        fail(f"historical phase records remain in repository root: {sorted(root_history)}")
+    if not (root / "docs/archive/ovs-migration/migration_m8_reverification.md").is_file():
+        fail("archive omits the terminal M8 verification record")
     print("documentation consistency checks passed")
     return 0
 

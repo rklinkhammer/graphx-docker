@@ -34,4 +34,5 @@ namespace/veth/TAP, nftables, netem, capture, and the portable baseline inside
 the VM. M2-M7 add configuration version 2, persistent ownership, container and
 namespace veth, QEMU TAP, policy, capture, and bounded faults. M8 makes this
 system-OVS lifecycle the sole GraphX network backend. Version-1 infrastructure
-is migration-only, and Docker Desktop is not a privileged network-lab backend.
+is migration-only. OrbStack is the supported macOS runtime for ordinary
+Compose applications; it is not a privileged network-lab backend.
