@@ -63,6 +63,11 @@ scripts/demo.sh logs
 
 If port 8080 is occupied, run
 `GRAPHX_PUBLISHED_HTTP_PORT=18080 scripts/demo.sh start` and use the printed URL.
+If a tunnel instead maps browser port 18080 to port 8080 on a remote Linux
+host, keep the Docker published port at 8080 and set
+`GRAPHX_ALLOWED_ORIGINS` to the exact browser-visible origin. See
+[`docs/complete-system-demo.md`](docs/complete-system-demo.md#forwarded-browser-port-versus-docker-published-port)
+for both port-mapping cases.
 
 Use `Ctrl-C` to leave the log view, then stop the system with:
 

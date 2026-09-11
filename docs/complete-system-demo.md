@@ -53,6 +53,42 @@ the command:
 GRAPHX_PUBLISHED_HTTP_PORT=18080 scripts/demo.sh start
 ```
 
+### Forwarded browser port versus Docker published port
+
+There are two different port-mapping cases. If Docker itself should publish
+host port 18080 to the telemetry container's port 8080, use:
+
+```sh
+GRAPHX_PUBLISHED_HTTP_PORT=18080 scripts/demo.sh start
+```
+
+Open <http://localhost:18080>. Compose uses the published port when constructing
+the default WebSocket origin allowlist.
+
+If GraphX remains published on port 8080 on a remote Linux host and SSH, an IDE,
+or another forwarding tool maps browser port 18080 to that remote port, the
+browser origin contains `18080`. Start GraphX on Linux with that exact
+browser-visible origin allowed:
+
+```sh
+GRAPHX_ALLOWED_ORIGINS="http://localhost:18080,http://127.0.0.1:18080" \
+  scripts/demo.sh start
+```
+
+For an SSH tunnel, run this on the browser machine:
+
+```sh
+ssh -N -L 18080:127.0.0.1:8080 user@linux-host
+```
+
+Then open <http://localhost:18080>. Do not change
+`GRAPHX_PUBLISHED_HTTP_PORT` for this case unless the remote end of the tunnel
+is changed too. `GRAPHX_ALLOWED_ORIGINS` must match the browser URL exactly,
+including scheme and port; use the externally visible HTTPS origin when a TLS
+reverse proxy terminates the browser connection. Supply a comma-separated list
+when more than one exact origin is needed. Restart the demo after changing the
+allowlist so the telemetry container receives the new environment.
+
 Authenticated source control is enabled automatically for the guided demo.
 Paste the token printed by `start` (or by the following command) into the
 console's **Control token** field:
@@ -154,7 +190,7 @@ Common causes:
 |---|---|
 | Port 8080 is already allocated, or the browser shows a repository directory | Another HTTP process owns port 8080. Stop it, or run `GRAPHX_PUBLISHED_HTTP_PORT=18080 scripts/demo.sh start` and open the printed URL. |
 | A service repeatedly exits | Read that service's logs; stale local images can be rebuilt with `docker compose build --no-cache`. |
-| Counts change only after a refresh | Recreate the telemetry container after updating `compose.yaml`; both `localhost` and `127.0.0.1` are allowed WebSocket origins. |
+| Counts change only after a refresh | The initial HTTP snapshot works but the WebSocket is disconnected. If the browser uses a forwarded port, hostname, or proxy URL, add that exact URL to `GRAPHX_ALLOWED_ORIGINS` and restart the demo; see [Forwarded browser port versus Docker published port](#forwarded-browser-port-versus-docker-published-port). |
 | Console says connecting | Verify `curl http://localhost:8080/api/health`, then reload the page. |
 | Console connects but waits for samples | Run `scripts/demo.sh verify`; inspect generator and transform logs for connection errors. |
 | Counters move but sink output is absent | Inspect the `transformed` edge and sink logs; the verify command reports this edge separately. |

@@ -143,6 +143,7 @@ def main() -> int:
     decisions = (root / "docs/project-decisions.md").read_text(encoding="utf-8")
     manual = (root / "docs/manual-test-procedures.md").read_text(encoding="utf-8")
     procedure = (root / "docs/test-procedure.md").read_text(encoding="utf-8")
+    complete_demo = (root / "docs/complete-system-demo.md").read_text(encoding="utf-8")
     if "docs/project-decisions.md" not in agents:
         fail("AGENTS.md does not route agents to the current decision guide")
     for required in ("OrbStack", "Lima", "system Open vSwitch", "Version 1"):
@@ -163,6 +164,17 @@ def main() -> int:
             fail(f"manual procedure omits current command: {required}")
     if "docker context use orbstack" not in procedure or "docker info" not in procedure:
         fail("short test procedure does not preflight OrbStack")
+    for required in (
+        "Forwarded browser port versus Docker published port",
+        'GRAPHX_ALLOWED_ORIGINS="http://localhost:18080,http://127.0.0.1:18080"',
+        "browser-visible origin",
+        "ssh -N -L 18080:127.0.0.1:8080 user@linux-host",
+    ):
+        if required not in complete_demo:
+            fail(f"complete demo omits forwarded WebSocket guidance: {required}")
+    normalized_manual = re.sub(r"\s+", " ", manual)
+    if "GRAPHX_ALLOWED_ORIGINS" not in manual or "local port 18080" not in normalized_manual:
+        fail("manual procedure omits forwarded WebSocket origin verification")
     root_history = [
         path.name for pattern in ("phase_*_handoff.md", "phase_*_verification.md", "migration_m*.md")
         for path in root.glob(pattern)

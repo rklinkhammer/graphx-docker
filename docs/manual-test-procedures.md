@@ -148,6 +148,21 @@ enabled. Then stop it:
 scripts/demo.sh stop
 ```
 
+When the browser reaches a remote Linux demo through a local port forward, the
+WebSocket allowlist must use the browser-visible origin. For example, for local
+port 18080 forwarded to Linux port 8080, start the remote demo with:
+
+```sh
+GRAPHX_ALLOWED_ORIGINS="http://localhost:18080,http://127.0.0.1:18080" \
+  scripts/demo.sh start
+```
+
+Then forward `18080` to remote `127.0.0.1:8080`, open
+<http://localhost:18080>, and require the console to show **LIVE** with counters
+advancing without refresh. The complete distinction between Docker port
+publishing and an external tunnel is documented in
+[`complete-system-demo.md`](complete-system-demo.md#forwarded-browser-port-versus-docker-published-port).
+
 Exercise the privileged network lifecycle in the dedicated Lima guest. Start
 and verify the environment from macOS:
 
