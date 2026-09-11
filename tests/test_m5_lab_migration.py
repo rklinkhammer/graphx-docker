@@ -104,7 +104,15 @@ def main() -> int:
             in sdr_compose,
             "external SDR services must be able to read invoking-user TLS credentials")
 
-    source = (root / "src/ownership.cpp").read_text()
+    source = "\n".join(
+        (root / path).read_text()
+        for path in (
+            "src/infra/lifecycle_coordinator.cpp",
+            "src/infra/namespace_resources.cpp",
+            "src/infra/endpoint_resources.cpp",
+            "src/infra/ovs_resources.cpp",
+        )
+    )
     for marker in ("linux_namespace", "create_namespace_endpoint", "create_mirror_endpoint",
                    "install_profile_flows", "net.ipv4.ip_forward=1", "nft", "ovs-ofctl"):
         require(marker in source, f"missing M5 realization marker: {marker}")

@@ -103,7 +103,13 @@ add_library(graphx
   src/envelope.cpp
   src/framing.cpp
   src/in_process_transport.cpp
+  src/infra/capture_resources.cpp
   src/infra/command_runner.cpp
+  src/infra/endpoint_resources.cpp
+  src/infra/fault_resources.cpp
+  src/infra/lifecycle_coordinator.cpp
+  src/infra/namespace_resources.cpp
+  src/infra/ovs_resources.cpp
   src/infra/ownership_lock.cpp
   src/infra/ownership_state.cpp
   src/infra.cpp
@@ -259,6 +265,13 @@ if(GRAPHX_BUILD_TESTS)
   graphx_enable_sanitizers(graphx-ownership-state-tests)
   add_test(NAME graphx-ownership-state COMMAND graphx-ownership-state-tests)
   set_tests_properties(graphx-ownership-state PROPERTIES TIMEOUT 15)
+  add_executable(graphx-resource-tests tests/test_resource_modules.cpp)
+  target_link_libraries(graphx-resource-tests PRIVATE graphx)
+  target_include_directories(graphx-resource-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+  graphx_enable_analysis(graphx-resource-tests)
+  graphx_enable_sanitizers(graphx-resource-tests)
+  add_test(NAME graphx-resource-modules COMMAND graphx-resource-tests)
+  set_tests_properties(graphx-resource-modules PROPERTIES TIMEOUT 15)
   add_executable(graphx-config-tests tests/test_config.cpp)
   target_link_libraries(graphx-config-tests PRIVATE graphx)
   graphx_enable_analysis(graphx-config-tests)

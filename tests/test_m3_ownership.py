@@ -81,6 +81,12 @@ def main() -> int:
         (root / path).read_text(encoding="utf-8")
         for path in (
             "src/ownership.cpp",
+            "src/infra/lifecycle_coordinator.cpp",
+            "src/infra/ovs_resources.cpp",
+            "src/infra/endpoint_resources.cpp",
+            "src/infra/namespace_resources.cpp",
+            "src/infra/capture_resources.cpp",
+            "src/infra/fault_resources.cpp",
             "src/infra/ownership_lock.cpp",
             "src/infra/ownership_state.cpp",
         )

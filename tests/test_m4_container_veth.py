@@ -76,7 +76,15 @@ def main() -> int:
         require(rejected.returncode != 0 and "deployment.project" in rejected.stderr,
                 "container attachments require explicit deployment identity")
 
-    source = (root / "src" / "ownership.cpp").read_text(encoding="utf-8")
+    source = "\n".join(
+        (root / path).read_text(encoding="utf-8")
+        for path in (
+            "src/infra/lifecycle_coordinator.cpp",
+            "src/infra/endpoint_resources.cpp",
+            "src/infra/ovs_resources.cpp",
+            "src/infra/ownership_state.cpp",
+        )
+    )
     for marker in ("com.docker.compose.project", "com.docker.compose.service", ".State.Pid",
                    "/ns/net", "namespace_inode", "peer_ifindex", "graphx_attachment",
                    "GRAPHX_M4_CRASH_AFTER", "missing-replaced-or-restarted",

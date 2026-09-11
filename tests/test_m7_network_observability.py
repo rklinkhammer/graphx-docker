@@ -58,7 +58,15 @@ def main() -> int:
         require(result.returncode != 0 and expected in result.stderr,
                 f"invalid M7 configuration was not rejected with {expected}: {result.stderr}")
 
-    ownership = (root / "src/ownership.cpp").read_text(encoding="utf-8")
+    ownership = "\n".join(
+        (root / path).read_text(encoding="utf-8")
+        for path in (
+            "src/infra/lifecycle_coordinator.cpp",
+            "src/infra/capture_resources.cpp",
+            "src/infra/fault_resources.cpp",
+            "src/infra/ownership_state.cpp",
+        )
+    )
     for marker in ("network_capture", "netem_fault", "GRAPHX_M7_CRASH_AFTER",
                    "GRAPHX_M7_FAIL_AFTER", "complete_pcapng_snapshot",
                    "prune_expired_capture_sessions",

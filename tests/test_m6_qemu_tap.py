@@ -78,7 +78,14 @@ def main() -> int:
     require("-netdev user" not in launcher and "docker compose" not in launcher,
             "the M6 launcher must not fall back to slirp or Docker networking")
 
-    ownership = (root / "src" / "ownership.cpp").read_text(encoding="utf-8")
+    ownership = "\n".join(
+        (root / path).read_text(encoding="utf-8")
+        for path in (
+            "src/infra/lifecycle_coordinator.cpp",
+            "src/infra/endpoint_resources.cpp",
+            "src/infra/ovs_resources.cpp",
+        )
+    )
     for marker in ("create_tap_endpoint", "tap_owner_matches", "ip\", \"tuntap\", \"add",
                    "AttachmentKind::qemu_tap", "configure_endpoint_vlan(endpoint)",
                    "GRAPHX_M6_CRASH_AFTER", "GRAPHX_M6_FAIL_AFTER"):
