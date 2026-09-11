@@ -1,0 +1,8 @@
+version: 1
+phase: M7
+graph_id: fixture-m7
+config_sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+owner_token: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+status: ready
+expected_bridges:
+  - br-fixture-m7

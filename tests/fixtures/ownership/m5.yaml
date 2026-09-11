@@ -1,0 +1,8 @@
+version: 1
+phase: M5
+graph_id: fixture-m5
+config_sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+owner_token: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+status: ready
+expected_bridges:
+  - br-fixture-m5

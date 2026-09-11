@@ -104,6 +104,8 @@ add_library(graphx
   src/framing.cpp
   src/in_process_transport.cpp
   src/infra/command_runner.cpp
+  src/infra/ownership_lock.cpp
+  src/infra/ownership_state.cpp
   src/infra.cpp
   src/migration.cpp
   src/network.cpp
@@ -248,6 +250,15 @@ if(GRAPHX_BUILD_TESTS)
   graphx_enable_sanitizers(graphx-command-runner-tests)
   add_test(NAME graphx-command-runner COMMAND graphx-command-runner-tests)
   set_tests_properties(graphx-command-runner PROPERTIES TIMEOUT 15)
+  add_executable(graphx-ownership-state-tests tests/test_ownership_state.cpp)
+  target_link_libraries(graphx-ownership-state-tests PRIVATE graphx)
+  target_include_directories(graphx-ownership-state-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+  target_compile_definitions(graphx-ownership-state-tests
+    PRIVATE GRAPHX_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+  graphx_enable_analysis(graphx-ownership-state-tests)
+  graphx_enable_sanitizers(graphx-ownership-state-tests)
+  add_test(NAME graphx-ownership-state COMMAND graphx-ownership-state-tests)
+  set_tests_properties(graphx-ownership-state PROPERTIES TIMEOUT 15)
   add_executable(graphx-config-tests tests/test_config.cpp)
   target_link_libraries(graphx-config-tests PRIVATE graphx)
   graphx_enable_analysis(graphx-config-tests)

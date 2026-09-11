@@ -77,7 +77,14 @@ def main() -> int:
         require(transactional.returncode != 0 and "always transactional" in transactional.stderr,
                 "v2 rejects redundant legacy transaction mode")
 
-    source = (root / "src" / "ownership.cpp").read_text(encoding="utf-8")
+    source = "\n".join(
+        (root / path).read_text(encoding="utf-8")
+        for path in (
+            "src/ownership.cpp",
+            "src/infra/ownership_lock.cpp",
+            "src/infra/ownership_state.cpp",
+        )
+    )
     for contract in (
         "LOCK_EX | LOCK_NB", "LOCK_SH | LOCK_NB", "O_NOFOLLOW", "config_sha256", "owner_token",
         "expected_bridges", "external_ids:graphx_owner", "_uuid",
