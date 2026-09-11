@@ -5,6 +5,11 @@ CMake, the generated C++ header, both JavaScript packages, release manifests,
 OCI labels, and tag validation derive from or must equal that value. Release tags
 are exactly `vMAJOR.MINOR.PATCH`; prerelease, build metadata, aliases, and a
 mutable `latest` image tag are intentionally unsupported by the current process.
+This document owns version support, deprecation, and breaking-change policy.
+Configuration fields and migration commands are defined in
+[`configuration-v2.md`](configuration-v2.md); the rationale for the normalized
+JSON boundary is recorded in
+[`ADR 0019`](adr/0019-versioned-normalized-configuration.md).
 
 ## Compatibility surfaces
 
@@ -31,6 +36,13 @@ Deprecations identify the affected surface, replacement, first deprecated
 version, and planned removal version. When practical, retain the old behavior for
 at least one subsequent minor release. Security fixes may shorten this period.
 Readers should be introduced before writers emit a new wire/config representation.
+
+Configuration version 1 remains readable by `validate`, `inspect`, `project`,
+`config normalize`, and `config migrate` through the next major GraphX release.
+Every infrastructure operation rejects version 1 before creating state or
+changing the host. Curated version-1 inputs under `examples/compatibility/v1/`
+are migration fixtures, not active examples. The retired Docker bridge,
+macvlan, and ipvlan realization is not available in the current binary.
 
 Release rollback never overwrites an artifact or moves a completed tag. Restore configuration
 and durable data from a pre-upgrade backup, deploy the previously verified digest,

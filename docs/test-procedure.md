@@ -1,7 +1,8 @@
 # GraphX test procedure
 
-This is the short testing entry point for developers and independent verifiers.
-Choose one profile, run one command, and retain the generated log. Detailed
+This document owns automated verification profiles, prerequisites, and focused
+reruns for developers and independent verifiers. Choose one profile, run one
+command, and retain the generated log. Detailed
 coverage, rationale, and manual diagnostics are in
 [`test-reference.md`](test-reference.md). Platform-specific interactive
 acceptance and cleanup steps are in
@@ -46,8 +47,7 @@ Portable tests isolate telemetry and web subprocesses from inherited `GRAPHX_*`
 deployment variables, so container-only secret paths cannot affect host tests.
 The configuration sweep validates and inspects every top-level example. It
 generates infrastructure dry-runs only for version-2 configurations and asserts
-that version-1 infrastructure execution is rejected, matching the M8
-compatibility boundary.
+that version-1 infrastructure execution is rejected before mutation.
 
 ### macOS LLVM 21 setup
 
@@ -205,7 +205,7 @@ GRAPHX_ALLOW_PRIVILEGED_TESTS=1 scripts/verify.sh native-linux
 
 The example scripts request sudo only for the operations that require it. Do not
 run the entire verification command as root. The profile requires dumpcap and
-tshark so a successful result includes Phase 11 live-capture and dissector
+tshark so a successful result includes live-capture and dissector
 evidence. Teardown helpers are safe to run twice.
 
 For a clean release commit:
@@ -218,57 +218,25 @@ The release profile creates uniquely named build and output directories. It
 does not publish anything and does not permit the development-only
 `--allow-dirty` override.
 
-## Focused tests and examples
+## Focused automated tests
 
 Use a focused command while diagnosing a failure, then rerun the applicable
-profile before recording acceptance. The profile scripts already exercise the
-standard bridge demo, shared-memory, UDP unicast/multicast, and—in Docker mode—
-the isolated UDP broadcast example. Interactive examples remain valuable for
-GUI, capture, accelerator, and platform-specific evidence.
+profile before recording acceptance:
 
-| Area | Focused command | Platform and reference |
-|---|---|---|
-| One CTest | `ctest --test-dir build/dev -R '<test-name>' --output-on-failure` | macOS/Linux; list names with `ctest --test-dir build/dev -N` |
-| Standard GUI demo | `scripts/demo.sh start`, then `scripts/demo.sh verify` and `scripts/demo.sh stop` | macOS/Linux; [`complete-system-demo.md`](complete-system-demo.md) |
-| Shared memory | `GRAPHX_BUILD_DIR="$PWD/build/dev" examples/shared-memory/run.sh` | macOS/Linux; [`shared-memory`](../examples/shared-memory/README.md) |
-| UDP unicast | `GRAPHX_BUILD_DIR="$PWD/build/dev" examples/udp-unicast/run.sh` | macOS/Linux; [`UDP guide`](udp-transport.md) |
-| UDP multicast | `GRAPHX_BUILD_DIR="$PWD/build/dev" examples/udp-multicast/run.sh` | macOS/Linux; [`UDP guide`](udp-transport.md) |
-| UDP broadcast | `examples/udp-broadcast/run.sh` | Docker on macOS/Linux; [`broadcast example`](../examples/udp-broadcast/README.md) |
-| Native UDP broadcast | `GRAPHX_VERIFY_LIVE_CAPTURE=1 examples/udp-broadcast/run-native-linux.sh` | Native Linux only; use `down-native-linux.sh` afterward |
-| External QEMU | `examples/qemu-node/external/scripts/demo.sh start --accel auto`, then `verify` and `stop` | macOS/Linux; [`QEMU guide`](qemu-demos.md) |
-| Container QEMU | `examples/qemu-node/container/scripts/demo.sh start --accel kvm` | Native Linux, operator-run; [`QEMU guide`](qemu-demos.md) |
-| Simulated SDR | `examples/sdr-node/simulated/scripts/demo.sh start`, then `verify` and `stop` | Docker on macOS/Linux; [`SDR guide`](../examples/sdr-node/README.md) |
-| External SDR + OVS/SPAN | `examples/sdr-node/external/scripts/demo.sh start`, then `verify` and `stop` | Native Linux only; creates fixed disposable host resources |
-| Static route/policy | `examples/static-route-policy/scripts/demo.sh start`, then `verify`, `apply-route`, `clear-route`, and `stop` twice | Native Linux only; [`route/policy guide`](../examples/static-route-policy/README.md) |
-| macOS OVS runtime | Start and verify Lima, then run the canonical lab inside it | Apple Silicon + Lima; [`network guide`](network-infrastructure.md) |
-| OVS semantic-network labs | `scripts/network-lab.sh <lab> up`, where `<lab>` is `macvlan`, `ipvlan-l2`, or `ipvlan-l3` | Native Linux or Apple Silicon macOS through Lima; always run the matching `down` action |
-| Mixed OVS network | `scripts/network-lab.sh mixed-network up` | Native Linux or Apple Silicon macOS through Lima; run `down` afterward |
+```sh
+ctest --test-dir build/dev -N
+ctest --test-dir build/dev -R '<test-name>' --output-on-failure
+npm test --prefix apps/telemetry
+npm test --prefix web
+```
 
-The `full` profile runs QEMU configuration, parser, history, QMP simulation, and
-Compose-model tests, but it does not boot a guest. Before accepting QEMU changes,
-build the shared guest and run the external profile on macOS or Linux. On native
-Linux, also follow the TCG, KVM, automatic-selection, denial, capture/history,
-control, and cleanup procedure in [`qemu-demos.md`](qemu-demos.md#manual-linux-acceptance-procedure).
-
-Phase 13 portable acceptance additionally requires running the simulated SDR
-workflow on both macOS and Linux. `native-linux` includes its external SDR
-OVS/SPAN start/verify/stop gate after the existing network labs. This proves the
-namespace simulator and attachment path, not a physical radio. Review the
-physical ownership contract in the SDR guide before any manual adaptation.
-
-Phase 14 portable acceptance validates the static-route configuration, manual
-route command generation, bounded probe parser, telemetry projection, and GUI
-mapping. Its native routing verdict is a separate operator gate: follow the
-example README through two complete baseline/apply/clear/stop cycles and the
-adversarial checks archived in
-[`phase_14_verification.md`](archive/legacy-phases/phase_14_verification.md). Do not report dry-run output as OVS,
-nftables, route-table, capture, or packet-delivery evidence.
-
-For the browser topology, control tokens, history, and capture workflow across
-the graphical examples, follow
-[`graphical-examples-guide.md`](graphical-examples-guide.md). For exact expected
-results, negative tests, Linux cleanup, and packet-capture diagnostics, use
-[`test-reference.md`](test-reference.md).
+The profiles exercise the portable process pipelines, checked-in
+configurations, telemetry service, console, and Docker acceptance appropriate
+to the selected profile. They do not turn a dry-run into OVS, packet-delivery,
+capture, QEMU, or KVM evidence. Runnable workflows belong in
+[`demo-guide.md`](demo-guide.md); platform-specific interactive evidence and
+cleanup belong in [`manual-test-procedures.md`](manual-test-procedures.md);
+exact low-level expectations remain in [`test-reference.md`](test-reference.md).
 
 ## Independent verification
 

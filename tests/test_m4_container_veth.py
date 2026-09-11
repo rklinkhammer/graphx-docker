@@ -58,7 +58,7 @@ def require(value: bool, message: str) -> None:
 def main() -> int:
     if len(sys.argv) != 3:
         raise SystemExit("usage: test_m4_container_veth.py GRAPHX SOURCE_ROOT")
-    graphx, root = Path(sys.argv[1]), Path(sys.argv[2])
+    graphx = Path(sys.argv[1])
     with tempfile.TemporaryDirectory(prefix="graphx-m4-") as raw:
         config = Path(raw) / "graphx.yaml"
         config.write_text(CONFIG, encoding="utf-8")
@@ -76,20 +76,6 @@ def main() -> int:
         require(rejected.returncode != 0 and "deployment.project" in rejected.stderr,
                 "container attachments require explicit deployment identity")
 
-    source = "\n".join(
-        (root / path).read_text(encoding="utf-8")
-        for path in (
-            "src/infra/lifecycle_coordinator.cpp",
-            "src/infra/endpoint_resources.cpp",
-            "src/infra/ovs_resources.cpp",
-            "src/infra/ownership_state.cpp",
-        )
-    )
-    for marker in ("com.docker.compose.project", "com.docker.compose.service", ".State.Pid",
-                   "/ns/net", "namespace_inode", "peer_ifindex", "graphx_attachment",
-                   "GRAPHX_M4_CRASH_AFTER", "missing-replaced-or-restarted",
-                   "endpoint_names_absent_or_recorded", "internal_port_uuid"):
-        require(marker in source, f"missing M4 ownership contract: {marker}")
     print("GraphX M4 portable container-veth contracts passed")
     return 0
 

@@ -9,7 +9,7 @@
 4. Install into a new prefix or deploy the exact new OCI digest. Do not overwrite
    the known-good artifact. Run health, readiness, traffic, telemetry, control,
    and capture canaries relevant to the deployment.
-5. Promote gradually and monitor the Phase 6 SLOs and Phase 8 audit stream.
+5. Promote gradually and monitor the configured SLOs and control audit stream.
 
 If validation fails, stop new traffic, drain where possible, deploy the previously
 recorded artifact/digest, restore the saved configuration and any pre-migration
@@ -20,8 +20,8 @@ explicitly documented. Preserve logs and manifests for diagnosis.
 ## Configuration version 1 to version 2
 
 Version 1 remains accepted for validation, inspection, projection, normalization, and migration
-through the next major release. M8 rejects all version-1 infrastructure
-execution; the Docker bridge, macvlan, and ipvlan realization is retired. To
+through the next major release. Current binaries reject all version-1
+infrastructure execution; the Docker bridge, macvlan, and ipvlan realization is retired. To
 prepare a reviewed version-2 copy without changing the source:
 
 ```sh
@@ -44,7 +44,8 @@ execution, but do not expect them to be encoded into a migrated document.
 
 Keep the original version-1 file unchanged. Before rollout, rollback is simply
 abandoning the candidate. After rollout, rollback requires the previously
-recorded GraphX release plus the saved version-1 configuration; an M8 binary
+recorded GraphX release plus the saved version-1 configuration; the current binary
 will not recreate the retired Docker data plane. Do not hand-edit the version
 number or translate profiles back into Docker drivers. See
-[`m8-compatibility.md`](m8-compatibility.md).
+[`configuration-v2.md`](configuration-v2.md) and
+[`compatibility-policy.md`](compatibility-policy.md).

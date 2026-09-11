@@ -126,7 +126,7 @@ def create_diagrams():
     arrow(d, (1540, 485), (1480, 675)); arrow(d, (1580, 750), (1600, 750))
     d.text((65, 650), "samples edge: crosses two L2 domains and a router", fill="#17324D", font=font(27, True))
     d.text((65, 705), "transformed edge: stays inside the IPvlan domain", fill="#17324D", font=font(27, True))
-    d.text((65, 875), "Native Linux is the semantic reference. Docker Desktop substitutes bridge domains and userspace OVS.", fill="#465564", font=font(24))
+    d.text((65, 875), "Native Linux is the host reference. Apple Silicon macOS runs the same system-OVS lab in Lima.", fill="#465564", font=font(24))
     image.save(ASSETS / "mixed-network-path.png", quality=95)
 
     image, d = canvas("IPvlan L2: three switched domains and one router")
@@ -148,7 +148,7 @@ def create_diagrams():
     profiles = (
         (55, "External compatibility", "Host QEMU + slirp", "macOS or Linux\nQMP + guest probes"),
         (630, "Container compatibility", "QEMU container", "non-root; KVM or TCG\nslirp + relay"),
-        (1205, "M6 TAP and OVS", "Non-root QEMU", "owned TAP + VLAN\nQMP + OVS SPAN"),
+        (1205, "Primary TAP and OVS", "Non-root QEMU", "owned TAP + VLAN\nQMP + OVS SPAN"),
     )
     for offset, heading, middle_title, middle_sub in profiles:
         d.text((offset, 165), heading, fill="#17324D", font=font(27, True))
@@ -157,7 +157,7 @@ def create_diagrams():
         arrow(d, (offset+190, 305), (offset+225, 305))
         rounded_box(d, (offset+55, 515, offset+465, 695), "Passive packet observer", "network_packet telemetry\nEthernet PCAPNG + packet SQLite", "#F3F5F7", "#687482")
         arrow(d, (offset+370, 400), (offset+300, 515))
-    d.text((75, 830), "Same x86_64 guest and TCP/UDP application • M6 moves the primary data plane to GraphX-owned OVS", fill="#465564", font=font(27, True))
+    d.text((75, 830), "Same x86_64 guest and TCP/UDP application • the primary data plane uses GraphX-owned OVS", fill="#465564", font=font(27, True))
     image.save(ASSETS / "qemu-profiles.png", quality=95)
 
     image, d = canvas("Observation evidence to operator interfaces")

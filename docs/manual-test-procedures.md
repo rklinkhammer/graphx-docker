@@ -1,7 +1,8 @@
 # Manual test procedures for macOS and Linux
 
-This runbook turns the automated GraphX profiles into repeatable operator
-acceptance procedures. It complements the profile summary in
+This runbook owns platform-specific interactive evidence and cleanup. It turns
+the automated GraphX profiles into repeatable operator acceptance procedures
+without redefining their test inventory. It complements the profile summary in
 [`test-procedure.md`](test-procedure.md) and the exhaustive expected-result
 reference in [`test-reference.md`](test-reference.md). Use the consolidated
 [`demo guide`](demo-guide.md) when the objective is exploration rather than an
@@ -183,7 +184,7 @@ scripts/network-lab.sh mixed-network status
 scripts/network-lab.sh mixed-network down
 ```
 
-For the complete M8 Linux/Lima regression, keep build and runtime artifacts on
+For the complete Linux/Lima network regression, keep build and runtime artifacts on
 the guest-native filesystem:
 
 ```sh
@@ -206,7 +207,7 @@ examples/sdr-node/simulated/scripts/demo.sh stop
 
 Confirm raw UDP sample, mTLS control, and raw result edges update in the GUI;
 packet history and Ethernet capture must remain distinct from GraphX message
-history. Inspect the Phase 14 model without claiming native routing evidence:
+history. Inspect the route-policy model without claiming native routing evidence:
 
 ```sh
 examples/static-route-policy/scripts/inspect.sh
@@ -330,18 +331,24 @@ capture/history, and marker-checked cleanup as documented in the
 The static-route/policy lab requires two complete cycles:
 
 ```sh
-examples/static-route-policy/scripts/demo.sh start
-examples/static-route-policy/scripts/demo.sh verify
+examples/static-route-policy/scripts/demo.sh up
+examples/static-route-policy/scripts/demo.sh status
+sudo ip netns exec gx-route-left-end ping -c 1 -W 1 10.64.2.10
+! sudo ip netns exec gx-route-middle-end ping -c 1 -W 1 10.64.1.10
+! sudo ip netns exec gx-route-left-end ping -c 1 -W 1 10.64.30.10
+sudo ip netns exec gx-route-router nft list chain inet graphx forward
 examples/static-route-policy/scripts/demo.sh apply-route
+sudo ip netns exec gx-route-router ip route show 10.64.30.10/32
+sudo ip netns exec gx-route-left-end ping -c 1 -W 1 10.64.30.10
 examples/static-route-policy/scripts/demo.sh clear-route
-examples/static-route-policy/scripts/demo.sh stop
+examples/static-route-policy/scripts/demo.sh down
 ```
 
-For each cycle, prove receiver-confirmed allowed delivery, receiver absence plus
-an advancing named nftables counter for denied traffic, exact kernel-route
-absence/presence for the route transition, readable mirrored capture, live GUI
-state changes, and preservation of unrelated canary resources. The historical
-Phase 14 failure-injection record is archived at
+Repeat the complete sequence once. For each cycle, prove allowed delivery, the
+expected denied and missing-route failures, an advancing named nftables counter,
+the exact kernel-route transition, and preservation of unrelated canary
+resources. The historical GUI, receiver, capture, and failure-injection record
+from the retired launcher is archived at
 [`archive/legacy-phases/phase_14_verification.md`](archive/legacy-phases/phase_14_verification.md).
 
 ### 4.5 Linux cleanup audit

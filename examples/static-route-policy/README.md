@@ -1,14 +1,13 @@
 # Static-route and policy laboratory
 
-This M8 laboratory uses system OVS domains, veth-attached containers, one Linux
+This laboratory uses system OVS domains, veth-attached containers, one Linux
 router namespace, nftables policy, a mirror, and an explicitly manual route.
 Compose provides management connectivity only.
 
 ```sh
-examples/static-route-policy/scripts/demo.sh plan
 examples/static-route-policy/scripts/demo.sh up
+examples/static-route-policy/scripts/demo.sh status
 examples/static-route-policy/scripts/demo.sh apply-route
-examples/static-route-policy/scripts/demo.sh verify
 examples/static-route-policy/scripts/demo.sh clear-route
 examples/static-route-policy/scripts/demo.sh down
 ```

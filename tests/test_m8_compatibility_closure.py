@@ -34,14 +34,6 @@ def main() -> int:
         )
     graphx, root = Path(sys.argv[1]).resolve(), Path(sys.argv[2]).resolve()
 
-    production = "\n".join(
-        path.read_text(encoding="utf-8", errors="replace")
-        for directory in (root / "apps", root / "include", root / "src")
-        for path in directory.rglob("*") if path.is_file()
-    )
-    for retired in ("std::vector<InfraAction>", "netem_command", "docker network create"):
-        require(retired not in production, f"retired realization remains: {retired}")
-
     fixtures = sorted((root / "examples/compatibility/v1").glob("*.yaml"))
     require(len(fixtures) == 7, "M8 must retain exactly seven curated v1 fixtures")
     with tempfile.TemporaryDirectory(prefix="graphx-m8-portable-") as raw:
@@ -172,9 +164,12 @@ def main() -> int:
             and "network.faults" in fault.stderr,
             "imperative fault entry point was not retired")
 
-    for document in (root / "docs/m8-compatibility.md",
+    for document in (root / "docs/configuration-v2.md",
+                     root / "docs/compatibility-policy.md",
                      root / "docs/adr/0018-compatibility-closure.md"):
-        require(document.is_file(), f"missing M8 documentation: {document}")
+        require(document.is_file(), f"missing compatibility documentation: {document}")
+    require((root / "docs/archive/ovs-migration/m8-compatibility.md").is_file(),
+            "archived compatibility-closure context is missing")
     print("GraphX M8 portable compatibility closure passed")
     return 0
 

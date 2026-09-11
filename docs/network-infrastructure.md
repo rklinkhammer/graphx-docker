@@ -98,7 +98,7 @@ application/expiry deadline. Status reports `active` until automatic expiry and
 `expired` afterward. A missing timer/qdisc before the recorded deadline, a boot
 change, or an unrelated replacement qdisc fails closed.
 
-The earlier imperative `graphx infra fault` command was retired in M8. Faults
+The imperative `graphx infra fault` command is retired. Faults
 must be declared under `network.faults` so duration, interface identity, qdisc
 state, timers, rollback, and recovery use the same fail-closed lifecycle.
 
@@ -106,7 +106,7 @@ Each OVS bridge may expose an owned SPAN output. Use the declarative capture
 configuration and `infra capture export` rather than attaching an untracked
 capture process to the live interface.
 
-See `examples/network-observability` for the M7 declarative form.
+See `examples/network-observability` for the declarative form.
 
 ## macOS execution model
 
@@ -116,6 +116,6 @@ namespaces, veth/TAP, QEMU, ownership ledgers, captures, and faults stay inside
 that VM. The source checkout is the only writable host mount. No Docker or OVS
 socket is forwarded to macOS.
 
-The Docker Desktop userspace-OVS simulation and its privileged container image
-were removed in M8. This avoids presenting an approximate Docker bridge topology
-as evidence for the system-OVS data plane. See `docs/m8-compatibility.md`.
+The retired userspace-OVS simulation and its privileged container image are not
+supported. An approximate container bridge topology is not evidence for the
+system-OVS data plane. See `docs/project-decisions.md`.

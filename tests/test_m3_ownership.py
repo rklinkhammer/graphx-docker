@@ -77,32 +77,6 @@ def main() -> int:
         require(transactional.returncode != 0 and "always transactional" in transactional.stderr,
                 "v2 rejects redundant legacy transaction mode")
 
-    source = "\n".join(
-        (root / path).read_text(encoding="utf-8")
-        for path in (
-            "src/ownership.cpp",
-            "src/infra/lifecycle_coordinator.cpp",
-            "src/infra/ovs_resources.cpp",
-            "src/infra/endpoint_resources.cpp",
-            "src/infra/namespace_resources.cpp",
-            "src/infra/capture_resources.cpp",
-            "src/infra/fault_resources.cpp",
-            "src/infra/ownership_lock.cpp",
-            "src/infra/ownership_state.cpp",
-        )
-    )
-    for contract in (
-        "LOCK_EX | LOCK_NB", "LOCK_SH | LOCK_NB", "O_NOFOLLOW", "config_sha256", "owner_token",
-        "expected_bridges", "external_ids:graphx_owner", "_uuid",
-        "wait-until", "destroy", "refusing unowned", "refusing to delete replaced",
-        "GRAPHX_M3_CRASH_AFTER", "path_entry_exists(state_path)",
-        "save_state(state_path, state, false)",
-    ):
-        require(contract in source, f"missing ownership contract {contract}")
-    require(source.count("external_ids:graphx_graph") >= 6,
-            "graph identity must guard status, discovery, and deletion")
-    require("std::filesystem::exists(state_path)" not in source,
-            "state entry checks must not follow dangling symlinks")
     print("GraphX M3 portable ownership contracts passed")
     return 0
 

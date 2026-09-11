@@ -1,10 +1,27 @@
 # GraphX current project decisions
 
 This is the concise current-state guide for maintainers and coding agents. It
-consolidates the decisions that survived the legacy feature phases and the
-completed M0–M8 network migration. Historical reasoning and evidence remain in
+defines the invariants that apply to new code, tests, examples, and operational
+guidance. Historical reasoning and evidence remain in
 [`archive/`](archive/README.md); accepted architectural rationale remains in
 [`adr/`](adr/README.md).
+
+## Documentation ownership
+
+Each maintained document has one role. Link to the owner instead of copying its
+procedures or rationale into another guide.
+
+| Document | Owns | Does not own |
+| --- | --- | --- |
+| `project-decisions.md` | Current mandatory invariants | Historical rationale or command walkthroughs |
+| `adr/` | Durable architectural rationale and consequences | Current operator procedures |
+| `GraphX_Architecture.md` | Current component relationships and system limits | Migration chronology or verification commands |
+| `configuration-v2.md` | Authoritative version-2 and normalized-contract reference | Compatibility policy rationale |
+| `compatibility-policy.md` | Supported versions, deprecation, and breaking-change rules | Configuration field reference |
+| `test-procedure.md` | Automated verification profiles and prerequisites | Interactive demonstrations |
+| `manual-test-procedures.md` | Platform-specific manual evidence and cleanup | Automated test catalog or demo tutorial |
+| `demo-guide.md` | Runnable user workflows and expected outcomes | Release acceptance policy |
+| `archive/` | Completed and superseded plans and evidence | Instructions for current work |
 
 ## Runtime boundaries
 

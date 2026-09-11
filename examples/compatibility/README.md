@@ -1,6 +1,6 @@
 # Compatibility examples
 
-`v1/` contains the curated configuration-version-1 inputs retained by M8.
+`v1/` contains the curated configuration-version-1 migration inputs.
 They exist only to validate, inspect, project, and deterministically migrate old
 topologies. GraphX no longer realizes infrastructure from version 1.
 
@@ -13,4 +13,6 @@ graphx infra create /tmp/macvlan-v2.yaml --dry-run
 ```
 
 Review the generated semantic profiles, OVS switches, and veth/TAP attachments
-before using the migrated file. See [`../../docs/m8-compatibility.md`](../../docs/m8-compatibility.md).
+before using the migrated file. See
+[`../../docs/configuration-v2.md`](../../docs/configuration-v2.md) and
+[`../../docs/compatibility-policy.md`](../../docs/compatibility-policy.md).

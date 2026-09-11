@@ -1,15 +1,19 @@
 # GraphX configuration version 2
 
-Configuration version 2 is the explicit semantic boundary for the OVS
-migration. Version 1 remains accepted for validation, inspection, projection,
+Configuration version 2 is the only format accepted for infrastructure
+mutation. Version 1 remains accepted for validation, inspection, projection,
 normalization, and deterministic migration with its original Docker `bridge`/`macvlan`/`ipvlan`
-driver meaning, but M8 rejects every infrastructure action. Version 2 never accepts `driver`,
+driver meaning, but every version-1 infrastructure action is rejected before
+mutation. Version 2 never accepts `driver`,
 `parent`, `mode`, `network.interfaces`, or `deployment.network`; it uses
 semantic profiles and explicit attachments instead.
 
-M2 defines and validates intent. M3-M7 add identity-safe OVS, veth/TAP,
-route/policy, mirror capture, and bounded fault realization. M8 removes the
-legacy Docker network planner. A version-2 file is never routed through it.
+The current runtime realizes version-2 intent through identity-safe OVS,
+container veth pairs, QEMU TAP devices, namespace routing and policy, mirror
+capture, and bounded timed faults. A version-2 file never enters the legacy
+Docker network planner. Compatibility duration and breaking-change rules are
+defined in [`compatibility-policy.md`](compatibility-policy.md); architectural
+rationale is recorded in ADRs 0017 through 0019.
 
 ## Semantic profiles
 
@@ -54,7 +58,7 @@ kinds are:
   veth pair;
 - `namespace_veth`: a Linux namespace router; address, interface, peer, and
   switch are required;
-- `qemu_tap`: a node whose runtime is `qemu`; TAP creation is delivered in M6;
+- `qemu_tap`: a node whose runtime is `qemu`; GraphX creates and owns its TAP;
 - `external`: a graph node whose endpoint lifecycle is outside the generic
   attachment pipeline;
 - `mirror`: an OVS switch observation port. It has no network, address, MAC, or
@@ -116,8 +120,9 @@ node interfaces map to `external`. Unsupported or ambiguous legacy fields,
 non-system OVS switches, oversized generated IDs, and attachment-ID collisions
 fail with a diagnostic instead of guessing.
 
-The migration does not change the source file or claim that M4–M6 realization
-exists. Review the resulting profiles and attachment kinds before adopting it.
+The migration does not change the source file or prove that the target host can
+realize its OVS resources. Review the resulting profiles and attachment kinds,
+then run the applicable verification profile before adopting it.
 
 ## Normalized configuration contract
 

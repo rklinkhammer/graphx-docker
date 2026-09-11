@@ -1,7 +1,7 @@
 # GraphX demonstrations and examples
 
-This guide explains what each runnable scenario demonstrates, how to run it,
-what success looks like, and how to clean it up. Commands are run from the
+This guide owns runnable user workflows: what each scenario demonstrates, how
+to run it, what success looks like, and how to clean it up. Commands are run from the
 repository root. For formal platform acceptance, use
 [`manual-test-procedures.md`](manual-test-procedures.md); for exact negative
 tests and low-level diagnostics, use [`test-reference.md`](test-reference.md).
@@ -25,8 +25,8 @@ tests and low-level diagnostics, use [`test-reference.md`](test-reference.md).
 | External QEMU compatibility | Host VM plus telemetry GUI over user networking | macOS/Linux + Docker | `examples/qemu-node/external/scripts/demo.sh start --accel auto` |
 | Container QEMU | Least-privilege nested VM with TCG/KVM proof | Native Linux x86_64 | `examples/qemu-node/container/scripts/demo.sh start --accel auto` |
 | Simulated SDR | Raw IQ, mTLS device control, packet history and GUI | macOS/Linux + Docker | `examples/sdr-node/simulated/scripts/demo.sh start` |
-| External SDR | Namespace SDR through macvlan and OVS/SPAN | Native Linux | `examples/sdr-node/external/scripts/demo.sh start` |
-| Static route/policy | Allowed, denied, missing-route, and route-applied states | Native Linux | `examples/static-route-policy/scripts/demo.sh start` |
+| External SDR | Namespace SDR through macvlan and OVS/SPAN | Native Linux | `examples/sdr-node/external/scripts/demo.sh up` |
+| Static route/policy | Allowed, denied, missing-route, and route-applied states | Native Linux | `examples/static-route-policy/scripts/demo.sh up` |
 | Route/policy inspection | Validation and exact command plans only | macOS/Linux | `examples/static-route-policy/scripts/inspect.sh` |
 
 The root demo is the recommended first run. Local transport examples isolate one
@@ -372,8 +372,8 @@ The first ping proves the allowed path. The second must fail while advancing the
 named `deny-middle-left` nftables counter, and the third must fail because the
 manual route is absent. After `apply-route`, inspect the exact declared kernel
 route and require the final ping to succeed. Cleanup checks ownership before
-deleting fixed names. Historical GUI, receiver, and capture evidence from the
-retired pre-M8 launcher remains under `docs/archive/` and is not produced by
+deleting fixed names. Historical GUI, receiver, and capture evidence from
+retired launchers remains under `docs/archive/` and is not produced by
 this current infrastructure laboratory.
 
 ## 8. Common options, evidence, and cleanup

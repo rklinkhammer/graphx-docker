@@ -79,13 +79,13 @@ def main() -> int:
         fail("architecture baseline does not match VERSION")
     normalized_architecture = re.sub(r"\s+", " ", architecture)
     for required in (
-        "M5 adds owned router namespaces",
-        "semantic profile flows",
-        "M6 adds GraphX-owned TAP lifecycle",
-        "M7 adds bounded declarative Ethernet capture",
+        "Version 2 uses one persistent ownership lifecycle",
+        "semantic-profile flows",
+        "GraphX-owned persistent TAP",
+        "Ethernet mirror capture",
     ):
         if required not in normalized_architecture:
-            fail(f"architecture does not describe the accepted M5 boundary: {required}")
+            fail(f"architecture does not describe the current boundary: {required}")
     architecture_docx = root / "docs" / "GraphX_Architecture.docx"
     with zipfile.ZipFile(architecture_docx) as archive:
         document = ElementTree.fromstring(archive.read("word/document.xml"))
@@ -93,9 +93,10 @@ def main() -> int:
     docx_text = re.sub(r"\s+", " ", " ".join(
         node.text or "" for node in document.iter(f"{word_namespace}t")
     ))
-    for required in ("M5 adds owned router namespaces", "M6 adds GraphX-owned TAP lifecycle"):
+    for required in ("Version 2 uses one persistent ownership lifecycle",
+                     "GraphX-owned persistent TAP"):
         if required not in docx_text:
-            fail(f"editable architecture document is stale at M5: {required}")
+            fail(f"editable architecture document is stale: {required}")
     license_inventory = (root / "docs" / "release-license-inventory.md").read_text(
         encoding="utf-8")
     if f"# GraphX {version} release license inventory" not in license_inventory:
@@ -146,6 +147,10 @@ def main() -> int:
     complete_demo = (root / "docs/complete-system-demo.md").read_text(encoding="utf-8")
     if "docs/project-decisions.md" not in agents:
         fail("AGENTS.md does not route agents to the current decision guide")
+    for required in ("## Documentation ownership", "Automated verification profiles",
+                     "Platform-specific manual evidence", "Runnable user workflows"):
+        if required not in decisions:
+            fail(f"current decision guide omits documentation ownership: {required}")
     for required in ("OrbStack", "Lima", "system Open vSwitch", "Version 1"):
         if required not in decisions:
             fail(f"current decision guide omits {required}")
@@ -191,6 +196,12 @@ def main() -> int:
                 fail(f"demo guide omits cross-platform network-lab command: {command}")
     if "OrbStack is not involved" not in demo_guide or "infrastructure/lima/verify.sh" not in demo_guide:
         fail("demo guide does not explain the macOS Lima network-lab boundary")
+    for command in (
+        "examples/sdr-node/external/scripts/demo.sh up",
+        "examples/static-route-policy/scripts/demo.sh up",
+    ):
+        if command not in demo_guide:
+            fail(f"demo guide names an obsolete lifecycle action instead of: {command}")
     for required in (
         "examples/qemu-node/scripts/demo.sh start",
         "examples/qemu-node/scripts/demo.sh verify",
@@ -213,6 +224,22 @@ def main() -> int:
         fail(f"historical phase records remain in repository root: {sorted(root_history)}")
     if not (root / "docs/archive/ovs-migration/migration_m8_reverification.md").is_file():
         fail("archive omits the terminal M8 verification record")
+    if (root / "docs/m8-compatibility.md").exists():
+        fail("phase-specific compatibility guide remains active instead of archived")
+    if not (root / "docs/archive/ovs-migration/m8-compatibility.md").is_file():
+        fail("archive omits the original compatibility-closure guide")
+
+    phase_tests = (
+        "test_m3_ownership.py", "test_m4_container_veth.py",
+        "test_m5_lab_migration.py", "test_m6_qemu_tap.py",
+        "test_m7_network_observability.py", "test_m8_compatibility_closure.py",
+    )
+    for name in phase_tests:
+        text = (root / "tests" / name).read_text(encoding="utf-8")
+        for implementation_path in ('"src/', 'root / "src"', 'root / "apps"',
+                                    'root / "include"'):
+            if implementation_path in text:
+                fail(f"{name} inspects implementation text through {implementation_path}")
     print("documentation consistency checks passed")
     return 0
 
