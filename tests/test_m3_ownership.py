@@ -36,7 +36,7 @@ def main() -> int:
         config = temporary / "mixed-v2.yaml"
         migrated = run(
             graphx, "config", "migrate",
-            root / "examples" / "mixed-network" / "graphx.yaml",
+            root / "examples" / "compatibility" / "v1" / "mixed-network.yaml",
         ).stdout
         config.write_text(migrated, encoding="utf-8")
         state = temporary / "state"

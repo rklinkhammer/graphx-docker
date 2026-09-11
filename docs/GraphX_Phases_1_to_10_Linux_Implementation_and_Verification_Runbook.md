@@ -560,16 +560,18 @@ cleanup.
 For deeper mixed-network evidence:
 
 ```bash
-examples/mixed-network/scripts/linux-up.sh
+examples/mixed-network/scripts/up.sh
 examples/mixed-network/scripts/status.sh
-examples/mixed-network/scripts/fault.sh apply
+./build/dev/graphx infra create examples/network-observability/graphx.yaml --dry-run
 sudo tc qdisc show > "$EVIDENCE/tc-applied.txt"
-examples/mixed-network/scripts/fault.sh clear
-examples/mixed-network/scripts/capture.sh mac captures/mixed-mac.pcapng
-examples/mixed-network/scripts/linux-down.sh
+# Faults are bounded declarations under network.faults in version 2.
+sudo ./build/dev/graphx infra capture export \
+  examples/network-observability/graphx.yaml --capture ethernet-span \
+  --output "$EVIDENCE/ethernet-span.pcapng"
+examples/mixed-network/scripts/down.sh
 ```
 
-Capture commands wait for traffic; run them in another terminal and stop them
+The export copies one complete bounded PCAPNG snapshot; inspect it
 with `Ctrl-C` after sufficient evidence is collected.
 
 ## 11 Independent verifier workflow

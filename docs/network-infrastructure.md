@@ -4,7 +4,7 @@ GraphX treats network infrastructure as a peer of logical topology, transport,
 deployment, observability, and GUI/control. The versioned `network` section of
 `graphx.yaml` owns these objects:
 
-- `networks`: Docker bridge, macvlan, or ipvlan address domains;
+- `networks`: semantic Ethernet, macvlan, or ipvlan address domains realized by OVS;
 - `interfaces`: node IP/MAC attachments, separate from GraphX ports;
 - `switches`: Open vSwitch bridges, ports, VLAN access/trunk metadata, and mirrors;
 - `routers`: Linux namespace or container router interfaces, routes, forwarding,
@@ -36,13 +36,12 @@ The lifecycle persists an owner-token ledger beneath its state directory and
 rolls back partial creates. It intentionally does not reconcile replacement
 resources: identity drift fails closed and requires explicit recovery.
 
-Focused examples are available for a single macvlan domain, three independently
-routed IPvlan L2 domains, and three IPvlan L3 subnet domains in one external
-multi-subnet network. See `examples/macvlan`, `examples/ipvlan-l2`, and
-`examples/ipvlan-l3`. Docker allows only one IPvlan network to claim a parent;
-the supported L3 layout therefore supplies repeated `--subnet` arguments on that
-network. The IPvlan L3 model permits an omitted gateway because L3 mode installs
-a device route instead of using an L2 next hop.
+Focused examples are available for a single MACVLAN-semantic domain, three
+independently routed IPvlan-L2 domains, and three IPvlan-L3 subnet domains. See
+`examples/macvlan`, `examples/ipvlan-l2`, and `examples/ipvlan-l3`. These profile
+names select validated OVS flow and routing semantics; they do not select Docker
+network drivers. Compose is a management plane and GraphX owns each data-plane
+veth attachment.
 
 The `examples/static-route-policy` laboratory adds three OVS domains around one
 namespace router. A route declared with `install: manual` is validated but
@@ -78,8 +77,8 @@ Export one complete PCAPNG snapshot without exposing the live directory:
 
 ```sh
 sudo ./build/dev/graphx infra capture export \
-  examples/network-observability/graphx.yaml --capture ovs-ethernet \
-  --output /tmp/ovs-ethernet.pcapng
+  examples/network-observability/graphx.yaml --capture ethernet-span \
+  --output /tmp/ethernet-span.pcapng
 ```
 
 Export refuses an existing or symlink destination and rejects incomplete,
@@ -93,42 +92,24 @@ application/expiry deadline. Status reports `active` until automatic expiry and
 `expired` afterward. A missing timer/qdisc before the recorded deadline, a boot
 change, or an unrelated replacement qdisc fails closed.
 
-The earlier explicit operational command remains available for manual labs:
+The earlier imperative `graphx infra fault` command was retired in M8. Faults
+must be declared under `network.faults` so duration, interface identity, qdisc
+state, timers, rollback, and recovery use the same fail-closed lifecycle.
 
-`graphx infra fault apply` places `tc netem` on a selected router interface:
-
-```sh
-sudo ./build/dev/graphx infra fault apply examples/mixed-network/graphx.yaml \
-  --router domain-router --interface ipv --delay 20ms --jitter 3ms --loss 1%
-sudo ./build/dev/graphx infra fault clear examples/mixed-network/graphx.yaml \
-  --router domain-router --interface ipv
-```
-
-Each OVS bridge has a SPAN output. The native example exposes `cap-mac` and
-`cap-ipv`; the macOS container exposes `mirror-mac` and `mirror-ipv` internally.
-Use `tcpdump`, `dumpcap`, or Wireshark against those interfaces.
+Each OVS bridge may expose an owned SPAN output. Use the declarative capture
+configuration and `infra capture export` rather than attaching an untracked
+capture process to the live interface.
 
 See `examples/network-observability` for the M7 declarative form.
 
 ## macOS execution model
 
-Docker's macvlan driver is Linux-only and explicitly unsupported by Docker
-Desktop for macOS. Docker Desktop also keeps its Linux bridges inside its VM,
-so a process on macOS cannot attach host veth devices directly. Containerizing
-OVS does not remove those constraints.
+The privileged macOS execution environment is the dedicated ARM64 Linux Lima
+VM described in `infrastructure/lima/README.md`. Rootful Docker, system OVS,
+namespaces, veth/TAP, QEMU, ownership ledgers, captures, and faults stay inside
+that VM. The source checkout is the only writable host mount. No Docker or OVS
+socket is forwarded to macOS.
 
-The portable profile therefore uses two independently created Docker bridge
-domains and a privileged OVS container. OVS runs with `datapath_type=netdev`
-(userspace datapath), attaches one container interface to each OVS bridge, and
-routes between bridge-local gateway interfaces. This provides real OVS bridge,
-SPAN, routing, nftables, and netem exercises on Docker Desktop, but it is a
-simulation of the native topology:
-
-- it does not use Docker macvlan or ipvlan drivers;
-- it does not demonstrate unique externally visible container MAC addresses;
-- performance is lower than the native kernel datapath;
-- `/dev/net/tun` and privileged containers must be allowed by Docker Desktop.
-
-References: [Docker macvlan platform requirements](https://docs.docker.com/engine/network/drivers/macvlan/),
-[Docker Desktop networking limitations](https://docs.docker.com/desktop/features/networking/networking-how-tos/),
-and [Open vSwitch userspace datapath](https://docs.openvswitch.org/en/latest/intro/install/userspace/).
+The Docker Desktop userspace-OVS simulation and its privileged container image
+were removed in M8. This avoids presenting an approximate Docker bridge topology
+as evidence for the system-OVS data plane. See `docs/m8-compatibility.md`.

@@ -1,44 +1,53 @@
 # GraphX implementation work package
 
-Implement **Migration M7: declarative capture, faults, and diagnostics** in
-`~/workspace/graphx-docker` after the independently verified M6 boundary.
+Implement **Migration M8: compatibility and release closure** in
+`~/workspace/graphx-docker` after the independently accepted M7 boundary.
 
 ## Objective
 
-Bring OVS observation points and timed network faults into the identity-owned
-version-2 infrastructure lifecycle. Store bounded Ethernet PCAPNG in VM-local
-storage, export only complete snapshots, and distinguish failure layers in
-telemetry and the GUI.
+Make the version-2 OVS lifecycle the only active GraphX-managed network
+realization. Preserve version-1 parsing and deterministic migration for the
+published compatibility window, but prevent legacy files from mutating Docker
+or Linux networking. Promote OVS/veth/TAP examples to their canonical entry
+points and remove the Docker Desktop network simulation from active use.
 
 ## Required implementation
 
-- Add strict version-2 `network.captures` declarations for mirror attachments,
-  VM-local directories, snap length, size/file/time rotation, and retention.
-- Add strict version-2 `network.faults` declarations for realized veth/TAP
-  attachments, bounded delay/jitter/loss/rate, and mandatory duration.
-- Start `dumpcap` and `tc netem` only through the privileged ownership
-  lifecycle. Record directory, interface, process/timer, qdisc, graph/config,
-  and owner identities; status and cleanup must fail closed on replacement.
-- Publish captures in owner-specific mode-0700 sessions, bound the ring, stop
-  the exact process, and retain completed sessions read-only. Never combine
-  Ethernet capture with GraphX LINKTYPE_USER0 application capture.
-- Provide an exclusive, no-symlink export command that copies one bounded,
-  complete-block PCAPNG snapshot from VM-local storage.
-- Make faults self-expire, observable as active or expired, and exactly
-  cleanable without touching an unrelated/replaced qdisc or timer.
-- Surface policy, route, link, attachment, and application diagnostic layers in
-  telemetry and the GUI while preserving the bounded evidence contract.
-- Add a focused example, strict negative tests, portable contracts, and a
-  privileged two-cycle Linux/Lima lifecycle regression with injected failure,
-  hard-crash recovery, bounded rotation/export, expiry, and zero infrastructure
-  residue. Retained read-only evidence is intentional.
+- Keep version-1 validate, inspect, project, and `config migrate` behavior, but
+  fail every version-1 `infra` action closed with an actionable migration
+  diagnostic. Never reinterpret or realize a version-1 Docker driver.
+- Remove the Docker bridge/macvlan/ipvlan network planner and the imperative
+  legacy netem command from the production infrastructure surface. Version 2
+  continues to use the transactional ownership ledger, declarative faults, and
+  manual declared-route transition.
+- Make each migrated M5 laboratory's `graphx.yaml`, Compose file, and ordinary
+  `up/status/down` launcher select the OVS system-datapath implementation.
+  Docker Compose may supply process lifetime and management connectivity only.
+- Retain representative version-1 configurations as clearly scoped,
+  non-executable migration fixtures. Remove legacy Docker macvlan/ipvlan
+  Compose manifests and the privileged Docker Desktop userspace-OVS simulator.
+- Make the QEMU TAP/OVS profile the default documented and scripted path on
+  Linux and macOS-through-Lima. Keep external/container slirp profiles only as
+  explicitly deprecated compatibility entry points; no default may select
+  `-netdev user` or Docker data-plane networking.
+- Publish an M8 upgrade/compatibility guide with support window, migration,
+  rollback, platform, and release-matrix requirements. Preserve M0
+  fingerprints as historical records rather than executable legacy plans.
+- Add portable closure tests that scan production and active examples for
+  forbidden Docker-network realization, exercise v1 parse/migrate/refusal,
+  verify canonical OVS/TAP defaults, and preserve M2-M7 contracts.
+- Add a privileged Linux/Lima closure regression that proves canonical network
+  labs still use only OVS/veth/TAP, complete two clean lifecycle cycles, and
+  leave no Docker data networks or infrastructure residue.
 
 ## Verification
 
-Run formatting, the full portable suite, quality/sanitizer, frozen fingerprint,
-schema, migration, documentation, and prior-milestone gates. In Lima or native
-Linux, run the M7 lifecycle regression twice and inspect system OVS, dumpcap,
-PCAPNG, timer/qdisc identity, automatic expiry, exclusive export, recovery, and
-cleanup.
+Run formatting, quick, quality, sanitizer, portable, schema, migration,
+fingerprint, documentation, telemetry, web, and M2-M7 gates. Run the
+authoritative Lima verifier, prior privileged regressions, the M8 closure
+regression twice, and an exact Docker/OVS/link/namespace/qdisc/process residue
+audit. Record platform-matrix evidence honestly; unavailable native x86_64 KVM
+must not be inferred from Apple Silicon TCG.
 
-Write `migration_m7_handoff.md`. Do not commit, publish, or advance to M8.
+Write `migration_m8_handoff.md`. Do not commit, publish, or begin post-migration
+feature work.

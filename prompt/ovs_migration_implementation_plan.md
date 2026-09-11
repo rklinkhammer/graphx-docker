@@ -3,8 +3,7 @@
 **Repository:** `~/workspace/graphx-docker`  
 **Decision sources:** ADR 0016 and ADR 0017  
 **Baseline:** `migration_m0_baseline.md`  
-**Plan status:** M0 through M6 independently verified; M7 implemented and
-awaiting independent verification
+**Plan status:** M0 through M7 independently verified; M8 implemented and awaiting independent verification
 
 ## Objective
 
@@ -77,8 +76,8 @@ and fail closed until explicit reattachment is proven safe.
 Migrate `mixed-network` first because it covers both profile families, routing,
 policy, mirrors, and netem. Then migrate the focused macvlan, ipvlan-l2,
 ipvlan-l3, static-route-policy, and SDR external examples. Run the same Linux
-topology on native Linux and in Lima. Demote the privileged Docker Desktop OVS
-container to a named legacy simulation during the compatibility window.
+topology on native Linux and in Lima. The privileged Docker Desktop OVS
+container remained a named legacy simulation until its removal in M8.
 
 ## M6 QEMU TAP and OVS
 
@@ -100,11 +99,11 @@ in telemetry and the GUI.
 
 ## M8 Compatibility and release closure
 
-Remove Docker macvlan/ipvlan creation and Compose data-plane membership from
-the active implementation after all examples migrate. Retire the Docker Desktop
-simulation and QEMU slirp default only after their replacements pass the full
-matrix. Retain the version-1 parser for the published compatibility window and
-ship migration documentation.
+Docker macvlan/ipvlan creation, Compose data-plane membership, and the Docker
+Desktop simulation are removed from the active implementation. QEMU TAP/OVS is
+the default; slirp is explicitly deprecated compatibility. The version-1 parser,
+inspection, projection, and deterministic migration remain for the published
+window, while all version-1 infrastructure actions fail before mutation.
 
 ## Common evidence rules
 

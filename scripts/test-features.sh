@@ -104,13 +104,26 @@ portable() {
   "$BUILD_DIR/graphx" validate "$ROOT/graphx.yaml"
   "$BUILD_DIR/graphx" inspect "$ROOT/graphx.yaml" >"$TMP_DIR/inspect.txt"
   for config in "$ROOT"/examples/*/graphx.yaml; do
-    "$BUILD_DIR/graphx" validate "$config"
-    "$BUILD_DIR/graphx" infra create "$config" --dry-run >"$TMP_DIR/$(basename "$(dirname "$config")").plan"
-    "$BUILD_DIR/graphx" infra status "$config" --dry-run >/dev/null
-    "$BUILD_DIR/graphx" infra destroy "$config" --dry-run >/dev/null
+    validation=$("$BUILD_DIR/graphx" validate "$config")
+    printf '%s\n' "$validation"
+    if [[ $validation == *"version 2"* ]]; then
+      "$BUILD_DIR/graphx" infra create "$config" --dry-run >"$TMP_DIR/$(basename "$(dirname "$config")").plan"
+      "$BUILD_DIR/graphx" infra status "$config" --dry-run >/dev/null
+      "$BUILD_DIR/graphx" infra destroy "$config" --dry-run >/dev/null
+    else
+      "$BUILD_DIR/graphx" inspect "$config" >/dev/null
+      "$BUILD_DIR/graphx" config migrate "$config" >/dev/null
+      if "$BUILD_DIR/graphx" infra create "$config" --dry-run >/dev/null 2>&1; then
+        echo "version-1 infrastructure unexpectedly remained executable: $config" >&2
+        exit 1
+      fi
+    fi
   done
-  "$BUILD_DIR/graphx" infra fault apply "$ROOT/examples/mixed-network/graphx.yaml" \
-    --router domain-router --interface mac --delay 20ms --jitter 3ms --loss 1% --dry-run >/dev/null
+  if "$BUILD_DIR/graphx" infra fault "$ROOT/examples/mixed-network/graphx.yaml" \
+      --dry-run >/dev/null 2>&1; then
+    echo "imperative infrastructure fault entry point unexpectedly remained executable" >&2
+    exit 1
+  fi
 
   step "Run the finite local TCP pipeline"
   export GRAPHX_CONFIG="$ROOT/graphx.yaml"
@@ -448,6 +461,7 @@ linux_network() {
     exit 2
   }
   export GRAPHX_BUILD_DIR="$BUILD_DIR"
+  export GRAPHX_BIN="$BUILD_DIR/graphx"
   step "Run native isolated UDP broadcast lab"
   if command -v dumpcap >/dev/null && command -v tshark >/dev/null; then
     GRAPHX_VERIFY_LIVE_CAPTURE=1 "$ROOT/examples/udp-broadcast/run-native-linux.sh"
@@ -459,17 +473,9 @@ linux_network() {
   "$ROOT/examples/udp-broadcast/down-native-linux.sh"
   for example in macvlan ipvlan-l2 ipvlan-l3 mixed-network; do
     step "Run native $example lab"
-    if test "$example" = mixed-network; then
-      "$ROOT/examples/$example/scripts/linux-up.sh"
-      "$ROOT/examples/$example/scripts/status.sh"
-      "$ROOT/examples/$example/scripts/fault.sh" apply
-      "$ROOT/examples/$example/scripts/fault.sh" clear
-      "$ROOT/examples/$example/scripts/linux-down.sh"
-    else
-      "$ROOT/examples/$example/scripts/up.sh"
-      "$ROOT/examples/$example/scripts/status.sh"
-      "$ROOT/examples/$example/scripts/down.sh"
-    fi
+    "$ROOT/examples/$example/scripts/up.sh"
+    "$ROOT/examples/$example/scripts/status.sh"
+    "$ROOT/examples/$example/scripts/down.sh"
   done
   step "Privileged Linux network suite passed"
 }

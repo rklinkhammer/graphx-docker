@@ -23,6 +23,7 @@ view is maintained in [`../GraphX_Architecture.md`](../GraphX_Architecture.md).
 | 0015 | Explicit manual route activation | Accepted for Phase 14 implementation | 2026-09-06 | [`0015-explicit-manual-route-activation.md`](0015-explicit-manual-route-activation.md) |
 | 0016 | Lima hosts the macOS GraphX network runtime | Accepted for the OVS migration | 2026-09-08 | [`0016-lima-ovs-runtime.md`](0016-lima-ovs-runtime.md) |
 | 0017 | OVS is the single backend for semantic network profiles | Accepted for the OVS migration | 2026-09-08 | [`0017-ovs-semantic-network-profiles.md`](0017-ovs-semantic-network-profiles.md) |
+| 0018 | Retire legacy data-plane realization while retaining migration input | Accepted for M8 | 2026-09-10 | [`0018-compatibility-closure.md`](0018-compatibility-closure.md) |
 
 ## Historical number mapping
 

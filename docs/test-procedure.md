@@ -226,9 +226,9 @@ GUI, capture, accelerator, and platform-specific evidence.
 | Simulated SDR | `examples/sdr-node/simulated/scripts/demo.sh start`, then `verify` and `stop` | Docker on macOS/Linux; [`SDR guide`](../examples/sdr-node/README.md) |
 | External SDR + OVS/SPAN | `examples/sdr-node/external/scripts/demo.sh start`, then `verify` and `stop` | Native Linux only; creates fixed disposable host resources |
 | Static route/policy | `examples/static-route-policy/scripts/demo.sh start`, then `verify`, `apply-route`, `clear-route`, and `stop` twice | Native Linux only; [`route/policy guide`](../examples/static-route-policy/README.md) |
-| macOS OVS simulation | `examples/mixed-network/scripts/macos-up.sh`, then `macos-down.sh` | Docker Desktop; [`network guide`](network-infrastructure.md) |
+| macOS OVS runtime | Start and verify Lima, then run the canonical lab inside it | Apple Silicon + Lima; [`network guide`](network-infrastructure.md) |
 | Native network labs | `examples/<lab>/scripts/up.sh`, where `<lab>` is `macvlan`, `ipvlan-l2`, or `ipvlan-l3` | Native Linux only; always use the matching `down.sh` |
-| Mixed native network | `examples/mixed-network/scripts/linux-up.sh` | Native Linux only; use `linux-down.sh` afterward |
+| Mixed OVS network | `examples/mixed-network/scripts/up.sh` | Native Linux or Lima; use `down.sh` afterward |
 
 The `full` profile runs QEMU configuration, parser, history, QMP simulation, and
 Compose-model tests, but it does not boot a guest. Before accepting QEMU changes,
@@ -300,8 +300,9 @@ for the complete trust model.
 2. Fix the first substantive failure before interpreting later missing results.
 3. For Docker failures, inspect service status and logs, then use the matching
    teardown command.
-4. For an interrupted native network run, use the example's `down.sh`,
-   `linux-down.sh`, or `down-native-linux.sh` before retrying.
+4. For an interrupted native network run, use the example's canonical
+   `scripts/down.sh`, or its explicitly named `down-native-linux.sh` helper,
+   before retrying.
 5. Preserve the log with the verification report.
 
 Focused reruns, expected results, manual telemetry checks, capture diagnostics,

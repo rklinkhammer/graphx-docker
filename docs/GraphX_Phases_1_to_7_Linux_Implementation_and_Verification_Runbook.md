@@ -607,24 +607,25 @@ This runs portable acceptance, then the macvlan, IPvlan L2, IPvlan L3, and mixed
 For deeper evidence, start the mixed lab separately:
 
 ```bash
-examples/mixed-network/scripts/linux-up.sh
+examples/mixed-network/scripts/up.sh
 examples/mixed-network/scripts/status.sh
 docker logs --tail 100 gx-ipv-side-sink-1
 
-examples/mixed-network/scripts/fault.sh apply
+./build/dev/graphx infra create examples/network-observability/graphx.yaml --dry-run
 sudo tc qdisc show > "$EVIDENCE/tc-with-fault.txt"
-examples/mixed-network/scripts/fault.sh clear
+# Faults are bounded declarations under network.faults in version 2.
 
-examples/mixed-network/scripts/capture.sh mac captures/mixed-mac.pcapng
-examples/mixed-network/scripts/capture.sh ipv captures/mixed-ipv.pcapng
+sudo ./build/dev/graphx infra capture export \
+  examples/network-observability/graphx.yaml --capture ethernet-span \
+  --output "$EVIDENCE/ethernet-span.pcapng"
 ```
 
-Capture commands wait for traffic; run them in separate terminals or with a bounded timeout appropriate to the host. Inspect PCAPNG files with `capinfos`, `tshark`, or Wireshark.
+Inspect the complete exported PCAPNG with `capinfos`, `tshark`, or Wireshark.
 
 Clean up in the documented order—containers before external infrastructure:
 
 ```bash
-examples/mixed-network/scripts/linux-down.sh
+examples/mixed-network/scripts/down.sh
 ```
 
 ### 10.4 Network pass criteria

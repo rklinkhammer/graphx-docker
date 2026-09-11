@@ -1,10 +1,11 @@
 # Unified QEMU demonstrations
 
-The primary OVS-backed Linux/Lima path is documented in
+The canonical M8 OVS-backed Linux/Lima path is launched by `scripts/demo.sh` and documented in
 [`tap/README.md`](tap/README.md). The external and container profiles remain
-user-mode-networking compatibility paths.
+explicitly deprecated user-mode-networking compatibility paths.
 
-This suite models the same three-node application twice:
+This suite models the same three-node application across the canonical TAP path
+and two compatibility profiles:
 
 ```text
 host-origin -- raw TCP/UDP --> qemu-node -- raw TCP/UDP --> host-receiver
@@ -47,16 +48,14 @@ target and host package manifests, source archives, and collected license texts
 under `examples/qemu-node/output/legal-info`. Optional organizational trust uses
 the project-wide `GRAPHX_CA_CERT` and `GRAPHX_CERT_INSTALL_SCRIPT` inputs.
 
-## Common user interface
+## Canonical user interface
 
-Each profile supports:
+The root TAP/OVS launcher supports:
 
 ```text
-demo.sh start [--accel auto|kvm|tcg|hvf] [--no-capture] [--no-history]
+examples/qemu-node/scripts/demo.sh start
 demo.sh verify
 demo.sh status
-demo.sh logs
-demo.sh token
 demo.sh stop
 ```
 
@@ -85,10 +84,9 @@ and protocol states on their distinct deployment nodes.
 
 ## Compatibility entry points
 
-The older `scripts/run.sh` remains a bounded, host-only QEMU smoke test. New
-interactive use should select one of the two profile `demo.sh` scripts. The
-root `graphx.yaml` remains a topology-only compatibility model and now marks
-all four edges as external data-plane traffic with `framing: none`.
+The older `scripts/run.sh` remains a bounded, host-only QEMU smoke test. The
+external and container launchers are deprecated compatibility entry points.
+Their `qemu-usernet` configurations are not selected by the root launcher.
 
 See [the complete QEMU demo guide](../../docs/qemu-demos.md) for architecture,
 capture/history, GUI, control, and operator verification details.

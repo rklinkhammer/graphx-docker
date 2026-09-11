@@ -82,10 +82,9 @@ Homebrew LLVM 21 AddressSanitizer has an upstream startup hang, so GraphX runs
 LLVM 21 UBSan locally and relies on Linux and macOS 15 CI for required ASan
 coverage. The log must state this substitution.
 
-Native macvlan/IPvlan, Linux namespaces, host OVS, nftables, `tc netem`, KVM,
-and the static-route native laboratory are not applicable on macOS. The
-mixed-network macOS profile is a Docker Desktop userspace-OVS simulation, not
-equivalent evidence.
+Privileged OVS, veth/TAP, namespaces, nftables, and netem run inside Lima rather
+than the macOS kernel. KVM is not available for the checked-in x86 guest on
+Apple Silicon. Lima evidence is reported separately from native Linux.
 
 ### 3.2 Build and automated acceptance
 
@@ -131,15 +130,18 @@ enabled. Then stop it:
 scripts/demo.sh stop
 ```
 
-Exercise the macOS network substitute and inspect the OVS/router container:
+Exercise the M8 Linux runtime inside Lima:
 
 ```sh
-examples/mixed-network/scripts/macos-up.sh
-examples/mixed-network/scripts/status.sh
-docker logs gx-ovs-ovs-router-1
-examples/mixed-network/scripts/fault.sh apply
-examples/mixed-network/scripts/fault.sh clear
-examples/mixed-network/scripts/macos-down.sh
+infrastructure/lima/start.sh
+infrastructure/lima/verify.sh
+limactl shell graphx -- bash -lc \
+  'cd /workspace/graphx-docker && examples/mixed-network/scripts/up.sh'
+limactl shell graphx -- bash -lc \
+  'cd /workspace/graphx-docker && examples/mixed-network/scripts/status.sh'
+limactl shell graphx -- bash -lc \
+  'cd /workspace/graphx-docker && examples/mixed-network/scripts/down.sh'
+infrastructure/lima/stop.sh
 ```
 
 Run the portable external-device profile:
@@ -237,16 +239,16 @@ examples/macvlan/scripts/status.sh
 examples/macvlan/scripts/down.sh
 
 examples/ipvlan-l2/scripts/up.sh
-examples/ipvlan-l2/scripts/capture.sh transform captures/ipvlan-transform.pcapng
+./build/dev/graphx infra create examples/network-observability/graphx.yaml --dry-run
 examples/ipvlan-l2/scripts/down.sh
 
 examples/ipvlan-l3/scripts/up.sh
 examples/ipvlan-l3/scripts/status.sh
 examples/ipvlan-l3/scripts/down.sh
 
-examples/mixed-network/scripts/linux-up.sh
+examples/mixed-network/scripts/up.sh
 examples/mixed-network/scripts/status.sh
-examples/mixed-network/scripts/linux-down.sh
+examples/mixed-network/scripts/down.sh
 ```
 
 Require real sink delivery, declared IP/MAC assignments, expected OVS and router

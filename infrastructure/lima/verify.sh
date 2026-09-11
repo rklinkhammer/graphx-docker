@@ -381,9 +381,11 @@ critical_tap_create() {
   )
 }
 
-for command in docker ovs-vsctl ovs-ofctl ip tc nft tcpdump tshark qemu-system-aarch64 cmake ninja jq openssl; do
+for command in docker ovs-vsctl ovs-ofctl ip tc nft tcpdump tshark qemu-system-aarch64 cmake ninja jq openssl node npm; do
   command -v "${command}" >/dev/null || fail "required command is missing: ${command}"
 done
+[[ $(node --version) =~ ^v24\. ]] || fail "Node.js 24 is required"
+timeout 30 node -e 'import("node:sqlite")' >/dev/null || fail "Node.js node:sqlite is unavailable"
 [[ $(uname -m) == aarch64 ]] || fail "guest architecture is not aarch64"
 [[ $(cat /etc/graphx-m1-config.sha256) == "${GRAPHX_M1_CONFIG_DIGEST:?missing expected digest}" ]] || fail "guest configuration identity does not match"
 login_user=${GRAPHX_LIMA_USER:-${SUDO_USER:-}}

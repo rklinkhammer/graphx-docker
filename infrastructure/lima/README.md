@@ -6,10 +6,11 @@ Ubuntu 24.04 VM named `graphx`; the VM, rather than a macOS container or Docker
 Desktop, owns rootful Docker, Open vSwitch, Linux namespaces, veth/TAP devices,
 nftables, netem, QEMU, and packet-capture tools.
 
-M1 provides and verifies those prerequisites. It does **not** implement the
-configuration-v2 OVS-only backend, attach GraphX application containers with
-veth, change current MACVLAN/IPVLAN behavior, or replace QEMU user-mode (slirp)
-networking with TAP. Those are later migration phases.
+M1 established and still verifies those prerequisites. M8 now uses this VM for
+the configuration-version-2 OVS-only backend, container veth attachments, QEMU
+TAP, capture, and bounded faults. MACVLAN/IPVLAN are semantic profiles only.
+QEMU user networking is retained solely in explicitly deprecated compatibility
+profiles.
 
 ## Prerequisites and boundary
 
@@ -49,14 +50,16 @@ infrastructure/lima/stop.sh
 instance. It refuses an existing instance whose architecture, virtualization
 type, source path, or configuration digest differs. Provisioning is idempotent,
 bounded, records installed package versions, installs Docker Compose and
-Buildx for the repository's BuildKit Dockerfiles, and leaves Docker and OVS as
-systemd-managed rootful services. The Lima login user is added to the `docker`
+Buildx for the repository's BuildKit Dockerfiles, and installs Node.js 24 from
+the same digest-pinned multi-architecture official image used by the Linux
+verifier. Docker and OVS remain systemd-managed rootful services. The Lima login user is added to the `docker`
 group because the checked-in build and example scripts invoke Docker directly;
 that group is root-equivalent inside this dedicated development VM. On initial
 creation, `start.sh` performs one bounded VM restart if needed to replace Lima's
 pre-provisioning SSH session and activate the new supplementary group.
 
-`verify.sh` rejects occupied fixed names, then creates a disposable
+`verify.sh` first requires Node.js 24 with `node:sqlite`, then rejects occupied
+fixed names and creates a disposable
 `gx-m1-*` OVS/namespace/veth/TAP topology. It verifies system-datapath packet
 exchange, nftables, netem, capture, Docker, the GraphX quick profile, and
 projection consistency. Each run exclusively owns `/run/graphx-m1`; any stale

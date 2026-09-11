@@ -11,7 +11,7 @@ example_dir=$(cd "$2" && pwd)
 compose_file=$3
 repo_root=$(cd "$example_dir/../.." && pwd)
 graphx=${GRAPHX_BIN:-$repo_root/build/dev/graphx}
-config=$example_dir/graphx-ovs.yaml
+config=$example_dir/graphx.yaml
 
 if [[ $(uname -s) != Linux ]]; then
   echo "Run this topology inside the GraphX Lima VM (or on native Linux)." >&2

@@ -25,13 +25,7 @@ def main() -> int:
         raise SystemExit("usage: test_config_v2.py GRAPHX SOURCE_ROOT")
     graphx = str(Path(sys.argv[1]).resolve())
     root = Path(sys.argv[2]).resolve()
-    sources = [
-        root / "graphx.yaml",
-        *(root / "examples" / name / "graphx.yaml" for name in (
-            "macvlan", "ipvlan-l2", "ipvlan-l3", "mixed-network",
-            "static-route-policy", "qemu-node",
-        )),
-    ]
+    sources = [root / "graphx.yaml", *(root / "examples/compatibility/v1").glob("*.yaml")]
     semantics = {
         "ethernet": "mac=endpoint learning=dynamic filtering=ovs arp=endpoint broadcast=flood multicast=flood routing=l2 isolation=none management=separate",
         "macvlan": "mac=endpoint learning=dynamic filtering=ovs arp=endpoint broadcast=flood multicast=flood routing=l2 isolation=host management=separate",
@@ -59,7 +53,7 @@ def main() -> int:
                     require(f"profile={profile} {behavior}" in inspected,
                             f"inspect behavior drifted for {profile}")
 
-        l3_source = (root / "examples" / "ipvlan-l3" / "graphx.yaml").read_text(
+        l3_source = (root / "examples/compatibility/v1/ipvlan-l3.yaml").read_text(
             encoding="utf-8"
         ).replace("mode: l3", "mode: l3s")
         l3_source_path = temporary_root / "ipvlan-l3s-v1.yaml"

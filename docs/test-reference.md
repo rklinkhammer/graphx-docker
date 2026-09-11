@@ -487,10 +487,11 @@ blocked by macvlan design unless a host macvlan shim is added.
 With the mixed network running:
 
 ```sh
-examples/mixed-network/scripts/fault.sh apply
-examples/mixed-network/scripts/fault.sh clear
-examples/mixed-network/scripts/capture.sh mac
-examples/mixed-network/scripts/capture.sh ipv
+./build/dev/graphx infra create examples/network-observability/graphx.yaml --dry-run
+# Faults are bounded declarations under network.faults in version 2.
+sudo ./build/dev/graphx infra capture export \
+  examples/network-observability/graphx.yaml --capture ethernet-span \
+  --output /tmp/ethernet-span.pcapng
 ```
 
 In another terminal, inspect OVS bridge/port/mirror state and router interface
@@ -524,9 +525,7 @@ when one retained file becomes writable, then removes it after the seal is
 restored. `tests/test_m7_network_observability.py` covers strict configuration
 and dry-run contracts on all platforms.
 
-## 8. macOS userspace-OVS simulation
-
-On Docker Desktop:
+## 8. macOS Lima network runtime
 
 ### Local Linux verifier container on macOS
 
@@ -586,22 +585,21 @@ secrets and are not copied into an image layer; the resulting public trust
 anchors necessarily remain in the image certificate bundle. Never use these
 global inputs for client private keys, registry passwords, or npm tokens.
 
-Do not use this container as proof of native macvlan, IPvlan, physical-parent,
-OVS, namespace-router, nftables, or netem behavior. Those acceptance gates still
-require a dedicated native Linux host. Docker documents macvlan as unsupported
-on Docker Desktop for Mac and Windows.
+Do not use an unprivileged Docker verifier container as proof of the privileged
+network lifecycle. Run that lifecycle in the dedicated Lima Linux VM and report
+it as Lima ARM64 evidence, separately from native Linux and KVM rows.
 
 ```sh
-examples/mixed-network/scripts/macos-up.sh
-examples/mixed-network/scripts/status.sh
-docker logs gx-ovs-ovs-router-1
-examples/mixed-network/scripts/fault.sh apply
-examples/mixed-network/scripts/fault.sh clear
-examples/mixed-network/scripts/macos-down.sh
+infrastructure/lima/start.sh
+infrastructure/lima/verify.sh
+limactl shell graphx -- bash -lc \
+  'cd /workspace/graphx-docker && examples/mixed-network/scripts/up.sh'
+limactl shell graphx -- bash -lc \
+  'cd /workspace/graphx-docker && examples/mixed-network/scripts/down.sh'
+infrastructure/lima/stop.sh
 ```
 
-This checks the OVS/router/control shape in a privileged container using bridge
-networks. It does not certify macvlan or ipvlan behavior.
+This checks the canonical system-OVS/veth/router lifecycle in the Lima guest.
 
 ## Phase 14 static-route and policy acceptance
 
@@ -630,15 +628,15 @@ this gate.
 
 ## Cleanup and failure triage
 
-Always use the matching `down.sh`/`linux-down.sh`/`macos-down.sh` before deleting
-external networks. If a run stops unexpectedly, inspect `docker compose ls`,
-`docker network ls`, `ip netns list`, and `ovs-vsctl show`, then rerun that
-example's teardown helper. Shared-memory listeners unlink their segments during
-normal shutdown and replace stale names on the next start.
+Always use the example's canonical `scripts/down.sh`, or its explicitly named
+`down-native-linux.sh` helper where one exists. If a run stops unexpectedly,
+inspect `docker compose ls`, `ip netns list`, and `ovs-vsctl show`, then rerun
+that example's teardown helper. Shared-memory listeners unlink their segments
+during normal shutdown and replace stale names on the next start.
 
 For the mixed native-Linux lab, `RTNETLINK answers: File exists` means an earlier
 run left one or more named interfaces behind; a dry run never creates them. Run
-`examples/mixed-network/scripts/linux-down.sh` and then retry `linux-up.sh`. The
+`examples/mixed-network/scripts/down.sh` and then retry `up.sh`. The
 startup helper now detects this state before making changes and rolls back only
 resources created by its own failed attempt.
 

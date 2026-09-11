@@ -53,15 +53,14 @@ def main() -> int:
     inspected = run(graphx, "inspect", config)
     assert "static-route-policy-lab" in inspected
     created = run(graphx, "infra", "create", config, "--dry-run")
-    transactional = run(graphx, "infra", "create", config, "--transactional", "--dry-run")
     assert all(name in created for name in ("br-route-left", "br-route-middle", "br-route-right"))
     assert all(name in created for name in ("mirror-route-left", "mirror-route-middle",
                                              "mirror-route-right"))
-    assert "ovs-vsctl add-br br-route-left" in transactional
-    assert "--may-exist add-br br-route-left" not in transactional
+    assert "ovs-vsctl -- add-br br-route-left" in created
+    assert "--may-exist add-br br-route-left" not in created
     source = config.read_text(encoding="utf-8")
     assert source.index("allow-left-middle") < source.index("deny-middle-left") < source.index("allow-left-right")
-    assert "10.64.30.10/32 via 10.64.3.10" not in created, "manual route leaked into create"
+    assert "ip route replace 10.64.30.10/32" not in created, "manual route leaked into create"
     applied = run(graphx, "infra", "route", "apply", config, "--router", "route-router",
                   "--destination", "10.64.30.10/32", "--dry-run")
     cleared = run(graphx, "infra", "route", "clear", config, "--router", "route-router",
@@ -88,21 +87,14 @@ def main() -> int:
             graphx, "validate", invalid, expect=2)
 
     demo = (example / "scripts/demo.sh").read_text(encoding="utf-8")
-    assert "requires native Linux" in demo and "native_resources_owned" in demo
-    assert "route-policy.pcapng" in demo and "filesize:65536" in demo
-    assert '-w - -f "udp port 18601' in demo, "capture is not streamed to operator-owned output"
-    assert 'test "$sent" -eq 0 && test "$received" -ne 0' in demo
-    assert 'routes[0].get("gateway") == "10.64.3.10"' in demo
-    assert 'native_resources_exist && ! native_resources_owned' in demo
-    assert 'current_start_owns_native" != true' not in demo
-    assert 'sender_output="$GRAPHX_ROUTE_RUN_DIR/$id-$attempt-sender.log"' in demo
-    assert 'receiver_output="$GRAPHX_ROUTE_RUN_DIR/$id-$attempt-receiver.log"' in demo
-    assert 'infra create "$graph_config" --transactional' in demo
+    for marker in ("GRAPHX_M5_EXTERNAL_OWNER", "external-ovs-boundary.sh",
+                   "graphx_external_namespace_create", "graphx_external_namespace_delete",
+                   "trap rollback_up ERR", 'infra create "$config"', "apply-route)",
+                   "clear-route)"):
+        assert marker in demo, f"canonical route launcher omits {marker}"
+    assert "--transactional" not in demo
     assert "pkill" not in demo and "killall" not in demo and "rm -rf" not in demo
-    compose = (example / "compose.yaml").read_text(encoding="utf-8")
-    assert 'tmpfs: ["/tmp:rw,noexec,nosuid,size=16m"]' in compose
-    assert '"127.0.0.1:${GRAPHX_ROUTE_GUI_PORT:-8080}:8080"' in compose
-    assert "internal: true" not in compose
+    assert not (example / "compose.yaml").exists(), "retired route Compose data plane remains"
     subprocess.run(["bash", "-n", example / "scripts/demo.sh",
                     example / "scripts/inspect.sh"], check=True)
     print("Phase 14 portable route-policy contract passed")

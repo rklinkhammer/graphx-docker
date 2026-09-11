@@ -16,11 +16,11 @@ GraphX is an educational, configuration-driven framework for describing a direct
 5. the **observability model** says what is measured, retained, exported, and captured; and
 6. the **control and GUI plane** presents those models and applies narrowly scoped runtime commands.
 
-The versioned `graphx.yaml` file is the authoritative source for these views. Version 1 retains the implemented Docker-driver data plane. Version 2 expresses OVS semantic profiles and typed attachment intent; M3 realizes identity-owned OVS bridges, M4 attaches verified managed containers with owned veth pairs, M5 realizes namespace veths, mirrors, router forwarding/routes/policy, semantic profile flows, and the migrated network laboratories, M6 adds identity-owned QEMU TAP endpoints with exact non-root access, and M7 owns bounded mirror capture and timed netem faults. The C++ loader and the telemetry service both validate and normalize configuration, while the browser derives its Application and Network views from the normalized topology instead of keeping a second topology definition.
+The versioned `graphx.yaml` file is the authoritative source for these views. Version 1 is migration input only: validation, inspection, projection, and deterministic migration remain available, while every infrastructure action fails before mutation. Version 2 expresses OVS semantic profiles and typed attachment intent; M3 realizes identity-owned OVS bridges, M4 attaches verified managed containers with owned veth pairs, M5 realizes namespace veths, mirrors, router forwarding/routes/policy, semantic profile flows, and the migrated network laboratories, M6 adds identity-owned QEMU TAP endpoints with exact non-root access, M7 owns bounded mirror capture and timed netem faults, and M8 removes Docker-driver and Docker Desktop simulation realization. The C++ loader and the telemetry service both validate and normalize configuration, while the browser derives its Application and Network views from the normalized topology instead of keeping a second topology definition.
 
 GraphX supports five GraphX-aware transports—bounded in-process queues, TCP, Unix-domain sockets, POSIX shared memory, and IPv4 UDP—and also represents external raw TCP/UDP edges that GraphX observes but does not instantiate. The same canonical GraphX envelope and `u32be` frame are used by the stream transports, shared memory, UDP datagrams, application capture, and Wireshark tooling. Raw external edges use `framing: none` and are deliberately rejected by the GraphX transport factory.
 
-Network infrastructure is a peer layer rather than an accidental consequence of Docker Compose. Its configuration can model Docker bridge, macvlan, and ipvlan networks; node interfaces; Open vSwitch bridges and ports; VLAN metadata; SPAN mirrors; namespace or container routers; routes; forwarding policies; and ordered per-edge network paths. Native Linux is the reference environment for exact macvlan, ipvlan, OVS system-datapath, namespace routing, nftables, and `tc netem` behavior. Docker Desktop uses a clearly labeled bridge/OVS userspace simulation where exact Linux semantics are impossible.
+Network infrastructure is a peer layer rather than an accidental consequence of Docker Compose. Its configuration models Ethernet, macvlan, and ipvlan semantic domains; node interfaces; Open vSwitch bridges and ports; VLAN metadata; SPAN mirrors; namespace routers; routes; forwarding policies; and ordered per-edge network paths. System OVS on Linux is the sole backend. On macOS that Linux runtime is the dedicated Lima VM; Docker Desktop is not a privileged network-lab backend.
 
 The QEMU examples prove a second important boundary: an application does not need to link GraphX or emit GraphX envelopes to appear in the topology. A shared x86_64 guest exchanges ordinary TCP and UDP traffic in three profiles: two slirp compatibility paths and the primary M6 TAP/OVS path for native Linux and Lima. A passive packet observer converts network evidence into bounded live metrics, Ethernet PCAPNG, and separate packet-history records. The GUI displays logical nodes, network/runtime boundaries, accelerator evidence, protocol readiness, capture downloads, and history while restricting control to the origin generator.
 
@@ -42,9 +42,11 @@ M5 adds owned router namespaces, namespace veths, mirrors, forwarding, routes,
 nftables policy, semantic profile flows, and migrated OVS laboratories.
 M6 adds GraphX-owned TAP lifecycle, exact UID/GID access for non-root QEMU,
 access/trunk VLAN realization, QMP pause/resume, and OVS SPAN evidence. Version 1
-and QEMU slirp remain compatibility paths. M7 adds bounded declarative Ethernet
+and QEMU user networking remain compatibility paths. M7 adds bounded declarative Ethernet
 capture, timed netem ownership, safe snapshot export, and
-policy/route/link/attachment/application diagnostics.
+policy/route/link/attachment/application diagnostics. M8 retires version-1
+infrastructure execution, Docker-driver realization, the Docker Desktop
+simulation, and imperative fault mutation while retaining deterministic migration.
 
 ## 1. Scope and architectural principles
 
@@ -57,7 +59,7 @@ The design follows these principles:
 - **Bounded resource use.** Queues, frames, datagrams, retries, history, capture, API work, and shutdown waits have explicit limits.
 - **Fail closed at trust boundaries.** Invalid configuration, credentials, raw-edge transport requests, unsafe capture files, and unsupported QEMU accelerators are rejected.
 - **Best-effort observation must not block data processing.** Telemetry, OTLP export, capture, and history degrade independently of graph execution.
-- **Platform truthfulness.** Native Linux and Docker Desktop profiles are documented as different implementations where the platform cannot reproduce the same L2 behavior.
+- **Platform truthfulness.** Linux and Lima results are reported separately, and TCG evidence is never presented as KVM evidence.
 - **Evidence over inference.** VM acceleration, guest readiness, graph readiness, and service readiness are separate states with separate evidence.
 
 ## 2. Architectural evolution and decisions
@@ -173,7 +175,7 @@ Common container defaults are read-only root filesystems, small tmpfs mounts, al
 
 ### 4.4 Lifecycle boundaries
 
-The CLI validates and inspects both configuration versions. For version 1, `graphx infra create`, `status`, and `destroy` plan or manage host/network resources. For version 2, M3 provides persistent OVS bridge ownership, M4 extends the lifecycle to container veth attachment, M5 adds namespace veths, mirrors, router forwarding/routes/policy and semantic profile flows, and M6 adds persistent TAP creation with recorded kernel/OVS identity, owner UID/GID, VLAN state, rollback, recovery, and exact cleanup. Compose still manages application processes and management connectivity; GraphX verifies project/service labels, image, full container ID, PID, and namespace inode before moving the data-plane peer. A replacement namespace, TAP, Port, or Interface is reported unhealthy and cleanup fails closed.
+The CLI validates, inspects, projects, and migrates both configuration versions. Every version-1 infrastructure action is rejected before state or platform mutation. For version 2, M3 provides persistent OVS bridge ownership, M4 extends the lifecycle to container veth attachment, M5 adds namespace veths, mirrors, router forwarding/routes/policy and semantic profile flows, M6 adds persistent TAP creation, and M7 adds owned capture and timed faults. Compose manages application processes and management connectivity only; GraphX verifies project/service labels, image, full container ID, PID, and namespace inode before moving the data-plane peer. A replacement namespace, TAP, Port, Interface, capture, or qdisc is reported unhealthy and cleanup fails closed.
 
 Infrastructure provisioning is designed for clean laboratories. It does not persist desired state, reconcile drift, or guarantee rollback of every partial direct CLI create; the example launchers add preflight and cleanup behavior around this seam.
 
@@ -351,18 +353,18 @@ validates configuration and exact command generation only. Native Linux remains
 required to accept routing, policy, mirroring, delivery, and host-isolation
 claims.
 
-### 7.10 Native Linux versus Docker Desktop
+### 7.10 Native Linux and macOS execution
 
-| Capability | Native Linux reference | Docker Desktop/macOS profile |
+| Capability | Native Linux | macOS with Lima |
 |---|---|---|
-| Docker macvlan/ipvlan | Exact kernel drivers | Unsupported; substituted with bridge networks |
-| OVS datapath | Host system datapath | Privileged container, `datapath_type=netdev` |
-| Router | Linux namespace | Router/OVS container |
-| Host veth/netns | Directly available | Inside Docker Desktop VM/container boundary |
-| SPAN capture | Host capture interfaces | Capture inside OVS container |
-| Semantics | Acceptance reference | Routing/OVS/inspection simulation |
+| MACVLAN/IPVLAN | OVS semantic profiles | Same OVS semantic profiles in guest |
+| OVS datapath | Host system datapath | Lima guest system datapath |
+| Router | Linux namespace | Lima guest Linux namespace |
+| veth/TAP | Host kernel | Lima guest kernel |
+| SPAN capture | Host-local capture interfaces | VM-local capture interfaces and storage |
+| Evidence | Native platform row | Lima ARM64 platform row |
 
-The portable profile remains useful for GUI, routing, mirror, nftables, and fault demonstrations, but it must not be used as evidence for native macvlan/ipvlan semantics or performance.
+Docker Desktop remains useful for unprivileged application demonstrations, but it is not an M8 privileged network-infrastructure backend.
 
 ## 8. QEMU connectivity architecture
 
@@ -602,8 +604,8 @@ The shortest path from architecture to evidence is therefore:
 
 The consolidated [`demo guide`](demo-guide.md) describes the runnable scenarios.
 The [`manual test procedures`](manual-test-procedures.md) define macOS and Linux
-system acceptance without conflating Docker Desktop simulation with native
-kernel evidence.
+system acceptance without conflating Lima ARM64, native Linux, TCG, or KVM
+evidence.
 
 ## 11. Architectural limits, drift, and risks
 
@@ -621,7 +623,7 @@ kernel evidence.
 - GraphX application PCAPNG uses private USER0 and requires a dedicated Wireshark profile.
 - OVS Ethernet and GraphX application captures are not automatically correlated.
 - QEMU slirp compatibility profiles do not model physical L2; the M6 TAP profile covers OVS L2/VLAN behavior but not physical-network attachment or guest-native GraphX control.
-- Docker Desktop network labs are simulations, not native-Linux acceptance evidence.
+- Docker Desktop is not a privileged network-lab backend; macOS uses Lima.
 
 ### 11.2 Documentation and model consistency
 
@@ -668,7 +670,7 @@ exit gate.
 in Lima and ADR 0017 selects OVS with an owned TAP as the QEMU data plane. The
 profile proves guest MAC, VLAN isolation, multicast/broadcast forwarding, QMP
 pause/resume, and direct SPAN capture while QEMU runs as a dedicated non-root
-identity. The slirp profiles remain compatibility paths until M8 closure.
+identity. The user-network profiles are deprecated compatibility paths after M8 closure.
 
 ### 12.6 Degraded observability laboratory
 
@@ -698,11 +700,10 @@ existing feature-phase history. The authoritative sequence is maintained in
 5. M5 migrates the existing network and external-device laboratories.
 6. M6 adds the owned QEMU TAP/OVS profile.
 7. M7 integrates capture, faults, and diagnostics with the common lifecycle.
-8. M8 retires legacy realization paths only after the full compatibility gate.
+8. M8 retires legacy realization paths after the compatibility gate while retaining migration input.
 
-During the compatibility window, the version-1 Docker-driver labs remain
-available unchanged and the Docker Desktop userspace-OVS path is explicitly a
-legacy simulation. Version-2 create, status, destroy, and interrupted-create
+During the compatibility window, version-1 files remain available only for
+validation, inspection, projection, and migration. Version-2 create, status, destroy, and interrupted-create
 recovery use the ownership ledger. Managed containers use veth without Docker
 data-plane networks; M5 router namespaces, mirrors, policy, and IPvlan flows use
 the same system-OVS path on native Linux and in Lima. M6 QEMU uses an owned TAP

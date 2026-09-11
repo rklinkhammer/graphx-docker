@@ -52,5 +52,6 @@ if ! "${GRAPHX_M1_RUNNER}" 120 limactl shell --workdir "${GRAPHX_M1_GUEST_ROOT}"
 fi
 "${GRAPHX_M1_RUNNER}" 120 limactl shell --workdir "${GRAPHX_M1_GUEST_ROOT}" \
   "${GRAPHX_M1_INSTANCE}" -- bash -c \
-  'docker info >/dev/null && docker buildx version >/dev/null'
+  'docker info >/dev/null && docker buildx version >/dev/null &&
+   node --version | grep -Eq "^v24\\." && node -e "import(\"node:sqlite\")"'
 echo "GraphX M1 is running. Verify it with ${script_dir}/verify.sh"

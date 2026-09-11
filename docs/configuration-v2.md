@@ -1,15 +1,15 @@
 # GraphX configuration version 2
 
 Configuration version 2 is the explicit semantic boundary for the OVS
-migration. Version 1 remains accepted with its original Docker
-`bridge`/`macvlan`/`ipvlan` driver meaning. Version 2 never accepts `driver`,
+migration. Version 1 remains accepted for validation, inspection, projection,
+and deterministic migration with its original Docker `bridge`/`macvlan`/`ipvlan`
+driver meaning, but M8 rejects every infrastructure action. Version 2 never accepts `driver`,
 `parent`, `mode`, `network.interfaces`, or `deployment.network`; it uses
 semantic profiles and explicit attachments instead.
 
-M2 defines and validates intent. M3 adds identity-safe OVS bridge lifecycle
-operations for version 2; route, fault, and endpoint realization remain
-deferred. A version-2 file is never routed through the legacy Docker network
-planner.
+M2 defines and validates intent. M3-M7 add identity-safe OVS, veth/TAP,
+route/policy, mirror capture, and bounded fault realization. M8 removes the
+legacy Docker network planner. A version-2 file is never routed through it.
 
 ## Semantic profiles
 

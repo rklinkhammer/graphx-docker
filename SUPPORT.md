@@ -11,10 +11,9 @@ Security reports follow `SECURITY.md`.
 | Native Linux | Ubuntu 24.04, x86_64, C++20 and C++23 | Tier 1 |
 | Native macOS | macOS 15, Apple Silicon, C++20 and C++23 | Tier 1 |
 | OCI runtime images | Linux amd64 and arm64 | Tier 1 when published |
-| Native Linux network labs | Docker Engine with macvlan/ipvlan, OVS, netns, nftables, netem | Capability-gated |
-| Lima M1 execution environment | Apple Silicon, Lima 2.2+, ARM64 Ubuntu 24.04 guest | Capability-gated |
-| Configuration v2 model and migration | Native Linux and macOS portable CLI | M2 implemented; realization deferred |
-| Docker Desktop network simulation | Current supported Docker Desktop for macOS | Best effort |
+| Native Linux network labs | Docker Engine management plane with system OVS, veth/TAP, netns, nftables, netem | Capability-gated |
+| Lima execution environment | Apple Silicon, Lima 2.2+, ARM64 Ubuntu 24.04 guest | Capability-gated |
+| Configuration v2 OVS lifecycle and v1 migration | Native Linux and macOS portable CLI; Linux/Lima privileged runtime | M8 implemented |
 | Windows native | Not tested | Unsupported |
 
 Tier 1 means the release workflow must pass on the named target. It does not
@@ -32,8 +31,7 @@ must also state whether the host has the required Linux capabilities.
 The Lima M1 environment is the supported macOS foundation for privileged Linux
 networking work. M1 verifies rootful Docker, system OVS, disposable
 namespace/veth/TAP, nftables, netem, capture, and the portable baseline inside
-the VM. M2 adds portable parsing, inspection, projection, and deterministic
-migration for configuration version 2. M3 realizes only identity-marked OVS
-bridges with persistent VM-local ownership state and recovery. It does not yet
-attach GraphX containers or namespaces by veth, configure endpoint ports or
-mirrors, or replace QEMU slirp with TAP.
+the VM. M2-M7 add configuration version 2, persistent ownership, container and
+namespace veth, QEMU TAP, policy, capture, and bounded faults. M8 makes this
+system-OVS lifecycle the sole GraphX network backend. Version-1 infrastructure
+is migration-only, and Docker Desktop is not a privileged network-lab backend.

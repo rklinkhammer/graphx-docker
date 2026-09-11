@@ -1,38 +1,15 @@
-# Standalone IPvlan L2 routed pipeline
+# IPvlan-L2 semantic-profile pipeline
 
-> **M5 OVS path:** use `graphx-ovs.yaml`, `compose.ovs.yaml`, and
-> `scripts/ovs-{up,status,down}.sh` on native Linux or in Lima. GraphX owns the
-> OVS bridges, router namespace, veths, mirrors, and IP-steering flows; Compose
-> has management connectivity only. The commands below are the v1 compatibility
-> path.
-
-Each GraphX node has its own Docker IPvlan L2 network and subnet. The domains
-are genuinely independent: three Compose projects attach to three external
-networks, and traffic can cross domains only through `gx-ipvl2-rtr`.
-
-```text
-generator / 10.41.1.0/24
-  → br-l2-gen → Linux router namespace
-  → br-l2-xform → transform / 10.41.2.0/24
-  → Linux router namespace → br-l2-sink → sink / 10.41.3.0/24
-```
-
-Linux prerequisites are Docker Engine, Open vSwitch, iproute2, nftables, and
-optionally tcpdump/dumpcap.
+This M8 laboratory represents three IPvlan-L2 semantic domains with system OVS,
+container veth pairs, and a GraphX-owned Linux router namespace. Docker Compose
+supplies management connectivity only and creates no ipvlan data-plane network.
 
 ```sh
-cmake --preset dev && cmake --build --preset dev
-./build/dev/graphx validate examples/ipvlan-l2/graphx.yaml
 ./build/dev/graphx infra create examples/ipvlan-l2/graphx.yaml --dry-run
 examples/ipvlan-l2/scripts/up.sh
-docker logs -f gx-ipvl2-sink-sink-1
-examples/ipvlan-l2/scripts/capture.sh transform
-examples/ipvlan-l2/scripts/capture.sh transform captures/ipvlan-transform.pcapng
+examples/ipvlan-l2/scripts/status.sh
 examples/ipvlan-l2/scripts/down.sh
 ```
 
-The OVS bridge in every domain has a SPAN output. `tc netem` can be attached to
-any router interface with `graphx infra fault apply`, using router
-`ipvlan-l2-router` and interface `generator`, `transform`, or `sink`.
-The one-argument capture form displays Ethernet packets; the optional output
-argument writes a standard Ethernet PCAPNG file with `dumpcap`.
+Run on native Linux or in Lima. The version-1 Docker-driver input remains at
+`examples/compatibility/v1/ipvlan-l2.yaml` solely for migration.

@@ -1,5 +1,9 @@
 # Linux containerized-QEMU demo
 
+> **Deprecated compatibility profile.** M8 makes the TAP/OVS launcher at
+> `../scripts/demo.sh` canonical. This QEMU user-network profile remains only
+> for migration comparison and will be removed after the compatibility window.
+
 This profile runs QEMU, the x86_64 guest, origin, receiver, observer, telemetry,
 and GUI as Docker Compose services. It is supported only on native Linux.
 

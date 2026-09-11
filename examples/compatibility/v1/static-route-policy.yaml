@@ -1,0 +1,97 @@
+# Compatibility fixture: parse, inspect, project, or migrate; never realize.
+version: 1
+graph:
+  id: static-route-policy-lab
+  nodes:
+    - id: left
+      kind: diagnostic-endpoint
+      runtime: process
+      execution: host
+      lifecycle: managed
+      control: none
+      ports:
+        - { name: allowed, direction: output, schema: RawDiagnosticDatagram }
+        - { name: routed, direction: output, schema: RawDiagnosticDatagram }
+        - { name: denied, direction: input, schema: RawDiagnosticDatagram }
+    - id: middle
+      kind: diagnostic-endpoint
+      runtime: process
+      execution: host
+      lifecycle: managed
+      control: none
+      ports:
+        - { name: allowed, direction: input, schema: RawDiagnosticDatagram }
+        - { name: denied, direction: output, schema: RawDiagnosticDatagram }
+    - id: right
+      kind: diagnostic-endpoint
+      runtime: process
+      execution: host
+      lifecycle: managed
+      control: none
+      ports:
+        - { name: routed, direction: input, schema: RawDiagnosticDatagram }
+  edges:
+    - { id: allowed-flow, from: left.allowed, to: middle.allowed, transport: udp, data_plane: external }
+    - { id: denied-flow, from: middle.denied, to: left.denied, transport: udp, data_plane: external }
+    - { id: routed-flow, from: left.routed, to: right.routed, transport: udp, data_plane: external }
+transport:
+  udp:
+    allowed-flow: { mode: unicast, destination: 10.64.2.10, bind: 0.0.0.0, port: 18601, max_datagram_bytes: 512, framing: none }
+    denied-flow: { mode: unicast, destination: 10.64.1.10, bind: 0.0.0.0, port: 18602, max_datagram_bytes: 512, framing: none }
+    routed-flow: { mode: unicast, destination: 10.64.30.10, bind: 0.0.0.0, port: 18603, max_datagram_bytes: 512, framing: none }
+network:
+  networks:
+    - { id: gx-route-left, driver: bridge, subnet: 10.64.1.0/24, gateway: 10.64.1.1, external: false }
+    - { id: gx-route-middle, driver: bridge, subnet: 10.64.2.0/24, gateway: 10.64.2.1, external: false }
+    - { id: gx-route-right, driver: bridge, subnet: 10.64.3.0/24, gateway: 10.64.3.1, external: false }
+  switches:
+    - id: br-route-left
+      kind: openvswitch
+      datapath: system
+      ports:
+        - { id: endpoint, interface: rtl-ovs, peer: rtl-end }
+        - { id: capture, interface: rtl-cap-ovs, peer: rtl-cap }
+      mirror: { id: mirror-route-left, output_port: capture, select_all: true }
+    - id: br-route-middle
+      kind: openvswitch
+      datapath: system
+      ports:
+        - { id: endpoint, interface: rtm-ovs, peer: rtm-end }
+        - { id: capture, interface: rtm-cap-ovs, peer: rtm-cap }
+      mirror: { id: mirror-route-middle, output_port: capture, select_all: true }
+    - id: br-route-right
+      kind: openvswitch
+      datapath: system
+      ports:
+        - { id: endpoint, interface: rtr-ovs, peer: rtr-end }
+        - { id: capture, interface: rtr-cap-ovs, peer: rtr-cap }
+      mirror: { id: mirror-route-right, output_port: capture, select_all: true }
+  routers:
+    - id: route-router
+      kind: linux_namespace
+      namespace: gx-route-router
+      forwarding: true
+      interfaces:
+        - { id: left, network: gx-route-left, address: 10.64.1.1/24, device: rt-left, peer: rt-left-ovs, switch: br-route-left }
+        - { id: middle, network: gx-route-middle, address: 10.64.2.1/24, device: rt-middle, peer: rt-middle-ovs, switch: br-route-middle }
+        - { id: right, network: gx-route-right, address: 10.64.3.1/24, device: rt-right, peer: rt-right-ovs, switch: br-route-right }
+      routes:
+        - { destination: 10.64.30.10/32, via: 10.64.3.10, device: rt-right, install: manual }
+      policies:
+        - { id: allow-left-middle, source: 10.64.1.0/24, destination: 10.64.2.0/24, action: accept }
+        - { id: deny-middle-left, source: 10.64.2.0/24, destination: 10.64.1.0/24, action: drop }
+        - { id: allow-left-right, source: 10.64.1.0/24, destination: 10.64.30.10/32, action: accept }
+  interfaces:
+    left: [{ id: data, network: gx-route-left, address: 10.64.1.10/24, mac: "02:64:00:00:01:10" }]
+    middle: [{ id: data, network: gx-route-middle, address: 10.64.2.10/24, mac: "02:64:00:00:02:10" }]
+    right: [{ id: data, network: gx-route-right, address: 10.64.3.10/24, mac: "02:64:00:00:03:10" }]
+  edge_paths:
+    allowed-flow: [left, gx-route-left, br-route-left, route-router, br-route-middle, gx-route-middle, middle]
+    denied-flow: [middle, gx-route-middle, br-route-middle, route-router, br-route-left, gx-route-left, left]
+    routed-flow: [left, gx-route-left, br-route-left, route-router, br-route-right, gx-route-right, right]
+observability:
+  metrics: { enabled: true, exporters: [console] }
+  tracing: { enabled: false, exporters: [console] }
+  telemetry: { host: 127.0.0.1, port: 9000, websocket: /ws, heartbeat_interval_ms: 1000, heartbeat_timeout_ms: 10000 }
+  capture: { enabled: true, provider: ovs-span, directory: captures, max_file_bytes: 67108864, max_packets: 100000 }
+  history: { enabled: false, backend: sqlite, database_file: .graphx/history.sqlite }

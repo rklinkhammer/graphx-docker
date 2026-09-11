@@ -1,4 +1,5 @@
-version: 1
+# Canonical M8 OVS realization.
+version: 2
 graph:
   id: sdr-external-linux-demo
   nodes:
@@ -9,8 +10,8 @@ graph:
       lifecycle: external
       control: none
       ports:
-        - { name: samples, direction: output, schema: RawIqSamples }
-        - { name: control, direction: input, schema: RawSdrControl }
+        - {name: samples, direction: output, schema: RawIqSamples}
+        - {name: control, direction: input, schema: RawSdrControl}
     - id: processor
       kind: transform
       runtime: docker
@@ -18,59 +19,86 @@ graph:
       lifecycle: managed
       control: origin
       ports:
-        - { name: samples, direction: input, schema: RawIqSamples }
-        - { name: control, direction: output, schema: RawSdrControl }
-        - { name: results, direction: output, schema: RawPowerResult }
+        - {name: samples, direction: input, schema: RawIqSamples}
+        - {name: control, direction: output, schema: RawSdrControl}
+        - {name: results, direction: output, schema: RawPowerResult}
     - id: sink
       kind: sink
       runtime: docker
       execution: container
       lifecycle: managed
       control: none
-      ports: [{ name: results, direction: input, schema: RawPowerResult }]
+      ports: [{name: results, direction: input, schema: RawPowerResult}]
   edges:
-    - { id: sdr-samples, from: sdr-node.samples, to: processor.samples, transport: udp, data_plane: external }
-    - { id: processor-control, from: processor.control, to: sdr-node.control, transport: tcp, data_plane: external }
-    - { id: processed-results, from: processor.results, to: sink.results, transport: tcp, data_plane: external }
+    - {id: sdr-samples, from: sdr-node.samples, to: processor.samples, transport: udp, data_plane: external}
+    - {id: processor-control, from: processor.control, to: sdr-node.control, transport: tcp, data_plane: external}
+    - {id: processed-results, from: processor.results, to: sink.results, transport: tcp, data_plane: external}
 transport:
   udp:
-    sdr-samples: { mode: unicast, destination: 10.63.0.20, bind: 0.0.0.0, port: 18400, max_datagram_bytes: 1400, framing: none }
+    sdr-samples: {mode: unicast, destination: 10.63.0.20, bind: 0.0.0.0, port: 18400, max_datagram_bytes: 1400, framing: none}
   tcp:
     processor-control:
       host: 10.63.0.10
       bind: 0.0.0.0
       port: 18401
       framing: none
-      tls: { enabled: true, verify_peer: true, require_client_certificate: true, ca_file: /run/sdr-tls/ca.pem, certificate_file: /run/sdr-tls/processor.pem, private_key_file: /run/sdr-tls/processor.key, server_name: sdr-node }
-    processed-results: { host: 10.63.0.30, bind: 0.0.0.0, port: 18402, framing: none }
+      tls: {enabled: true, verify_peer: true, require_client_certificate: true, ca_file: /run/sdr-tls/ca.pem, certificate_file: /run/sdr-tls/processor.pem, private_key_file: /run/sdr-tls/processor.key, server_name: sdr-node}
+    processed-results: {host: 10.63.0.30, bind: 0.0.0.0, port: 18402, framing: none}
 network:
   networks:
-    - { id: gx-sdr-native, driver: macvlan, subnet: 10.63.0.0/24, gateway: 10.63.0.1, parent: sdrp-parent, external: true }
+    - {id: gx-sdr-native, gateway: 10.63.0.1, external: true, profile: macvlan, subnets: [10.63.0.0/24], uplink: sdrp-parent}
   switches:
     - id: br-sdr
       kind: openvswitch
       datapath: system
       ports:
-        - { id: docker-parent, interface: sdrp-ovs, peer: sdrp-parent }
-        - { id: sdr-device, interface: sdr-dev-ovs, peer: sdr-dev }
-        - { id: capture, interface: sdr-cap-ovs, peer: sdr-cap }
-      mirror: { id: mirror-sdr, output_port: capture, select_all: true }
-  interfaces:
-    sdr-node: [{ id: data, network: gx-sdr-native, address: 10.63.0.10/24, mac: "02:63:00:00:00:10" }]
-    processor: [{ id: data, network: gx-sdr-native, address: 10.63.0.20/24, mac: "02:63:00:00:00:20" }]
-    sink: [{ id: data, network: gx-sdr-native, address: 10.63.0.30/24, mac: "02:63:00:00:00:30" }]
+        - {id: docker-parent, interface: sdrp-ovs, peer: sdrp-parent}
+        - {id: sdr-device, interface: sdr-dev-ovs, peer: sdr-dev}
+        - {id: capture, interface: sdr-cap-ovs, peer: sdr-cap}
+      mirror: {id: mirror-sdr, output_port: capture, select_all: true}
   edge_paths:
     sdr-samples: [sdr-node, br-sdr, gx-sdr-native, processor]
     processor-control: [processor, gx-sdr-native, br-sdr, sdr-node]
     processed-results: [processor, gx-sdr-native, sink]
+  attachments:
+    - id: sdr-node-data
+      kind: external
+      owner: sdr-node
+      network: gx-sdr-native
+      address: 10.63.0.10/24
+      mac: 02:63:00:00:00:10
+    - id: processor-data
+      kind: container_veth
+      owner: processor
+      network: gx-sdr-native
+      address: 10.63.0.20/24
+      mac: 02:63:00:00:00:20
+      interface: gxc4529b30594a0
+      peer: gxh4529b30594a0
+      switch: br-sdr
+    - id: sink-data
+      kind: container_veth
+      owner: sink
+      network: gx-sdr-native
+      address: 10.63.0.30/24
+      mac: 02:63:00:00:00:30
+      interface: gxc498d40724d3b
+      peer: gxh498d40724d3b
+      switch: br-sdr
+    - id: mirror-sdr
+      kind: mirror
+      owner: br-sdr
+      interface: sdr-cap-ovs
+      switch: br-sdr
 deployment:
   services:
-    processor: { image: graphx-sdr-services:latest, command: python3 common/processor.py }
-    sink: { image: graphx-sdr-services:latest, command: python3 common/sink.py }
-  telemetry: { service: telemetry, port: 9000 }
+    processor: {image: graphx-sdr-services:latest, command: python3 common/processor.py}
+    sink: {image: graphx-sdr-services:latest, command: python3 common/sink.py}
+  telemetry: {service: telemetry, port: 9000}
+  project: sdr-external-linux-demo
 observability:
-  metrics: { enabled: true, exporters: [console, udp-json] }
-  tracing: { enabled: false, exporters: [console] }
-  telemetry: { host: telemetry, port: 9000, websocket: /ws, heartbeat_interval_ms: 1000, heartbeat_timeout_ms: 10000 }
-  capture: { enabled: true, provider: ovs-span, directory: captures, max_file_bytes: 67108864, max_packets: 100000 }
-  history: { enabled: true, backend: sqlite, database_file: .graphx/history.sqlite, retention_seconds: 86400, max_records: 50000, max_database_bytes: 67108864 }
+  metrics: {enabled: true, exporters: [console, udp-json]}
+  tracing: {enabled: false, exporters: [console]}
+  telemetry: {host: telemetry, port: 9000, websocket: /ws, heartbeat_interval_ms: 1000, heartbeat_timeout_ms: 10000}
+  capture: {enabled: true, provider: ovs-span, directory: captures, max_file_bytes: 67108864, max_packets: 100000}
+  history: {enabled: true, backend: sqlite, database_file: .graphx/history.sqlite, retention_seconds: 86400, max_records: 50000, max_database_bytes: 67108864}

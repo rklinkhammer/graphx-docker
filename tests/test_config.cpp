@@ -168,22 +168,11 @@ void version_two_is_strict_and_not_realized_by_v1_planner() {
     } catch (const graphx::ConfigError&) {
     }
   }
-
-  TemporaryConfig file(valid_v2_config());
-  const auto config = graphx::load_config(file.path());
-  try {
-    [[maybe_unused]] const auto ignored =
-        graphx::infrastructure_plan(config, graphx::InfraAction::create);
-    throw std::runtime_error("version 2 used the legacy infrastructure planner");
-  } catch (const std::invalid_argument& error) {
-    expect(std::string_view(error.what()).find("M3 OVS lifecycle API") != std::string_view::npos,
-           "version 2 planner boundary diagnostic");
-  }
 }
 
 void version_one_migration_is_deterministic() {
   const auto source =
-      std::filesystem::path(GRAPHX_SOURCE_DIR) / "examples/mixed-network/graphx.yaml";
+      std::filesystem::path(GRAPHX_SOURCE_DIR) / "examples/compatibility/v1/mixed-network.yaml";
   const auto first = graphx::migrate_config_v1_to_v2(source);
   const auto second = graphx::migrate_config_v1_to_v2(source);
   expect(first == second, "migration byte determinism");
@@ -246,7 +235,7 @@ void version_one_migration_is_deterministic() {
                             "id: mirror-other", "configured on its OVS switch");
 
   const auto qemu_source =
-      std::filesystem::path(GRAPHX_SOURCE_DIR) / "examples/qemu-node/graphx.yaml";
+      std::filesystem::path(GRAPHX_SOURCE_DIR) / "examples/compatibility/v1/qemu-topology.yaml";
   TemporaryConfig qemu(graphx::migrate_config_v1_to_v2(qemu_source));
   const auto qemu_config = graphx::load_config(qemu.path());
   expect(std::ranges::any_of(qemu_config.network_infrastructure.attachments,
@@ -577,37 +566,31 @@ transport:
 void mixed_network_model_and_plan_load() {
   const auto config = graphx::load_config(std::filesystem::path(GRAPHX_SOURCE_DIR) /
                                           "examples/mixed-network/graphx.yaml");
-  expect(config.network_infrastructure.network("gx-mac-domain").driver ==
-             graphx::NetworkDriver::macvlan,
-         "macvlan model");
-  expect(config.network_infrastructure.network("gx-ipv-domain").mode == "l2", "ipvlan L2 model");
+  expect(config.version == 2 && config.network_infrastructure.network("gx-mac-domain").profile ==
+                                    graphx::NetworkProfile::macvlan,
+         "canonical macvlan semantic profile");
+  expect(config.network_infrastructure.network("gx-ipv-domain").profile ==
+             graphx::NetworkProfile::ipvlan_l2,
+         "canonical ipvlan L2 semantic profile");
   expect(config.network_infrastructure.router("domain-router").interfaces.size() == 2,
          "router interfaces");
   expect(config.network_infrastructure.network_switch("br-gx-mac").mirror.has_value(),
          "OVS mirror model");
-  const auto commands = graphx::infrastructure_plan(config, graphx::InfraAction::create);
-  std::string plan;
-  for (const auto& command : commands) plan += graphx::format_command(command) + '\n';
-  expect(plan.find("add-br br-gx-mac") != std::string::npos, "mac OVS bridge plan");
-  expect(plan.find("--driver macvlan") != std::string::npos, "macvlan create plan");
-  expect(plan.find("ipvlan_mode=l2") != std::string::npos, "ipvlan create plan");
-  expect(plan.find("net.ipv4.ip_forward=1") != std::string::npos, "forwarding plan");
-  expect(plan.find("create Mirror") != std::string::npos, "mirror plan");
-  const auto fault =
-      graphx::netem_command(config, "domain-router", "ipv", false, "20ms", "3ms", "1%", {});
-  expect(graphx::format_command(fault).find("netem delay 20ms 3ms loss 1%") != std::string::npos,
-         "netem plan");
+  expect(config.network_infrastructure.attachments.size() == 7,
+         "canonical mixed network attachment model");
 }
 
 void standalone_network_examples_load() {
   const auto root = std::filesystem::path(GRAPHX_SOURCE_DIR) / "examples";
   const auto macvlan = graphx::load_config(root / "macvlan/graphx.yaml");
-  expect(macvlan.network_infrastructure.networks.size() == 1, "standalone macvlan domain");
-  expect(!macvlan.network_infrastructure.interfaces.front().mac.empty(),
-         "standalone macvlan explicit MAC");
+  expect(macvlan.version == 2 && macvlan.network_infrastructure.networks.size() == 1,
+         "standalone macvlan semantic domain");
+  expect(macvlan.network_infrastructure.attachments.size() == 3,
+         "standalone macvlan OVS attachments");
 
   const auto layer_two = graphx::load_config(root / "ipvlan-l2/graphx.yaml");
-  expect(layer_two.network_infrastructure.networks.size() == 3, "one IPvlan L2 domain per node");
+  expect(layer_two.version == 2 && layer_two.network_infrastructure.networks.size() == 3,
+         "one IPvlan L2 semantic domain per node");
   expect(layer_two.network_infrastructure.routers.size() == 1 &&
              layer_two.network_infrastructure.switches.size() == 3,
          "IPvlan L2 routed domains");
@@ -615,15 +598,8 @@ void standalone_network_examples_load() {
   const auto layer_three = graphx::load_config(root / "ipvlan-l3/graphx.yaml");
   expect(layer_three.network_infrastructure.networks.size() == 1 &&
              layer_three.network_infrastructure.networks.front().subnets.size() == 3,
-         "one supported multi-subnet IPvlan L3 network");
-  std::string plan;
-  for (const auto& command : graphx::infrastructure_plan(layer_three, graphx::InfraAction::create))
-    plan += graphx::format_command(command) + '\n';
-  expect(plan.find("ipvlan_mode=l3") != std::string::npos, "IPvlan L3 plan");
-  expect(plan.find("--subnet 10.42.1.0/24 --subnet 10.42.2.0/24 --subnet 10.42.3.0/24") !=
-             std::string::npos,
-         "IPvlan L3 multi-subnet plan");
-  expect(plan.find("--gateway") == std::string::npos, "IPvlan L3 omits gateway");
+         "one supported multi-subnet IPvlan L3 semantic network");
+  expect(layer_three.network_infrastructure.attachments.size() == 3, "IPvlan L3 OVS attachments");
 }
 
 void static_route_policy_model_and_plan_load() {
@@ -637,18 +613,7 @@ void static_route_policy_model_and_plan_load() {
          "route lab router model");
   expect(!router.routes.front().install_on_create, "manual route model");
   expect(config.network_infrastructure.edge_paths.size() == 3, "route lab ordered edge paths");
-  std::string create_plan;
-  std::string create_input;
-  for (const auto& command : graphx::infrastructure_plan(config, graphx::InfraAction::create)) {
-    create_plan += graphx::format_command(command) + '\n';
-    create_input += command.standard_input;
-  }
-  expect(create_plan.find("add-br br-route-left") != std::string::npos, "route lab OVS plan");
-  expect(create_plan.find("10.64.30.10/32") == std::string::npos,
-         "manual route absent from create plan");
-  expect(create_input.find("deny-middle-left") != std::string::npos &&
-             create_input.find("counter drop") != std::string::npos,
-         "ordered deny policy plan");
+  expect(config.version == 2, "canonical route lab uses version 2");
   const auto apply = graphx::route_command(config, "route-router", "10.64.30.10/32", false);
   expect(graphx::format_command(apply) ==
              "ip netns exec gx-route-router ip route replace 10.64.30.10/32 via 10.64.3.10 dev "
@@ -658,19 +623,6 @@ void static_route_policy_model_and_plan_load() {
   expect(clear.ignore_failure &&
              graphx::format_command(clear).find("route delete 10.64.30.10/32") != std::string::npos,
          "manual route clear command");
-
-  const auto transactional = graphx::infrastructure_plan(config, graphx::InfraAction::create, true);
-  std::string transactional_plan;
-  for (const auto& command : transactional) {
-    transactional_plan += graphx::format_command(command) + '\n';
-    if (!command.rollback_arguments.empty()) {
-      expect(command.rollback_arguments.front() != "", "transaction rollback command");
-      expect(!command.rollback_identity_arguments.empty(), "transaction rollback identity");
-    }
-  }
-  expect(transactional_plan.find("ovs-vsctl add-br br-route-left") != std::string::npos &&
-             transactional_plan.find("--may-exist add-br br-route-left") == std::string::npos,
-         "transactional route lab uses strict bridge creation");
 }
 
 std::vector<std::string> file_identity_command(const std::filesystem::path& path) {

@@ -7,6 +7,7 @@ command_name=${2:-}
 if test -n "$profile"; then shift; fi
 if test -n "$command_name"; then shift; fi
 case "$profile" in external|container) ;; *) echo "profile must be external or container" >&2; exit 64 ;; esac
+echo "Deprecated compatibility profile '$profile': use scripts/demo.sh for TAP/OVS." >&2
 
 example_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 repo_dir=$(cd "$example_dir/../.." && pwd)

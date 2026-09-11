@@ -1,4 +1,4 @@
-# QEMU TAP + Open vSwitch profile (M6)
+# QEMU TAP + Open vSwitch profile
 
 This Linux-only profile is the primary GraphX QEMU data-plane path. On macOS,
 run it inside the `graphx` Lima guest: macOS is the control surface, and the
@@ -23,8 +23,6 @@ Build GraphX and the guest image first, then:
 ./examples/qemu-node/tap/scripts/ovs-lab.sh status
 ./examples/qemu-node/tap/scripts/ovs-lab.sh pause
 ./examples/qemu-node/tap/scripts/ovs-lab.sh resume
-./examples/qemu-node/tap/scripts/ovs-lab.sh fault-on
-./examples/qemu-node/tap/scripts/ovs-lab.sh fault-off
 ./examples/qemu-node/tap/scripts/ovs-lab.sh verify
 ./examples/qemu-node/tap/scripts/ovs-lab.sh down
 ```
@@ -32,8 +30,8 @@ Build GraphX and the guest image first, then:
 `up` proves guest TCP/UDP unicast, the configured guest MAC in the OVS forwarding
 database, VLAN 42 reachability and VLAN 43 isolation, broadcast/multicast
 forwarding into the switch, and SPAN capture growth. `pause` and `resume` use QMP
-and require QEMU to confirm the resulting state. `fault-on` is an explicit M6
-demonstration hook; declarative, ledger-owned fault policies remain M7 work.
+and require QEMU to confirm the resulting state. Fault injection belongs in a
+bounded version-2 `network.faults` declaration, not an imperative helper.
 
 Runtime evidence is kept on the Lima guest's native filesystem at
 `/var/lib/graphx/qemu/m6`: QMP accelerator evidence, serial log, raw SPAN PCAP,

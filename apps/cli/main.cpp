@@ -28,9 +28,8 @@ void usage(std::ostream& output) {
          << "  graphx infra <create|destroy|status|recover> [config.yaml] [--dry-run]\n"
          << "               [--transactional] [--state-dir DIR]\n"
          << "  graphx infra route <apply|clear> [config.yaml] --router ID --destination CIDR\n"
-         << "  graphx infra fault <apply|clear> [config.yaml] --router ID --interface ID\n"
          << "  graphx infra capture export [config.yaml] --capture ID --output FILE\n"
-         << "                    [--delay 20ms] [--jitter 3ms] [--loss 1%] [--rate 50mbit]\n";
+         << "                    [--state-dir DIR]\n";
 }
 
 int migration_command(int argc, char** argv) {
@@ -303,10 +302,14 @@ int infrastructure_command(int argc, char** argv) {
     }
     if (capture.empty() || destination.empty())
       throw std::invalid_argument("infra capture export requires --capture and --output");
+    const auto config = graphx::load_config(path);
+    if (config.version != 2)
+      throw std::invalid_argument(
+          "configuration version 1 infrastructure execution was retired in M8; run 'graphx "
+          "config migrate' and review the version-2 output");
 #if !defined(__linux__)
     throw std::runtime_error("network capture export requires Linux VM-native storage");
 #else
-    const auto config = graphx::load_config(path);
     return graphx::export_owned_network_capture(config, path, capture, state_root, destination,
                                                 std::cout);
 #endif
@@ -339,74 +342,30 @@ int infrastructure_command(int argc, char** argv) {
     }
     if (router.empty() || destination.empty())
       throw std::invalid_argument("infra route requires --router and --destination");
+    const auto config = graphx::load_config(path);
+    if (config.version != 2)
+      throw std::invalid_argument(
+          "configuration version 1 infrastructure execution was retired in M8; run 'graphx "
+          "config migrate' and review the version-2 output");
 #if !defined(__linux__)
     if (!dry_run)
       throw std::runtime_error("native route changes require Linux; use --dry-run on this host");
 #endif
-    const auto config = graphx::load_config(path);
     return graphx::execute_infrastructure_plan(
         {graphx::route_command(config, router, destination, clear)}, dry_run, std::cout, std::cerr);
   }
-  if (action == "fault") {
-    if (argc < 4) throw std::invalid_argument("infra fault requires apply or clear");
-    const bool clear = std::string_view(argv[3]) == "clear";
-    if (!clear && std::string_view(argv[3]) != "apply")
-      throw std::invalid_argument("infra fault action must be apply or clear");
-    auto path = default_config();
-    std::string router, interface, delay, jitter, loss, rate;
-    bool path_set{}, dry_run{};
-    for (int index = 4; index < argc; ++index) {
-      const std::string argument = argv[index];
-      auto value = [&](std::string& destination) {
-        if (++index == argc) throw std::invalid_argument(argument + " requires a value");
-        destination = argv[index];
-      };
-      if (argument == "--router")
-        value(router);
-      else if (argument == "--interface")
-        value(interface);
-      else if (argument == "--delay")
-        value(delay);
-      else if (argument == "--jitter")
-        value(jitter);
-      else if (argument == "--loss")
-        value(loss);
-      else if (argument == "--rate")
-        value(rate);
-      else if (argument == "--dry-run")
-        dry_run = true;
-      else if (!path_set) {
-        path = argument;
-        path_set = true;
-      } else
-        throw std::invalid_argument("unexpected argument '" + argument + "'");
-    }
-    if (router.empty() || interface.empty())
-      throw std::invalid_argument("infra fault requires --router and --interface");
-#if !defined(__linux__)
-    if (!dry_run)
-      throw std::runtime_error(
-          "native fault injection requires Linux; use --dry-run or the mixed-network helper");
-#endif
-    const auto config = graphx::load_config(path);
-    return graphx::execute_infrastructure_plan(
-        {graphx::netem_command(config, router, interface, clear, delay, jitter, loss, rate)},
-        dry_run, std::cout, std::cerr);
-  }
-
-  graphx::InfraAction infra_action;
+  if (action == "fault")
+    throw std::invalid_argument(
+        "imperative infrastructure faults were retired in M8; declare a bounded version-2 "
+        "network.faults entry (migrate version-1 input with 'graphx config migrate' first)");
   graphx::OvsLifecycleAction ovs_action;
   if (action == "create") {
-    infra_action = graphx::InfraAction::create;
     ovs_action = graphx::OvsLifecycleAction::create;
   } else if (action == "destroy") {
-    infra_action = graphx::InfraAction::destroy;
     ovs_action = graphx::OvsLifecycleAction::destroy;
   } else if (action == "status") {
-    infra_action = graphx::InfraAction::status;
     ovs_action = graphx::OvsLifecycleAction::status;
   } else if (action == "recover") {
-    infra_action = graphx::InfraAction::destroy;
     ovs_action = graphx::OvsLifecycleAction::recover;
   } else {
     throw std::invalid_argument("unknown infra action '" + action + "'");
@@ -431,22 +390,20 @@ int infrastructure_command(int argc, char** argv) {
   }
   if (transactional && action != "create")
     throw std::invalid_argument("--transactional is supported only for infra create");
+  const auto config = graphx::load_config(path);
+  if (config.version != 2)
+    throw std::invalid_argument(
+        "configuration version 1 infrastructure execution was retired in M8; run 'graphx config "
+        "migrate' and review the version-2 output");
 #if !defined(__linux__)
   if (!dry_run)
     throw std::runtime_error(
-        "native infrastructure changes require Linux; use --dry-run or the macOS OVS lab profile");
+        "native infrastructure changes require Linux; use --dry-run or the GraphX Lima VM");
 #endif
-  const auto config = graphx::load_config(path);
-  if (config.version == 2) {
-    if (transactional)
-      throw std::invalid_argument("version 2 create is always transactional; omit --transactional");
-    return graphx::execute_ovs_lifecycle(config, path, ovs_action, dry_run, state_root, std::cout,
-                                         std::cerr);
-  }
-  if (action == "recover") throw std::invalid_argument("infra recover requires version 2");
-  return graphx::execute_infrastructure_plan(
-      graphx::infrastructure_plan(config, infra_action, transactional), dry_run, std::cout,
-      std::cerr);
+  if (transactional)
+    throw std::invalid_argument("version 2 create is always transactional; omit --transactional");
+  return graphx::execute_ovs_lifecycle(config, path, ovs_action, dry_run, state_root, std::cout,
+                                       std::cerr);
 }
 
 }  // namespace

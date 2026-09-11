@@ -1,5 +1,9 @@
 # External-QEMU demo
 
+> **Deprecated compatibility profile.** M8 makes the TAP/OVS launcher at
+> `../scripts/demo.sh` canonical. This QEMU user-network profile remains only
+> for migration comparison and will be removed after the compatibility window.
+
 This portable profile runs QEMU and the shared packet observer on the host
 while the origin, receiver, telemetry service, and GUI run in Docker. Keeping
 the observer beside the host-written PCAP avoids Docker Desktop bind-cache

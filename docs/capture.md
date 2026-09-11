@@ -203,17 +203,17 @@ in a hostile directory.
 ## Application capture versus OVS capture
 
 The PCAPNG writer records GraphX application framing and correlation metadata.
-The OVS SPAN helpers record real link-layer packets. Live display uses `tcpdump`;
-supplying an output filename uses `dumpcap` and writes PCAPNG with standard
-Ethernet records. These are complementary artifacts: application
+The owned OVS SPAN lifecycle records real link-layer packets with bounded
+`dumpcap` rotation and exports complete PCAPNG snapshots. These are complementary artifacts: application
 captures explain envelopes; OVS captures explain traffic on the emulated
 network path. Automated cross-file packet matching remains a later hardening
 step.
 
 ```sh
-examples/mixed-network/scripts/capture.sh mac captures/mixed-mac.pcapng
-examples/ipvlan-l2/scripts/capture.sh transform captures/ipvlan-transform.pcapng
+sudo ./build/dev/graphx infra capture export \
+  examples/network-observability/graphx.yaml --capture ethernet-span \
+  --output /tmp/ethernet-span.pcapng
 ```
 
-Stop capture with `Ctrl-C`. On macOS the mixed-network helper runs `dumpcap`
-inside the privileged OVS container; the host does not need native OVS.
+On macOS, capture and live storage remain inside the Lima VM. Copy only an
+exported, complete snapshot across the host boundary.

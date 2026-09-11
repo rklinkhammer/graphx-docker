@@ -9,7 +9,9 @@ routes, faults, captures, and TAP devices remain later milestones.
 The default state root is `/var/lib/graphx/runs`; use `--state-dir DIR` for a
 bounded test location. The directory is mode 0700 and each per-graph YAML state
 file is mode 0600. `GRAPHX_STATE_DIR` may set the default. A non-blocking
-per-graph file lock prevents concurrent mutation.
+per-graph file lock prevents concurrent mutation. The zero-length mode-0600
+lock file remains after destroy so every later operation serializes on the same
+inode; it is synchronization metadata, not an ownership ledger or live run.
 
 Before mutation, GraphX records the graph ID, SHA-256 of the literal
 configuration, a cryptographically random owner token, lifecycle status, and

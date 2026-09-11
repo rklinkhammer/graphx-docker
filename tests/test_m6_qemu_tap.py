@@ -28,7 +28,7 @@ def main() -> int:
         raise SystemExit("usage: test_m6_qemu_tap.py GRAPHX SOURCE_ROOT")
     graphx, root = Path(sys.argv[1]), Path(sys.argv[2])
     profile = root / "examples" / "qemu-node" / "tap"
-    config = profile / "graphx-ovs.yaml"
+    config = profile / "graphx.yaml"
     launcher = (profile / "scripts" / "ovs-lab.sh").read_text(encoding="utf-8")
 
     run(graphx, "validate", config)
@@ -69,7 +69,7 @@ def main() -> int:
 
     for marker in ("-netdev tap,id=net0,ifname=gxqtap0,script=no,downscript=no",
                    "--reuid \"$qemu_uid\"", "mac=02:00:00:00:02:15",
-                   "qemu-span.pcap", "vm-control", "fault-on", "ovs-appctl fdb/show",
+                   "qemu-span.pcap", "vm-control", "ovs-appctl fdb/show",
                    "value[\"records\"] > 0", "set -Eeuo pipefail",
                    "refusing to signal PID"):
         require(marker in launcher, f"missing M6 launcher contract: {marker}")

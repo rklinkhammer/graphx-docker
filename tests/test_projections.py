@@ -122,7 +122,7 @@ def main() -> int:
             "udp-multicast": ("mode: multicast", "ttl:"),
             "qemu-node/external": ("runtime: qemu", "architecture: x86_64", "data_plane: external"),
             "mixed-network": ("kind: openvswitch", "mirror:", "policies:", "hops:"),
-            "ipvlan-l3": ("subnets:", "10.42.1.0/24", "mode: l3"),
+            "ipvlan-l3": ("subnets:", "10.42.1.0/24", "profile: ipvlan-l3"),
         }
         for example, expected_values in cases.items():
             case_output = temporary / example.replace("/", "-")
@@ -147,8 +147,8 @@ def main() -> int:
             encoding="utf-8"
         )
         network_text = network_text.replace(
-            "{ id: docker-parent, interface: mv-ovs, peer: mv-parent }",
-            "{ id: docker-parent, interface: mv-ovs, peer: mv-parent, vlan: { access_tag: 42, trunks: [43, 44] } }",
+            "{id: docker-parent, interface: mv-ovs, peer: mv-parent}",
+            "{id: docker-parent, interface: mv-ovs, peer: mv-parent, vlan: {access_tag: 42, trunks: [43, 44]}}",
         ).replace(
             "      policies:\n",
             "      routes:\n"

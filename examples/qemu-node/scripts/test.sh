@@ -518,7 +518,7 @@ if [[ -z "$graphx_cli" && -x "$repo_dir/build/dev/graphx" ]]; then
   graphx_cli="$repo_dir/build/dev/graphx"
 fi
 if [[ -n "$graphx_cli" && -x "$graphx_cli" ]]; then
-  "$graphx_cli" validate "$example_dir/graphx.yaml"
+  "$graphx_cli" validate "$example_dir/tap/graphx.yaml"
   "$graphx_cli" validate "$example_dir/external/graphx.yaml"
   "$graphx_cli" validate "$example_dir/container/graphx.yaml"
 else

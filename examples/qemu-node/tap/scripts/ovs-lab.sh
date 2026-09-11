@@ -6,7 +6,7 @@ profile_dir=$(cd "$(dirname "$0")/.." && pwd)
 example_dir=$(cd "$profile_dir/.." && pwd)
 repo_dir=$(cd "$example_dir/../.." && pwd)
 graphx=${GRAPHX_BIN:-$repo_dir/build/dev/graphx}
-config=$profile_dir/graphx-ovs.yaml
+config=$profile_dir/graphx.yaml
 images=$example_dir/output/images
 run_dir=${GRAPHX_QEMU_M6_RUN_DIR:-/var/lib/graphx/qemu/m6}
 qemu_uid=65532
@@ -196,15 +196,9 @@ case ${1:-} in
         --wait 10 --interval 1
     fi
     ;;
-  fault-on)
-    sudo tc qdisc replace dev gxqpeer0 root netem delay 50ms 5ms loss 1%
-    sudo tc qdisc show dev gxqpeer0 | grep -q netem
-    ;;
-  fault-off) sudo tc qdisc del dev gxqpeer0 root 2>/dev/null || true ;;
   down)
     stop_runtime
-    sudo tc qdisc del dev gxqpeer0 root 2>/dev/null || true
     sudo "$graphx" infra destroy "$config"
     ;;
-  *) echo "usage: $0 <up|status|verify|pause|resume|fault-on|fault-off|down>" >&2; exit 64 ;;
+  *) echo "usage: $0 <up|status|verify|pause|resume|down>" >&2; exit 64 ;;
 esac

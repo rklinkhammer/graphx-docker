@@ -1,26 +1,16 @@
-# Standalone macvlan pipeline
+# MACVLAN semantic-profile pipeline
 
-> **M5 OVS path:** use `graphx-ovs.yaml`, `compose.ovs.yaml`, and
-> `scripts/ovs-{up,status,down}.sh` on native Linux or in Lima. The MACVLAN name
-> is now a semantic profile; this path creates veth/OVS data ports and no Docker
-> macvlan network. The commands below document the version-1 compatibility lab.
-
-This Linux-only example places all three independently deployed GraphX nodes on
-one macvlan L2 domain. Every container has an explicit IP and MAC address. The
-helper creates an isolated dummy parent, so the demo does not touch the host's
-physical LAN.
+`macvlan` is a semantic L2 profile in M8. GraphX creates one system OVS bridge
+and attaches each Compose-managed container with an owned veth pair; it does not
+create a Docker macvlan network or touch a physical parent interface.
 
 ```sh
-cmake --preset dev && cmake --build --preset dev
-./build/dev/graphx validate examples/macvlan/graphx.yaml
 ./build/dev/graphx infra create examples/macvlan/graphx.yaml --dry-run
 examples/macvlan/scripts/up.sh
-docker logs -f gx-mac-sink-sink-1
 examples/macvlan/scripts/status.sh
 examples/macvlan/scripts/down.sh
 ```
 
-The generator, transform, and sink use three separate Compose projects. The
-external Docker network is owned by `graphx infra`, not by Compose. As with all
-macvlan networks, the parent host cannot directly contact macvlan children
-without a separate host-side macvlan shim.
+Run on native Linux or in the GraphX Lima VM. Compose supplies management
+connectivity only. The version-1 input is retained at
+`examples/compatibility/v1/macvlan.yaml` for migration, not execution.

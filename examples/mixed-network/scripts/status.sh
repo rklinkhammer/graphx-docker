@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
 set -euo pipefail
-example_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-if docker compose -p gx-ovs -f "$example_dir/compose/macos-ovs.compose.yml" ps -q | grep -q .; then
-  docker compose -p gx-ovs -f "$example_dir/compose/macos-ovs.compose.yml" exec ovs-router ovs-vsctl show
-  docker compose -p gx-ovs -f "$example_dir/compose/macos-ovs.compose.yml" exec ovs-router ip -br address
-else
-  repo_dir="$(cd "$example_dir/../.." && pwd)"
-  graphx="${GRAPHX_BUILD_DIR:-$repo_dir/build/dev}/graphx"
-  sudo "$graphx" infra status "$example_dir/graphx.yaml"
-fi
+script_dir=$(cd "$(dirname "$0")" && pwd)
+exec "$script_dir/../../network-lab-ovs.sh" status "$script_dir/.." compose.yaml

@@ -19,8 +19,10 @@ explicitly documented. Preserve logs and manifests for diagnosis.
 
 ## Configuration version 1 to version 2
 
-Version 1 remains accepted and keeps its Docker bridge, macvlan, and ipvlan
-meaning. To prepare a reviewed version-2 copy without changing the source:
+Version 1 remains accepted for validation, inspection, projection, and migration
+through the next major release. M8 rejects all version-1 infrastructure
+execution; the Docker bridge, macvlan, and ipvlan realization is retired. To
+prepare a reviewed version-2 copy without changing the source:
 
 ```sh
 graphx config migrate graphx.yaml --output graphx-v2.yaml
@@ -40,6 +42,9 @@ Migration reads the literal source file and intentionally ignores
 `GRAPHX_OVERRIDES`. Clear or retain runtime overrides as needed for normal
 execution, but do not expect them to be encoded into a migrated document.
 
-Rollback is a configuration selection, not a reverse rewrite. Keep the original
-version-1 file unchanged and select it again if the version-2 review fails. Do
-not hand-edit the version number or translate profiles back into Docker drivers.
+Keep the original version-1 file unchanged. Before rollout, rollback is simply
+abandoning the candidate. After rollout, rollback requires the previously
+recorded GraphX release plus the saved version-1 configuration; an M8 binary
+will not recreate the retired Docker data plane. Do not hand-edit the version
+number or translate profiles back into Docker drivers. See
+[`m8-compatibility.md`](m8-compatibility.md).

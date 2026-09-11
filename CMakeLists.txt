@@ -313,6 +313,11 @@ if(GRAPHX_BUILD_TESTS)
       ${CMAKE_SOURCE_DIR}/tests/test_m7_network_observability_live.py $<TARGET_FILE:graphx-cli>)
     set_tests_properties(graphx-m7-network-observability-live PROPERTIES TIMEOUT 180
       ENVIRONMENT "GRAPHX_OVERRIDES=")
+    add_test(NAME graphx-m8-compatibility-closure-live COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_SOURCE_DIR}/tests/test_m8_compatibility_closure_live.py
+      $<TARGET_FILE:graphx-cli> ${CMAKE_SOURCE_DIR})
+    set_tests_properties(graphx-m8-compatibility-closure-live PROPERTIES TIMEOUT 240
+      ENVIRONMENT "GRAPHX_OVERRIDES=")
   endif()
   add_test(NAME graphx-config-projections
     COMMAND graphx-cli project ${CMAKE_SOURCE_DIR}/graphx.yaml --check
@@ -342,11 +347,14 @@ if(GRAPHX_BUILD_TESTS)
   endif()
   set(graphx_config_cli_tests graphx-config-cli)
   foreach(example mixed-network macvlan ipvlan-l2 ipvlan-l3 shared-memory udp-unicast
-                  udp-broadcast udp-multicast qemu-node static-route-policy)
+                  udp-broadcast udp-multicast static-route-policy)
     add_test(NAME graphx-config-${example}
       COMMAND graphx-cli validate ${CMAKE_SOURCE_DIR}/examples/${example}/graphx.yaml)
     list(APPEND graphx_config_cli_tests graphx-config-${example})
   endforeach()
+  add_test(NAME graphx-config-qemu-node
+    COMMAND graphx-cli validate ${CMAKE_SOURCE_DIR}/examples/qemu-node/tap/graphx.yaml)
+  list(APPEND graphx_config_cli_tests graphx-config-qemu-node)
   # Configuration tests must validate the checked-in files exactly as written.
   # Do not let deployment overrides exported by an earlier manual demo leak into
   # CTest and invalidate topologies that intentionally use another transport.
@@ -382,6 +390,12 @@ if(GRAPHX_BUILD_TESTS)
       $<TARGET_FILE:graphx-cli> ${CMAKE_SOURCE_DIR})
   set_tests_properties(graphx-m7-network-observability PROPERTIES
     TIMEOUT 30 ENVIRONMENT "GRAPHX_OVERRIDES=")
+  add_test(NAME graphx-m8-compatibility-closure
+    COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_SOURCE_DIR}/tests/test_m8_compatibility_closure.py
+      $<TARGET_FILE:graphx-cli> ${CMAKE_SOURCE_DIR})
+  set_tests_properties(graphx-m8-compatibility-closure PROPERTIES
+    TIMEOUT 90 ENVIRONMENT "GRAPHX_OVERRIDES=")
   add_test(NAME graphx-config-network-observability
     COMMAND graphx-cli validate ${CMAKE_SOURCE_DIR}/examples/network-observability/graphx.yaml)
   set_tests_properties(graphx-config-network-observability PROPERTIES

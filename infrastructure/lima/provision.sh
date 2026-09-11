@@ -11,10 +11,12 @@ set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 packages=(
   build-essential ca-certificates clang cmake curl docker-buildx docker-compose-v2 docker.io
-  gnupg iproute2 jq libssl-dev libyaml-cpp-dev nftables ninja-build nodejs npm
+  gnupg iproute2 jq libssl-dev libyaml-cpp-dev nftables ninja-build
   openvswitch-switch openssl pkg-config python3 python3-jsonschema python3-yaml
   qemu-system-arm qemu-system-ppc qemu-system-x86 qemu-utils tcpdump tshark
 )
+readonly node_runtime_image='node:24-bookworm-slim@sha256:ba849c60be29959425b8734d57b8b4b7d56f98edd9504c9af091d5281095a71e'
+readonly node_runtime_root=/opt/graphx-node-24
 
 apt_retry() {
   local attempt
@@ -72,6 +74,23 @@ timeout 60 bash -c 'until systemctl is-active --quiet docker.service; do sleep 2
 timeout 60 bash -c 'until systemctl is-active --quiet openvswitch-switch.service; do sleep 2; done'
 usermod --append --groups docker "${GRAPHX_LIMA_USER}"
 timeout 60 runuser --user "${GRAPHX_LIMA_USER}" -- docker info >/dev/null
+timeout 300 docker pull "${node_runtime_image}"
+install -d -m 0755 "${node_runtime_root}"
+node_container=$(docker create "${node_runtime_image}")
+if ! timeout 120 docker cp "${node_container}:/usr/local/." "${node_runtime_root}"; then
+  docker rm -f "${node_container}" >/dev/null 2>&1 || true
+  echo "Failed to install the pinned Node.js runtime." >&2
+  exit 1
+fi
+docker rm "${node_container}" >/dev/null
+for executable in node npm npx corepack; do
+  ln -sfn "${node_runtime_root}/bin/${executable}" "/usr/local/bin/${executable}"
+done
+[[ $(node --version) =~ ^v24\. ]] || {
+  echo "Pinned Node.js runtime did not provide Node.js 24." >&2
+  exit 1
+}
+timeout 30 node -e 'import("node:sqlite")' >/dev/null
 timeout 180 docker pull hello-world:linux
 
 printf '%s\n' "${GRAPHX_M1_CONFIG_DIGEST}" >/etc/graphx-m1-config.sha256
@@ -84,5 +103,8 @@ dpkg-query -W -f='${binary:Package}\t${Version}\n' "${packages[@]}" \
   printf 'config_digest=%s\n' "${GRAPHX_M1_CONFIG_DIGEST}"
   printf 'docker_probe_image='; docker image inspect hello-world:linux --format '{{index .RepoDigests 0}}'
   printf 'docker_buildx='; docker buildx version
+  printf 'node_runtime_image=%s\n' "${node_runtime_image}"
+  printf 'node='; node --version
+  printf 'npm='; npm --version
 } >/var/lib/graphx/m1/provisioned
 chown -R "${GRAPHX_LIMA_USER}:${GRAPHX_LIMA_USER}" /var/lib/graphx/m1

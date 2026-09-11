@@ -309,10 +309,10 @@ def main() -> int:
     assert "cap_add: [NET_RAW, NET_ADMIN, DAC_OVERRIDE]" in simulated_compose
     assert "SDR_SAMPLE_SOURCE: 172.30.13.10" in simulated_compose
     assert "SDR_SAMPLE_SOURCE: 10.63.0.10" in external_compose
-    for required in ("GRAPHX_SDR_OWNER", "com.graphx.sdr.owner", "graphx_sdr_owner",
-                     "Refusing to remove native SDR resources", 'chown "$3:$4"',
-                     'chown "$5:$6"', 'tcpdump -Z "$5"',
-                     "current_start_owns_native=true"):
+    for required in ("GRAPHX_M5_EXTERNAL_OWNER", "external-ovs-boundary.sh",
+                     "graphx_external_namespace_create",
+                     "graphx_external_namespace_delete", 'chown "$5:$6"',
+                     "Rollback retained M5 SDR state", "trap rollback_up ERR"):
         assert required in external_script, f"external lifecycle is missing {required}"
     print("SDR example portable behavioral checks passed")
     return 0

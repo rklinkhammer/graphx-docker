@@ -29,6 +29,7 @@ def main() -> int:
         "mountPoint: /workspace/graphx-docker", "system: false", "user: false",
         "hostIP: 127.0.0.1", "hostPort: 18080", "guestIP: 0.0.0.0",
         "guestIPMustBeZero: false", "proto: any", "ignore: true",
+        "node --version | grep -Eq '^v24\\.'", 'import("node:sqlite")',
     ):
         require(token in raw, f"Lima definition omits {token}")
     require(raw.count("  - location:") == 2, "unexpected image or host mounts were added")
@@ -46,6 +47,20 @@ def main() -> int:
     provision = (lima / "provision.sh").read_text(encoding="utf-8")
     for token in ("docker.io", "docker-buildx", "docker-compose-v2", "openvswitch-switch", "nftables", "qemu-system-ppc", "tcpdump", "tshark", "/var/lib/graphx"):
         require(token in provision, f"provisioning omits {token}")
+    require("node:24-bookworm-slim@sha256:" in provision,
+            "provisioning does not use the digest-pinned Node.js 24 runtime")
+    package_block = re.search(r"packages=\(\n(.*?)\n\)", provision, re.DOTALL)
+    require(package_block is not None, "provisioning package list is malformed")
+    require(not ({"nodejs", "npm"} & set(package_block.group(1).split())),
+            "provisioning must not rely on Ubuntu's unsupported Node.js packages")
+    verifier_dockerfile = (root / "docker/linux-verifier.Dockerfile").read_text(
+        encoding="utf-8"
+    )
+    node_image = re.search(r"node:24-bookworm-slim@sha256:[0-9a-f]{64}", provision)
+    require(node_image is not None and node_image.group(0) in verifier_dockerfile,
+            "Lima and the Linux verifier must use the same pinned Node image")
+    require('import("node:sqlite")' in provision,
+            "provisioning does not prove node:sqlite availability")
     require("docker buildx version" in provision,
             "provisioning does not record the required Buildx plugin")
     require('usermod --append --groups docker "${GRAPHX_LIMA_USER}"' in provision,
@@ -60,10 +75,13 @@ def main() -> int:
 
     start = (lima / "start.sh").read_text(encoding="utf-8")
     for token in ("Refreshing the Lima login session", 'limactl stop "${GRAPHX_M1_INSTANCE}"',
-                  "docker info >/dev/null && docker buildx version >/dev/null"):
+                  "docker info >/dev/null && docker buildx version >/dev/null",
+                  'node --version | grep -Eq "^v24\\\\."', "node:sqlite"):
         require(token in start, f"Lima start lifecycle omits {token}")
 
     verify = (lima / "verify.sh").read_text(encoding="utf-8")
+    require("Node.js 24 is required" in verify and 'import("node:sqlite")' in verify,
+            "Lima verification does not enforce the supported Node.js runtime")
     for name in ("gx-m1-br", "gx-m1-ns", "gx-m1-vh", "gx-m1-vn", "gx-m1-tap", "gx-m1-int", "gx-m1-docker"):
         require(name in verify, f"verification omits fixed name {name}")
     for token in ("external_ids:graphx_m1_owner", "graphx-m1:", "datapath_type=system", "ip tuntap", "netem", "nft", "tcpdump", "docker buildx version", "Lima login user cannot access rootful Docker", "scripts/verify.sh quick", "GRAPHX_DEV_BUILD_DIR=/var/lib/graphx/m1/build/dev", "project graphx.yaml --check", "snapshot before", "snapshot after"):

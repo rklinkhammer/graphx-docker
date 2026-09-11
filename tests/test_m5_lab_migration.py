@@ -1,23 +1,14 @@
 #!/usr/bin/env python3
-import hashlib
 import os
 from pathlib import Path
 import subprocess
 import sys
 
 
-LEGACY_HASHES = {
-    "mixed-network": "ede943d05d0e70cd4bb36970bf94be9ea81787568f313766a807a3c14b6b65fc",
-    "macvlan": "40e09c1cb7ed78b118efeb10dbfe42fc8b06eb10312091f4df7afd9f0920f69d",
-    "ipvlan-l2": "da18ff3dfd11a72a834dd6933e161db0a18b92a1ddfc352340208fd274f40f37",
-    "ipvlan-l3": "598abfa52b274b8d6a3362bc67b141f0852dc590a61b552d99c5960d3b06864b",
-}
-
-
-def run(*args: object) -> subprocess.CompletedProcess[str]:
+def run(*args: object, check: bool = True) -> subprocess.CompletedProcess[str]:
     value = subprocess.run([str(v) for v in args], text=True, capture_output=True,
                            timeout=30, env={**os.environ, "GRAPHX_OVERRIDES": ""})
-    if value.returncode:
+    if check and value.returncode:
         raise AssertionError(value.stderr or value.stdout)
     return value
 
@@ -32,12 +23,12 @@ def main() -> int:
         raise SystemExit("usage: test_m5_lab_migration.py GRAPHX SOURCE_ROOT")
     graphx, root = Path(sys.argv[1]), Path(sys.argv[2])
     labs = [
-        root / "examples/mixed-network/graphx-ovs.yaml",
-        root / "examples/macvlan/graphx-ovs.yaml",
-        root / "examples/ipvlan-l2/graphx-ovs.yaml",
-        root / "examples/ipvlan-l3/graphx-ovs.yaml",
-        root / "examples/static-route-policy/graphx-ovs.yaml",
-        root / "examples/sdr-node/external/graphx-ovs.yaml",
+        root / "examples/mixed-network/graphx.yaml",
+        root / "examples/macvlan/graphx.yaml",
+        root / "examples/ipvlan-l2/graphx.yaml",
+        root / "examples/ipvlan-l3/graphx.yaml",
+        root / "examples/static-route-policy/graphx.yaml",
+        root / "examples/sdr-node/external/graphx.yaml",
     ]
     for config in labs:
         require(config.is_file(), f"missing migrated lab: {config}")
@@ -63,30 +54,37 @@ def main() -> int:
     require("ip route delete 10.64.30.10/32" in route_clear,
             "M5 manual route clear is not realizable")
 
-    for lab, expected in LEGACY_HASHES.items():
-        output = run(graphx, "infra", "create", root / "examples" / lab / "graphx.yaml",
-                     "--dry-run").stdout.encode()
-        require(hashlib.sha256(output).hexdigest() == expected,
-                f"M0 legacy fingerprint changed: {lab}")
+    compatibility = root / "examples/compatibility/v1"
+    for fixture in compatibility.glob("*.yaml"):
+        run(graphx, "validate", fixture)
+        run(graphx, "inspect", fixture)
+        first = run(graphx, "config", "migrate", fixture).stdout
+        second = run(graphx, "config", "migrate", fixture).stdout
+        require(first == second and first.startswith("# GraphX deterministic migration"),
+                f"legacy fixture is not deterministically migratable: {fixture}")
+        refused = run(graphx, "infra", "create", fixture, "--dry-run", check=False)
+        require(refused.returncode != 0 and "retired in M8" in refused.stderr and
+                "config migrate" in refused.stderr,
+                f"legacy infrastructure was not retired: {fixture}")
 
     for lab in ("mixed-network", "macvlan", "ipvlan-l2", "ipvlan-l3"):
-        compose = (root / "examples" / lab / "compose.ovs.yaml").read_text()
+        compose = (root / "examples" / lab / "compose.yaml").read_text()
         require("driver: macvlan" not in compose and "driver: ipvlan" not in compose and
                 "external: true" not in compose,
                 f"active OVS compose still declares a Docker data plane: {lab}")
         for action in ("up", "down", "status"):
-            require((root / "examples" / lab / "scripts" / f"ovs-{action}.sh").is_file(),
-                    f"missing {lab} OVS {action} wrapper")
+            require((root / "examples" / lab / "scripts" / f"{action}.sh").is_file(),
+                    f"missing {lab} canonical {action} wrapper")
 
     for script in (
-        root / "examples/static-route-policy/scripts/ovs-lab.sh",
-        root / "examples/sdr-node/external/scripts/ovs-lab.sh",
+        root / "examples/static-route-policy/scripts/demo.sh",
+        root / "examples/sdr-node/external/scripts/demo.sh",
     ):
         require(script.is_file(), f"missing external-boundary M5 launcher: {script}")
         require(os.access(script, os.X_OK), f"M5 launcher is not executable: {script}")
         subprocess.run(["bash", "-n", str(script)], check=True)
         launcher = script.read_text()
-        require("graphx-ovs.yaml" in launcher and "external-ovs-boundary.sh" in launcher,
+        require("graphx.yaml" in launcher and "external-ovs-boundary.sh" in launcher,
                 f"M5 launcher does not select the common realization and boundary helper: {script}")
         require("trap rollback_up ERR" in launcher,
                 f"M5 external-boundary launcher lacks ownership-safe rollback: {script}")
@@ -96,7 +94,7 @@ def main() -> int:
     boundary = root / "examples/external-ovs-boundary.sh"
     require(boundary.is_file() and os.access(boundary, os.X_OK),
             "missing executable M5 external-boundary helper")
-    sdr_compose = (root / "examples/sdr-node/external/compose.ovs.yaml").read_text()
+    sdr_compose = (root / "examples/sdr-node/external/compose.yaml").read_text()
     require("driver: macvlan" not in sdr_compose and "driver: ipvlan" not in sdr_compose
             and "external: true" not in sdr_compose,
             "active SDR OVS compose still declares a Docker data plane")

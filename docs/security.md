@@ -43,11 +43,12 @@ Cleanup validates those identities and refuses a same-named replacement. All
 package, service, process, packet, and lifecycle waits are bounded; retained
 evidence is capped at ten runs.
 
-M1 proves tool availability and an isolated test topology only. M2 accepts a
-strict configuration version 2 intent model, while version 1 retains its
-existing Docker network-driver meaning. Version 2 rejects legacy driver fields,
-requires typed attachments, and cannot enter the version-1 infrastructure,
-route, or fault planner. Migration validates the literal source without
+M1 proves tool availability and an isolated test topology. M2 accepts a strict
+configuration version 2 intent model, while version 1 retains its original
+Docker network-driver meaning only for inspection and migration. M8 rejects all
+version-1 infrastructure execution and removes its infrastructure, route, and
+fault planners. Version 2 rejects legacy driver fields and requires typed
+attachments. Migration validates the literal source without
 applying runtime `GRAPHX_OVERRIDES`, never modifies it, and creates output with
 exclusive no-follow semantics so existing paths and symlinks are not
 overwritten. M3 stores an owner-only configuration digest, random run token,
@@ -58,9 +59,9 @@ atomically on those intrinsic identities and the stable OVS UUID. Initial ledger
 publication refuses every existing directory entry, including a dangling symlink;
 read-only status never creates the state root, lock, or ledger. The lifecycle refuses missing state,
 unowned names, replacements, symlinked state roots, and concurrent graph
-operations. Application-container veth and QEMU TAP realization still require
-later ownership and threat reviews; current QEMU profiles continue to use
-slirp.
+operations. M4-M7 apply the same identity checks to container/namespace veth,
+QEMU TAP, capture, and timed netem state. QEMU user networking remains only in
+explicitly deprecated compatibility profiles.
 
 ## TCP TLS 1.3 and mutual TLS
 
