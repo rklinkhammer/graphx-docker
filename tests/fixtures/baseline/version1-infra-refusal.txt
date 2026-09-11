@@ -3,6 +3,7 @@ usage:
   graphx --version
   graphx <validate|inspect> [config.yaml] [--set path=value]
   graphx config migrate [config.yaml] [--output FILE]
+  graphx config normalize [config.yaml] [--format json] [--set path=value]
   graphx project [config.yaml] [--check] [--output-dir DIR]
   graphx infra <create|destroy|status|recover> [config.yaml] [--dry-run]
                [--transactional] [--state-dir DIR]

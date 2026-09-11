@@ -14,7 +14,7 @@ testing would preserve two control planes and ambiguous operational guidance.
 ## Decision
 
 Configuration version 2 is the only active GraphX-managed network realization.
-Version-1 files remain accepted by validation, inspection, projection, and the
+Version-1 files remain accepted by validation, inspection, projection, normalization, and the
 deterministic migration command during the published compatibility window, but
 all infrastructure actions reject them before mutation and direct the operator
 to `graphx config migrate`.

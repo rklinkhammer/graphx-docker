@@ -21,7 +21,7 @@ new ADR. Do not silently revive an archived design.
 ## Architecture invariants
 
 - Version 2 is the only mutable GraphX infrastructure format. Version 1 may be
-  validated, inspected, projected, and deterministically migrated, but every
+  validated, inspected, projected, normalized, and deterministically migrated, but every
   version-1 infrastructure action must fail before mutation.
 - System Open vSwitch on Linux is the only GraphX-managed network backend.
   MACVLAN and IPVLAN names are semantic profiles, never Docker network drivers.
@@ -58,4 +58,3 @@ new ADR. Do not silently revive an archived design.
 - Keep new implementation plans and verification reports out of the repository
   root. Durable decisions belong in ADRs; completed work records belong in the
   archive when retention is useful.
-

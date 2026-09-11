@@ -29,6 +29,9 @@ Overrides use dotted paths with precedence:
 2. `GRAPHX_OVERRIDES` environment variable;
 3. explicit CLI `--set` values.
 
+The top-level configuration `version` is an immutable source boundary and is
+excluded from both override layers.
+
 Version 1 permits only directed acyclic graphs because the current startup and
 blocking transport model cannot safely schedule feedback cycles. Cycle support
 requires an explicit future configuration version or capability.

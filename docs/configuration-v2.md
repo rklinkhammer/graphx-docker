@@ -2,7 +2,7 @@
 
 Configuration version 2 is the explicit semantic boundary for the OVS
 migration. Version 1 remains accepted for validation, inspection, projection,
-and deterministic migration with its original Docker `bridge`/`macvlan`/`ipvlan`
+normalization, and deterministic migration with its original Docker `bridge`/`macvlan`/`ipvlan`
 driver meaning, but M8 rejects every infrastructure action. Version 2 never accepts `driver`,
 `parent`, `mode`, `network.interfaces`, or `deployment.network`; it uses
 semantic profiles and explicit attachments instead.
@@ -118,3 +118,30 @@ fail with a diagnostic instead of guessing.
 
 The migration does not change the source file or claim that M4–M6 realization
 exists. Review the resulting profiles and attachment kinds before adopting it.
+
+## Normalized configuration contract
+
+GraphX can emit the fully validated, defaulted, and override-resolved model as
+deterministic JSON:
+
+```bash
+graphx config normalize graphx.yaml --format json
+graphx config normalize graphx.yaml --set observability.telemetry.port=9100
+```
+
+The optional format is currently restricted to `json`. Normalization uses the
+runtime precedence `file < GRAPHX_OVERRIDES < --set`, unlike source-to-source
+migration, which deliberately ignores runtime overrides. The source `version`
+is not overrideable at either runtime override layer.
+
+`contract_version` versions the normalized JSON independently from the source
+YAML version. Contract version 1 records `source_version`, exposes resolved
+defaults, and marks whether infrastructure mutation is permitted. Version-2
+input has `infrastructure_mutable: true` and the `ovs` backend. Version-1 input
+has `infrastructure_mutable: false` and a `compatibility-only` network view; it
+never advertises a retired Docker network driver as an active backend.
+
+The contract schema is `config/schema/normalized-graph-v1.schema.json`.
+Normalization does not read credential files or include credential environment
+variables. TLS file paths are configuration metadata; private key contents are
+never read or emitted.

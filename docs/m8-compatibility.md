@@ -8,7 +8,7 @@ management connectivity only.
 
 ## Version-1 support window
 
-Version-1 files remain readable by `validate`, `inspect`, `project`, and
+Version-1 files remain readable by `validate`, `inspect`, `project`, `config normalize`, and
 `config migrate` through the next major GraphX release. All `infra` lifecycle
 operations reject version 1 before creating a state directory or changing the
 host. Curated inputs live under `examples/compatibility/v1`; they are not active

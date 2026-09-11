@@ -28,8 +28,12 @@ sockets to macOS and therefore does not satisfy the host-side Docker portion of
 ## Compatibility boundary
 
 - Version-1 configurations remain accepted only by `validate`, `inspect`,
-  `project`, and deterministic `config migrate` operations during the published
+  `project`, `config normalize`, and deterministic `config migrate` operations during the published
   support window.
+- The C++ loader is the authoritative normalizer. `graphx config normalize`
+  emits the independently versioned, strict JSON contract used by downstream
+  consumers; version-1 output is always marked non-mutable. The source `version`
+  is immutable and cannot be changed by `GRAPHX_OVERRIDES` or `--set`.
 - Every version-1 `infra` action refuses before creating a state directory or
   mutating Docker/Linux resources.
 - Curated version-1 infrastructure-migration fixtures live under
@@ -85,6 +89,7 @@ Privileged Lima checks are a separate evidence row and follow
 - ADR 0017: OVS is the single backend; containers use veth and QEMU uses TAP.
 - ADR 0018: version 2 is the sole active realization and legacy paths are
   migration-only.
+- ADR 0019: the C++ loader owns the deterministic normalized JSON contract.
 - Earlier accepted ADRs continue to govern configuration authority, bounded
   parsing/runtime behavior, transport compatibility, security, telemetry,
   history, control, capture, releases, UDP, QEMU, external devices, and manual

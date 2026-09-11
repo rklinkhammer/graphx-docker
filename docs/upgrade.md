@@ -19,7 +19,7 @@ explicitly documented. Preserve logs and manifests for diagnosis.
 
 ## Configuration version 1 to version 2
 
-Version 1 remains accepted for validation, inspection, projection, and migration
+Version 1 remains accepted for validation, inspection, projection, normalization, and migration
 through the next major release. M8 rejects all version-1 infrastructure
 execution; the Docker bridge, macvlan, and ipvlan realization is retired. To
 prepare a reviewed version-2 copy without changing the source:

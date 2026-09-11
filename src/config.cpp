@@ -84,6 +84,11 @@ void apply_override(YAML::Node& root, const ConfigOverride& override,
     errors.push_back({override.path, "override path must contain non-empty dotted components"});
     return;
   }
+  if (parts.size() == 1 && parts.front() == "version") {
+    errors.push_back({override.path,
+                      "configuration version is immutable and must come from the source document"});
+    return;
+  }
   YAML::Node current = root;
   for (std::size_t index = 0; index + 1 < parts.size(); ++index) {
     if (!current.IsMap() || !current[parts[index]]) {

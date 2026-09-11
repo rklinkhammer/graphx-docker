@@ -474,6 +474,8 @@ export GRAPHX_OVERRIDES='transport.tcp.samples.host=127.0.0.1;transport.tcp.tran
 
 Run each node in its own terminal. Override paths must already exist, which
 prevents misspelled deployment settings from silently creating unused keys.
+The top-level configuration `version` is immutable and must come from the
+source file; neither override layer can change it.
 
 TCP edge settings accept:
 

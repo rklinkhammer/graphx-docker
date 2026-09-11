@@ -746,6 +746,13 @@ void invalid_override_is_rejected() {
   } catch (const graphx::ConfigError& error) {
     expect(diagnostic_contains(error, "does not exist"), "override diagnostic");
   }
+  try {
+    [[maybe_unused]] const auto ignored = graphx::load_config(file.path(), {{"version", "2"}});
+    throw std::runtime_error("configuration version override was accepted");
+  } catch (const graphx::ConfigError& error) {
+    expect(diagnostic_contains(error, "configuration version is immutable"),
+           "immutable version override diagnostic");
+  }
 }
 
 void semantic_errors_are_aggregated() {

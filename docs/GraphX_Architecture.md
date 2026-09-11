@@ -16,7 +16,7 @@ GraphX is an educational, configuration-driven framework for describing a direct
 5. the **observability model** says what is measured, retained, exported, and captured; and
 6. the **control and GUI plane** presents those models and applies narrowly scoped runtime commands.
 
-The versioned `graphx.yaml` file is the authoritative source for these views. Version 1 is migration input only: validation, inspection, projection, and deterministic migration remain available, while every infrastructure action fails before mutation. Version 2 expresses OVS semantic profiles and typed attachment intent; M3 realizes identity-owned OVS bridges, M4 attaches verified managed containers with owned veth pairs, M5 realizes namespace veths, mirrors, router forwarding/routes/policy, semantic profile flows, and the migrated network laboratories, M6 adds identity-owned QEMU TAP endpoints with exact non-root access, M7 owns bounded mirror capture and timed netem faults, and M8 removes Docker-driver and Docker Desktop simulation realization. The C++ loader and the telemetry service both validate and normalize configuration, while the browser derives its Application and Network views from the normalized topology instead of keeping a second topology definition.
+The versioned `graphx.yaml` file is the authoritative source for these views. Version 1 is migration input only: validation, inspection, projection, normalization, and deterministic migration remain available, while every infrastructure action fails before mutation. Version 2 expresses OVS semantic profiles and typed attachment intent; M3 realizes identity-owned OVS bridges, M4 attaches verified managed containers with owned veth pairs, M5 realizes namespace veths, mirrors, router forwarding/routes/policy, semantic profile flows, and the migrated network laboratories, M6 adds identity-owned QEMU TAP endpoints with exact non-root access, M7 owns bounded mirror capture and timed netem faults, and M8 removes Docker-driver and Docker Desktop simulation realization. The C++ loader and the telemetry service both validate and normalize configuration, while the browser derives its Application and Network views from the normalized topology instead of keeping a second topology definition.
 
 GraphX supports five GraphX-aware transports—bounded in-process queues, TCP, Unix-domain sockets, POSIX shared memory, and IPv4 UDP—and also represents external raw TCP/UDP edges that GraphX observes but does not instantiate. The same canonical GraphX envelope and `u32be` frame are used by the stream transports, shared memory, UDP datagrams, application capture, and Wireshark tooling. Raw external edges use `framing: none` and are deliberately rejected by the GraphX transport factory.
 
@@ -159,6 +159,9 @@ Overrides use dotted paths. Precedence is:
 2. `GRAPHX_OVERRIDES`;
 3. explicit CLI `--set` values.
 
+The top-level source `version` is immutable and cannot be changed by either
+override layer.
+
 Secrets do not belong in `graphx.yaml`. Compose secret mounts and deployment environment variables project observation tokens, control policies/tokens, runtime identities, shared HMAC secrets, TLS material, OTLP credentials, and optional organizational build trust.
 
 ### 4.2 Logical nodes and ports
@@ -175,7 +178,7 @@ Common container defaults are read-only root filesystems, small tmpfs mounts, al
 
 ### 4.4 Lifecycle boundaries
 
-The CLI validates, inspects, projects, and migrates both configuration versions. Every version-1 infrastructure action is rejected before state or platform mutation. For version 2, M3 provides persistent OVS bridge ownership, M4 extends the lifecycle to container veth attachment, M5 adds namespace veths, mirrors, router forwarding/routes/policy and semantic profile flows, M6 adds persistent TAP creation, and M7 adds owned capture and timed faults. Compose manages application processes and management connectivity only; GraphX verifies project/service labels, image, full container ID, PID, and namespace inode before moving the data-plane peer. A replacement namespace, TAP, Port, Interface, capture, or qdisc is reported unhealthy and cleanup fails closed.
+The CLI validates, inspects, projects, normalizes, and migrates both configuration versions. Every version-1 infrastructure action is rejected before state or platform mutation. For version 2, M3 provides persistent OVS bridge ownership, M4 extends the lifecycle to container veth attachment, M5 adds namespace veths, mirrors, router forwarding/routes/policy and semantic profile flows, M6 adds persistent TAP creation, and M7 adds owned capture and timed faults. Compose manages application processes and management connectivity only; GraphX verifies project/service labels, image, full container ID, PID, and namespace inode before moving the data-plane peer. A replacement namespace, TAP, Port, Interface, capture, or qdisc is reported unhealthy and cleanup fails closed.
 
 Infrastructure provisioning is designed for clean laboratories. It does not persist desired state, reconcile drift, or guarantee rollback of every partial direct CLI create; the example launchers add preflight and cleanup behavior around this seam.
 
@@ -721,7 +724,7 @@ maintained in [`project-decisions.md`](project-decisions.md):
 8. M8 retires legacy realization paths after the compatibility gate while retaining migration input.
 
 During the compatibility window, version-1 files remain available only for
-validation, inspection, projection, and migration. Version-2 create, status, destroy, and interrupted-create
+validation, inspection, projection, normalization, and migration. Version-2 create, status, destroy, and interrupted-create
 recovery use the ownership ledger. Managed containers use veth without Docker
 data-plane networks; M5 router namespaces, mirrors, policy, and IPvlan flows use
 the same system-OVS path on native Linux and in Lima. M6 QEMU uses an owned TAP

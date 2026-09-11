@@ -71,6 +71,8 @@ with tempfile.TemporaryDirectory(prefix="graphx-package-test-") as temporary:
         prefix / "libexec" / "graphx" / "graphx-extcap",
         prefix / "share" / "graphx" / "wireshark" / "graphx.lua",
         prefix / "share" / "graphx" / "schema" / "graphx.schema.json",
+        prefix / "share" / "graphx" / "schema" / "normalized-graph-v1.schema.json",
+        prefix / "include" / "graphx" / "normalized_config.hpp",
         prefix / "share" / "doc" / "graphx" / "LICENSE",
     ]
     assert all(path.is_file() for path in required), [str(path) for path in required if not path.is_file()]

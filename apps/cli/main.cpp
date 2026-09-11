@@ -1,6 +1,7 @@
 #include "graphx/config.hpp"
 #include "graphx/infra.hpp"
 #include "graphx/migration.hpp"
+#include "graphx/normalized_config.hpp"
 #include "graphx/ownership.hpp"
 #include "graphx/version.hpp"
 #include "projection.hpp"
@@ -24,6 +25,7 @@ void usage(std::ostream& output) {
          << "  graphx --version\n"
          << "  graphx <validate|inspect> [config.yaml] [--set path=value]\n"
          << "  graphx config migrate [config.yaml] [--output FILE]\n"
+         << "  graphx config normalize [config.yaml] [--format json] [--set path=value]\n"
          << "  graphx project [config.yaml] [--check] [--output-dir DIR]\n"
          << "  graphx infra <create|destroy|status|recover> [config.yaml] [--dry-run]\n"
          << "               [--transactional] [--state-dir DIR]\n"
@@ -33,8 +35,6 @@ void usage(std::ostream& output) {
 }
 
 int migration_command(int argc, char** argv) {
-  if (argc < 3 || std::string_view(argv[2]) != "migrate")
-    throw std::invalid_argument("config requires the 'migrate' action");
   auto source = default_config();
   std::filesystem::path output;
   bool source_set{};
@@ -91,6 +91,46 @@ int migration_command(int argc, char** argv) {
   }
   std::cout << "Migrated configuration version 1 to version 2: " << output.string() << '\n';
   return 0;
+}
+
+int normalization_command(int argc, char** argv) {
+  auto source = default_config();
+  std::vector<graphx::ConfigOverride> overrides;
+  bool source_set{}, format_set{};
+  for (int index = 3; index < argc; ++index) {
+    const std::string argument = argv[index];
+    if (argument == "--format") {
+      if (format_set) throw std::invalid_argument("--format may be specified only once");
+      if (++index == argc) throw std::invalid_argument("--format requires json");
+      if (std::string_view(argv[index]) != "json")
+        throw std::invalid_argument("normalized configuration format must be json");
+      format_set = true;
+    } else if (argument == "--set") {
+      if (++index == argc) throw std::invalid_argument("--set requires path=value");
+      const std::string setting = argv[index];
+      const auto equals = setting.find('=');
+      if (equals == std::string::npos || equals == 0)
+        throw std::invalid_argument("--set requires path=value");
+      overrides.push_back({setting.substr(0, equals), setting.substr(equals + 1)});
+    } else if (argument.starts_with("--")) {
+      throw std::invalid_argument("unknown option '" + argument + "'");
+    } else if (!source_set) {
+      source = argument;
+      source_set = true;
+    } else {
+      throw std::invalid_argument("unexpected argument '" + argument + "'");
+    }
+  }
+  std::cout << graphx::normalize_config_json(graphx::load_config(source, overrides));
+  return 0;
+}
+
+int config_command(int argc, char** argv) {
+  if (argc < 3) throw std::invalid_argument("config requires migrate or normalize");
+  const std::string_view action = argv[2];
+  if (action == "migrate") return migration_command(argc, argv);
+  if (action == "normalize") return normalization_command(argc, argv);
+  throw std::invalid_argument("unknown config action '" + std::string(action) + "'");
 }
 
 std::string direction(graphx::Direction value) {
@@ -421,7 +461,7 @@ int main(int argc, char** argv) {
   try {
     const std::string command = argv[1];
     if (command == "validate" || command == "inspect") return topology_command(command, argc, argv);
-    if (command == "config") return migration_command(argc, argv);
+    if (command == "config") return config_command(argc, argv);
     if (command == "project") return project_command(argc, argv);
     if (command == "infra") return infrastructure_command(argc, argv);
     throw std::invalid_argument("unknown command '" + command + "'");

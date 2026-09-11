@@ -106,6 +106,7 @@ add_library(graphx
   src/infra.cpp
   src/migration.cpp
   src/network.cpp
+  src/normalized_config.cpp
   src/observability.cpp
   src/ownership.cpp
   src/shared_memory_transport.cpp
@@ -185,7 +186,7 @@ write_basic_package_version_file(
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/GraphXConfig.cmake"
   "${CMAKE_CURRENT_BINARY_DIR}/GraphXConfigVersion.cmake"
   DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/GraphX COMPONENT development)
-install(FILES config/schema/graphx.schema.json
+install(FILES config/schema/graphx.schema.json config/schema/normalized-graph-v1.schema.json
   DESTINATION ${CMAKE_INSTALL_DATADIR}/graphx/schema COMPONENT runtime)
 install(FILES graphx.yaml DESTINATION ${CMAKE_INSTALL_DATADIR}/graphx COMPONENT runtime)
 install(PROGRAMS tools/graphx-extcap
@@ -278,6 +279,11 @@ if(GRAPHX_BUILD_TESTS)
     ${CMAKE_SOURCE_DIR}/tests/test_config_v2.py $<TARGET_FILE:graphx-cli>
     ${CMAKE_SOURCE_DIR})
   set_tests_properties(graphx-config-v2 PROPERTIES TIMEOUT 45 ENVIRONMENT "GRAPHX_OVERRIDES=")
+  add_test(NAME graphx-normalized-config COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/test_normalized_config.py $<TARGET_FILE:graphx-cli>
+    ${CMAKE_SOURCE_DIR})
+  set_tests_properties(graphx-normalized-config PROPERTIES
+    TIMEOUT 45 ENVIRONMENT "GRAPHX_OVERRIDES=")
   add_test(NAME graphx-simplification-baseline COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/test_simplification_baseline.py $<TARGET_FILE:graphx-cli>
     ${CMAKE_SOURCE_DIR})

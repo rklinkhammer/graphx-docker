@@ -12,6 +12,7 @@ mutable `latest` image tag are intentionally unsupported by the current process.
 |---|---|---|
 | GraphX envelope | Wire versions 1 and 2 | Readers retain documented v1/v2 behavior; a new incompatible encoding needs a new wire version. |
 | YAML configuration | `version: 1` and JSON Schema | Additive optional fields may be minor changes; changed meaning, removal, or new required fields need a new config version and migration. |
+| Normalized configuration JSON | Independent `contract_version` and strict installed schema | Additive fields require a new contract version unless explicitly documented as optional; removal, type changes, or changed version semantics are breaking. |
 | Control/telemetry messages | Explicit protocol fields and bounded API contracts | Additions must be safely ignored or negotiated; authorization or acknowledgement semantic changes are breaking. |
 | PCAPNG application capture | PCAPNG 1.0, USER0, embedded GraphX wire version | Existing captures remain readable; incompatible payload changes follow the wire-version rule. |
 | History database | Internal schema version/migrations | Upgrades must preserve supported data or fail before mutation; downgrades use a backup, not reverse migration. |
