@@ -1,0 +1,6 @@
+# ownership-state "<STATE_ROOT>/m7-network-observability.yaml"
+ovs-vsctl -- add-br br-gxm7-demo -- set Bridge br-gxm7-demo datapath_type=system external_ids:graphx_owner=<generated-owner-token> external_ids:graphx_config_hash=cdc4327c190a235cf28835687a4107a6668587b530d12e122b0423e630ba58be external_ids:graphx_graph=m7-network-observability
+ip tuntap add dev gxm7tap0 mode tap user 65532 group 65532 -> ovs-vsctl add-port br-gxm7-demo gxm7tap0 mtu=1500
+mirror observed-span -> ovs-vsctl add-port br-gxm7-demo gxm7cap0 -> OVS SPAN
+dumpcap attachment=observed-span format=ethernet-pcapng directory=/var/lib/graphx/captures/m7-demo snaplen=65535 max-file-bytes=1048576 max-files=4 rotate-seconds=60 retention-seconds=3600
+tc qdisc replace attachment=source-data root netem delay-ms=20 jitter-ms=3 loss-percent=1 rate-kbit=0 duration-seconds=30 auto-clear=identity-checked

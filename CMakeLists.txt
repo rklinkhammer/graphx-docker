@@ -278,6 +278,11 @@ if(GRAPHX_BUILD_TESTS)
     ${CMAKE_SOURCE_DIR}/tests/test_config_v2.py $<TARGET_FILE:graphx-cli>
     ${CMAKE_SOURCE_DIR})
   set_tests_properties(graphx-config-v2 PROPERTIES TIMEOUT 45 ENVIRONMENT "GRAPHX_OVERRIDES=")
+  add_test(NAME graphx-simplification-baseline COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/test_simplification_baseline.py $<TARGET_FILE:graphx-cli>
+    ${CMAKE_SOURCE_DIR})
+  set_tests_properties(graphx-simplification-baseline PROPERTIES
+    TIMEOUT 45 ENVIRONMENT "GRAPHX_OVERRIDES=")
   add_test(NAME graphx-m3-ownership COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/test_m3_ownership.py $<TARGET_FILE:graphx-cli>
     ${CMAKE_SOURCE_DIR})

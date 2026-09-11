@@ -1,0 +1,86 @@
+# GraphX deterministic migration from configuration version 1.
+# Review semantic profiles and attachment kinds before realization.
+version: 2
+graph:
+  id: macvlan-pipeline
+  nodes:
+    - id: generator
+      kind: source
+      ports: [{name: samples, direction: output, schema: Sample}]
+    - id: transform
+      kind: transform
+      ports:
+        - {name: samples, direction: input, schema: Sample}
+        - {name: transformed, direction: output, schema: TransformedSample}
+    - id: sink
+      kind: sink
+      ports: [{name: transformed, direction: input, schema: TransformedSample}]
+  edges:
+    - {id: samples, from: generator.samples, to: transform.samples, transport: tcp}
+    - {id: transformed, from: transform.transformed, to: sink.transformed, transport: tcp}
+transport:
+  tcp:
+    samples:
+      host: 10.30.0.20
+      bind: 0.0.0.0
+      port: 7001
+      framing: u32be
+      connect_timeout_ms: 1000
+      send_timeout_ms: 5000
+      reconnect: true
+      retry: {max_attempts: 60, initial_backoff_ms: 100, max_backoff_ms: 2000}
+    transformed:
+      host: 10.30.0.30
+      bind: 0.0.0.0
+      port: 7002
+      framing: u32be
+      connect_timeout_ms: 1000
+      send_timeout_ms: 5000
+      reconnect: true
+      retry: {max_attempts: 60, initial_backoff_ms: 100, max_backoff_ms: 2000}
+network:
+  networks:
+    - {id: gx-macvlan-demo, gateway: 10.30.0.1, external: true, profile: macvlan, subnets: [10.30.0.0/24], uplink: gx-mac-parent}
+  edge_paths:
+    samples: [generator, gx-macvlan-demo, transform]
+    transformed: [transform, gx-macvlan-demo, sink]
+  switches:
+    - id: gxb9b585f04998d
+      kind: openvswitch
+      datapath: system
+      ports:
+        []
+  attachments:
+    - id: generator-data
+      kind: container_veth
+      owner: generator
+      network: gx-macvlan-demo
+      address: 10.30.0.10/24
+      mac: 02:30:00:00:00:10
+      interface: gxc5103c0988d67
+      peer: gxh5103c0988d67
+      switch: gxb9b585f04998d
+    - id: transform-data
+      kind: container_veth
+      owner: transform
+      network: gx-macvlan-demo
+      address: 10.30.0.20/24
+      mac: 02:30:00:00:00:20
+      interface: gxcf68db3f19a50
+      peer: gxhf68db3f19a50
+      switch: gxb9b585f04998d
+    - id: sink-data
+      kind: container_veth
+      owner: sink
+      network: gx-macvlan-demo
+      address: 10.30.0.30/24
+      mac: 02:30:00:00:00:30
+      interface: gxc498d40724d3b
+      peer: gxh498d40724d3b
+      switch: gxb9b585f04998d
+deployment:
+  services:
+    generator: {image: graphx-demo:latest, command: graphx-generator}
+    transform: {image: graphx-demo:latest, command: graphx-transform}
+    sink: {image: graphx-demo:latest, command: graphx-sink}
+  project: macvlan-pipeline

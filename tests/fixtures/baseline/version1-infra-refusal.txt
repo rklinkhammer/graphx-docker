@@ -1,0 +1,11 @@
+graphx: configuration version 1 infrastructure execution was retired in M8; run 'graphx config migrate' and review the version-2 output
+usage:
+  graphx --version
+  graphx <validate|inspect> [config.yaml] [--set path=value]
+  graphx config migrate [config.yaml] [--output FILE]
+  graphx project [config.yaml] [--check] [--output-dir DIR]
+  graphx infra <create|destroy|status|recover> [config.yaml] [--dry-run]
+               [--transactional] [--state-dir DIR]
+  graphx infra route <apply|clear> [config.yaml] --router ID --destination CIDR
+  graphx infra capture export [config.yaml] --capture ID --output FILE
+                    [--state-dir DIR]

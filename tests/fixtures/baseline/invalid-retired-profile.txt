@@ -1,0 +1,5 @@
+graphx: configuration validation failed with 4 errors
+- graph.nodes: must contain at least one node
+- network.networks[0].profile: must be 'ethernet', 'macvlan', 'ipvlan-l2', 'ipvlan-l3', or 'ipvlan-l3s'
+- network.networks[0].gateway: is required except for ipvlan l3/l3s
+- network.networks[0].uplink: is required for macvlan and ipvlan semantic profiles

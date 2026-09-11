@@ -1,0 +1,1 @@
++ ip netns exec gx-route-router ip route replace 10.64.30.10/32 via 10.64.3.10 dev rt-right

@@ -1,0 +1,21 @@
+graph macvlan-pipeline (version 2)
+node generator kind=source runtime=process execution=local lifecycle=managed control=graphx
+  port samples direction=output schema=Sample
+node transform kind=transform runtime=process execution=local lifecycle=managed control=graphx
+  port samples direction=input schema=Sample
+  port transformed direction=output schema=TransformedSample
+node sink kind=sink runtime=process execution=local lifecycle=managed control=graphx
+  port transformed direction=input schema=TransformedSample
+edge samples generator.samples -> transform.samples transport=tcp data-plane=graphx framing=u32be connect=10.30.0.20:7001 listen=0.0.0.0:7001 connect-timeout-ms=1000 send-timeout-ms=5000 retry=60/100-2000ms reconnect=true
+edge transformed transform.transformed -> sink.transformed transport=tcp data-plane=graphx framing=u32be connect=10.30.0.30:7002 listen=0.0.0.0:7002 connect-timeout-ms=1000 send-timeout-ms=5000 retry=60/100-2000ms reconnect=true
+network gx-macvlan-demo backend=ovs profile=macvlan mac=endpoint learning=dynamic filtering=ovs arp=endpoint broadcast=flood multicast=flood routing=l2 isolation=host management=separate subnets=10.30.0.0/24 gateway=10.30.0.1 uplink=gx-mac-parent
+attachment generator-data kind=container_veth owner=generator network=gx-macvlan-demo address=10.30.0.10/24 mac=02:30:00:00:00:10 interface=gxc5103c0988d67 peer=gxh5103c0988d67 switch=gxb9b585f04998d
+attachment transform-data kind=container_veth owner=transform network=gx-macvlan-demo address=10.30.0.20/24 mac=02:30:00:00:00:20 interface=gxcf68db3f19a50 peer=gxhf68db3f19a50 switch=gxb9b585f04998d
+attachment sink-data kind=container_veth owner=sink network=gx-macvlan-demo address=10.30.0.30/24 mac=02:30:00:00:00:30 interface=gxc498d40724d3b peer=gxh498d40724d3b switch=gxb9b585f04998d
+switch gxb9b585f04998d kind=openvswitch datapath=system ports=0
+network-path samples -> generator -> gx-macvlan-demo -> transform
+network-path transformed -> transform -> gx-macvlan-demo -> sink
+deployment generator image=graphx-demo:latest command=graphx-generator
+deployment transform image=graphx-demo:latest command=graphx-transform
+deployment sink image=graphx-demo:latest command=graphx-sink
+observability metrics=enabled tracing=enabled telemetry=127.0.0.1:9000 heartbeat=1000/5000ms capture=disabled provider=none directory=captures snaplen=16777220 max_file_bytes=268435456 max_packets=1000000

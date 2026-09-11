@@ -1,0 +1,1 @@
+<SOURCE_ROOT>/examples/macvlan/graphx.yaml: valid GraphX configuration version 2 (3 nodes, 2 edges, 1 networks)
