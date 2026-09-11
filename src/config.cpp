@@ -1,5 +1,6 @@
 #include "graphx/config.hpp"
 #include "graphx/framing.hpp"
+#include "config_internal.hpp"
 
 #include <yaml-cpp/yaml.h>
 
@@ -115,9 +116,11 @@ class ConfigParser {
     strict_keys(root_, "$",
                 {"version", "graph", "transport", "network", "deployment", "observability"});
     config.version = strict_unsigned_value(root_["version"], "version");
-    if (config.version < kMinimumConfigVersion || config.version > kConfigVersion)
+    const auto dialect = config_internal::dialect_for(config.version);
+    if (!dialect)
       error("version", "unsupported version " + std::to_string(config.version) +
                            "; this build supports versions 1 and 2");
+    dialect_ = dialect.value_or(config_internal::Dialect::v2);
 
     const auto graph = root_["graph"];
     if (require_map(graph, "graph")) {
@@ -768,7 +771,8 @@ class ConfigParser {
   void parse_network_infrastructure(const YAML::Node& infrastructure, GraphConfig& config) {
     if (!infrastructure) return;
     if (!require_map(infrastructure, "network")) return;
-    if (config.version == 1)
+    const auto v1 = config_internal::is_v1(dialect_);
+    if (v1)
       strict_keys(infrastructure, "network",
                   {"networks", "switches", "routers", "interfaces", "edge_paths"});
     else
@@ -778,12 +782,12 @@ class ConfigParser {
     parse_networks(infrastructure["networks"], config);
     parse_switches(infrastructure["switches"], config);
     parse_routers(infrastructure["routers"], config);
-    if (config.version == 1)
+    if (v1)
       parse_network_interfaces(infrastructure["interfaces"], config);
     else
       parse_attachments(infrastructure["attachments"], config);
     parse_edge_paths(infrastructure["edge_paths"], config);
-    if (config.version == 2) {
+    if (!v1) {
       parse_network_captures(infrastructure["captures"], config);
       parse_network_faults(infrastructure["faults"], config);
     }
@@ -802,44 +806,24 @@ class ConfigParser {
       identifier(network.id, path + ".id");
       if (!network.id.empty() && !ids.insert(network.id).second)
         error(path + ".id", "duplicate network id '" + network.id + "'");
-      const bool version_two = config.version == 2;
+      const bool version_two = !config_internal::is_v1(dialect_);
       bool layer_three{};
       if (!version_two) {
         strict_keys(value, path,
                     {"id", "driver", "subnet", "subnets", "gateway", "parent", "mode", "external"});
         const auto driver = text(value["driver"], path + ".driver", 16);
-        if (driver == "bridge")
-          network.driver = NetworkDriver::bridge;
-        else if (driver == "macvlan")
-          network.driver = NetworkDriver::macvlan;
-        else if (driver == "ipvlan")
-          network.driver = NetworkDriver::ipvlan;
-        else
-          error(path + ".driver", "must be 'bridge', 'macvlan', or 'ipvlan'");
+        const auto mode = value["mode"] ? text(value["mode"], path + ".mode", 8) : "";
+        if (const auto issue = config_internal::interpret_v1_network(driver, mode, network))
+          error(path + ".driver", *issue);
         if (value["parent"]) network.parent = text(value["parent"], path + ".parent", 15);
-        if (value["mode"]) network.mode = text(value["mode"], path + ".mode", 8);
-        layer_three = network.driver == NetworkDriver::ipvlan &&
-                      (network.mode == "l3" || network.mode == "l3s");
       } else {
         strict_keys(value, path, {"id", "profile", "subnets", "gateway", "uplink", "external"});
         const auto profile = text(value["profile"], path + ".profile", 16);
-        if (profile == "ethernet")
-          network.profile = NetworkProfile::ethernet;
-        else if (profile == "macvlan")
-          network.profile = NetworkProfile::macvlan;
-        else if (profile == "ipvlan-l2")
-          network.profile = NetworkProfile::ipvlan_l2;
-        else if (profile == "ipvlan-l3")
-          network.profile = NetworkProfile::ipvlan_l3;
-        else if (profile == "ipvlan-l3s")
-          network.profile = NetworkProfile::ipvlan_l3s;
-        else
-          error(path + ".profile",
-                "must be 'ethernet', 'macvlan', 'ipvlan-l2', 'ipvlan-l3', or 'ipvlan-l3s'");
+        if (const auto issue = config_internal::interpret_v2_network(profile, network))
+          error(path + ".profile", *issue);
         if (value["uplink"]) network.uplink = text(value["uplink"], path + ".uplink", 15);
-        layer_three = network.profile == NetworkProfile::ipvlan_l3 ||
-                      network.profile == NetworkProfile::ipvlan_l3s;
       }
+      layer_three = config_internal::is_layer_three(network, dialect_);
       if (value["subnet"] && value["subnets"])
         error(path, "must use either 'subnet' or 'subnets', not both");
       if (version_two && value["subnet"])
@@ -864,15 +848,14 @@ class ConfigParser {
       network.external = version_two
                              ? strict_bool_value(value["external"], path + ".external", true)
                              : bool_value(value["external"], path + ".external", true);
-      if (!version_two &&
-          (network.driver == NetworkDriver::macvlan || network.driver == NetworkDriver::ipvlan) &&
-          network.parent.empty())
-        error(path + ".parent", "is required for macvlan and ipvlan");
-      if (!version_two && network.driver == NetworkDriver::ipvlan && network.mode != "l2" &&
-          network.mode != "l3" && network.mode != "l3s")
-        error(path + ".mode", "must be 'l2', 'l3', or 'l3s' for ipvlan");
-      if (version_two && network.profile != NetworkProfile::ethernet && network.uplink.empty())
-        error(path + ".uplink", "is required for macvlan and ipvlan semantic profiles");
+      if (!version_two) {
+        if (const auto issue = config_internal::validate_v1_network(network)) {
+          const auto field = issue->starts_with("parent") ? ".parent" : ".mode";
+          error(path + field, issue->substr(issue->find(' ') + 1));
+        }
+      } else if (const auto issue = config_internal::validate_v2_network(network)) {
+        error(path + ".uplink", issue->substr(issue->find(' ') + 1));
+      }
       config.network_infrastructure.networks.push_back(std::move(network));
     }
   }
@@ -2026,6 +2009,7 @@ class ConfigParser {
 
   YAML::Node root_;
   std::vector<ConfigDiagnostic> errors_;
+  config_internal::Dialect dialect_{config_internal::Dialect::v2};
 };
 
 }  // namespace

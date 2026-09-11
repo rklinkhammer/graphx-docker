@@ -100,6 +100,9 @@ endif()
 add_library(graphx
   src/capture.cpp
   src/config.cpp
+  src/config_common.cpp
+  src/config_v1_compat.cpp
+  src/config_v2.cpp
   src/envelope.cpp
   src/framing.cpp
   src/in_process_transport.cpp
@@ -322,6 +325,9 @@ if(GRAPHX_BUILD_TESTS)
     ${CMAKE_SOURCE_DIR})
   set_tests_properties(graphx-simplification-baseline PROPERTIES
     TIMEOUT 45 ENVIRONMENT "GRAPHX_OVERRIDES=")
+  add_test(NAME graphx-s7-boundaries COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/test_s7_boundaries.py ${CMAKE_SOURCE_DIR})
+  set_tests_properties(graphx-s7-boundaries PROPERTIES TIMEOUT 15)
   add_test(NAME graphx-m3-ownership COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/test_m3_ownership.py $<TARGET_FILE:graphx-cli>
     ${CMAKE_SOURCE_DIR})

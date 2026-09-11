@@ -34,6 +34,10 @@ sockets to macOS and therefore does not satisfy the host-side Docker portion of
   emits the independently versioned, strict JSON contract used by downstream
   consumers; version-1 output is always marked non-mutable. The source `version`
   is immutable and cannot be changed by `GRAPHX_OVERRIDES` or `--set`.
+- `load_config()` remains the public configuration entry point. Shared YAML
+  parsing lives behind it, while `src/config_v1_compat.cpp` quarantines legacy
+  driver vocabulary and `src/config_v2.cpp` owns authoritative semantic-profile
+  interpretation. Migration remains exclusively in `src/migration.cpp`.
 - Every version-1 `infra` action refuses before creating a state directory or
   mutating Docker/Linux resources.
 - Curated version-1 infrastructure-migration fixtures live under
@@ -45,6 +49,8 @@ sockets to macOS and therefore does not satisfy the host-side Docker portion of
   launchers, and the Docker userspace-OVS simulator must not return. The single
   `scripts/network-lab.sh` entry point runs those launchers locally on Linux or
   dispatches them into the identity-checked Lima guest on Apple Silicon macOS.
+  Shared platform checks, port validation, and lifecycle sequencing belong in
+  `scripts/lib/demo-runtime.sh`, not in per-example wrappers.
 
 ## Ownership and safety boundary
 

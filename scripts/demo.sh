@@ -3,8 +3,10 @@ set -euo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 source "$ROOT/scripts/configure-build-trust.sh"
+# shellcheck source=lib/demo-runtime.sh
+source "$ROOT/scripts/lib/demo-runtime.sh"
 COMPOSE=(docker compose -f "$ROOT/compose.yaml" -f "$ROOT/compose.history.yaml")
-PUBLISHED_HTTP_PORT=${GRAPHX_PUBLISHED_HTTP_PORT:-8080}
+PUBLISHED_HTTP_PORT=$(graphx_demo_port GRAPHX_PUBLISHED_HTTP_PORT "${GRAPHX_PUBLISHED_HTTP_PORT:-8080}")
 LOCAL_URL="http://127.0.0.1:$PUBLISHED_HTTP_PORT"
 URL=${GRAPHX_DEMO_URL:-$LOCAL_URL}
 DEMO_STATE_DIR=${GRAPHX_DEMO_STATE_DIR:-"$ROOT/.graphx"}
@@ -27,22 +29,9 @@ Start options:
 EOF
 }
 
-require() {
-  command -v "$1" >/dev/null 2>&1 || {
-    echo "Missing prerequisite: $1" >&2
-    exit 2
-  }
-}
+require() { graphx_demo_require "$1" || exit $?; }
 
 preflight_http_endpoint() {
-  case "$PUBLISHED_HTTP_PORT" in
-    ''|*[!0-9]*) echo "GRAPHX_PUBLISHED_HTTP_PORT must be from 1 through 65535" >&2; return 2 ;;
-  esac
-  test "$PUBLISHED_HTTP_PORT" -ge 1 && test "$PUBLISHED_HTTP_PORT" -le 65535 || {
-    echo "GRAPHX_PUBLISHED_HTTP_PORT must be from 1 through 65535" >&2
-    return 2
-  }
-
   local health
   health=$(curl -fsS --max-time 2 "$LOCAL_URL/api/health" 2>/dev/null || true)
   if grep -Fq '"service":"graphx-telemetry"' <<<"$health"; then
@@ -239,7 +228,7 @@ fi
 
 case "$demo_command" in
   start)
-    require docker
+    graphx_demo_require_compose_runtime
     require curl
     preflight_http_endpoint
     ensure_demo_credentials
@@ -258,14 +247,14 @@ case "$demo_command" in
     verify
     ;;
   status)
-    require docker
+    graphx_demo_require_compose_runtime
     "${COMPOSE[@]}" ps
     echo
     echo "Latest values received by the sink:"
     "${COMPOSE[@]}" logs --tail=12 sink | grep 'sink seq=' | tail -n 5 || true
     ;;
   logs)
-    require docker
+    graphx_demo_require_compose_runtime
     "${COMPOSE[@]}" logs -f --tail=30 generator transform sink telemetry
     ;;
   token)
@@ -273,7 +262,7 @@ case "$demo_command" in
     printf '%s\n' "$GRAPHX_CONTROL_TOKEN"
     ;;
   stop)
-    require docker
+    graphx_demo_require_compose_runtime
     "${COMPOSE[@]}" down --remove-orphans
     ;;
   *)

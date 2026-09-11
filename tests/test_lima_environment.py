@@ -51,6 +51,8 @@ def main() -> int:
             "cross-platform network-lab dispatcher is missing or not executable")
     subprocess.run(["bash", "-n", str(dispatcher)], check=True)
     dispatcher_text = dispatcher.read_text(encoding="utf-8")
+    runtime_text = (root / "scripts/lib/demo-runtime.sh").read_text(encoding="utf-8")
+    launcher_text = dispatcher_text + "\n" + runtime_text
     for token in (
         "macvlan|ipvlan-l2|ipvlan-l3|mixed-network",
         "plan|up|status|down", "graphx_m1_assert_identity",
@@ -58,7 +60,7 @@ def main() -> int:
         'limactl shell --workdir "${GRAPHX_M1_GUEST_ROOT}"',
         'scripts/network-lab.sh "${lab}" "${action}"',
     ):
-        require(token in dispatcher_text, f"network-lab dispatcher omits {token}")
+        require(token in launcher_text, f"network-lab runtime omits {token}")
     rejected = subprocess.run(
         [str(dispatcher), "not-a-lab", "up"], text=True, capture_output=True
     )

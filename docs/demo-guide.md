@@ -168,6 +168,10 @@ deliberate replacement procedure in
 [`infrastructure/lima/README.md`](../infrastructure/lima/README.md#deliberate-reset-or-removal).
 The lifecycle never deletes a VM automatically.
 
+The canonical dispatcher and the individual example `up.sh`, `status.sh`, and
+`down.sh` entry points share the same runtime policy. You may invoke either
+form: privileged operations stay local on Linux and enter Lima on macOS.
+
 Always run `plan` first. The dispatcher selects the VM-native GraphX executable
 on macOS, so a macOS `build/dev/graphx` binary is never executed in Linux.
 

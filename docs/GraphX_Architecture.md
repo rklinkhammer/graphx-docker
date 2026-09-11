@@ -752,7 +752,7 @@ remain separate decisions rather than implied extensions of M0–M8.
 | Concern | Primary implementation or documentation evidence |
 |---|---|
 | Architecture decisions | `docs/adr/README.md`, with records `docs/adr/0001-*.md` through `docs/adr/0017-*.md` |
-| Configuration model | `include/graphx/config.hpp`, `include/graphx/network.hpp`, `src/config.cpp`, `config/schema/graphx.schema.json` |
+| Configuration model | `include/graphx/config.hpp`, `include/graphx/network.hpp`, `src/config.cpp`, `src/config_common.cpp`, `src/config_v1_compat.cpp`, `src/config_v2.cpp`, `config/schema/graphx.schema.json` |
 | CLI/infrastructure | `apps/cli/main.cpp`, `include/graphx/infra.hpp`, `src/infra.cpp` |
 | Envelope/framing | `include/graphx/envelope.hpp`, `src/envelope.cpp`, `src/framing.cpp`, `docs/protocol.md` |
 | Transport abstraction | `include/graphx/transport.hpp`, `src/transport_factory.cpp`, transport-specific headers/sources/docs |
