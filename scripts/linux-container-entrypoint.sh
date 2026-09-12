@@ -3,6 +3,7 @@ set -Eeuo pipefail
 
 ROOT=/workspace
 MODE=${1:-tls}
+CLANG_GCC_TOOLCHAIN=--gcc-toolchain=/usr/local
 RUN_ID=$(date -u +%Y%m%dT%H%M%SZ)
 EVIDENCE_DIR=${GRAPHX_EVIDENCE_DIR:-/evidence}
 mkdir -p "$EVIDENCE_DIR"
@@ -19,6 +20,7 @@ echo "kernel=$(uname -sr)"
 echo "openssl=$(openssl version)"
 echo "cmake=$(cmake --version | head -n 1)"
 echo "compiler=$(g++ --version | head -n 1)"
+echo "libstdcxx_toolchain=$(g++ -dumpfullversion)"
 echo "node=$(node --version)"
 echo "npm=$(npm --version)"
 
@@ -49,16 +51,20 @@ case "$MODE" in
       "$ROOT/scripts/test-features.sh" portable
     ;;
   quality)
+    case $(g++ -dumpfullversion) in
+      15.*) ;;
+      *) echo "Linux quality requires the GCC 15 libstdc++ toolchain" >&2; exit 2 ;;
+    esac
+    printf '%s\n' '#include <bits/c++config.h>' \
+      'static_assert(_GLIBCXX_RELEASE == 15);' \
+      | clang++-21 "$CLANG_GCC_TOOLCHAIN" -x c++ -fsyntax-only -
     CLANG_FORMAT=clang-format-21 "$ROOT/scripts/check-format.sh"
     CC=clang-21 CXX=clang++-21 \
+    CXXFLAGS="$CLANG_GCC_TOOLCHAIN" \
     CLANG_TIDY=clang-tidy-21 \
     CPPCHECK=cppcheck \
     GRAPHX_QUALITY_BUILD_DIR=/tmp/graphx-linux-quality \
       "$ROOT/scripts/run-static-analysis.sh"
-    CC=clang-21 CXX=clang++-21 \
-    GRAPHX_FUZZ_BUILD_DIR=/tmp/graphx-linux-fuzz \
-    GRAPHX_FUZZ_SECONDS="${GRAPHX_FUZZ_SECONDS:-30}" \
-      "$ROOT/scripts/run-fuzz.sh"
     ;;
   sanitizers)
     build=/tmp/graphx-linux-sanitizers

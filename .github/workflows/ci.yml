@@ -151,6 +151,8 @@ jobs:
           CLANG_TIDY: clang-tidy-21
           CPPCHECK: cppcheck
         run: scripts/run-static-analysis.sh
+      - name: Run Clang 21 with libstdc++ 15
+        run: scripts/test-linux-container.sh quality
 
   fuzz:
     name: Bounded libFuzzer smoke

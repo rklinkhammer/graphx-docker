@@ -14,7 +14,8 @@ Profiles:
   sanitizers    Run the platform-safe LLVM 21 sanitizer suite
   fuzz          Run bounded LLVM 21 libFuzzer smoke tests
   portable      Run complete non-Docker acceptance for C++20 and C++23
-  full          Run quality, sanitizers, fuzzing, portable, and Docker acceptance
+  full          Run native quality, macOS-hosted Linux quality, sanitizers,
+                fuzzing, portable acceptance, and Docker acceptance
   native-linux  Run portable and privileged native Linux network acceptance
   release       Build and independently verify a clean local release candidate
 
@@ -254,6 +255,10 @@ case "$PROFILE" in
     scripts/check-format.sh
     gate "static analysis"
     scripts/run-static-analysis.sh
+    if test "$(uname -s)" = Darwin; then
+      gate "Linux Clang 21 and libstdc++ 15 quality"
+      scripts/test-linux-container.sh quality
+    fi
     run_sanitizers
     gate "bounded fuzz smoke tests"
     GRAPHX_FUZZ_SECONDS=${GRAPHX_FUZZ_SECONDS:-30} scripts/run-fuzz.sh
