@@ -35,7 +35,7 @@ scripts/verify.sh quick
 ```
 
 Available verification profiles are `quick`, `quality`, `sanitizers`, `fuzz`,
-`portable`, `full`, `native-linux`, and `release`. Their requirements are documented in
+`portable`, `instances`, `full`, `native-linux`, and `release`. Their requirements are documented in
 [`docs/test-procedure.md`](docs/test-procedure.md).
 
 The direct CMake workflow and exact prerequisites are maintained in the

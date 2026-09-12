@@ -27,5 +27,8 @@ This page records the active design constraints for GraphX 1.1.0.
 - Control requests require authenticated policy, runtime identity, authorization,
   origin checks, bounded input, idempotency, and audit records.
 - Release artifacts are reproducible, checksum-verified, and include an SPDX SBOM.
+- The explicit `instances` acceptance gate proves concurrent simulated SDR
+  deployments, execution freshness, authorization, interrupted-start recovery,
+  and isolated shutdown. OVS and guest-boot evidence remain separate.
 - Tests cover current behavior. Historical snapshots and superseded fixtures or
   superseded implementation evidence are not maintained in the worktree.

@@ -25,8 +25,8 @@ started with `GRAPHX_NORMALIZED_CONFIG`, `GRAPHX_NODE_ID`, a registered
 `GRAPHX_EXECUTION_ID`, and the selected node's telemetry credential. Sources select
 their own `sdr` block; controllers select the source connected through their control
 edge. This configuration has no result sink, so controllers print processed
-results locally. Its nodes declare `control: none`, so it does not expose GUI
-pause/resume actions.
+results locally. Its controllers declare `control: origin` and expose authenticated GUI
+pause/resume for their respective sources. The source nodes remain observation-only.
 
 The portable `graphx-sdr-instance-runtime` test provisions temporary TLS files and
 runs both sources concurrently, checking their distinct frequencies, UDP ports,
@@ -47,5 +47,6 @@ has a private shared network namespace, so its loopback sample/control ports can
 remain unchanged. Startup generates separate TLS credentials for each source pair;
 controllers print processed samples at 100 MHz and 200 MHz respectively.
 See [shared Compose runtime](../../../docs/compose-runtime.md) for credential,
-storage, interruption, restart, and platform boundaries. This launcher is available
-for the full two-instance proving scenario; that acceptance test remains separate.
+storage, interruption, restart, and platform boundaries. Run `scripts/verify.sh instances` for the concurrent two-instance resilience proof.
+See [instance acceptance](../../../docs/instance-acceptance.md) for its assertions,
+Linux/macOS commands, and evidence boundaries.

@@ -14,6 +14,7 @@ Profiles:
   sanitizers    Run the platform-safe LLVM 21 sanitizer suite
   fuzz          Run bounded LLVM 21 libFuzzer smoke tests
   portable      Run complete non-Docker acceptance with C++20
+  instances     Build images and prove simultaneous SDR instance isolation
   full          Run native quality, macOS-hosted Linux quality, sanitizers,
                 fuzzing, portable acceptance, and Docker acceptance
   native-linux  Run portable and privileged native Linux network acceptance
@@ -28,7 +29,7 @@ case "$PROFILE" in
     usage
     exit 0
     ;;
-  quick|quality|sanitizers|fuzz|portable|full|native-linux|release) ;;
+  quick|quality|sanitizers|fuzz|portable|instances|full|native-linux|release) ;;
   *)
     echo "unknown verification profile: $PROFILE" >&2
     usage >&2
@@ -92,15 +93,15 @@ run_quick() {
 preflight_docker() {
   local context
   command -v docker >/dev/null || {
-    echo "full verification requires the Docker CLI" >&2
+    echo "Docker verification requires the Docker CLI" >&2
     return 2
   }
   docker compose version >/dev/null || {
-    echo "full verification requires Docker Compose" >&2
+    echo "Docker verification requires Docker Compose" >&2
     return 2
   }
   docker info >/dev/null || {
-    echo "full verification requires a reachable Docker engine; start the selected context first" >&2
+    echo "Docker verification requires a reachable Docker engine; start the selected context first" >&2
     return 2
   }
   if test "$(uname -s)" = Darwin; then
@@ -246,6 +247,18 @@ case "$PROFILE" in
   portable)
     gate "portable acceptance"
     scripts/test-features.sh portable
+    ;;
+  instances)
+    gate "Docker engine preflight"
+    preflight_docker
+    gate "development CLI and portable contracts"
+    run_quick
+    gate "two simultaneous SDR instances"
+    instance_args=(--build --evidence "$LOG_DIR/$RUN_ID-two-instance-sdr.json")
+    if test -n "${GRAPHX_TEST_ENVIRONMENT:-}"; then
+      instance_args+=(--environment "$GRAPHX_TEST_ENVIRONMENT")
+    fi
+    python3 tests/test_two_instance_sdr_live.py "${instance_args[@]}"
     ;;
   full)
     gate "Docker engine preflight"

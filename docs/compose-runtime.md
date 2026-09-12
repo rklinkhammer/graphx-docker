@@ -135,9 +135,9 @@ Node restart stops/removes the recorded container, retires its execution, and
 registers a fresh execution before creating its replacement. Peer registrations
 remain unchanged. Collector restart preserves all node registrations. OVS container
 replacement requires `down` followed by `up` through the owned infrastructure
-lifecycle. The launcher does not continuously supervise crashed processes. Long-term
-crash recovery and the full two-instance SDR proving scenario remain separate
-acceptance work.
+lifecycle. The launcher does not continuously supervise crashed processes. The [two-instance acceptance gate](instance-acceptance.md) proves concurrent
+SDR deployment, restart, checked recovery from interrupted startup, and isolated
+shutdown. It does not add continuous process supervision.
 
 Shutdown verifies the configuration digest, recorded container IDs, registration
 scope, and management network IDs/endpoints before mutation. It uses the existing
@@ -176,3 +176,6 @@ execution attribution, duplicate-start refusal, node/collector restart, shutdown
 It does not constitute the full two-instance SDR acceptance scenario, OVS proof,
 or QEMU guest execution. Run OVS acceptance separately on authorized Linux/Lima;
 report native Linux, Lima, TCG, and KVM evidence separately.
+
+Run `scripts/verify.sh instances` for the concurrent SDR resilience proof and
+machine-readable evidence. See [instance acceptance](instance-acceptance.md).

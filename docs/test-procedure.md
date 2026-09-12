@@ -8,6 +8,7 @@ scripts/verify.sh quality
 scripts/verify.sh sanitizers
 scripts/verify.sh fuzz
 scripts/verify.sh portable
+scripts/verify.sh instances
 scripts/verify.sh full
 scripts/verify.sh native-linux
 scripts/verify.sh release
@@ -18,6 +19,8 @@ scripts/verify.sh release
 - `sanitizers` runs the LLVM 21 address/undefined-behavior suite supported by the host.
 - `fuzz` runs bounded LLVM 21 libFuzzer smoke tests.
 - `portable` runs complete non-Docker acceptance with C++20.
+- `instances` builds images and proves two concurrent SDR deployments, restart,
+  interruption/recovery, and isolated shutdown; it writes JSON evidence.
 - `full` adds sanitizers, fuzzing, Docker acceptance, and, when invoked on macOS,
   the Linux Clang 21/libstdc++ 15 quality container.
 - `native-linux` runs OVS, veth, namespace, TAP, capture, and fault lifecycles.
@@ -123,3 +126,10 @@ sample pipeline and two-source SDR independently, including duplicate-start
 refusal and fresh reactivation. Use [the shared runtime guide](compose-runtime.md)
 for the separate authorized Linux/Lima OVS sample. These checks do not replace
 the full simultaneous two-instance SDR scenario or QEMU guest-boot acceptance.
+
+## Concurrent SDR acceptance
+
+Run `scripts/verify.sh instances` on a ready OrbStack or Linux Docker engine.
+See [instance acceptance](instance-acceptance.md) for the exact Lima command,
+assertion matrix, retained diagnostics, and separate platform evidence. This gate
+is explicit; `full` does not automatically run it. It preserves the root demo.

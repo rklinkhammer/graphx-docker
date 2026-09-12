@@ -20,7 +20,7 @@ graph:
           server_name: sdr-east
     - id: processor-east
       kind: transform
-      control: none
+      control: origin
       ports:
         - {name: samples, direction: input, schema: RawIqSamples}
         - {name: control, direction: output, schema: RawSdrControl}
@@ -42,7 +42,7 @@ graph:
           server_name: sdr-west
     - id: processor-west
       kind: transform
-      control: none
+      control: origin
       ports:
         - {name: samples, direction: input, schema: RawIqSamples}
         - {name: control, direction: output, schema: RawSdrControl}

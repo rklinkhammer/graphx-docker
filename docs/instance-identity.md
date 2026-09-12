@@ -149,8 +149,9 @@ deleted merely because an instance references them.
 Configuration selection and infrastructure isolation have executable coverage,
 including interruption and recovery. Runtime coverage includes collector restart,
 node execution replacement, stale targets, acknowledgements, and observations.
-The full two-instance SDR deployment proof remains separate from these tests. Extend the nearest
-configuration, ownership, control, and SDR tests.
+The [two-instance SDR deployment proof](instance-acceptance.md) runs as the
+explicit `scripts/verify.sh instances` gate, separately from portable unit tests
+and privileged infrastructure acceptance.
 
 | Case | Expected result |
 |---|---|
@@ -168,7 +169,7 @@ configuration, ownership, control, and SDR tests.
 | Replaced resource or malformed ledger during cleanup | Fail closed; preserve replacement and evidence |
 | Destroy/recreate using the same instance name | Old execution targets remain invalid; historical attribution preserved |
 
-The end-to-end proving topology consists of two independently deployed copies of
+The executable end-to-end proving topology consists of two independently deployed copies of
 a two-SDR graph, including restart, interrupted startup, recovery, and isolated
 shutdown. Native Linux, Lima, TCG guest boot, and KVM evidence must be reported
 separately. TAP lifecycle tests alone do not establish guest execution.

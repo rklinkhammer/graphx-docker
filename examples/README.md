@@ -51,3 +51,7 @@ separate macOS, Lima, native Linux, TCG, and KVM evidence requirements.
 The maintained Compose profiles inherit common service policy from
 `infrastructure/compose/services.yaml`. See [shared Compose runtime](../docs/compose-runtime.md)
 for explicit-instance deployment and the compatibility/specialized-launcher boundary.
+
+Run `scripts/verify.sh instances` for the [two-instance SDR resilience
+proof](../docs/instance-acceptance.md), including authenticated control, restart,
+interrupted startup, checked recovery, and isolated shutdown.
