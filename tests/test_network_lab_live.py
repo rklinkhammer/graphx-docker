@@ -18,7 +18,7 @@ def run(*args: object, check: bool = True,
 
 def main() -> int:
     if len(sys.argv) != 2 or sys.platform != "linux" or os.geteuid() != 0:
-        raise SystemExit("M5 live test requires: test_m5_lab_live.py GRAPHX as Linux root")
+        raise SystemExit("M5 live test requires: test_network_lab_live.py GRAPHX as Linux root")
     graphx = Path(sys.argv[1]).resolve()
     image = os.environ.get("GRAPHX_M5_TEST_IMAGE", "debian:bookworm-slim")
     project = "graphx-m5-live"
@@ -94,7 +94,7 @@ deployment:
             for mutation in (3, 8):
                 crashed = run(graphx, "infra", "create", config, "--state-dir", state,
                               check=False,
-                              extra_env={"GRAPHX_M5_CRASH_AFTER": str(mutation)})
+                              extra_env={"GRAPHX_TEST_CRASH_AFTER_MUTATION": str(mutation)})
                 if crashed.returncode != 99:
                     raise AssertionError(
                         f"M5 crash hook {mutation} returned {crashed.returncode}, expected 99")
@@ -115,8 +115,8 @@ deployment:
                 if "linux_namespace" not in status or "mirror" not in status:
                     raise AssertionError("M5 status omitted namespace or mirror ownership")
                 ledger = (state / "m5-live.yaml").read_text()
-                if "phase: M5" not in ledger or "mirror_uuid:" not in ledger:
-                    raise AssertionError("M5 ledger omitted phase or mirror identity")
+                if "version: 2" not in ledger or "mirror_uuid:" not in ledger:
+                    raise AssertionError("ownership ledger omitted mirror identity")
                 left_pid = run("docker", "inspect", "-f", "{{.State.Pid}}", containers["left"]).stdout.strip()
                 run("nsenter", "-t", left_pid, "-n", "ping", "-c", "2", "-W", "2", "10.88.2.20")
                 flows = run("ovs-ofctl", "dump-flows", bridges[0]).stdout

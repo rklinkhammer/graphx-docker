@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url'
 import test from 'node:test'
 import { OtlpHttpExporter, SloEvaluator, graphReadiness, nonZeroOtlpId, otlpConfig,
   otlpMetricsRequest, otlpTraceRequest } from './operations.mjs'
+import { normalizedConfigEnvironment } from './test-config.mjs'
 
 async function waitFor(read, expected, attempts = 100) {
   for (let attempt = 0; attempt < attempts && read() !== expected; ++attempt)
@@ -368,7 +369,7 @@ test('telemetry service converts validated UDP events to authenticated OTLP', { 
   const child = spawn(process.execPath, ['server.mjs'], { cwd: directory, stdio: 'ignore', env: {
     ...process.env, PORT: `${apiPort}`, GRAPHX_TELEMETRY_PORT: `${udpPort}`,
     GRAPHX_HTTP_BIND: '127.0.0.1', GRAPHX_TELEMETRY_BIND: '127.0.0.1',
-    GRAPHX_CONFIG: resolve(directory, '../../graphx.yaml'),
+    ...normalizedConfigEnvironment(resolve(directory, '../../graphx.yaml')),
     GRAPHX_OTLP_ENDPOINT: `http://127.0.0.1:${collector.address().port}`,
     GRAPHX_OTLP_AUTH_TOKEN: token, GRAPHX_OTLP_EXPORT_INTERVAL_MS: '600000',
   } })

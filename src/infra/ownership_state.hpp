@@ -68,7 +68,6 @@ struct OwnedFault {
 };
 
 struct OwnershipState {
-  std::string phase{"M3"};
   std::string graph_id;
   std::string config_hash;
   std::string owner_token;

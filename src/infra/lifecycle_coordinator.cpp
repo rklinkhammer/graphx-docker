@@ -83,6 +83,17 @@ int run(const std::vector<std::string>& arguments, std::string* captured = nullp
   return result.status;
 }
 
+void inject_test_interruption(std::size_t mutation) {
+  const auto matches = [mutation](const char* name) {
+    const auto* value = std::getenv(name);
+    return value != nullptr && std::to_string(mutation) == value;
+  };
+  if (matches("GRAPHX_TEST_CRASH_AFTER_MUTATION"))
+    ::_exit(99);  // Deliberate test-only crash point; the ledger enables recovery.
+  if (matches("GRAPHX_TEST_FAIL_AFTER_MUTATION"))
+    throw std::runtime_error("injected interruption after mutation " + std::to_string(mutation));
+}
+
 }  // namespace
 
 std::filesystem::path infra::detail::default_ownership_state_root_impl() {
@@ -288,24 +299,6 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
     state.config_hash = hash;
     state.owner_token = random_token();
     state.status = "creating";
-    if (!config.network_infrastructure.captures.empty() ||
-        !config.network_infrastructure.faults.empty())
-      state.phase = "M7";
-    for (const auto& attachment : config.network_infrastructure.attachments) {
-      if (attachment.kind == AttachmentKind::qemu_tap) {
-        if (state.phase != "M7") state.phase = "M6";
-      } else if (attachment.kind == AttachmentKind::container_veth && state.phase == "M3") {
-        state.phase = "M4";
-      } else if ((attachment.kind == AttachmentKind::namespace_veth ||
-                  attachment.kind == AttachmentKind::mirror) &&
-                 state.phase != "M6" && state.phase != "M7") {
-        state.phase = "M5";
-      }
-    }
-    for (const auto& network : config.network_infrastructure.networks)
-      if (network.profile && *network.profile != NetworkProfile::ethernet && state.phase != "M6" &&
-          state.phase != "M7")
-        state.phase = "M5";
     for (const auto& item : config.network_infrastructure.switches)
       state.expected_bridges.push_back(item.id);
     std::unordered_map<std::string, ResolvedContainer> containers;
@@ -327,7 +320,7 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
           item.kind != AttachmentKind::mirror)
         continue;
       if (item.kind != AttachmentKind::mirror && item.address.empty())
-        throw std::runtime_error("M5 realization requires a declared address for attachment " +
+        throw std::runtime_error("network realization requires a declared address for attachment " +
                                  item.id);
       ExpectedEndpoint endpoint;
       endpoint.kind = item.kind;
@@ -434,13 +427,7 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
         uuid = ovs_get(item.id, "_uuid");
         if (uuid.empty()) throw std::runtime_error("cannot capture owned OVS bridge identity");
         ++mutation;
-        if (const auto* crash = std::getenv("GRAPHX_M3_CRASH_AFTER");
-            crash && std::to_string(mutation) == crash)
-          ::_exit(99);  // Deliberate verifier-only crash point; the state enables recovery.
-        if (const auto* failure = std::getenv("GRAPHX_M3_FAIL_AFTER");
-            failure && std::to_string(mutation) == failure)
-          throw std::runtime_error("injected M3 interruption after mutation " +
-                                   std::to_string(mutation));
+        inject_test_interruption(mutation);
         const auto internal_port_uuid = ovs_get("Port", item.id, "_uuid");
         if (internal_port_uuid.empty())
           throw std::runtime_error("cannot capture owned OVS internal port identity");
@@ -455,13 +442,7 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
             endpoint.namespace_inode = *state.namespaces.back().namespace_inode;
         save_state(state_path, state);
         ++mutation;
-        if (const auto* crash = std::getenv("GRAPHX_M5_CRASH_AFTER");
-            crash && std::to_string(mutation) == crash)
-          ::_exit(99);
-        if (const auto* failure = std::getenv("GRAPHX_M5_FAIL_AFTER");
-            failure && std::to_string(mutation) == failure)
-          throw std::runtime_error("injected M5 interruption after mutation " +
-                                   std::to_string(mutation));
+        inject_test_interruption(mutation);
       }
       for (const auto& endpoint : state.expected_endpoints) {
         output << "+ " << to_string(endpoint.kind) << ' ' << endpoint.id
@@ -477,27 +458,7 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
         else
           state.endpoints.push_back(create_mirror_endpoint(endpoint, state));
         ++mutation;
-        if (const auto* crash = std::getenv("GRAPHX_M4_CRASH_AFTER");
-            crash && std::to_string(mutation) == crash)
-          ::_exit(99);
-        if (const auto* failure = std::getenv("GRAPHX_M4_FAIL_AFTER");
-            failure && std::to_string(mutation) == failure)
-          throw std::runtime_error("injected M4 interruption after mutation " +
-                                   std::to_string(mutation));
-        if (const auto* crash = std::getenv("GRAPHX_M5_CRASH_AFTER");
-            crash && std::to_string(mutation) == crash)
-          ::_exit(99);
-        if (const auto* failure = std::getenv("GRAPHX_M5_FAIL_AFTER");
-            failure && std::to_string(mutation) == failure)
-          throw std::runtime_error("injected M5 interruption after mutation " +
-                                   std::to_string(mutation));
-        if (const auto* crash = std::getenv("GRAPHX_M6_CRASH_AFTER");
-            crash && std::to_string(mutation) == crash)
-          ::_exit(99);
-        if (const auto* failure = std::getenv("GRAPHX_M6_FAIL_AFTER");
-            failure && std::to_string(mutation) == failure)
-          throw std::runtime_error("injected M6 interruption after mutation " +
-                                   std::to_string(mutation));
+        inject_test_interruption(mutation);
         save_state(state_path, state);
       }
       install_profile_flows(config, state);
@@ -536,13 +497,7 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
         state.captures.push_back(create_capture(capture, state));
         save_state(state_path, state);
         ++mutation;
-        if (const auto* crash = std::getenv("GRAPHX_M7_CRASH_AFTER");
-            crash && std::to_string(mutation) == crash)
-          ::_exit(99);
-        if (const auto* failure = std::getenv("GRAPHX_M7_FAIL_AFTER");
-            failure && std::to_string(mutation) == failure)
-          throw std::runtime_error("injected M7 interruption after mutation " +
-                                   std::to_string(mutation));
+        inject_test_interruption(mutation);
       }
       for (const auto& fault : state.expected_faults) {
         output << "+ netem_fault " << fault.definition.id << " interface="
@@ -550,17 +505,11 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
         state.faults.push_back(create_fault(fault));
         save_state(state_path, state);
         ++mutation;
-        if (const auto* crash = std::getenv("GRAPHX_M7_CRASH_AFTER");
-            crash && std::to_string(mutation) == crash)
-          ::_exit(99);
-        if (const auto* failure = std::getenv("GRAPHX_M7_FAIL_AFTER");
-            failure && std::to_string(mutation) == failure)
-          throw std::runtime_error("injected M7 interruption after mutation " +
-                                   std::to_string(mutation));
+        inject_test_interruption(mutation);
       }
       state.status = "ready";
       save_state(state_path, state);
-      output << "GraphX " << state.phase << " OVS laboratory state ready: " << state_path << '\n';
+      output << "GraphX OVS laboratory state ready: " << state_path << '\n';
       return 0;
     } catch (...) {
       errors << "graphx: create interrupted; recovering owned OVS/container mutations\n";
@@ -659,7 +608,7 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
   }
 
   if (!path_entry_exists(state_path)) {
-    throw std::runtime_error("no M5 ownership state for graph " + config.id);
+    throw std::runtime_error("no ownership state for graph " + config.id);
   }
   auto state = load_state(state_path);
   if (state.graph_id != config.id) throw std::runtime_error("ownership state graph mismatch");
@@ -817,7 +766,7 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
                                iterator->name);
   }
   std::filesystem::remove(state_path);
-  output << "GraphX " << state.phase << " OVS laboratory state removed\n";
+  output << "GraphX OVS laboratory state removed\n";
   return 0;
 }
 

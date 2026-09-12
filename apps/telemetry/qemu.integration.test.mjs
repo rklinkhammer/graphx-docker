@@ -9,6 +9,7 @@ import { dirname, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { signEnvelope } from './security.mjs'
+import { normalizedConfigEnvironment } from './test-config.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const repository = resolve(here, '../..')
@@ -50,7 +51,7 @@ test('QEMU packet observations remain raw and drive the shared topology', { time
     cwd: here,
     env: { ...process.env, PORT: String(port), GRAPHX_TELEMETRY_PORT: String(udpPort),
       GRAPHX_HTTP_BIND: '127.0.0.1', GRAPHX_TELEMETRY_BIND: '127.0.0.1',
-      GRAPHX_CONFIG: resolve(repository, 'examples/qemu-node/external/graphx.yaml'),
+      ...normalizedConfigEnvironment(resolve(repository, 'examples/qemu-node/external/graphx.yaml')),
       GRAPHX_TELEMETRY_SHARED_SECRET: secret, GRAPHX_CONTROL_TOKEN: secret.split('').reverse().join(''),
       GRAPHX_CAPTURE_ENABLED: 'false', GRAPHX_HISTORY_ENABLED: 'false',
       GRAPHX_QEMU_ACCEL: 'tcg', GRAPHX_QEMU_REQUESTED_ACCEL: 'auto',

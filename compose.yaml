@@ -1,4 +1,31 @@
 name: graphx
+
+x-node-environment: &node-environment
+  GRAPHX_TELEMETRY_HOST: telemetry
+  GRAPHX_TELEMETRY_PORT: "9000"
+  GRAPHX_CAPTURE_ENABLED: ${GRAPHX_CAPTURE_ENABLED:-false}
+  GRAPHX_CAPTURE_PROVIDER: pcapng
+  GRAPHX_CAPTURE_DIR: /captures
+  GRAPHX_CAPTURE_SNAPLEN: ${GRAPHX_CAPTURE_SNAPLEN:-16777220}
+  GRAPHX_CAPTURE_MAX_FILE_BYTES: ${GRAPHX_CAPTURE_MAX_FILE_BYTES:-268435456}
+  GRAPHX_CAPTURE_MAX_PACKETS: ${GRAPHX_CAPTURE_MAX_PACKETS:-1000000}
+  GRAPHX_TELEMETRY_SHARED_SECRET: ${GRAPHX_TELEMETRY_SHARED_SECRET:-}
+
+x-node-service: &node-service
+  build:
+    context: .
+    secrets: [graphx_ca, graphx_cert_installer]
+    args: { GRAPHX_BUILD_TRUST_FINGERPRINT: "${GRAPHX_BUILD_TRUST_FINGERPRINT:-graphx-trust-v1-none}" }
+  image: graphx-demo:latest
+  volumes: [captures:/captures]
+  networks: [graphx]
+  read_only: true
+  tmpfs: [/tmp]
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  pids_limit: 128
+  init: true
+
 services:
   normalize-config:
     build:
@@ -24,84 +51,24 @@ services:
     pids_limit: 32
     restart: "no"
   sink:
-    build:
-      context: .
-      secrets: [graphx_ca, graphx_cert_installer]
-      args: { GRAPHX_BUILD_TRUST_FINGERPRINT: "${GRAPHX_BUILD_TRUST_FINGERPRINT:-graphx-trust-v1-none}" }
-    image: graphx-demo:latest
+    <<: *node-service
     entrypoint: ["/usr/local/bin/graphx-sink"]
     environment:
-      GRAPHX_TELEMETRY_HOST: telemetry
-      GRAPHX_TELEMETRY_PORT: "9000"
-      GRAPHX_CAPTURE_ENABLED: ${GRAPHX_CAPTURE_ENABLED:-false}
-      GRAPHX_CAPTURE_PROVIDER: pcapng
-      GRAPHX_CAPTURE_DIR: /captures
-      GRAPHX_CAPTURE_SNAPLEN: ${GRAPHX_CAPTURE_SNAPLEN:-16777220}
-      GRAPHX_CAPTURE_MAX_FILE_BYTES: ${GRAPHX_CAPTURE_MAX_FILE_BYTES:-268435456}
-      GRAPHX_CAPTURE_MAX_PACKETS: ${GRAPHX_CAPTURE_MAX_PACKETS:-1000000}
-      GRAPHX_TELEMETRY_SHARED_SECRET: ${GRAPHX_TELEMETRY_SHARED_SECRET:-}
+      <<: *node-environment
     depends_on: [telemetry]
-    volumes: [captures:/captures]
-    networks: [graphx]
-    read_only: true
-    tmpfs: [/tmp]
-    cap_drop: [ALL]
-    security_opt: [no-new-privileges:true]
-    pids_limit: 128
-    init: true
   transform:
-    build:
-      context: .
-      secrets: [graphx_ca, graphx_cert_installer]
-      args: { GRAPHX_BUILD_TRUST_FINGERPRINT: "${GRAPHX_BUILD_TRUST_FINGERPRINT:-graphx-trust-v1-none}" }
-    image: graphx-demo:latest
+    <<: *node-service
     entrypoint: ["/usr/local/bin/graphx-transform"]
     environment:
-      GRAPHX_TELEMETRY_HOST: telemetry
-      GRAPHX_TELEMETRY_PORT: "9000"
-      GRAPHX_CAPTURE_ENABLED: ${GRAPHX_CAPTURE_ENABLED:-false}
-      GRAPHX_CAPTURE_PROVIDER: pcapng
-      GRAPHX_CAPTURE_DIR: /captures
-      GRAPHX_CAPTURE_SNAPLEN: ${GRAPHX_CAPTURE_SNAPLEN:-16777220}
-      GRAPHX_CAPTURE_MAX_FILE_BYTES: ${GRAPHX_CAPTURE_MAX_FILE_BYTES:-268435456}
-      GRAPHX_CAPTURE_MAX_PACKETS: ${GRAPHX_CAPTURE_MAX_PACKETS:-1000000}
-      GRAPHX_TELEMETRY_SHARED_SECRET: ${GRAPHX_TELEMETRY_SHARED_SECRET:-}
+      <<: *node-environment
     depends_on: [sink, telemetry]
-    volumes: [captures:/captures]
-    networks: [graphx]
-    read_only: true
-    tmpfs: [/tmp]
-    cap_drop: [ALL]
-    security_opt: [no-new-privileges:true]
-    pids_limit: 128
-    init: true
   generator:
-    build:
-      context: .
-      secrets: [graphx_ca, graphx_cert_installer]
-      args: { GRAPHX_BUILD_TRUST_FINGERPRINT: "${GRAPHX_BUILD_TRUST_FINGERPRINT:-graphx-trust-v1-none}" }
-    image: graphx-demo:latest
+    <<: *node-service
     entrypoint: ["/usr/local/bin/graphx-generator"]
     environment:
+      <<: *node-environment
       GRAPHX_INTERVAL_MS: "500"
-      GRAPHX_TELEMETRY_HOST: telemetry
-      GRAPHX_TELEMETRY_PORT: "9000"
-      GRAPHX_CAPTURE_ENABLED: ${GRAPHX_CAPTURE_ENABLED:-false}
-      GRAPHX_CAPTURE_PROVIDER: pcapng
-      GRAPHX_CAPTURE_DIR: /captures
-      GRAPHX_CAPTURE_SNAPLEN: ${GRAPHX_CAPTURE_SNAPLEN:-16777220}
-      GRAPHX_CAPTURE_MAX_FILE_BYTES: ${GRAPHX_CAPTURE_MAX_FILE_BYTES:-268435456}
-      GRAPHX_CAPTURE_MAX_PACKETS: ${GRAPHX_CAPTURE_MAX_PACKETS:-1000000}
-      GRAPHX_TELEMETRY_SHARED_SECRET: ${GRAPHX_TELEMETRY_SHARED_SECRET:-}
     depends_on: [transform, telemetry]
-    volumes: [captures:/captures]
-    networks: [graphx]
-    read_only: true
-    tmpfs: [/tmp]
-    cap_drop: [ALL]
-    security_opt: [no-new-privileges:true]
-    pids_limit: 128
-    init: true
   telemetry:
     build:
       context: .

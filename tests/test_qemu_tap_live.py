@@ -22,7 +22,7 @@ def run(*args: object, check: bool = True,
 
 def main() -> int:
     if len(sys.argv) != 2 or sys.platform != "linux" or os.geteuid() != 0:
-        raise SystemExit("M6 live test requires: test_m6_qemu_tap_live.py GRAPHX as Linux root")
+        raise SystemExit("M6 live test requires: test_qemu_tap_live.py GRAPHX as Linux root")
     graphx = Path(sys.argv[1]).resolve()
     bridge, tap = "br-gxm6live", "gxm6tap0"
 
@@ -55,14 +55,14 @@ network:
             state_file = state / "m6-live.yaml"
 
             failed = run(graphx, "infra", "create", config, "--state-dir", state,
-                         check=False, extra_env={"GRAPHX_M6_FAIL_AFTER": "2"})
+                         check=False, extra_env={"GRAPHX_TEST_FAIL_AFTER_MUTATION": "2"})
             if (failed.returncode == 0 or state_file.exists() or
                     run("ovs-vsctl", "br-exists", bridge, check=False).returncode == 0 or
                     Path(f"/sys/class/net/{tap}").exists()):
                 raise AssertionError("M6 injected failure did not roll back TAP and bridge")
 
             crashed = run(graphx, "infra", "create", config, "--state-dir", state,
-                          check=False, extra_env={"GRAPHX_M6_CRASH_AFTER": "2"})
+                          check=False, extra_env={"GRAPHX_TEST_CRASH_AFTER_MUTATION": "2"})
             if (crashed.returncode != 99 or not state_file.exists() or
                     not Path(f"/sys/class/net/{tap}").exists()):
                 raise AssertionError("M6 crash did not leave recoverable TAP state")
@@ -77,7 +77,7 @@ network:
                 tuntap = run("ip", "tuntap", "show", "dev", tap).stdout
                 evidence = {
                     "status kind": "qemu_tap" in status,
-                    "ledger phase": "phase: M6" in ledger,
+                    "ledger format": "version: 2" in ledger,
                     "ledger owner": "tap_owner: 65532:65532" in ledger,
                     "kernel UID": "user 65532" in tuntap,
                     "kernel GID": "group 65532" in tuntap,

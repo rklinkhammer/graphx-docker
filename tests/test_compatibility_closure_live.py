@@ -34,7 +34,7 @@ def driver_networks() -> set[str]:
 def main() -> int:
     if len(sys.argv) != 3 or sys.platform != "linux" or os.geteuid() != 0:
         raise SystemExit(
-            "M8 live test requires: test_m8_compatibility_closure_live.py GRAPHX SOURCE_ROOT as Linux root"
+            "M8 live test requires: test_compatibility_closure_live.py GRAPHX SOURCE_ROOT as Linux root"
         )
     graphx, root = Path(sys.argv[1]).resolve(), Path(sys.argv[2]).resolve()
     labs = (
@@ -52,13 +52,18 @@ def main() -> int:
         )
     for relative, project, bridges in labs:
         example = root / "examples" / relative
-        compose, config = example / "compose.yaml", example / "graphx.yaml"
-        run("docker", "compose", "-f", compose, "down", "--remove-orphans",
+        compose = root / "examples/network-lab.compose.yaml"
+        config = example / "graphx.yaml"
+        compose_command = (
+            "env", f"GRAPHX_REPO_ROOT={root}", f"GRAPHX_LAB_CONFIG={config}",
+            "docker", "compose", "-p", project, "-f", compose,
+        )
+        run(*compose_command, "down", "--remove-orphans",
             check=False)
         for bridge in bridges:
             run("ovs-vsctl", "--if-exists", "del-br", bridge, check=False)
         try:
-            run("docker", "compose", "-f", compose, "up", "-d", "--no-build")
+            run(*compose_command, "up", "-d", "--no-build")
             with tempfile.TemporaryDirectory(prefix="graphx-m8-live-",
                                              dir="/var/tmp") as raw:
                 state = Path(raw) / "state"
@@ -94,7 +99,7 @@ def main() -> int:
                     run(graphx, "infra", "destroy", config, "--state-dir", state,
                         check=False)
         finally:
-            run("docker", "compose", "-f", compose, "down", "--remove-orphans",
+            run(*compose_command, "down", "--remove-orphans",
                 check=False)
             for bridge in bridges:
                 run("ovs-vsctl", "--if-exists", "del-br", bridge, check=False)

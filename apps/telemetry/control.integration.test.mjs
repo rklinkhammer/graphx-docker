@@ -11,6 +11,7 @@ import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { WebSocket } from 'ws'
 import { ReplayCache, signEnvelope, verifyEnvelope } from './security.mjs'
+import { normalizedConfigEnvironment } from './test-config.mjs'
 
 const sharedSecret = 'phase-8-telemetry-secret-0123456789'
 const transformSecret = 'phase-8-transform-secret-012345678901'
@@ -89,7 +90,7 @@ test('authorized control API enforces scope, correlation, idempotency, timeout, 
     const child = spawn(process.execPath, ['server.mjs'], { cwd: moduleDirectory,
       env: { ...process.env, PORT: String(httpPort), GRAPHX_TELEMETRY_PORT: String(udpPort),
         GRAPHX_HTTP_BIND: '127.0.0.1', GRAPHX_TELEMETRY_BIND: '127.0.0.1',
-        GRAPHX_CONFIG: resolve(moduleDirectory, '../../graphx.yaml'),
+        ...normalizedConfigEnvironment(resolve(moduleDirectory, '../../graphx.yaml')),
         GRAPHX_CONTROL_POLICY_FILE: policyPath, GRAPHX_RUNTIME_IDENTITY_FILE: identitiesPath,
         GRAPHX_OBSERVATION_TOKEN: observationToken, GRAPHX_HISTORY_ENABLED: 'true',
         GRAPHX_HISTORY_DATABASE_FILE: join(directory, 'history.sqlite'),
@@ -222,7 +223,7 @@ test('runtime rejection cannot expose configured credentials in commands, audit,
     const environment = { ...process.env, PORT: String(httpPort),
       GRAPHX_TELEMETRY_PORT: String(udpPort), GRAPHX_HTTP_BIND: '127.0.0.1',
       GRAPHX_TELEMETRY_BIND: '127.0.0.1',
-      GRAPHX_CONFIG: resolve(moduleDirectory, '../../graphx.yaml'),
+      ...normalizedConfigEnvironment(resolve(moduleDirectory, '../../graphx.yaml')),
       GRAPHX_CONTROL_POLICY_FILE: policyPath, GRAPHX_RUNTIME_IDENTITY_FILE: identityPath,
       GRAPHX_OBSERVATION_TOKEN: observationToken, GRAPHX_HISTORY_ENABLED: 'true',
       GRAPHX_HISTORY_DATABASE_FILE: historyPath, GRAPHX_HISTORY_BATCH_SIZE: '1',
@@ -379,7 +380,7 @@ test('file-only rotation filters candidate and retired credentials before fan-ou
     const environment = { ...process.env, PORT: String(httpPort),
       GRAPHX_TELEMETRY_PORT: String(udpPort), GRAPHX_HTTP_BIND: '127.0.0.1',
       GRAPHX_TELEMETRY_BIND: '127.0.0.1',
-      GRAPHX_CONFIG: resolve(moduleDirectory, '../../graphx.yaml'),
+      ...normalizedConfigEnvironment(resolve(moduleDirectory, '../../graphx.yaml')),
       GRAPHX_CONTROL_POLICY_FILE: policyPath, GRAPHX_RUNTIME_IDENTITY_FILE: identityPath,
       GRAPHX_PREVIOUS_CREDENTIALS_FILE: previousCredentialPath,
       GRAPHX_OBSERVATION_TOKEN: observationToken, GRAPHX_HISTORY_ENABLED: 'true',
@@ -593,7 +594,7 @@ test('collector rejects ambiguous legacy and policy credential models', async ()
   const policyPath = join(directory, 'policy.json')
   await writeFile(policyPath, JSON.stringify({ version: 1, principals: [] }))
   const child = spawn(process.execPath, ['server.mjs'], { cwd: moduleDirectory,
-    env: { ...process.env, GRAPHX_CONFIG: resolve(moduleDirectory, '../../graphx.yaml'),
+    env: { ...process.env, ...normalizedConfigEnvironment(resolve(moduleDirectory, '../../graphx.yaml')),
       GRAPHX_CONTROL_POLICY_FILE: policyPath, GRAPHX_CONTROL_TOKEN: sourceToken,
       GRAPHX_RUNTIME_IDENTITY_FILE: policyPath }, stdio: ['ignore', 'ignore', 'pipe'] })
   let error = ''
@@ -630,7 +631,7 @@ test('collector fails readiness and control closed on cross-domain credential re
     const child = spawn(process.execPath, ['server.mjs'], { cwd: moduleDirectory,
       env: { ...process.env, PORT: String(httpPort), GRAPHX_TELEMETRY_PORT: String(udpPort),
         GRAPHX_HTTP_BIND: '127.0.0.1', GRAPHX_TELEMETRY_BIND: '127.0.0.1',
-        GRAPHX_CONFIG: resolve(moduleDirectory, '../../graphx.yaml'),
+        ...normalizedConfigEnvironment(resolve(moduleDirectory, '../../graphx.yaml')),
         GRAPHX_CONTROL_POLICY_FILE: policyPath, GRAPHX_RUNTIME_IDENTITY_FILE: identityPath,
         GRAPHX_OBSERVATION_TOKEN: reused }, stdio: ['ignore', 'pipe', 'pipe'] })
     child.stdout.on('data', data => logs.push(data.toString()))

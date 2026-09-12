@@ -18,7 +18,7 @@ scripts/network-lab.sh mixed-network down
 The dispatcher runs locally on native Linux and through the identity-checked
 GraphX Lima VM on Apple Silicon macOS. Run `infrastructure/lima/start.sh` and
 `infrastructure/lima/verify.sh` once before the first macOS invocation. The
-common launcher starts `compose.yaml`, then applies the identity-recorded
+common launcher starts the shared `../network-lab.compose.yaml`, then applies the identity-recorded
 OVS lifecycle. Startup rolls back resources created by a failed attempt;
 teardown refuses identity drift. Active capture remains in bounded VM-local
 storage according to the configuration retention policy.

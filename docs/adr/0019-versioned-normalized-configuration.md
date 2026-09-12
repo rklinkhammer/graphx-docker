@@ -1,6 +1,6 @@
 # ADR 0019: Versioned normalized configuration contract
 
-- Status: Accepted for simplification S1
+- Status: Accepted
 - Date: 2026-09-11
 
 ## Context
@@ -40,8 +40,8 @@ locale-independent, and output has exactly one final newline.
 
 - Downstream consumers can migrate from YAML parsing to one resolved contract
   without changing the user-facing configuration format.
-- S1 introduces the projection and schema; changing telemetry startup and
-  packaging remains a separate S2 deployment change.
+- Telemetry consumes only this normalized contract in production. The local
+  development launcher performs normalization before starting telemetry.
 - Contract fixtures make semantic and serialization changes explicit during
   review.
 - Version-1 normalization does not weaken the M8 pre-mutation refusal.

@@ -89,24 +89,27 @@ graphx_demo_dispatch_lima() {
 }
 
 graphx_demo_ovs_lab_local() {
-  local action=$1 example_dir=$2 compose_file=$3 repo_root=$4 graphx=$5
-  local compose_path="$example_dir/$compose_file" config="$example_dir/graphx.yaml"
+  local action=$1 example_dir=$2 project=$3 repo_root=$4 graphx=$5
+  local compose_path="$repo_root/examples/network-lab.compose.yaml"
+  local config="$example_dir/graphx.yaml"
+  local -a compose=(sudo env GRAPHX_REPO_ROOT="$repo_root" GRAPHX_LAB_CONFIG="$config"
+    docker compose -p "$project" -f "$compose_path")
   case "$action" in
     up)
-      sudo docker compose -f "$compose_path" up -d --build
+      "${compose[@]}" up -d --build
       if ! sudo "$graphx" infra create "$config"; then
-        sudo docker compose -f "$compose_path" down
+        "${compose[@]}" down
         return 1
       fi
       sudo "$graphx" infra status "$config"
       ;;
     status)
       sudo "$graphx" infra status "$config"
-      sudo docker compose -f "$compose_path" ps
+      "${compose[@]}" ps
       ;;
     down)
       sudo "$graphx" infra destroy "$config"
-      sudo docker compose -f "$compose_path" down
+      "${compose[@]}" down
       ;;
     *)
       echo "unsupported action: $action" >&2
@@ -116,7 +119,7 @@ graphx_demo_ovs_lab_local() {
 }
 
 graphx_demo_ovs_lab() {
-  local action=$1 example_dir=$2 compose_file=$3 repo_root=$4
+  local action=$1 example_dir=$2 project=$3 repo_root=$4
   case $(graphx_demo_platform) in
     Darwin)
       if [[ ${GRAPHX_DEMO_GUEST:-0} != 1 ]]; then
@@ -133,7 +136,7 @@ graphx_demo_ovs_lab() {
   graphx_demo_require_compose_runtime
   local graphx
   graphx=$(graphx_demo_ensure_dev_build "$repo_root") || return
-  graphx_demo_ovs_lab_local "$action" "$example_dir" "$compose_file" "$repo_root" "$graphx"
+  graphx_demo_ovs_lab_local "$action" "$example_dir" "$project" "$repo_root" "$graphx"
 }
 
 graphx_demo_network_lab() {

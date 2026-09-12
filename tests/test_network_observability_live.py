@@ -23,7 +23,7 @@ def run(*args: object, check: bool = True,
 
 def main() -> int:
     if len(sys.argv) != 2 or sys.platform != "linux" or os.geteuid() != 0:
-        raise SystemExit("M7 live test requires: test_m7_network_observability_live.py GRAPHX as Linux root")
+        raise SystemExit("M7 live test requires: test_network_observability_live.py GRAPHX as Linux root")
     for command in ("ovs-vsctl", "ip", "tc", "dumpcap", "capinfos"):
         if shutil.which(command) is None:
             raise SystemExit(f"M7 live test requires {command}")
@@ -92,14 +92,14 @@ network:
             state_file = state / "m7-live.yaml"
 
             failed = run(graphx, "infra", "create", config, "--state-dir", state,
-                         check=False, extra_env={"GRAPHX_M7_FAIL_AFTER": "6"})
+                         check=False, extra_env={"GRAPHX_TEST_FAIL_AFTER_MUTATION": "6"})
             if failed.returncode == 0 or state_file.exists() or run(
                     "ovs-vsctl", "br-exists", bridge, check=False).returncode == 0:
                 raise AssertionError("M7 injected failure did not roll back")
             cleanup(state_file)
 
             crashed = run(graphx, "infra", "create", config, "--state-dir", state,
-                          check=False, extra_env={"GRAPHX_M7_CRASH_AFTER": "6"})
+                          check=False, extra_env={"GRAPHX_TEST_CRASH_AFTER_MUTATION": "6"})
             if crashed.returncode != 99 or not state_file.exists() or not list(
                     capture_root.glob("live-span-*/*.pcapng")):
                 raise AssertionError("M7 crash did not leave recoverable capture identity: "
@@ -175,7 +175,7 @@ network:
                             "netem_fault live-delay", "state=active")):
                     raise AssertionError(f"M7 status lacks active capture/fault evidence: {status}")
                 if not all(marker in ledger for marker in
-                           ("phase: M7", "kind: network_capture", "kind: netem_fault",
+                           ("version: 2", "kind: network_capture", "kind: netem_fault",
                             "process_start_time:", "directory_uid: 0", "directory_gid: 0",
                             "directory_mode: 448", "qdisc_identity:", "boot_id:",
                             "applied_monotonic_ns:", "expires_monotonic_ns:")):

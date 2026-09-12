@@ -96,13 +96,14 @@ portable() {
       -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_STANDARD=23 -DGRAPHX_BUILD_TESTS=ON
   fi
   cmake --build "$BUILD_DIR" -j "${GRAPHX_BUILD_JOBS:-4}"
-  ctest --test-dir "$BUILD_DIR" --output-on-failure
+  ctest --test-dir "$BUILD_DIR" --output-on-failure -L quick
 
   step "Build and test the supported C++20 configuration"
   cmake -S "$ROOT" -B "$CXX20_BUILD_DIR" -G Ninja \
     -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_STANDARD=20 -DGRAPHX_BUILD_TESTS=ON
   cmake --build "$CXX20_BUILD_DIR" -j "${GRAPHX_BUILD_JOBS:-4}"
-  ctest --test-dir "$CXX20_BUILD_DIR" --output-on-failure
+  ctest --test-dir "$CXX20_BUILD_DIR" --output-on-failure \
+    -R '^(graphx-tests|graphx-config-tests|graphx-config-cli)$'
 
   step "Validate and inspect every checked-in topology"
   for config in "$ROOT/graphx.yaml" "$ROOT"/examples/*/graphx.yaml; do

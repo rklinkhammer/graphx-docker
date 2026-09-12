@@ -28,7 +28,7 @@ def require(condition: bool, message: str) -> None:
 
 def main() -> int:
     if len(sys.argv) != 3:
-        raise SystemExit("usage: test_m3_ownership.py GRAPHX SOURCE_ROOT")
+        raise SystemExit("usage: test_ovs_ownership_plan.py GRAPHX SOURCE_ROOT")
     graphx = Path(sys.argv[1]).resolve()
     root = Path(sys.argv[2]).resolve()
     with tempfile.TemporaryDirectory(prefix="graphx-m3-") as raw:

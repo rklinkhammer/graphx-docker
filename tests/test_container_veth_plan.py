@@ -57,7 +57,7 @@ def require(value: bool, message: str) -> None:
 
 def main() -> int:
     if len(sys.argv) != 3:
-        raise SystemExit("usage: test_m4_container_veth.py GRAPHX SOURCE_ROOT")
+        raise SystemExit("usage: test_container_veth_plan.py GRAPHX SOURCE_ROOT")
     graphx = Path(sys.argv[1])
     with tempfile.TemporaryDirectory(prefix="graphx-m4-") as raw:
         config = Path(raw) / "graphx.yaml"

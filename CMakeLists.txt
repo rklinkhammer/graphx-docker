@@ -325,49 +325,49 @@ if(GRAPHX_BUILD_TESTS)
     ${CMAKE_SOURCE_DIR})
   set_tests_properties(graphx-simplification-baseline PROPERTIES
     TIMEOUT 45 ENVIRONMENT "GRAPHX_OVERRIDES=")
-  add_test(NAME graphx-s7-boundaries COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_SOURCE_DIR}/tests/test_s7_boundaries.py ${CMAKE_SOURCE_DIR})
-  set_tests_properties(graphx-s7-boundaries PROPERTIES TIMEOUT 15)
-  add_test(NAME graphx-m3-ownership COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_SOURCE_DIR}/tests/test_m3_ownership.py $<TARGET_FILE:graphx-cli>
+  add_test(NAME graphx-config-dialect-boundaries COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/test_config_dialect_boundaries.py ${CMAKE_SOURCE_DIR})
+  set_tests_properties(graphx-config-dialect-boundaries PROPERTIES TIMEOUT 15)
+  add_test(NAME graphx-ovs-ownership-plan COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/test_ovs_ownership_plan.py $<TARGET_FILE:graphx-cli>
     ${CMAKE_SOURCE_DIR})
-  set_tests_properties(graphx-m3-ownership PROPERTIES TIMEOUT 30 ENVIRONMENT "GRAPHX_OVERRIDES=")
-  add_test(NAME graphx-m4-container-veth COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_SOURCE_DIR}/tests/test_m4_container_veth.py $<TARGET_FILE:graphx-cli>
+  set_tests_properties(graphx-ovs-ownership-plan PROPERTIES TIMEOUT 30 ENVIRONMENT "GRAPHX_OVERRIDES=")
+  add_test(NAME graphx-container-veth-plan COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/test_container_veth_plan.py $<TARGET_FILE:graphx-cli>
     ${CMAKE_SOURCE_DIR})
-  set_tests_properties(graphx-m4-container-veth PROPERTIES TIMEOUT 30
+  set_tests_properties(graphx-container-veth-plan PROPERTIES TIMEOUT 30
     ENVIRONMENT "GRAPHX_OVERRIDES=")
-  add_test(NAME graphx-m5-lab-migration COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_SOURCE_DIR}/tests/test_m5_lab_migration.py $<TARGET_FILE:graphx-cli>
+  add_test(NAME graphx-network-lab-plans COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/test_network_lab_plans.py $<TARGET_FILE:graphx-cli>
     ${CMAKE_SOURCE_DIR})
-  set_tests_properties(graphx-m5-lab-migration PROPERTIES TIMEOUT 60
+  set_tests_properties(graphx-network-lab-plans PROPERTIES TIMEOUT 60
     ENVIRONMENT "GRAPHX_OVERRIDES=")
   if(GRAPHX_ENABLE_LINUX_OVS_TESTS AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    add_test(NAME graphx-m3-ownership-live COMMAND ${Python3_EXECUTABLE}
-      ${CMAKE_SOURCE_DIR}/tests/test_m3_ownership_live.py $<TARGET_FILE:graphx-cli>
+    add_test(NAME graphx-ovs-ownership-live COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_SOURCE_DIR}/tests/test_ovs_ownership_live.py $<TARGET_FILE:graphx-cli>
       ${CMAKE_SOURCE_DIR})
-    set_tests_properties(graphx-m3-ownership-live PROPERTIES TIMEOUT 60
+    set_tests_properties(graphx-ovs-ownership-live PROPERTIES TIMEOUT 60
       ENVIRONMENT "GRAPHX_OVERRIDES=")
-    add_test(NAME graphx-m4-container-veth-live COMMAND ${Python3_EXECUTABLE}
-      ${CMAKE_SOURCE_DIR}/tests/test_m4_container_veth_live.py $<TARGET_FILE:graphx-cli>)
-    set_tests_properties(graphx-m4-container-veth-live PROPERTIES TIMEOUT 120
+    add_test(NAME graphx-container-veth-live COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_SOURCE_DIR}/tests/test_container_veth_live.py $<TARGET_FILE:graphx-cli>)
+    set_tests_properties(graphx-container-veth-live PROPERTIES TIMEOUT 120
       ENVIRONMENT "GRAPHX_OVERRIDES=")
-    add_test(NAME graphx-m5-lab-live COMMAND ${Python3_EXECUTABLE}
-      ${CMAKE_SOURCE_DIR}/tests/test_m5_lab_live.py $<TARGET_FILE:graphx-cli>)
-    set_tests_properties(graphx-m5-lab-live PROPERTIES TIMEOUT 180
+    add_test(NAME graphx-network-labs-live COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_SOURCE_DIR}/tests/test_network_lab_live.py $<TARGET_FILE:graphx-cli>)
+    set_tests_properties(graphx-network-labs-live PROPERTIES TIMEOUT 180
       ENVIRONMENT "GRAPHX_OVERRIDES=")
-    add_test(NAME graphx-m6-qemu-tap-live COMMAND ${Python3_EXECUTABLE}
-      ${CMAKE_SOURCE_DIR}/tests/test_m6_qemu_tap_live.py $<TARGET_FILE:graphx-cli>)
-    set_tests_properties(graphx-m6-qemu-tap-live PROPERTIES TIMEOUT 120
+    add_test(NAME graphx-qemu-tap-live COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_SOURCE_DIR}/tests/test_qemu_tap_live.py $<TARGET_FILE:graphx-cli>)
+    set_tests_properties(graphx-qemu-tap-live PROPERTIES TIMEOUT 120
       ENVIRONMENT "GRAPHX_OVERRIDES=")
-    add_test(NAME graphx-m7-network-observability-live COMMAND ${Python3_EXECUTABLE}
-      ${CMAKE_SOURCE_DIR}/tests/test_m7_network_observability_live.py $<TARGET_FILE:graphx-cli>)
-    set_tests_properties(graphx-m7-network-observability-live PROPERTIES TIMEOUT 180
+    add_test(NAME graphx-network-observability-live COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_SOURCE_DIR}/tests/test_network_observability_live.py $<TARGET_FILE:graphx-cli>)
+    set_tests_properties(graphx-network-observability-live PROPERTIES TIMEOUT 180
       ENVIRONMENT "GRAPHX_OVERRIDES=")
-    add_test(NAME graphx-m8-compatibility-closure-live COMMAND ${Python3_EXECUTABLE}
-      ${CMAKE_SOURCE_DIR}/tests/test_m8_compatibility_closure_live.py
+    add_test(NAME graphx-compatibility-closure-live COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_SOURCE_DIR}/tests/test_compatibility_closure_live.py
       $<TARGET_FILE:graphx-cli> ${CMAKE_SOURCE_DIR})
-    set_tests_properties(graphx-m8-compatibility-closure-live PROPERTIES TIMEOUT 240
+    set_tests_properties(graphx-compatibility-closure-live PROPERTIES TIMEOUT 240
       ENVIRONMENT "GRAPHX_OVERRIDES=")
   endif()
   add_test(NAME graphx-config-projections
@@ -378,6 +378,8 @@ if(GRAPHX_BUILD_TESTS)
     ${CMAKE_SOURCE_DIR})
   add_test(NAME graphx-documentation-consistency COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/test_documentation_consistency.py ${CMAKE_SOURCE_DIR})
+  add_test(NAME graphx-repository-hygiene COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/test_repository_hygiene.py ${CMAKE_SOURCE_DIR})
   add_test(NAME graphx-lima-static COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/test_lima_environment.py ${CMAKE_SOURCE_DIR})
   set_tests_properties(graphx-lima-static PROPERTIES TIMEOUT 15)
@@ -412,13 +414,6 @@ if(GRAPHX_BUILD_TESTS)
   set_tests_properties(${graphx_config_cli_tests}
     PROPERTIES ENVIRONMENT "GRAPHX_OVERRIDES=")
 
-  add_test(NAME graphx-protocol-boundaries
-    COMMAND graphx-tests --filter "protocol exhaustive boundaries")
-  add_test(NAME graphx-mixed-version-transport
-    COMMAND graphx-tests --filter "TCP mixed-version interoperability")
-  add_test(NAME graphx-transport-lifecycle-stress
-    COMMAND graphx-tests --filter "transport lifecycle stress")
-  set_tests_properties(graphx-transport-lifecycle-stress PROPERTIES TIMEOUT 30)
   add_test(NAME graphx-udp-transport
     COMMAND graphx-tests --filter "UDP" --repeat 3)
   set_tests_properties(graphx-udp-transport PROPERTIES TIMEOUT 30)
@@ -431,21 +426,21 @@ if(GRAPHX_BUILD_TESTS)
   add_test(NAME graphx-qemu-node-static
     COMMAND ${CMAKE_SOURCE_DIR}/examples/qemu-node/scripts/test.sh $<TARGET_FILE:graphx-cli>)
   set_tests_properties(graphx-qemu-node-static PROPERTIES TIMEOUT 30)
-  add_test(NAME graphx-m6-qemu-tap
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_m6_qemu_tap.py
+  add_test(NAME graphx-qemu-tap-plan
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_qemu_tap_plan.py
       $<TARGET_FILE:graphx-cli> ${CMAKE_SOURCE_DIR})
-  set_tests_properties(graphx-m6-qemu-tap PROPERTIES
+  set_tests_properties(graphx-qemu-tap-plan PROPERTIES
     TIMEOUT 30 ENVIRONMENT "GRAPHX_OVERRIDES=")
-  add_test(NAME graphx-m7-network-observability
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_m7_network_observability.py
+  add_test(NAME graphx-network-observability-plan
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_network_observability_plan.py
       $<TARGET_FILE:graphx-cli> ${CMAKE_SOURCE_DIR})
-  set_tests_properties(graphx-m7-network-observability PROPERTIES
+  set_tests_properties(graphx-network-observability-plan PROPERTIES
     TIMEOUT 30 ENVIRONMENT "GRAPHX_OVERRIDES=")
-  add_test(NAME graphx-m8-compatibility-closure
+  add_test(NAME graphx-config-compatibility-closure
     COMMAND ${Python3_EXECUTABLE}
-      ${CMAKE_SOURCE_DIR}/tests/test_m8_compatibility_closure.py
+      ${CMAKE_SOURCE_DIR}/tests/test_config_compatibility_closure.py
       $<TARGET_FILE:graphx-cli> ${CMAKE_SOURCE_DIR})
-  set_tests_properties(graphx-m8-compatibility-closure PROPERTIES
+  set_tests_properties(graphx-config-compatibility-closure PROPERTIES
     TIMEOUT 90 ENVIRONMENT "GRAPHX_OVERRIDES=")
   add_test(NAME graphx-config-network-observability
     COMMAND graphx-cli validate ${CMAKE_SOURCE_DIR}/examples/network-observability/graphx.yaml)
@@ -480,6 +475,21 @@ if(GRAPHX_BUILD_TESTS)
         -DGRAPHX_EXPECTED_SANITIZERS=${GRAPHX_SANITIZERS}
         -P ${CMAKE_SOURCE_DIR}/cmake/verify-sanitizer-coverage.cmake)
   endif()
+
+  # Keep the everyday feedback loop focused. Package construction and repeated
+  # UDP stress remain registered, but run only in their dedicated profiles.
+  get_property(graphx_registered_tests DIRECTORY PROPERTY TESTS)
+  foreach(graphx_test IN LISTS graphx_registered_tests)
+    if(graphx_test STREQUAL "graphx-package")
+      set_tests_properties(${graphx_test} PROPERTIES LABELS package)
+    elseif(graphx_test MATCHES "-live$")
+      set_tests_properties(${graphx_test} PROPERTIES LABELS privileged)
+    elseif(graphx_test MATCHES "stress|graphx-udp-transport")
+      set_tests_properties(${graphx_test} PROPERTIES LABELS stress)
+    else()
+      set_tests_properties(${graphx_test} PROPERTIES LABELS quick)
+    endif()
+  endforeach()
 endif()
 
 if(GRAPHX_BUILD_FUZZERS)

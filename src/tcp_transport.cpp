@@ -1,6 +1,7 @@
 #include "graphx/tcp_transport.hpp"
 
 #include "graphx/framing.hpp"
+#include "socket_utils.hpp"
 
 #include <algorithm>
 #include <array>
@@ -36,7 +37,9 @@ struct TcpTlsState {
 
 namespace {
 
-using Clock = std::chrono::steady_clock;
+using socket_detail::Clock;
+using socket_detail::poll_timeout;
+using socket_detail::send_flags;
 constexpr auto kAcceptCancellationPoll = std::chrono::milliseconds(25);
 
 // OpenSSL's socket BIO does not use MSG_NOSIGNAL on Linux. A TLS alert or a
@@ -130,24 +133,6 @@ void configure_socket(int socket) {
   const int flags = ::fcntl(socket, F_GETFL, 0);
   if (flags < 0 || ::fcntl(socket, F_SETFL, flags | O_NONBLOCK) != 0)
     throw system_error("configure nonblocking socket");
-}
-
-int send_flags() noexcept {
-#ifdef MSG_NOSIGNAL
-  return MSG_NOSIGNAL;
-#else
-  return 0;
-#endif
-}
-
-int poll_timeout(Clock::time_point deadline, bool has_deadline) {
-  if (!has_deadline) return -1;
-  const auto remaining = deadline - Clock::now();
-  if (remaining <= Clock::duration::zero()) return 0;
-  const auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(
-      remaining + std::chrono::milliseconds(1));
-  return static_cast<int>(
-      std::min<std::int64_t>(milliseconds.count(), std::numeric_limits<int>::max()));
 }
 
 bool wait_ready(int socket, short events, Clock::time_point deadline, bool has_deadline) {

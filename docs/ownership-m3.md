@@ -53,7 +53,7 @@ deleted. Recover is reserved for an interrupted `creating` state and discovers
 an atomic bridge mutation by its token and digest even if interruption happened
 before its UUID was saved.
 
-`GRAPHX_M3_FAIL_AFTER` and `GRAPHX_M3_CRASH_AFTER` are bounded verifier-only
+`GRAPHX_TEST_FAIL_AFTER_MUTATION` and `GRAPHX_TEST_CRASH_AFTER_MUTATION` are bounded verifier-only
 failure points indexed by bridge mutation. The former exercises in-process
 rollback; the latter exits immediately so the recovery command can prove
 durable crash cleanup. Do not set them during normal operation.

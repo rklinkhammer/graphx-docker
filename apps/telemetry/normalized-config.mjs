@@ -1,9 +1,7 @@
 import { closeSync, constants, fstatSync, openSync, readSync } from 'node:fs'
 import { dirname, normalize } from 'node:path'
-import { parse as parseYaml } from 'yaml'
 
 export const MAX_NORMALIZED_CONFIG_BYTES = 4 * 1024 * 1024
-const MAX_SOURCE_CONFIG_BYTES = 1024 * 1024
 
 function fail(message) {
   throw new Error(`GraphX telemetry configuration: ${message}`)
@@ -100,14 +98,6 @@ export function loadNormalizedConfig(path) {
   return validateNormalizedConfig(parsed)
 }
 
-// S2 compatibility adapter. The server consumes one stable shape while deployed
-// telemetry reads only the normalized contract. Remove this YAML path once every
-// supported direct launcher produces GRAPHX_NORMALIZED_CONFIG.
-function loadLegacyYaml(path) {
-  const contents = readBoundedRegularFile(path, MAX_SOURCE_CONFIG_BYTES)
-  try { return parseYaml(contents) } catch (error) { fail(`malformed YAML in ${path}: ${error.message}`) }
-}
-
 function normalizedAsTelemetryConfig(document) {
   const deploymentServices = Object.fromEntries(document.deployment.services.map(service =>
     [service.node_id, { image: service.image, command: service.command }]))
@@ -142,14 +132,11 @@ function normalizedAsTelemetryConfig(document) {
   }
 }
 
-export function loadTelemetryConfiguration({ environment = process.env, fallbackPath }) {
+export function loadTelemetryConfiguration({ environment = process.env } = {}) {
   const normalizedPath = environment.GRAPHX_NORMALIZED_CONFIG
-  if (normalizedPath) return {
+  if (!normalizedPath) fail('GRAPHX_NORMALIZED_CONFIG is required')
+  return {
     config: normalizedAsTelemetryConfig(loadNormalizedConfig(normalizedPath)),
     baseDirectory: normalize(environment.GRAPHX_CONFIG_DIRECTORY || dirname(normalizedPath)),
-    source: 'normalized',
   }
-  const sourcePath = environment.GRAPHX_CONFIG || fallbackPath
-  if (!sourcePath) fail('GRAPHX_NORMALIZED_CONFIG is required')
-  return { config: loadLegacyYaml(sourcePath), baseDirectory: dirname(sourcePath), source: 'yaml' }
 }

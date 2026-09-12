@@ -78,13 +78,13 @@ run_quick() {
     gate "build development targets"
     cmake --build "$dev_build_dir" -j "${GRAPHX_BUILD_JOBS:-4}"
     gate "development CTest suite"
-    ctest --test-dir "$dev_build_dir" --output-on-failure
+    ctest --test-dir "$dev_build_dir" --output-on-failure -L quick
   else
     cmake --preset dev --fresh
     gate "build development targets"
     cmake --build --preset dev -j "${GRAPHX_BUILD_JOBS:-4}"
     gate "development CTest suite"
-    ctest --preset dev
+    ctest --preset dev -L quick
   fi
 }
 

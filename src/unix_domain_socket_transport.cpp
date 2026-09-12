@@ -1,6 +1,7 @@
 #include "graphx/unix_domain_socket_transport.hpp"
 
 #include "graphx/framing.hpp"
+#include "socket_utils.hpp"
 
 #include <algorithm>
 #include <array>
@@ -17,7 +18,9 @@
 namespace graphx {
 namespace {
 
-using Clock = std::chrono::steady_clock;
+using socket_detail::Clock;
+using socket_detail::poll_timeout;
+using socket_detail::send_flags;
 
 class ScopedSocket final {
  public:
@@ -60,14 +63,6 @@ void validate_options(const UnixDomainSocketOptions& options) {
     throw std::invalid_argument("Unix socket send timeout must be between 1 and 600000 ms");
 }
 
-int send_flags() noexcept {
-#ifdef MSG_NOSIGNAL
-  return MSG_NOSIGNAL;
-#else
-  return 0;
-#endif
-}
-
 void configure_socket(int socket, bool nonblocking) {
 #ifdef SO_NOSIGPIPE
   int enabled = 1;
@@ -79,16 +74,6 @@ void configure_socket(int socket, bool nonblocking) {
     if (flags < 0 || ::fcntl(socket, F_SETFL, flags | O_NONBLOCK) != 0)
       throw socket_error("configure nonblocking Unix socket");
   }
-}
-
-int poll_timeout(Clock::time_point deadline, bool has_deadline) {
-  if (!has_deadline) return -1;
-  const auto remaining = deadline - Clock::now();
-  if (remaining <= Clock::duration::zero()) return 0;
-  const auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(
-      remaining + std::chrono::milliseconds(1));
-  return static_cast<int>(
-      std::min<std::int64_t>(milliseconds.count(), std::numeric_limits<int>::max()));
 }
 
 bool wait_ready(int socket, short events, Clock::time_point deadline, bool has_deadline) {

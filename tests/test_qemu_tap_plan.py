@@ -25,7 +25,7 @@ def require(condition: bool, message: str) -> None:
 
 def main() -> int:
     if len(sys.argv) != 3:
-        raise SystemExit("usage: test_m6_qemu_tap.py GRAPHX SOURCE_ROOT")
+        raise SystemExit("usage: test_qemu_tap_plan.py GRAPHX SOURCE_ROOT")
     graphx, root = Path(sys.argv[1]), Path(sys.argv[2])
     profile = root / "examples" / "qemu-node" / "tap"
     config = profile / "graphx.yaml"

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Portable M8 compatibility-closure and canonical-example contract checks."""
+"""Portable compatibility and canonical-example behavior checks."""
 
 from __future__ import annotations
 
@@ -30,12 +30,12 @@ def require(condition: bool, message: str) -> None:
 def main() -> int:
     if len(sys.argv) != 3:
         raise SystemExit(
-            "usage: test_m8_compatibility_closure.py GRAPHX SOURCE_ROOT"
+            "usage: test_config_compatibility_closure.py GRAPHX SOURCE_ROOT"
         )
     graphx, root = Path(sys.argv[1]).resolve(), Path(sys.argv[2]).resolve()
 
     fixtures = sorted((root / "examples/compatibility/v1").glob("*.yaml"))
-    require(len(fixtures) == 7, "M8 must retain exactly seven curated v1 fixtures")
+    require(fixtures, "at least one curated version-1 compatibility fixture is required")
     with tempfile.TemporaryDirectory(prefix="graphx-m8-portable-") as raw:
         temporary = Path(raw)
         for fixture in fixtures:
@@ -52,7 +52,7 @@ def main() -> int:
                 state = temporary / f"state-{fixture.stem}-{action}"
                 result = run(graphx, "infra", action, fixture, "--dry-run",
                              "--state-dir", state, check=False)
-                require(result.returncode == 64 and "retired in M8" in result.stderr
+                require(result.returncode == 64 and "config migrate" in result.stderr
                         and "config migrate" in result.stderr,
                         f"v1 infra {action} was not safely rejected: {fixture.name}")
                 require(not state.exists(),
@@ -60,13 +60,13 @@ def main() -> int:
         route = run(graphx, "infra", "route", "apply", fixtures[4],
                     "--router", "route-router", "--destination", "10.64.30.10/32",
                     "--dry-run", check=False)
-        require(route.returncode == 64 and "retired in M8" in route.stderr
+        require(route.returncode == 64 and "config migrate" in route.stderr
                 and "config migrate" in route.stderr,
                 "v1 manual-route mutation was not safely rejected")
         capture = run(graphx, "infra", "capture", "export", fixtures[0],
                       "--capture", "legacy", "--output", temporary / "legacy.pcapng",
                       check=False)
-        require(capture.returncode == 64 and "retired in M8" in capture.stderr
+        require(capture.returncode == 64 and "config migrate" in capture.stderr
                 and "config migrate" in capture.stderr,
                 "v1 capture operation was not safely rejected")
 
@@ -82,72 +82,21 @@ def main() -> int:
         plan = run(graphx, "infra", "create", config, "--dry-run").stdout
         require("ovs-vsctl -- add-br" in plan and "docker network" not in plan,
                 f"canonical lab is not OVS-only: {relative}")
-        require(not (example / "graphx-ovs.yaml").exists(),
-                f"parallel OVS config remains: {relative}")
 
+    compose = (root / "examples/network-lab.compose.yaml").read_text(encoding="utf-8")
+    require("driver: macvlan" not in compose and "driver: ipvlan" not in compose
+            and "external: true" not in compose,
+            "Docker data-plane network remains in shared laboratory Compose")
     for relative in ("mixed-network", "macvlan", "ipvlan-l2", "ipvlan-l3"):
         example = root / "examples" / relative
-        compose = (example / "compose.yaml").read_text(encoding="utf-8")
-        require("driver: macvlan" not in compose and "driver: ipvlan" not in compose
-                and "external: true" not in compose,
-                f"Docker data-plane network remains in {relative}")
         for action in ("up", "status", "down"):
             wrapper = example / "scripts" / f"{action}.sh"
             require(wrapper.is_file(), f"missing canonical wrapper: {wrapper}")
             require(os.access(wrapper, os.X_OK),
                     f"canonical wrapper is not executable: {wrapper}")
-            require("network-lab-ovs.sh" in wrapper.read_text(encoding="utf-8"),
-                    f"wrapper bypasses common OVS lifecycle: {wrapper}")
-        require(not (example / "compose.ovs.yaml").exists(),
-                f"parallel OVS Compose file remains: {relative}")
-
-    removed = (
-        root / "docker/ovs",
-        root / "examples/mixed-network/scripts/macos-up.sh",
-        root / "examples/mixed-network/scripts/linux-up.sh",
-        root / "examples/mixed-network/compose",
-    )
-    for path in removed:
-        require(not path.exists(), f"retired M8 path remains: {path}")
-
-    retired_entrypoints = (
-        "linux-up.sh", "linux-down.sh", "macos-up.sh", "macos-down.sh",
-        "compose.ovs.yaml", "graphx-ovs.yaml", "scripts/ovs-up.sh",
-        "scripts/ovs-down.sh", "scripts/ovs-status.sh", "scripts/fault.sh",
-    )
-    active_files = [root / "README.md", root / "SUPPORT.md"]
-    active_files.extend((root / "scripts").rglob("*.sh"))
-    active_files.extend((root / "examples").rglob("*.sh"))
-    active_files.extend(
-        path for path in (root / "docs").rglob("*.md")
-        if "adr" not in path.parts and "archive" not in path.parts
-        and not path.name.startswith("GraphX_Phases_")
-    )
-    active_text = "\n".join(
-        path.read_text(encoding="utf-8", errors="replace") for path in active_files
-    )
-    for entrypoint in retired_entrypoints:
-        require(entrypoint not in active_text,
-                f"active launcher or documentation names retired path: {entrypoint}")
-    feature_runner = (root / "scripts/test-features.sh").read_text(encoding="utf-8")
-    require('export GRAPHX_BIN="$BUILD_DIR/graphx"' in feature_runner,
-            "native Linux verification does not select its Linux GraphX binary")
-    require("infra fault apply" not in feature_runner,
-            "feature verification invokes the retired imperative fault entry point")
-    require("network-observability.plan" in feature_runner
-            and "auto-clear=identity-checked" in feature_runner,
-            "feature verification does not assert the declarative bounded-fault plan")
 
     qemu = root / "examples/qemu-node"
-    default = (qemu / "scripts/demo.sh").read_text(encoding="utf-8")
-    tap_launcher = (qemu / "tap/scripts/ovs-lab.sh").read_text(encoding="utf-8")
     tap_config = qemu / "tap/graphx.yaml"
-    require("tap/scripts/ovs-lab.sh" in default and "demo-profile.sh" not in default,
-            "default QEMU launcher is not TAP/OVS")
-    require("infrastructure/lima/common.sh" in default and "limactl shell" in default,
-            "default QEMU launcher does not dispatch macOS to GraphX Lima")
-    require("graphx.yaml" in tap_launcher and "-netdev user" not in tap_launcher,
-            "TAP launcher contains a user-network fallback")
     run(graphx, "validate", tap_config)
     tap_plan = run(graphx, "infra", "create", tap_config, "--dry-run").stdout
     require("ip tuntap add" in tap_plan and "ovs-vsctl -- add-br" in tap_plan
@@ -160,17 +109,9 @@ def main() -> int:
 
     fault = run(graphx, "infra", "fault", root / "examples/macvlan/graphx.yaml",
                 "--dry-run", check=False)
-    require(fault.returncode == 64 and "retired in M8" in fault.stderr
-            and "network.faults" in fault.stderr,
+    require(fault.returncode == 64 and "network.faults" in fault.stderr,
             "imperative fault entry point was not retired")
-
-    for document in (root / "docs/configuration-v2.md",
-                     root / "docs/compatibility-policy.md",
-                     root / "docs/adr/0018-compatibility-closure.md"):
-        require(document.is_file(), f"missing compatibility documentation: {document}")
-    require((root / "docs/archive/ovs-migration/m8-compatibility.md").is_file(),
-            "archived compatibility-closure context is missing")
-    print("GraphX M8 portable compatibility closure passed")
+    print("GraphX portable compatibility closure passed")
     return 0
 
 

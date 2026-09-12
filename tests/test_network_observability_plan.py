@@ -23,7 +23,7 @@ def require(value: bool, message: str) -> None:
 
 def main() -> int:
     if len(sys.argv) != 3:
-        raise SystemExit("usage: test_m7_network_observability.py GRAPHX SOURCE_ROOT")
+        raise SystemExit("usage: test_network_observability_plan.py GRAPHX SOURCE_ROOT")
     graphx, root = Path(sys.argv[1]), Path(sys.argv[2])
     config = root / "examples/network-observability/graphx.yaml"
     run(graphx, "validate", config)

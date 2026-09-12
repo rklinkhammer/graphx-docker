@@ -55,8 +55,7 @@ std::string required_scalar(const YAML::Node& root, std::string_view key) {
 
 YAML::Node state_node(const OwnershipState& state) {
   YAML::Node root;
-  root["version"] = 1;
-  root["phase"] = state.phase;
+  root["version"] = 2;
   root["graph_id"] = state.graph_id;
   root["config_sha256"] = state.config_hash;
   root["owner_token"] = state.owner_token;
@@ -379,13 +378,18 @@ OwnershipState load_state(const std::filesystem::path& path) {
     offset += static_cast<std::size_t>(count);
   }
   const auto root = YAML::Load(bytes);
-  if (!root.IsMap() || root["version"].as<int>(0) != 1)
-    throw std::runtime_error("unsupported ownership state format");
-  const auto phase = required_scalar(root, "phase");
-  if ((phase != "M3" && phase != "M4" && phase != "M5" && phase != "M6" && phase != "M7"))
-    throw std::runtime_error("unsupported ownership state format");
+  if (!root.IsMap()) throw std::runtime_error("unsupported ownership state format");
+  const auto version = root["version"].as<int>(0);
+  if (version != 1 && version != 2) throw std::runtime_error("unsupported ownership state format");
+  // Version 1 ledgers recorded the implementation milestone that first owned
+  // each resource combination. Keep accepting those ledgers for safe cleanup,
+  // but do not carry that historical classification into new state.
+  if (version == 1) {
+    const auto phase = required_scalar(root, "phase");
+    if (phase != "M3" && phase != "M4" && phase != "M5" && phase != "M6" && phase != "M7")
+      throw std::runtime_error("unsupported ownership state format");
+  }
   OwnershipState state;
-  state.phase = phase;
   state.graph_id = required_scalar(root, "graph_id");
   state.config_hash = required_scalar(root, "config_sha256");
   state.owner_token = required_scalar(root, "owner_token");

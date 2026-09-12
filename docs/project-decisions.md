@@ -73,6 +73,8 @@ sockets to macOS and therefore does not satisfy the host-side Docker portion of
 
 - Creation records stable owner, graph, configuration, and kernel/OVS object
   identity before later status, destroy, or recovery operations trust it.
+- New ledgers use format version 2 and describe capabilities/resources rather
+  than delivery phases. Version-1 ledgers remain readable for verified cleanup.
 - Replacement or ambiguous resources fail closed. Matching a name is never
   sufficient authority to alter or remove an object.
 - Startup is transactional and rolls back only objects proven to have been
@@ -113,6 +115,7 @@ Privileged Lima checks are a separate evidence row and follow
 - ADR 0018: version 2 is the sole active realization and legacy paths are
   migration-only.
 - ADR 0019: the C++ loader owns the deterministic normalized JSON contract.
+- ADR 0020: ownership ledgers are versioned and capability-based.
 - Earlier accepted ADRs continue to govern configuration authority, bounded
   parsing/runtime behavior, transport compatibility, security, telemetry,
   history, control, capture, releases, UDP, QEMU, external devices, and manual

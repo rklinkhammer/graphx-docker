@@ -234,57 +234,7 @@ class ConfigParser {
     }
   }
 
-  bool history_bool_value(const YAML::Node& node, const std::string& path, bool fallback) {
-    if (!node) return fallback;
-    if (!node.IsScalar() || node.Tag() == "!" || node.Tag() == "tag:yaml.org,2002:str") {
-      error(path, "must be a boolean, not a string");
-      return fallback;
-    }
-    const auto& value = node.Scalar();
-    if (value == "true" || value == "True" || value == "TRUE") return true;
-    if (value == "false" || value == "False" || value == "FALSE") return false;
-    error(path, "must be a boolean");
-    return fallback;
-  }
-
-  bool capture_bool_value(const YAML::Node& node, const std::string& path, bool fallback) {
-    if (!node) return fallback;
-    if (!node.IsScalar() || node.Tag() == "!" || node.Tag() == "tag:yaml.org,2002:str") {
-      error(path, "must be a boolean, not a string");
-      return fallback;
-    }
-    const auto& value = node.Scalar();
-    if (value == "true" || value == "True" || value == "TRUE") return true;
-    if (value == "false" || value == "False" || value == "FALSE") return false;
-    error(path, "must be a boolean");
-    return fallback;
-  }
-
-  std::uint32_t capture_unsigned_value(const YAML::Node& node, const std::string& path) {
-    if (node && (node.Tag() == "!" || node.Tag() == "tag:yaml.org,2002:str")) {
-      error(path, "must be an unsigned integer, not a string");
-      return 0;
-    }
-    return unsigned_value(node, path);
-  }
-
-  std::uint64_t capture_unsigned_64_value(const YAML::Node& node, const std::string& path) {
-    if (node && (node.Tag() == "!" || node.Tag() == "tag:yaml.org,2002:str")) {
-      error(path, "must be an unsigned integer, not a string");
-      return 0;
-    }
-    return unsigned_64_value(node, path);
-  }
-
-  std::uint32_t history_unsigned_value(const YAML::Node& node, const std::string& path) {
-    if (node && (node.Tag() == "!" || node.Tag() == "tag:yaml.org,2002:str")) {
-      error(path, "must be an unsigned integer, not a string");
-      return 0;
-    }
-    return unsigned_value(node, path);
-  }
-
-  std::uint64_t history_unsigned_64_value(const YAML::Node& node, const std::string& path) {
+  std::uint64_t strict_unsigned_64_value(const YAML::Node& node, const std::string& path) {
     if (node && (node.Tag() == "!" || node.Tag() == "tag:yaml.org,2002:str")) {
       error(path, "must be an unsigned integer, not a string");
       return 0;
@@ -308,24 +258,11 @@ class ConfigParser {
       error(path, "must be a boolean, not a string");
       return fallback;
     }
-    return bool_value(node, path, fallback);
-  }
-
-  bool udp_bool_value(const YAML::Node& node, const std::string& path, bool fallback) {
-    if (!node) return fallback;
-    if (!node.IsScalar() || node.Tag() == "!" || node.Tag() == "tag:yaml.org,2002:str") {
-      error(path, "must be a boolean, not a string");
-      return fallback;
-    }
-    return bool_value(node, path, fallback);
-  }
-
-  std::uint32_t udp_unsigned_value(const YAML::Node& node, const std::string& path) {
-    if (node && (node.Tag() == "!" || node.Tag() == "tag:yaml.org,2002:str")) {
-      error(path, "must be an unsigned integer, not a string");
-      return 0;
-    }
-    return unsigned_value(node, path);
+    const auto& value = node.Scalar();
+    if (value == "true" || value == "True" || value == "TRUE") return true;
+    if (value == "false" || value == "False" || value == "FALSE") return false;
+    error(path, "must be a boolean");
+    return fallback;
   }
 
   double double_value(const YAML::Node& node, const std::string& path, double fallback) {
@@ -602,7 +539,7 @@ class ConfigParser {
           if (edge.transport.udp_mode == UdpMode::broadcast && multicast)
             error(path + ".destination", "broadcast mode rejects multicast addresses");
         }
-        const auto port = udp_unsigned_value(settings["port"], path + ".port");
+        const auto port = strict_unsigned_value(settings["port"], path + ".port");
         if (port == 0 || port > 65535)
           error(path + ".port", "must be between 1 and 65535");
         else
@@ -619,26 +556,26 @@ class ConfigParser {
             error(path + ".interface", "must be an IPv4 address or interface name");
         }
         if (settings["ttl"])
-          edge.transport.ttl = udp_unsigned_value(settings["ttl"], path + ".ttl");
+          edge.transport.ttl = strict_unsigned_value(settings["ttl"], path + ".ttl");
         if (edge.transport.ttl > 255) error(path + ".ttl", "must be between 0 and 255");
-        edge.transport.loopback = udp_bool_value(settings["loopback"], path + ".loopback", true);
+        edge.transport.loopback = strict_bool_value(settings["loopback"], path + ".loopback", true);
         edge.transport.reuse_address =
-            udp_bool_value(settings["reuse_address"], path + ".reuse_address", false);
+            strict_bool_value(settings["reuse_address"], path + ".reuse_address", false);
         if (settings["receive_buffer_bytes"])
-          edge.transport.receive_buffer_bytes =
-              udp_unsigned_value(settings["receive_buffer_bytes"], path + ".receive_buffer_bytes");
+          edge.transport.receive_buffer_bytes = strict_unsigned_value(
+              settings["receive_buffer_bytes"], path + ".receive_buffer_bytes");
         if (edge.transport.receive_buffer_bytes < 4096 ||
             edge.transport.receive_buffer_bytes > 256U * 1024 * 1024)
           error(path + ".receive_buffer_bytes", "must be between 4096 and 268435456");
         if (settings["send_buffer_bytes"])
           edge.transport.send_buffer_bytes =
-              udp_unsigned_value(settings["send_buffer_bytes"], path + ".send_buffer_bytes");
+              strict_unsigned_value(settings["send_buffer_bytes"], path + ".send_buffer_bytes");
         if (edge.transport.send_buffer_bytes < 4096 ||
             edge.transport.send_buffer_bytes > 256U * 1024 * 1024)
           error(path + ".send_buffer_bytes", "must be between 4096 and 268435456");
         if (settings["max_datagram_bytes"])
           edge.transport.max_datagram_bytes =
-              udp_unsigned_value(settings["max_datagram_bytes"], path + ".max_datagram_bytes");
+              strict_unsigned_value(settings["max_datagram_bytes"], path + ".max_datagram_bytes");
         if (edge.transport.max_datagram_bytes < 64 || edge.transport.max_datagram_bytes > 65507)
           error(path + ".max_datagram_bytes", "must be between 64 and 65507");
         if (settings["framing"])
@@ -1395,7 +1332,7 @@ class ConfigParser {
             capture, "observability.capture",
             {"enabled", "provider", "directory", "snaplen", "max_file_bytes", "max_packets"});
         config.observability.capture.enabled =
-            capture_bool_value(capture["enabled"], "observability.capture.enabled", false);
+            strict_bool_value(capture["enabled"], "observability.capture.enabled", false);
         if (capture["provider"])
           config.observability.capture.provider =
               text(capture["provider"], "observability.capture.provider", 128);
@@ -1404,13 +1341,13 @@ class ConfigParser {
               text(capture["directory"], "observability.capture.directory", 1024);
         if (capture["snaplen"])
           config.observability.capture.snaplen =
-              capture_unsigned_value(capture["snaplen"], "observability.capture.snaplen");
+              strict_unsigned_value(capture["snaplen"], "observability.capture.snaplen");
         if (capture["max_file_bytes"])
-          config.observability.capture.max_file_bytes = capture_unsigned_64_value(
+          config.observability.capture.max_file_bytes = strict_unsigned_64_value(
               capture["max_file_bytes"], "observability.capture.max_file_bytes");
         if (capture["max_packets"])
           config.observability.capture.max_packets =
-              capture_unsigned_value(capture["max_packets"], "observability.capture.max_packets");
+              strict_unsigned_value(capture["max_packets"], "observability.capture.max_packets");
         if (config.observability.capture.enabled && config.observability.capture.provider.empty())
           error("observability.capture.provider", "is required when capture is enabled");
         if (!config.observability.capture.provider.empty() &&
@@ -1558,44 +1495,44 @@ class ConfigParser {
                      "shutdown_timeout_ms"});
         auto& result = config.observability.history;
         result.enabled =
-            history_bool_value(history["enabled"], "observability.history.enabled", false);
+            strict_bool_value(history["enabled"], "observability.history.enabled", false);
         if (history["backend"])
           result.backend = text(history["backend"], "observability.history.backend", 32);
         if (history["database_file"])
           result.database_file =
               text(history["database_file"], "observability.history.database_file", 1024);
         if (history["retention_seconds"])
-          result.retention_seconds = history_unsigned_value(
+          result.retention_seconds = strict_unsigned_value(
               history["retention_seconds"], "observability.history.retention_seconds");
         if (history["max_records"])
-          result.max_records = history_unsigned_64_value(history["max_records"],
-                                                         "observability.history.max_records");
+          result.max_records =
+              strict_unsigned_64_value(history["max_records"], "observability.history.max_records");
         if (history["max_database_bytes"])
-          result.max_database_bytes = history_unsigned_64_value(
+          result.max_database_bytes = strict_unsigned_64_value(
               history["max_database_bytes"], "observability.history.max_database_bytes");
         if (history["queue_capacity"])
-          result.queue_capacity = history_unsigned_value(history["queue_capacity"],
-                                                         "observability.history.queue_capacity");
+          result.queue_capacity = strict_unsigned_value(history["queue_capacity"],
+                                                        "observability.history.queue_capacity");
         if (history["max_queue_bytes"])
-          result.max_queue_bytes = history_unsigned_value(history["max_queue_bytes"],
-                                                          "observability.history.max_queue_bytes");
+          result.max_queue_bytes = strict_unsigned_value(history["max_queue_bytes"],
+                                                         "observability.history.max_queue_bytes");
         if (history["batch_size"])
           result.batch_size =
-              history_unsigned_value(history["batch_size"], "observability.history.batch_size");
+              strict_unsigned_value(history["batch_size"], "observability.history.batch_size");
         if (history["flush_interval_ms"])
-          result.flush_interval_ms = history_unsigned_value(
+          result.flush_interval_ms = strict_unsigned_value(
               history["flush_interval_ms"], "observability.history.flush_interval_ms");
         if (history["query_limit"])
           result.query_limit =
-              history_unsigned_value(history["query_limit"], "observability.history.query_limit");
+              strict_unsigned_value(history["query_limit"], "observability.history.query_limit");
         if (history["query_timeout_ms"])
-          result.query_timeout_ms = history_unsigned_value(
-              history["query_timeout_ms"], "observability.history.query_timeout_ms");
+          result.query_timeout_ms = strict_unsigned_value(history["query_timeout_ms"],
+                                                          "observability.history.query_timeout_ms");
         if (history["max_pending_queries"])
-          result.max_pending_queries = history_unsigned_value(
+          result.max_pending_queries = strict_unsigned_value(
               history["max_pending_queries"], "observability.history.max_pending_queries");
         if (history["shutdown_timeout_ms"])
-          result.shutdown_timeout_ms = history_unsigned_value(
+          result.shutdown_timeout_ms = strict_unsigned_value(
               history["shutdown_timeout_ms"], "observability.history.shutdown_timeout_ms");
 
         if (result.backend != "sqlite") error("observability.history.backend", "must be 'sqlite'");
@@ -1636,7 +1573,7 @@ class ConfigParser {
         const auto assign = [&](std::string_view name, std::uint32_t& destination) {
           const auto key = std::string(name);
           if (control[key])
-            destination = history_unsigned_value(control[key], "observability.control." + key);
+            destination = strict_unsigned_value(control[key], "observability.control." + key);
         };
         assign("command_timeout_ms", result.command_timeout_ms);
         assign("command_retention_seconds", result.command_retention_seconds);

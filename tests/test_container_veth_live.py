@@ -24,7 +24,7 @@ def run(*args: object, check: bool = True,
 
 def main() -> int:
     if len(sys.argv) != 2 or sys.platform != "linux" or os.geteuid() != 0:
-        raise SystemExit("M4 live test requires: test_m4_container_veth_live.py GRAPHX as Linux root")
+        raise SystemExit("M4 live test requires: test_container_veth_live.py GRAPHX as Linux root")
     graphx = Path(sys.argv[1]).resolve()
     project, service, container, bridge, host = (
         "graphx-m4-live", "worker", "graphx-m4-live-worker", "br-gxm4live", "gxm4liveh0")
@@ -65,8 +65,8 @@ deployment:
 """, encoding="utf-8")
             run(graphx, "infra", "create", config, "--state-dir", state)
             ledger = (state / "m4-live.yaml").read_text(encoding="utf-8")
-            if "phase: M4" not in ledger or first not in ledger or "namespace_inode:" not in ledger:
-                raise AssertionError("ledger lacks M4 container identity")
+            if "version: 2" not in ledger or first not in ledger or "namespace_inode:" not in ledger:
+                raise AssertionError("ledger lacks container identity")
             run(graphx, "infra", "status", config, "--state-dir", state)
             link = run("docker", "exec", container, "ip", "-o", "link", "show", "gxdata0").stdout
             address = run("docker", "exec", container, "ip", "-o", "-4", "addr", "show", "gxdata0").stdout
@@ -163,14 +163,14 @@ deployment:
             # Ordinary rollback and hard-crash recovery must still clean both
             # endpoint and bridge now that bridge deletion checks its internal port.
             failed = run(graphx, "infra", "create", config, "--state-dir", state,
-                         check=False, extra_env={"GRAPHX_M4_FAIL_AFTER": "2"})
+                         check=False, extra_env={"GRAPHX_TEST_FAIL_AFTER_MUTATION": "2"})
             if (failed.returncode == 0 or state_file.exists() or
                     run("ovs-vsctl", "br-exists", bridge, check=False).returncode == 0 or
                     Path(f"/sys/class/net/{host}").exists()):
                 raise AssertionError("injected M4 failure did not roll back cleanly")
 
             crashed = run(graphx, "infra", "create", config, "--state-dir", state,
-                          check=False, extra_env={"GRAPHX_M4_CRASH_AFTER": "2"})
+                          check=False, extra_env={"GRAPHX_TEST_CRASH_AFTER_MUTATION": "2"})
             if (crashed.returncode != 99 or not state_file.exists() or
                     run("ovs-vsctl", "br-exists", bridge, check=False).returncode != 0 or
                     not Path(f"/sys/class/net/{host}").exists()):

@@ -37,7 +37,7 @@ def bridge_exists(name: str) -> bool:
 
 def main() -> int:
     if len(sys.argv) != 3:
-        raise SystemExit("usage: test_m3_ownership_live.py GRAPHX SOURCE_ROOT")
+        raise SystemExit("usage: test_ovs_ownership_live.py GRAPHX SOURCE_ROOT")
     if sys.platform != "linux" or os.geteuid() != 0:
         raise SystemExit("M3 live ownership tests require root on Linux")
     graphx = Path(sys.argv[1]).resolve()

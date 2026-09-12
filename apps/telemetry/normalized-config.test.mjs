@@ -22,7 +22,6 @@ test('loads normalized JSON and adapts its arrays without changing topology mean
   const loaded = loadTelemetryConfiguration({
     environment: { GRAPHX_NORMALIZED_CONFIG: fixturePath }, fallbackPath: '/not-used.yaml',
   })
-  assert.equal(loaded.source, 'normalized')
   assert.equal(loaded.config.graph.id, fixture.graph.id)
   assert.deepEqual(loaded.config.graph.nodes, fixture.graph.nodes)
   assert.deepEqual(loaded.config.network.edge_paths, {})
@@ -70,9 +69,7 @@ test('enforces graph and network collection bounds', t => {
   assert.throws(() => loadNormalizedConfig(network.path), /network.edge_paths must be an array/)
 })
 
-test('retains bounded YAML fallback only for direct local Node launches', () => {
-  const loaded = loadTelemetryConfiguration({ environment: {},
-    fallbackPath: resolve(repository, 'graphx.yaml') })
-  assert.equal(loaded.source, 'yaml')
-  assert.equal(loaded.config.graph.id, 'sample-pipeline')
+test('requires the authoritative normalized configuration contract', () => {
+  assert.throws(() => loadTelemetryConfiguration({ environment: {} }),
+    /GRAPHX_NORMALIZED_CONFIG is required/)
 })

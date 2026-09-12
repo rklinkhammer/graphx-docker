@@ -20,7 +20,7 @@ def require(value: bool, message: str) -> None:
 
 def main() -> int:
     if len(sys.argv) != 3:
-        raise SystemExit("usage: test_m5_lab_migration.py GRAPHX SOURCE_ROOT")
+        raise SystemExit("usage: test_network_lab_plans.py GRAPHX SOURCE_ROOT")
     graphx, root = Path(sys.argv[1]), Path(sys.argv[2])
     labs = [
         root / "examples/mixed-network/graphx.yaml",
@@ -69,11 +69,11 @@ def main() -> int:
                 "config migrate" in refused.stderr,
                 f"legacy infrastructure was not retired: {fixture}")
 
+    compose = (root / "examples/network-lab.compose.yaml").read_text()
+    require("driver: macvlan" not in compose and "driver: ipvlan" not in compose and
+            "external: true" not in compose,
+            "shared OVS Compose still declares a Docker data plane")
     for lab in ("mixed-network", "macvlan", "ipvlan-l2", "ipvlan-l3"):
-        compose = (root / "examples" / lab / "compose.yaml").read_text()
-        require("driver: macvlan" not in compose and "driver: ipvlan" not in compose and
-                "external: true" not in compose,
-                f"active OVS compose still declares a Docker data plane: {lab}")
         for action in ("up", "down", "status"):
             require((root / "examples" / lab / "scripts" / f"{action}.sh").is_file(),
                     f"missing {lab} canonical {action} wrapper")

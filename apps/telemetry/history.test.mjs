@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { spawn } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import dgram from 'node:dgram'
 import { once } from 'node:events'
 import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url'
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml'
 import { controlAuditHistoryRecord } from './control.mjs'
 import { HistoryStore, historyConfig, parseHistoryQuery, telemetryHistoryRecord } from './history.mjs'
+import { normalizedConfigEnvironment } from './test-config.mjs'
 
 function temporaryHistory() {
   const directory = mkdtempSync(join(tmpdir(), 'graphx-history-'))
@@ -317,50 +318,33 @@ async function availablePort() {
   return port
 }
 
-async function rejectedTelemetryStartup(history, expected) {
+function rejectedConfiguration(history, expected) {
   const temporary = temporaryHistory()
   const directory = dirname(fileURLToPath(import.meta.url))
   const configFile = join(temporary.directory, 'graphx.yaml')
   const source = parseYaml(readFileSync(resolve(directory, '../../graphx.yaml'), 'utf8'))
   source.observability.history = history
   writeFileSync(configFile, stringifyYaml(source))
-  const environment = { ...process.env, PORT: String(await availablePort()),
-    GRAPHX_TELEMETRY_PORT: String(await availablePort()), GRAPHX_HTTP_BIND: '127.0.0.1',
-    GRAPHX_TELEMETRY_BIND: '127.0.0.1', GRAPHX_CONFIG: configFile }
-  for (const key of Object.keys(environment))
-    if (key.startsWith('GRAPHX_HISTORY_')) delete environment[key]
-  const child = spawn(process.execPath, ['server.mjs'], { cwd: directory, env: environment,
-    stdio: ['ignore', 'ignore', 'pipe'] })
-  let stderr = ''
-  child.stderr.on('data', value => { stderr += value })
-  let deadlineTimer
+  const graphx = process.env.NORMALIZED_CONFIG_CLI || resolve(directory, '../../build/dev/graphx')
   try {
-    const [code] = await Promise.race([
-      once(child, 'exit'),
-      new Promise((_, rejectWait) => { deadlineTimer = setTimeout(
-        () => rejectWait(new Error('invalid telemetry configuration did not fail startup')), 3000) }),
-    ])
-    clearTimeout(deadlineTimer)
-    assert.notEqual(code, 0)
-    assert.match(stderr, expected)
+    const result = spawnSync(graphx, ['config', 'normalize', configFile], { encoding: 'utf8' })
+    assert.notEqual(result.status, 0)
+    assert.match(result.stderr, expected)
     assert.equal(existsSync(join(temporary.directory, '.graphx/history.sqlite')), false)
     assert.equal(existsSync(join(temporary.directory, 'history.sqlite')), false)
   } finally {
-    clearTimeout(deadlineTimer)
-    if (child.exitCode == null) child.kill('SIGKILL')
     temporary.remove()
   }
 }
 
-test('telemetry startup rejects history configuration rejected by the authoritative loader',
-  { timeout: 10000 }, async () => {
-    await rejectedTelemetryStartup({ enabled: true, backend: '',
-      database_file: 'history.sqlite' }, /history backend must be sqlite/)
-    await rejectedTelemetryStartup({ enabled: true, backend: 'sqlite',
-      database_file: '' }, /history database_file must be/)
-    await rejectedTelemetryStartup({ enabled: true, backend: 'sqlite',
+test('native normalization rejects invalid history configuration', () => {
+    rejectedConfiguration({ enabled: true, backend: '',
+      database_file: 'history.sqlite' }, /observability\.history\.backend: must/)
+    rejectedConfiguration({ enabled: true, backend: 'sqlite',
+      database_file: '' }, /observability\.history\.database_file: must/)
+    rejectedConfiguration({ enabled: true, backend: 'sqlite',
       database_file: 'history.sqlite', typo_retention_seconds: 60 },
-    /unknown history configuration property 'typo_retention_seconds'/)
+    /observability\.history\.typo_retention_seconds: unknown property/)
   })
 
 async function startTelemetry(databaseFile) {
@@ -370,7 +354,7 @@ async function startTelemetry(databaseFile) {
   const child = spawn(process.execPath, ['server.mjs'], { cwd: directory,
     env: { ...process.env, PORT: String(port), GRAPHX_TELEMETRY_PORT: String(udpPort),
       GRAPHX_HTTP_BIND: '127.0.0.1', GRAPHX_TELEMETRY_BIND: '127.0.0.1',
-      GRAPHX_CONFIG: resolve(directory, '../../graphx.yaml'), GRAPHX_HISTORY_ENABLED: 'true',
+      ...normalizedConfigEnvironment(resolve(directory, '../../graphx.yaml')), GRAPHX_HISTORY_ENABLED: 'true',
       GRAPHX_HISTORY_DATABASE_FILE: databaseFile, GRAPHX_HISTORY_FLUSH_INTERVAL_MS: '10',
       GRAPHX_HISTORY_BATCH_SIZE: '1', GRAPHX_OBSERVATION_TOKEN: secret },
     stdio: ['ignore', 'pipe', 'pipe'] })

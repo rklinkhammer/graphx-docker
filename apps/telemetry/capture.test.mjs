@@ -9,6 +9,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import test from 'node:test'
 import { listValidatedCaptures, openValidatedCapture } from './capture-files.mjs'
+import { normalizedConfigEnvironment } from './test-config.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const repository = join(here, '../..')
@@ -59,7 +60,7 @@ test('capture downloads are bounded and reject symlink traversal', async t => {
   const port = await availablePort()
   const udpPort = await availablePort()
   const environment = { ...process.env, PORT: String(port), GRAPHX_TELEMETRY_PORT: String(udpPort),
-    GRAPHX_CONFIG: join(repository, 'graphx.yaml'), GRAPHX_CAPTURE_ENABLED: 'true',
+    ...normalizedConfigEnvironment(join(repository, 'graphx.yaml')), GRAPHX_CAPTURE_ENABLED: 'true',
     GRAPHX_CAPTURE_DIR: captures, GRAPHX_CAPTURE_MAX_FILE_BYTES: '65536',
     GRAPHX_CAPTURE_MAX_PACKETS: '2', GRAPHX_CAPTURE_SNAPLEN: '4096' }
   for (const key of Object.keys(environment))
@@ -109,7 +110,7 @@ test('capture catalog bounds filesystem work and snapshot payloads without gatin
   const port = await availablePort()
   const udpPort = await availablePort()
   const environment = { ...process.env, PORT: String(port), GRAPHX_TELEMETRY_PORT: String(udpPort),
-    GRAPHX_CONFIG: join(repository, 'graphx.yaml'), GRAPHX_CAPTURE_ENABLED: 'true',
+    ...normalizedConfigEnvironment(join(repository, 'graphx.yaml')), GRAPHX_CAPTURE_ENABLED: 'true',
     GRAPHX_CAPTURE_DIR: captures, GRAPHX_CAPTURE_MAX_FILE_BYTES: '65536',
     GRAPHX_CAPTURE_CATALOG_MAX_FILES: '4', GRAPHX_CAPTURE_CATALOG_MAX_ENTRIES: '10' }
   for (const key of Object.keys(environment))
@@ -154,7 +155,7 @@ test('capture catalog bounds filesystem work and snapshot payloads without gatin
 test('invalid capture deployment limits fail before listeners start', async () => {
   const environment = { ...process.env, PORT: String(await availablePort()),
     GRAPHX_TELEMETRY_PORT: String(await availablePort()),
-    GRAPHX_CONFIG: join(repository, 'graphx.yaml'), GRAPHX_CAPTURE_MAX_PACKETS: '-1' }
+    ...normalizedConfigEnvironment(join(repository, 'graphx.yaml')), GRAPHX_CAPTURE_MAX_PACKETS: '-1' }
   const child = spawn(process.execPath, ['server.mjs'], { cwd: here, env: environment,
     stdio: ['ignore', 'pipe', 'pipe'] })
   let errors = ''
@@ -250,7 +251,7 @@ test('capture catalog bounds directory work and returns sorted truncation metada
 
 async function rejectedCaptureStartup(overrides, configPath = join(repository, 'graphx.yaml')) {
   const environment = { ...process.env, PORT: String(await availablePort()),
-    GRAPHX_TELEMETRY_PORT: String(await availablePort()), GRAPHX_CONFIG: configPath }
+    GRAPHX_TELEMETRY_PORT: String(await availablePort()), ...normalizedConfigEnvironment(configPath) }
   for (const key of ['GRAPHX_CAPTURE_ENABLED', 'GRAPHX_CAPTURE_PROVIDER', 'GRAPHX_CAPTURE_SNAPLEN',
     'GRAPHX_CAPTURE_MAX_FILE_BYTES', 'GRAPHX_CAPTURE_MAX_PACKETS']) delete environment[key]
   Object.assign(environment, overrides)
@@ -265,10 +266,20 @@ async function rejectedCaptureStartup(overrides, configPath = join(repository, '
   return errors
 }
 
-test('capture environment booleans, providers, and required paths fail closed', async t => {
+function rejectedNormalization(configPath) {
+  const graphx = process.env.NORMALIZED_CONFIG_CLI || join(repository, 'build/dev/graphx')
+  const result = spawnSync(graphx, ['config', 'normalize', configPath], { encoding: 'utf8' })
+  assert.notEqual(result.status, 0)
+  return result.stderr
+}
+
+test('capture environment overrides fail closed', async () => {
   assert.match(await rejectedCaptureStartup({ GRAPHX_CAPTURE_ENABLED: 'maybe' }), /must be one of/)
   assert.match(await rejectedCaptureStartup({ GRAPHX_CAPTURE_PROVIDER: 'pcapgn' }),
     /must be pcapng or ovs-span/)
+})
+
+test('native normalization rejects incomplete capture configuration', async t => {
   const directory = await mkdtemp(join(tmpdir(), 'graphx-capture-required-path-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const source = await readFile(join(repository, 'graphx.yaml'), 'utf8')
@@ -276,11 +287,10 @@ test('capture environment booleans, providers, and required paths fail closed', 
   await writeFile(config, source
     .replace('    enabled: false', '    enabled: true')
     .replace('    directory: captures\n', ''))
-  assert.match(await rejectedCaptureStartup({}, config),
-    /GRAPHX_CAPTURE_DIR is required for the pcapng provider/)
+  assert.match(rejectedNormalization(config), /observability\.capture\.directory: is required/)
 })
 
-test('telemetry rejects quoted capture types from YAML', async t => {
+test('native normalization rejects quoted capture types', async t => {
   const directory = await mkdtemp(join(tmpdir(), 'graphx-capture-config-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const source = await readFile(join(repository, 'graphx.yaml'), 'utf8')
@@ -294,6 +304,6 @@ test('telemetry rejects quoted capture types from YAML', async t => {
   for (const [index, contents] of variants.entries()) {
     const config = join(directory, `quoted-${index}.yaml`)
     await writeFile(config, contents)
-    assert.match(await rejectedCaptureStartup({}, config), /must be a typed (boolean|integer)/)
+    assert.match(rejectedNormalization(config), /must be (a boolean|an unsigned integer), not a string/)
   }
 })

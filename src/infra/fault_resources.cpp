@@ -61,7 +61,7 @@ std::uint32_t spawn_fault_timer(std::uint32_t duration, const std::string& inter
   if (child == 0) {
     detach_child_io();
 #if defined(__linux__)
-    ::prctl(PR_SET_NAME, "graphx-m7-timer", 0, 0, 0);
+    ::prctl(PR_SET_NAME, "graphx-fault", 0, 0, 0);
 #endif
     struct timespec remaining{static_cast<time_t>(duration), 0};
     while (::nanosleep(&remaining, &remaining) != 0 && errno == EINTR) {

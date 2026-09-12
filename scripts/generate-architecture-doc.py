@@ -19,8 +19,9 @@ from docx.shared import Inches, Pt, RGBColor
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "docs" / "GraphX_Architecture.md"
-OUTPUT = ROOT / "docs" / "GraphX_Architecture.docx"
-ASSETS = ROOT / "docs" / "architecture-assets"
+OUTPUT_ROOT = ROOT / "outputs" / "architecture"
+OUTPUT = OUTPUT_ROOT / "GraphX_Architecture.docx"
+ASSETS = OUTPUT_ROOT / "assets"
 VERSION = (ROOT / "VERSION").read_text(encoding="ascii").strip()
 
 NAVY = "17324D"

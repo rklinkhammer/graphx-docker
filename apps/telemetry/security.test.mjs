@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url'
 import { RateLimiter, ReplayCache, parseRequestUrl, readSecret, sanitizeControlAcknowledgement,
   sanitizeTelemetryEvent, signEnvelope, tokenMatches, originAllowed, validateTelemetryEvent, verifyEnvelope,
   webSocketBearer } from './security.mjs'
+import { normalizedConfigEnvironment } from './test-config.mjs'
 
 const secret = '0123456789abcdef0123456789abcdef'
 
@@ -189,7 +190,8 @@ test('telemetry survives malformed HTTP and WebSocket request targets', { timeou
     cwd: directory,
     env: { ...process.env, PORT: String(port), GRAPHX_TELEMETRY_PORT: String(udpPort),
       GRAPHX_HTTP_BIND: '127.0.0.1', GRAPHX_TELEMETRY_BIND: '127.0.0.1',
-      GRAPHX_CONFIG: resolve(directory, '../../graphx.yaml'), GRAPHX_OBSERVATION_TOKEN: secret },
+      ...normalizedConfigEnvironment(resolve(directory, '../../graphx.yaml')),
+      GRAPHX_OBSERVATION_TOKEN: secret },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
   try {

@@ -7,6 +7,7 @@ import { createServer } from 'node:net'
 import { dirname, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { normalizedConfigEnvironment } from './test-config.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const repository = resolve(here, '../..')
@@ -46,7 +47,7 @@ test('route-policy evidence drives bounded topology diagnostics', { timeout: 100
   const child = spawn(process.execPath, ['server.mjs'], { cwd: here,
     env: { ...process.env, PORT: String(port), GRAPHX_TELEMETRY_PORT: String(udpPort),
       GRAPHX_HTTP_BIND: '127.0.0.1', GRAPHX_TELEMETRY_BIND: '127.0.0.1',
-      GRAPHX_CONFIG: resolve(repository, 'examples/static-route-policy/graphx.yaml'),
+      ...normalizedConfigEnvironment(resolve(repository, 'examples/static-route-policy/graphx.yaml')),
       GRAPHX_NETWORK_DIAGNOSTIC_FILE: evidence, GRAPHX_CAPTURE_ENABLED: 'false',
       GRAPHX_HISTORY_ENABLED: 'false', GRAPHX_TELEMETRY_SHARED_SECRET: '',
       GRAPHX_CONTROL_TOKEN: '' }, stdio: ['ignore', 'pipe', 'pipe'] })

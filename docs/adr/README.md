@@ -25,6 +25,7 @@ view is maintained in [`../GraphX_Architecture.md`](../GraphX_Architecture.md).
 | 0017 | OVS is the single backend for semantic network profiles | Accepted for the OVS migration | 2026-09-08 | [`0017-ovs-semantic-network-profiles.md`](0017-ovs-semantic-network-profiles.md) |
 | 0018 | Retire legacy data-plane realization while retaining migration input | Accepted for M8 | 2026-09-10 | [`0018-compatibility-closure.md`](0018-compatibility-closure.md) |
 | 0019 | Versioned normalized configuration contract | Accepted for S1 | 2026-09-11 | [`0019-versioned-normalized-configuration.md`](0019-versioned-normalized-configuration.md) |
+| 0020 | Versioned capability-based ownership ledger | Accepted | 2026-09-11 | [`0020-versioned-ownership-ledger.md`](0020-versioned-ownership-ledger.md) |
 
 ## Historical number mapping
 

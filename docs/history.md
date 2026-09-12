@@ -69,7 +69,7 @@ Environment booleans accept only documented true/false spellings, and numeric
 overrides must be unsigned base-10 integer strings. Configuration and
 environment values use the same validation ranges. An empty environment
 override retains the YAML value. A relative database path is resolved from the
-directory containing `GRAPHX_CONFIG`; containers should use the absolute path
+directory identified by `GRAPHX_CONFIG_DIRECTORY`; containers should use the absolute path
 from `compose.history.yaml`.
 
 Retention is enforced by both age and record count before an existing database
@@ -157,7 +157,7 @@ test covers pagination, paused refresh, and reordered responses. The isolated
 container test adds real Compose volume persistence:
 
 ```sh
-scripts/test-phase7-history.sh
+scripts/test-history.sh
 ```
 
 The script creates its own Compose project and volume, restarts only its own

@@ -85,9 +85,6 @@ void test_legacy_ledgers() {
     TemporaryDirectory temporary;
     const auto state = load_state(secure_fixture_copy(temporary, fixture));
     require(state.graph_id == std::string("fixture-") + fixture, "legacy graph identity");
-    require(
-        state.phase == (std::string(fixture) == "m8" ? "M7" : "M" + std::string(fixture).substr(1)),
-        "legacy phase");
     require(state.status == "ready", "legacy status");
   }
 }
@@ -98,9 +95,14 @@ void test_round_trip_and_publication() {
   const auto original = load_state(source);
   const auto published = temporary.path() / "published.yaml";
   save_state(published, original, false);
+  std::ifstream serialized(published);
+  const std::string contents((std::istreambuf_iterator<char>(serialized)),
+                             std::istreambuf_iterator<char>());
+  require(contents.find("version: 2") != std::string::npos &&
+              contents.find("phase:") == std::string::npos,
+          "current ledger format");
   const auto loaded = load_state(published);
-  require(loaded.phase == original.phase && loaded.graph_id == original.graph_id &&
-              loaded.config_hash == original.config_hash &&
+  require(loaded.graph_id == original.graph_id && loaded.config_hash == original.config_hash &&
               loaded.owner_token == original.owner_token && loaded.status == original.status &&
               loaded.expected_bridges == original.expected_bridges,
           "ledger round trip");
