@@ -36,20 +36,11 @@ int main() {
     expect_failure([] { static_cast<void>(demo::boolean_env("GRAPHX_CAPTURE_ENABLED", false)); },
                    "must be one of");
 
-    ::setenv("GRAPHX_CAPTURE_PROVIDER", "pcapng", 1);
-    expect(demo::capture_provider_env("") == "pcapng", "supported capture provider");
-    ::setenv("GRAPHX_CAPTURE_PROVIDER", "ovs-span", 1);
-    expect(demo::capture_provider_env("") == "ovs-span", "supported OVS capture provider");
-    ::setenv("GRAPHX_CAPTURE_PROVIDER", "pcapgn", 1);
-    expect_failure([] { static_cast<void>(demo::capture_provider_env("pcapng")); },
-                   "must be 'pcapng' or 'ovs-span'");
     ::unsetenv("GRAPHX_CAPTURE_ENABLED");
-    ::unsetenv("GRAPHX_CAPTURE_PROVIDER");
-    std::cout << "GraphX runtime capture configuration validation passed\n";
+    std::cout << "GraphX runtime capture deployment toggle validation passed\n";
     return 0;
   } catch (const std::exception& error) {
     ::unsetenv("GRAPHX_CAPTURE_ENABLED");
-    ::unsetenv("GRAPHX_CAPTURE_PROVIDER");
     std::cerr << error.what() << '\n';
     return 1;
   }

@@ -5,6 +5,7 @@ ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 source "$ROOT/scripts/configure-build-trust.sh"
 PROJECT=${GRAPHX_OTLP_TEST_PROJECT:-"graphx-operations-otlp-$$"}
 PORT=${GRAPHX_OTLP_TEST_PORT:-18438}
+HTTP_PORT=${GRAPHX_OTLP_TEST_HTTP_PORT:-18439}
 TEMP=$(mktemp -d "${TMPDIR:-/tmp}/graphx-operations-otlp.XXXXXX")
 FILES=(-f "$ROOT/compose.yaml" -f "$ROOT/compose.otlp-secure.yaml" -f "$ROOT/compose.otlp-mtls.yaml")
 receiver_pid=
@@ -47,8 +48,8 @@ export GRAPHX_OTLP_AUTH_TOKEN_FILE="$TEMP/token"
 export GRAPHX_OTLP_CA_FILE="$TEMP/ca.pem"
 export GRAPHX_OTLP_CERT_FILE="$TEMP/client.pem"
 export GRAPHX_OTLP_KEY_FILE="$TEMP/client.key"
-export GRAPHX_OTLP_EXPORT_INTERVAL_MS=250
-export GRAPHX_OTLP_RETRY_MAX_ATTEMPTS=1
+export GRAPHX_PUBLISHED_HTTP_PORT="$HTTP_PORT"
+export GRAPHX_OVERRIDES="observability.otlp.export_interval_ms=250;observability.otlp.retry_max_attempts=1"
 docker compose -p "$PROJECT" "${FILES[@]}" config --quiet
 docker compose -p "$PROJECT" "${FILES[@]}" up -d telemetry
 

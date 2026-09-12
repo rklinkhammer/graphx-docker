@@ -16,8 +16,8 @@ The packet comment is JSON containing edge, direction, sequence, trace ID, and
 type. The interface uses `LINKTYPE_USER0` (147), so Wireshark does not mistake
 the application bytes for Ethernet or IP packets.
 
-Override `GRAPHX_CAPTURE_DIR`, `GRAPHX_MAX_MESSAGES`, `GRAPHX_INTERVAL_MS`,
-`GRAPHX_CAPTURE_MAX_FILE_BYTES`, or `GRAPHX_CAPTURE_MAX_PACKETS` when needed.
+Override `GRAPHX_CAPTURE_DIR`, `GRAPHX_MAX_MESSAGES`, or `GRAPHX_INTERVAL_MS` when needed.
+Set capture limits in `graphx.yaml` or with `GRAPHX_OVERRIDES`.
 Capture files are truncated when a node starts again with the same output path;
 capture disables itself at a limit without stopping message processing.
 

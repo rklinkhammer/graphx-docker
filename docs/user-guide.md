@@ -426,6 +426,13 @@ transport roles compatible with those example executables. For different
 applications, create a Compose file containing the required services and use the
 same normalization pattern.
 
+Keep functional policy in this file. In particular, telemetry heartbeat timing,
+capture limits, history retention and queue bounds, and OTLP paths/retry/queue
+limits are read from the validated `observability` section by every runtime
+consumer. Use `GRAPHX_OVERRIDES` for temporary changes. Compose environment
+settings are intentionally limited to secrets, bind/published ports, container
+paths, collector placement, and operational enable/disable toggles.
+
 Optional telemetry sections include:
 
 ```yaml

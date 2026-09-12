@@ -13,8 +13,7 @@ x-sdr-service: &sdr-service
   init: true
   logging: *bounded-logging
 x-sdr-environment: &sdr-environment
-  GRAPHX_TELEMETRY_HOST: telemetry
-  GRAPHX_TELEMETRY_PORT: "9000"
+  GRAPHX_NORMALIZED_CONFIG: /run/graphx/normalized.json
   GRAPHX_TELEMETRY_SHARED_SECRET: ${GRAPHX_TELEMETRY_SHARED_SECRET:-}
 services:
   normalize-config:
@@ -47,7 +46,9 @@ services:
       SDR_TLS_CERT: /run/sdr-tls/sdr-node.pem
       SDR_TLS_KEY: /run/sdr-tls/sdr-node.key
       SDR_TLS_CLIENT_CA: /run/sdr-tls/ca.pem
-    volumes: ["${GRAPHX_SDR_TLS_DIR:?set by demo.sh}:/run/sdr-tls:ro"]
+    volumes:
+      - "${GRAPHX_SDR_TLS_DIR:?set by demo.sh}:/run/sdr-tls:ro"
+      - normalized-config:/run/graphx:ro
     depends_on: [telemetry]
     networks:
       sdr-ethernet: { ipv4_address: 172.30.13.10 }
@@ -67,7 +68,9 @@ services:
       SDR_TLS_KEY: /run/sdr-tls/processor.key
       SDR_TLS_CA: /run/sdr-tls/ca.pem
       SDR_TLS_SERVER_NAME: sdr-node
-    volumes: ["${GRAPHX_SDR_TLS_DIR:?set by demo.sh}:/run/sdr-tls:ro"]
+    volumes:
+      - "${GRAPHX_SDR_TLS_DIR:?set by demo.sh}:/run/sdr-tls:ro"
+      - normalized-config:/run/graphx:ro
     depends_on: [sdr-node, sink, telemetry]
     networks:
       sdr-ethernet: { ipv4_address: 172.30.13.20 }
@@ -75,6 +78,7 @@ services:
     <<: *sdr-service
     command: ["python3", "common/sink.py"]
     environment: *sdr-environment
+    volumes: [normalized-config:/run/graphx:ro]
     depends_on: [telemetry]
     networks:
       sdr-ethernet: { ipv4_address: 172.30.13.30 }
@@ -94,11 +98,12 @@ services:
       GRAPHX_PACKET_CAPTURE_SESSION: ${GRAPHX_SDR_RUN_ID:?set by demo.sh}
       GRAPHX_PACKET_OBSERVATION_SOURCE: ethernet-pcap
       GRAPHX_PACKET_RULES: '${GRAPHX_SDR_PACKET_RULES:?set by demo.sh}'
+      GRAPHX_NORMALIZED_CONFIG: /run/graphx/normalized.json
       GRAPHX_CAPTURE_ENABLED: ${GRAPHX_CAPTURE_ENABLED:-true}
       GRAPHX_PACKET_HISTORY_ENABLED: ${GRAPHX_HISTORY_ENABLED:-true}
-      GRAPHX_CAPTURE_MAX_FILE_BYTES: ${GRAPHX_CAPTURE_MAX_FILE_BYTES:-67108864}
-      GRAPHX_CAPTURE_MAX_PACKETS: ${GRAPHX_CAPTURE_MAX_PACKETS:-100000}
-    volumes: ["${GRAPHX_SDR_RUN_DIR:?set by demo.sh}:/captures"]
+    volumes:
+      - "${GRAPHX_SDR_RUN_DIR:?set by demo.sh}:/captures"
+      - normalized-config:/run/graphx:ro
     depends_on: [packet-capture, telemetry]
     networks: [sdr-ethernet]
   telemetry:
@@ -119,13 +124,9 @@ services:
       GRAPHX_TELEMETRY_SHARED_SECRET: ${GRAPHX_TELEMETRY_SHARED_SECRET:-}
       GRAPHX_CONTROL_TOKEN: ${GRAPHX_CONTROL_TOKEN:-}
       GRAPHX_CAPTURE_ENABLED: ${GRAPHX_CAPTURE_ENABLED:-true}
-      GRAPHX_CAPTURE_PROVIDER: pcapng
       GRAPHX_CAPTURE_DIR: /captures
-      GRAPHX_CAPTURE_MAX_FILE_BYTES: ${GRAPHX_CAPTURE_MAX_FILE_BYTES:-67108864}
-      GRAPHX_CAPTURE_MAX_PACKETS: ${GRAPHX_CAPTURE_MAX_PACKETS:-100000}
       GRAPHX_PACKET_HISTORY_URL: http://packet-observer:9100
       GRAPHX_HISTORY_ENABLED: ${GRAPHX_HISTORY_ENABLED:-true}
-      GRAPHX_HISTORY_BACKEND: sqlite
       GRAPHX_HISTORY_DATABASE_FILE: /var/lib/graphx/history/history.sqlite
     volumes:
       - "${GRAPHX_SDR_RUN_DIR:?set by demo.sh}:/captures:ro"

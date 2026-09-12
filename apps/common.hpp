@@ -44,10 +44,6 @@ inline std::string env(const char* name, std::string fallback) {
   return fallback;
 }
 
-inline std::uint16_t port(const char* name, std::uint16_t fallback) {
-  return static_cast<std::uint16_t>(std::stoi(env(name, std::to_string(fallback))));
-}
-
 inline bool boolean_env(const char* name, bool fallback) {
   const char* configured = std::getenv(name);
   if (!configured) return fallback;
@@ -59,13 +55,6 @@ inline bool boolean_env(const char* name, bool fallback) {
   if (value == "0" || value == "false" || value == "no" || value == "off") return false;
   throw std::runtime_error(std::string(name) +
                            " must be one of true, false, 1, 0, yes, no, on, or off");
-}
-
-inline std::string capture_provider_env(std::string fallback) {
-  auto provider = env("GRAPHX_CAPTURE_PROVIDER", std::move(fallback));
-  if (!provider.empty() && provider != "pcapng" && provider != "ovs-span")
-    throw std::runtime_error("GRAPHX_CAPTURE_PROVIDER must be 'pcapng' or 'ovs-span'");
-  return provider;
 }
 
 inline std::uint64_t unsigned_env(const char* name, std::uint64_t fallback, std::uint64_t minimum,
@@ -159,36 +148,40 @@ class RuntimeTraceSink final : public graphx::TraceSink {
     if (contains(config.observability.metrics, "udp-json") ||
         contains(config.observability.tracing, "udp-json")) {
       telemetry_ = std::make_unique<graphx::UdpJsonTraceSink>(
-          node_id_, env("GRAPHX_TELEMETRY_HOST", config.observability.telemetry.host),
-          port("GRAPHX_TELEMETRY_PORT", config.observability.telemetry.port),
+          node_id_, config.observability.telemetry.host, config.observability.telemetry.port,
           secret_env("GRAPHX_TELEMETRY_SHARED_SECRET"));
       composite_.add(*telemetry_);
     }
-    const auto otlp_host = env("GRAPHX_OTLP_HOST", "");
-    if (!otlp_host.empty() || contains(config.observability.tracing, "otlp-http")) {
-      const auto resolved_host = otlp_host.empty() ? std::string("127.0.0.1") : otlp_host;
-      if (resolved_host != "127.0.0.1" && resolved_host != "localhost" && resolved_host != "::1")
+    if (contains(config.observability.tracing, "otlp-http")) {
+      const auto& endpoint = config.observability.otlp.endpoint;
+      constexpr std::string_view scheme{"http://"};
+      if (!endpoint.starts_with(scheme))
+        throw std::runtime_error("native OTLP/HTTP export requires a loopback HTTP endpoint");
+      auto authority = endpoint.substr(scheme.size());
+      if (authority.ends_with('/')) authority.pop_back();
+      const auto separator = authority.rfind(':');
+      const auto host = separator == std::string::npos ? authority : authority.substr(0, separator);
+      const auto endpoint_port =
+          separator == std::string::npos
+              ? std::uint16_t{80}
+              : static_cast<std::uint16_t>(std::stoul(authority.substr(separator + 1)));
+      if (host != "127.0.0.1" && host != "localhost" && host != "[::1]")
         throw std::runtime_error(
             "native OTLP/HTTP export is limited to a loopback collector; use the telemetry "
             "service for authenticated TLS export");
-      otlp_ = std::make_unique<graphx::OtlpHttpTraceSink>(node_id_, resolved_host,
-                                                          port("GRAPHX_OTLP_PORT", 4318),
-                                                          env("GRAPHX_OTLP_PATH", "/v1/traces"));
+      otlp_ = std::make_unique<graphx::OtlpHttpTraceSink>(
+          node_id_, host == "[::1]" ? "::1" : host, endpoint_port,
+          config.observability.otlp.traces_path, config.observability.otlp.queue_capacity);
       composite_.add(*otlp_);
     }
     const auto capture_enabled =
         boolean_env("GRAPHX_CAPTURE_ENABLED", config.observability.capture.enabled);
-    const auto capture_provider = capture_provider_env(config.observability.capture.provider);
+    const auto& capture_provider = config.observability.capture.provider;
     if (capture_enabled && capture_provider == "pcapng") {
       const auto directory = env("GRAPHX_CAPTURE_DIR", config.observability.capture.directory);
-      const auto snaplen =
-          unsigned_env("GRAPHX_CAPTURE_SNAPLEN", config.observability.capture.snaplen, 256,
-                       16 * 1024 * 1024 + 4);
-      const auto max_file_bytes =
-          unsigned_env("GRAPHX_CAPTURE_MAX_FILE_BYTES", config.observability.capture.max_file_bytes,
-                       65536, 4ULL * 1024 * 1024 * 1024);
-      const auto max_packets = unsigned_env(
-          "GRAPHX_CAPTURE_MAX_PACKETS", config.observability.capture.max_packets, 1, 100'000'000);
+      const auto snaplen = config.observability.capture.snaplen;
+      const auto max_file_bytes = config.observability.capture.max_file_bytes;
+      const auto max_packets = config.observability.capture.max_packets;
       capture_ = std::make_unique<graphx::PcapngCaptureSink>(
           std::filesystem::path(directory) / (node_id_ + ".pcapng"),
           static_cast<std::uint32_t>(snaplen), max_file_bytes, max_packets);

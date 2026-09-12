@@ -214,20 +214,24 @@ class Observer:
         )
         if not self.capture_session.replace("-", "").replace("_", "").isalnum() or len(self.capture_session) > 64:
             raise ValueError("GRAPHX_QEMU_RUN_ID must be a bounded identifier")
-        self.max_records = integer("GRAPHX_PACKET_HISTORY_MAX_RECORDS", 50_000, 10, 10_000_000)
+        runtime = {}
+        normalized_config = os.environ.get("GRAPHX_NORMALIZED_CONFIG", "")
+        if normalized_config:
+            with open(normalized_config, encoding="utf-8") as stream:
+                runtime = json.load(stream).get("observability", {})
+        history = runtime.get("history", {})
+        capture_config = runtime.get("capture", {})
+        telemetry = runtime.get("telemetry", {})
+        self.max_records = history.get("max_records", 50_000)
         self.history_enabled = boolean("GRAPHX_PACKET_HISTORY_ENABLED", True)
-        self.capture_enabled = boolean("GRAPHX_CAPTURE_ENABLED", True)
-        self.retention = integer("GRAPHX_PACKET_HISTORY_RETENTION_SECONDS", 86_400, 60, 31_536_000)
-        self.max_database_bytes = integer(
-            "GRAPHX_PACKET_HISTORY_MAX_DATABASE_BYTES", 64 * 1024 * 1024, 1_048_576, 4_294_967_296
-        )
+        self.capture_enabled = boolean("GRAPHX_CAPTURE_ENABLED", capture_config.get("enabled", True))
+        self.retention = history.get("retention_seconds", 86_400)
+        self.max_database_bytes = history.get("max_database_bytes", 64 * 1024 * 1024)
         self.preview_bytes = integer("GRAPHX_PACKET_HISTORY_PREVIEW_BYTES", 64, 0, 1024)
-        self.max_capture_bytes = integer(
-            "GRAPHX_CAPTURE_MAX_FILE_BYTES", 64 * 1024 * 1024, 65_536, 4_294_967_296
-        )
-        self.max_packets = integer("GRAPHX_CAPTURE_MAX_PACKETS", 100_000, 1, 100_000_000)
-        self.telemetry_host = os.environ.get("GRAPHX_TELEMETRY_HOST", "telemetry")
-        self.telemetry_port = integer("GRAPHX_TELEMETRY_PORT", 9000, 1, 65535)
+        self.max_capture_bytes = capture_config.get("max_file_bytes", 64 * 1024 * 1024)
+        self.max_packets = capture_config.get("max_packets", 100_000)
+        self.telemetry_host = telemetry.get("host", "telemetry")
+        self.telemetry_port = telemetry.get("port", 9000)
         self.telemetry_secret = os.environ.get("GRAPHX_TELEMETRY_SHARED_SECRET", "")
         if self.telemetry_secret and len(self.telemetry_secret.encode()) < 32:
             raise ValueError("GRAPHX_TELEMETRY_SHARED_SECRET must contain at least 32 bytes")

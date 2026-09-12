@@ -74,10 +74,15 @@ qmp_in_peer() {
     --regid "$qemu_gid" --clear-groups python3 "$qmp" "$@"
 }
 prepare_run_dir() {
+  local normalized
+  normalized=$(mktemp)
+  GRAPHX_OVERRIDES= "$graphx" config normalize "$config" >"$normalized"
   sudo install -d -o "$qemu_uid" -g "$qemu_gid" -m 0750 "$run_dir"
   sudo install -d -o "$qemu_uid" -g "$qemu_gid" -m 0750 "$runtime_images"
   sudo install -o "$qemu_uid" -g "$qemu_gid" -m 0550 -t "$run_dir" \
     "$qmp_source" "$peer_source" "$observer_source"
+  sudo install -o "$qemu_uid" -g "$qemu_gid" -m 0440 "$normalized" "$run_dir/normalized.json"
+  rm -f "$normalized"
   sudo install -o "$qemu_uid" -g "$qemu_gid" -m 0440 -t "$runtime_images" \
     "$images/bzImage" "$images/rootfs.cpio.gz"
   sudo rm -f "$run_dir/qemu.qmp" "$run_dir/qemu.pid" "$run_dir/peer.pid" \
@@ -102,6 +107,7 @@ start_capture() {
   sudo chmod 0644 "$run_dir/qemu-span.pcap"
   sudo setpriv --reuid "$qemu_uid" --regid "$qemu_gid" --clear-groups \
     env GRAPHX_QEMU_RUN_ID=m6-tap GRAPHX_PACKET_OBSERVATION_SOURCE=ovs-span \
+    GRAPHX_NORMALIZED_CONFIG="$run_dir/normalized.json" \
     python3 "$observer" --capture "$run_dir/qemu-span.pcap" \
       --pcapng "$run_dir/qemu-span.pcapng" --database "$run_dir/packet-history.sqlite" \
       --http-port 9106 --daemonize --pid-file "$run_dir/observer.pid" \

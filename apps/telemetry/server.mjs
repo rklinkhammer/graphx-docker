@@ -26,7 +26,7 @@ const graph = config.graph || { id: 'graphx', nodes: [], edges: [] }
 const packetHistoryUrl = process.env.GRAPHX_PACKET_HISTORY_URL || ''
 const qemuEvidenceFile = process.env.GRAPHX_QEMU_EVIDENCE_FILE || ''
 const networkDiagnosticFile = process.env.GRAPHX_NETWORK_DIAGNOSTIC_FILE || ''
-const heartbeatTimeout = Number(process.env.GRAPHX_HEARTBEAT_TIMEOUT_MS || config.observability?.telemetry?.heartbeat_timeout_ms || 5000)
+const heartbeatTimeout = config.observability.telemetry.heartbeat_timeout_ms
 const websocketPath = config.observability?.telemetry?.websocket || '/ws'
 const configuredCapture = config.observability?.capture || { enabled: false, provider: '' }
 function captureInteger(name, configured, fallback, minimum, maximum) {
@@ -41,13 +41,9 @@ function captureInteger(name, configured, fallback, minimum, maximum) {
     throw new Error(`${name} must be an integer between ${minimum} and ${maximum}`)
   return value
 }
-function captureBoolean(name, configured, fallback) {
+function deploymentBoolean(name, configured) {
   const candidate = process.env[name]
-  if (candidate == null) {
-    const value = configured ?? fallback
-    if (typeof value !== 'boolean') throw new Error(`${name} must be a typed boolean`)
-    return value
-  }
+  if (candidate == null || candidate === '') return configured
   const value = candidate.toLowerCase()
   if (['1', 'true', 'yes', 'on'].includes(value)) return true
   if (['0', 'false', 'no', 'off'].includes(value)) return false
@@ -61,19 +57,14 @@ const configuredHistory = historyConfig(config.observability?.history, process.e
 const historyStore = new HistoryStore(configuredHistory, graph.id)
 const configuredControl = controlConfig(config.observability?.control)
 const captureConfig = { ...configuredCapture,
-  enabled: captureBoolean('GRAPHX_CAPTURE_ENABLED', configuredCapture.enabled, false),
-  provider: process.env.GRAPHX_CAPTURE_PROVIDER || configuredCapture.provider || '',
-  snaplen: captureInteger('GRAPHX_CAPTURE_SNAPLEN', configuredCapture.snaplen,
-    16 * 1024 * 1024 + 4, 256, 16 * 1024 * 1024 + 4),
-  maxFileBytes: captureInteger('GRAPHX_CAPTURE_MAX_FILE_BYTES', configuredCapture.max_file_bytes,
-    256 * 1024 * 1024, 65536, 4 * 1024 * 1024 * 1024),
-  maxPackets: captureInteger('GRAPHX_CAPTURE_MAX_PACKETS', configuredCapture.max_packets,
-    1_000_000, 1, 100_000_000),
+  enabled: deploymentBoolean('GRAPHX_CAPTURE_ENABLED', configuredCapture.enabled),
+  maxFileBytes: configuredCapture.max_file_bytes,
+  maxPackets: configuredCapture.max_packets,
 }
 if (captureConfig.provider && !['pcapng', 'ovs-span'].includes(captureConfig.provider))
-  throw new Error('GRAPHX_CAPTURE_PROVIDER must be pcapng or ovs-span')
+  throw new Error('capture provider must be pcapng or ovs-span')
 if (captureConfig.enabled && !captureConfig.provider)
-  throw new Error('GRAPHX_CAPTURE_PROVIDER is required when capture is enabled')
+  throw new Error('capture provider is required when capture is enabled')
 if (captureConfig.enabled && captureConfig.provider === 'pcapng' &&
     !process.env.GRAPHX_CAPTURE_DIR && !configuredCapture.directory)
   throw new Error('GRAPHX_CAPTURE_DIR is required for the pcapng provider')

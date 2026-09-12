@@ -41,12 +41,12 @@ telemetry_features() {
   sed "s|{enabled: true, provider: ovs-span}|{enabled: true, provider: pcapng, directory: $TMP_DIR/captures}|" \
     "$ROOT/examples/ipvlan-l2/graphx.yaml" >"$TMP_DIR/telemetry-graphx.yaml"
   mkdir -p "$TMP_DIR/captures"
-  "$BUILD_DIR/graphx" config normalize "$TMP_DIR/telemetry-graphx.yaml" \
+  GRAPHX_OVERRIDES=observability.telemetry.heartbeat_timeout_ms=1000 \
+    "$BUILD_DIR/graphx" config normalize "$TMP_DIR/telemetry-graphx.yaml" \
     >"$TMP_DIR/telemetry-normalized.json"
   export GRAPHX_TELEMETRY_SHARED_SECRET=telemetry-feature-secret-0123456789
   control_token=control-feature-token-012345678901
   PORT=${GRAPHX_TEST_HTTP_PORT:-18080} GRAPHX_TELEMETRY_PORT=${GRAPHX_TEST_UDP_PORT:-19000} \
-    GRAPHX_HEARTBEAT_TIMEOUT_MS=1000 \
     GRAPHX_NORMALIZED_CONFIG="$TMP_DIR/telemetry-normalized.json" \
     GRAPHX_CONFIG_DIRECTORY="$TMP_DIR" \
     GRAPHX_CAPTURE_DIR="$TMP_DIR/captures" \
@@ -174,9 +174,7 @@ telemetry_features() {
 
   step "Verify authenticated pause and resume against the real TCP runtime"
   export GRAPHX_CONFIG="$ROOT/graphx.yaml"
-  export GRAPHX_OVERRIDES='transport.tcp.samples.host=127.0.0.1;transport.tcp.transformed.host=127.0.0.1'
-  export GRAPHX_TELEMETRY_HOST=127.0.0.1
-  export GRAPHX_TELEMETRY_PORT=${GRAPHX_TEST_UDP_PORT:-19000}
+  export GRAPHX_OVERRIDES="transport.tcp.samples.host=127.0.0.1;transport.tcp.transformed.host=127.0.0.1;observability.telemetry.host=127.0.0.1;observability.telemetry.port=${GRAPHX_TEST_UDP_PORT:-19000}"
   export GRAPHX_MAX_MESSAGES=0 GRAPHX_INTERVAL_MS=25
   "$BUILD_DIR/graphx-sink" >"$TMP_DIR/control-sink.log" 2>&1 & PIDS+=("$!")
   "$BUILD_DIR/graphx-transform" >"$TMP_DIR/control-transform.log" 2>&1 & PIDS+=("$!")
@@ -205,7 +203,6 @@ telemetry_features() {
   wait_for_exit "${PIDS[3]}" transform
   wait_for_exit "${PIDS[2]}" sink
   PIDS=("${PIDS[0]}" "${PIDS[1]}")
-  unset GRAPHX_TELEMETRY_HOST GRAPHX_TELEMETRY_PORT
 
   curl -fsS -X POST -H "Authorization: Bearer $control_token" "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/api/control/reset" | grep -q '"accepted":true'
   curl -fsS "http://127.0.0.1:${GRAPHX_TEST_HTTP_PORT:-18080}/metrics" | grep -q 'graphx_edge_messages_total{edge="samples",direction="sent"} 0'

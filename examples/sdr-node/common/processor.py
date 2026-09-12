@@ -12,7 +12,7 @@ import ssl
 import threading
 import time
 
-from protocol import decode_samples, recv_line, signed, verified
+from protocol import decode_samples, recv_line, signed, telemetry_endpoint, verified
 
 stop = threading.Event()
 
@@ -37,8 +37,7 @@ def decode_sample_datagram(payload: bytes, peer: tuple[str, int], source: str):
 
 def telemetry_control() -> None:
     """Register this controller with telemetry and relay GUI control to the SDR."""
-    host = os.environ.get("GRAPHX_TELEMETRY_HOST", "telemetry")
-    port = int(os.environ.get("GRAPHX_TELEMETRY_PORT", "9000"))
+    host, port = telemetry_endpoint()
     secret = os.environ.get("GRAPHX_TELEMETRY_SHARED_SECRET", "")
     sequence = 0
     last_heartbeat = 0.0

@@ -228,8 +228,8 @@ export function otlpConfig(config = {}, env = process.env) {
   if (parsed.username || parsed.password) throw new Error('OTLP endpoint must not contain credentials')
   if (parsed.pathname !== '/' || parsed.search || parsed.hash)
     throw new Error('OTLP endpoint must be an origin without a path, query, or fragment')
-  const tracesPath = env.GRAPHX_OTLP_TRACES_PATH || config.traces_path || '/v1/traces'
-  const metricsPath = env.GRAPHX_OTLP_METRICS_PATH || config.metrics_path || '/v1/metrics'
+  const tracesPath = config.traces_path || '/v1/traces'
+  const metricsPath = config.metrics_path || '/v1/metrics'
   if (tracesPath.length > 256 || metricsPath.length > 256 ||
       !/^\/[A-Za-z0-9._~/-]*$/.test(tracesPath) || !/^\/[A-Za-z0-9._~/-]*$/.test(metricsPath))
     throw new Error('OTLP signal paths contain unsupported characters')
@@ -239,22 +239,22 @@ export function otlpConfig(config = {}, env = process.env) {
     throw new Error('GRAPHX_OTLP_CERT_FILE and GRAPHX_OTLP_KEY_FILE must be provided together')
   return { enabled, endpoint: parsed,
     tracesPath, metricsPath,
-    exportIntervalMs: boundedNumber(env.GRAPHX_OTLP_EXPORT_INTERVAL_MS || config.export_interval_ms,
+    exportIntervalMs: boundedNumber(config.export_interval_ms,
       5000, 250, 600000, true),
-    timeoutMs: boundedNumber(env.GRAPHX_OTLP_TIMEOUT_MS || config.timeout_ms,
+    timeoutMs: boundedNumber(config.timeout_ms,
       2000, 100, 60000, true),
-    queueCapacity: boundedNumber(env.GRAPHX_OTLP_QUEUE_CAPACITY || config.queue_capacity,
+    queueCapacity: boundedNumber(config.queue_capacity,
       1024, 1, 65536, true),
-    maxQueueBytes: boundedNumber(env.GRAPHX_OTLP_MAX_QUEUE_BYTES || config.max_queue_bytes,
+    maxQueueBytes: boundedNumber(config.max_queue_bytes,
       8 * 1024 * 1024, 65536, 64 * 1024 * 1024, true),
-    maxResponseBytes: boundedNumber(env.GRAPHX_OTLP_MAX_RESPONSE_BYTES || config.max_response_bytes,
+    maxResponseBytes: boundedNumber(config.max_response_bytes,
       65536, 1024, MAX_OTLP_RESPONSE_BYTES, true),
-    retryMaxAttempts: boundedNumber(env.GRAPHX_OTLP_RETRY_MAX_ATTEMPTS || config.retry_max_attempts,
+    retryMaxAttempts: boundedNumber(config.retry_max_attempts,
       3, 1, 10, true),
     retryInitialBackoffMs: boundedNumber(
-      env.GRAPHX_OTLP_RETRY_INITIAL_BACKOFF_MS || config.retry_initial_backoff_ms,
+      config.retry_initial_backoff_ms,
       200, 10, 60000, true),
-    retryMaxBackoffMs: boundedNumber(env.GRAPHX_OTLP_RETRY_MAX_BACKOFF_MS || config.retry_max_backoff_ms,
+    retryMaxBackoffMs: boundedNumber(config.retry_max_backoff_ms,
       5000, 10, 600000, true),
     token: readSecret('GRAPHX_OTLP_AUTH_TOKEN', env),
     ca: readTlsFile(env.GRAPHX_OTLP_CA_FILE, 'GRAPHX_OTLP_CA_FILE'),

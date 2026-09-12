@@ -109,14 +109,14 @@ test('operations dashboard keeps ratios, seconds, rates, and queue depth on sepa
 test('OTLP configuration rejects credentials and insecure remote endpoints', () => {
   assert.throws(() => otlpConfig({ enabled: true, endpoint: 'http://example.com:4318' }, {}), /plaintext/)
   assert.throws(() => otlpConfig({ enabled: true, endpoint: 'https://user:password@example.com' }, {}), /credentials/)
-  assert.throws(() => otlpConfig({ enabled: true, endpoint: 'http://127.0.0.1:4318' },
-    { GRAPHX_OTLP_TRACES_PATH: `/${'x'.repeat(256)}` }), /paths/)
+  assert.throws(() => otlpConfig({ enabled: true, endpoint: 'http://127.0.0.1:4318',
+    traces_path: `/${'x'.repeat(256)}` }, {}), /paths/)
   const configured = otlpConfig({ enabled: true, endpoint: 'http://127.0.0.1:4318' },
     { GRAPHX_OTLP_ENDPOINT: '' })
   assert.equal(configured.enabled, true)
   assert.equal(configured.tracesPath, '/v1/traces')
-  assert.throws(() => otlpConfig({ enabled: true, endpoint: 'http://127.0.0.1:4318' },
-    { GRAPHX_OTLP_QUEUE_CAPACITY: '1.5' }), /integer/)
+  assert.throws(() => otlpConfig({ enabled: true, endpoint: 'http://127.0.0.1:4318',
+    queue_capacity: 1.5 }, {}), /integer/)
   assert.throws(() => new SloEvaluator({ window_seconds: 10.5 }), /integer/)
 })
 
@@ -322,16 +322,17 @@ test('OTLP private CA and mTLS accept a client certificate and reject its absenc
       })
       server.listen(0, '127.0.0.1'); await once(server, 'listening')
       const endpoint = `https://127.0.0.1:${server.address().port}`
-      const good = new OtlpHttpExporter(otlpConfig({ enabled: true, endpoint }, {
+      const good = new OtlpHttpExporter(otlpConfig({ enabled: true, endpoint,
+        retry_max_attempts: 1 }, {
         GRAPHX_OTLP_CA_FILE: join(directory, 'ca.pem'),
         GRAPHX_OTLP_CERT_FILE: join(directory, 'client.pem'),
         GRAPHX_OTLP_KEY_FILE: join(directory, 'client.key'),
-        GRAPHX_OTLP_RETRY_MAX_ATTEMPTS: '1',
       }))
       good.enqueue('/v1/traces', {})
       await waitFor(() => good.stats.exported, 1)
-      const bad = new OtlpHttpExporter(otlpConfig({ enabled: true, endpoint }, {
-        GRAPHX_OTLP_CA_FILE: join(directory, 'ca.pem'), GRAPHX_OTLP_RETRY_MAX_ATTEMPTS: '1',
+      const bad = new OtlpHttpExporter(otlpConfig({ enabled: true, endpoint,
+        retry_max_attempts: 1 }, {
+        GRAPHX_OTLP_CA_FILE: join(directory, 'ca.pem'),
       }))
       bad.enqueue('/v1/traces', {})
       await waitFor(() => bad.stats.failed, 1)
@@ -369,9 +370,10 @@ test('telemetry service converts validated UDP events to authenticated OTLP', { 
   const child = spawn(process.execPath, ['server.mjs'], { cwd: directory, stdio: 'ignore', env: {
     ...process.env, PORT: `${apiPort}`, GRAPHX_TELEMETRY_PORT: `${udpPort}`,
     GRAPHX_HTTP_BIND: '127.0.0.1', GRAPHX_TELEMETRY_BIND: '127.0.0.1',
-    ...normalizedConfigEnvironment(resolve(directory, '../../graphx.yaml')),
+    ...normalizedConfigEnvironment(resolve(directory, '../../graphx.yaml'),
+      'observability.otlp.export_interval_ms=600000'),
     GRAPHX_OTLP_ENDPOINT: `http://127.0.0.1:${collector.address().port}`,
-    GRAPHX_OTLP_AUTH_TOKEN: token, GRAPHX_OTLP_EXPORT_INTERVAL_MS: '600000',
+    GRAPHX_OTLP_AUTH_TOKEN: token,
   } })
   const sender = dgram.createSocket('udp4')
   try {

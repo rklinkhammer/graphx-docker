@@ -11,11 +11,23 @@ import secrets
 import socket
 import struct
 import time
+from functools import lru_cache
 
 MAGIC = b"SDR1"
 HEADER = struct.Struct("!4sIQH")
 SAMPLE = struct.Struct("!hh")
 MAX_SAMPLES = 256
+
+
+@lru_cache(maxsize=1)
+def telemetry_endpoint() -> tuple[str, int]:
+    """Read the shared telemetry destination from normalized GraphX configuration."""
+    path = os.environ.get("GRAPHX_NORMALIZED_CONFIG", "")
+    if not path:
+        return "telemetry", 9000
+    with open(path, encoding="utf-8") as stream:
+        telemetry = json.load(stream)["observability"]["telemetry"]
+    return telemetry["host"], telemetry["port"]
 
 
 def recv_line(connection: socket.socket, maximum: int = 4096) -> bytes:
@@ -93,8 +105,7 @@ def verified(data: bytes, secret: str) -> dict[str, object] | None:
 
 
 def publish_heartbeat(node_id: str, sequence: int) -> None:
-    host = os.environ.get("GRAPHX_TELEMETRY_HOST", "telemetry")
-    port = int(os.environ.get("GRAPHX_TELEMETRY_PORT", "9000"))
+    host, port = telemetry_endpoint()
     secret = os.environ.get("GRAPHX_TELEMETRY_SHARED_SECRET", "")
     event = {"kind": "trace", "event": "heartbeat", "nodeId": node_id,
              "timestamp": int(time.time() * 1000), "sequence": sequence}

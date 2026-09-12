@@ -16,21 +16,6 @@ function configInteger(value, fallback, minimum, maximum, name) {
   return value
 }
 
-function environmentInteger(value, fallback, minimum, maximum, name) {
-  if (value == null || value === '') return fallback
-  if (typeof value !== 'string' || !/^[0-9]+$/.test(value))
-    throw new Error(`${name} must be an integer between ${minimum} and ${maximum}`)
-  const parsed = Number(value)
-  if (!Number.isSafeInteger(parsed) || parsed < minimum || parsed > maximum)
-    throw new Error(`${name} must be an integer between ${minimum} and ${maximum}`)
-  return parsed
-}
-
-function configuredInteger(configValue, environmentValue, fallback, minimum, maximum, name) {
-  const configured = configInteger(configValue, fallback, minimum, maximum, name)
-  return environmentInteger(environmentValue, configured, minimum, maximum, name)
-}
-
 function configBoolean(value, fallback, name) {
   if (value == null) return fallback
   if (typeof value !== 'boolean') throw new Error(`${name} must be a boolean`)
@@ -54,13 +39,9 @@ export function historyConfig(config = {}, env = process.env, baseDirectory = pr
       throw new Error(`unknown history configuration property '${key}'`)
   const enabled = environmentBoolean(env.GRAPHX_HISTORY_ENABLED,
     configBoolean(config.enabled, false, 'history enabled'), 'GRAPHX_HISTORY_ENABLED')
-  const configuredBackend = config.backend == null ? 'sqlite' : config.backend
-  if (configuredBackend !== 'sqlite')
+  const backend = config.backend == null ? 'sqlite' : config.backend
+  if (backend !== 'sqlite')
     throw new Error('history backend must be sqlite')
-  if (env.GRAPHX_HISTORY_BACKEND != null && env.GRAPHX_HISTORY_BACKEND !== '' &&
-      env.GRAPHX_HISTORY_BACKEND !== 'sqlite')
-    throw new Error('GRAPHX_HISTORY_BACKEND must be sqlite')
-  const backend = env.GRAPHX_HISTORY_BACKEND === 'sqlite' ? 'sqlite' : configuredBackend
   const configuredFile = config.database_file == null
     ? '.graphx/history.sqlite' : config.database_file
   if (typeof configuredFile !== 'string' || !configuredFile || configuredFile.length > 1024 ||
@@ -74,29 +55,18 @@ export function historyConfig(config = {}, env = process.env, baseDirectory = pr
   const databaseFile = isAbsolute(selectedFile) ? selectedFile : resolve(baseDirectory, selectedFile)
   const result = {
     enabled, backend, databaseFile,
-    retentionSeconds: configuredInteger(config.retention_seconds,
-      env.GRAPHX_HISTORY_RETENTION_SECONDS, 604800, 60, 31536000, 'history retention_seconds'),
-    maxRecords: configuredInteger(config.max_records, env.GRAPHX_HISTORY_MAX_RECORDS,
-      100000, 10, 10000000, 'history max_records'),
-    maxDatabaseBytes: configuredInteger(config.max_database_bytes,
-      env.GRAPHX_HISTORY_MAX_DATABASE_BYTES, 268435456, 1048576, 4294967296,
+    retentionSeconds: configInteger(config.retention_seconds, 604800, 60, 31536000, 'history retention_seconds'),
+    maxRecords: configInteger(config.max_records, 100000, 10, 10000000, 'history max_records'),
+    maxDatabaseBytes: configInteger(config.max_database_bytes, 268435456, 1048576, 4294967296,
       'history max_database_bytes'),
-    queueCapacity: configuredInteger(config.queue_capacity, env.GRAPHX_HISTORY_QUEUE_CAPACITY,
-      4096, 1, 65536, 'history queue_capacity'),
-    maxQueueBytes: configuredInteger(config.max_queue_bytes, env.GRAPHX_HISTORY_MAX_QUEUE_BYTES,
-      8388608, 65536, 67108864, 'history max_queue_bytes'),
-    batchSize: configuredInteger(config.batch_size, env.GRAPHX_HISTORY_BATCH_SIZE,
-      100, 1, 1000, 'history batch_size'),
-    flushIntervalMs: configuredInteger(config.flush_interval_ms,
-      env.GRAPHX_HISTORY_FLUSH_INTERVAL_MS, 250, 10, 60000, 'history flush_interval_ms'),
-    queryLimit: configuredInteger(config.query_limit, env.GRAPHX_HISTORY_QUERY_LIMIT,
-      200, 1, 1000, 'history query_limit'),
-    queryTimeoutMs: configuredInteger(config.query_timeout_ms,
-      env.GRAPHX_HISTORY_QUERY_TIMEOUT_MS, 2000, 100, 10000, 'history query_timeout_ms'),
-    maxPendingQueries: configuredInteger(config.max_pending_queries,
-      env.GRAPHX_HISTORY_MAX_PENDING_QUERIES, 16, 1, 128, 'history max_pending_queries'),
-    shutdownTimeoutMs: configuredInteger(config.shutdown_timeout_ms,
-      env.GRAPHX_HISTORY_SHUTDOWN_TIMEOUT_MS, 2000, 100, 10000,
+    queueCapacity: configInteger(config.queue_capacity, 4096, 1, 65536, 'history queue_capacity'),
+    maxQueueBytes: configInteger(config.max_queue_bytes, 8388608, 65536, 67108864, 'history max_queue_bytes'),
+    batchSize: configInteger(config.batch_size, 100, 1, 1000, 'history batch_size'),
+    flushIntervalMs: configInteger(config.flush_interval_ms, 250, 10, 60000, 'history flush_interval_ms'),
+    queryLimit: configInteger(config.query_limit, 200, 1, 1000, 'history query_limit'),
+    queryTimeoutMs: configInteger(config.query_timeout_ms, 2000, 100, 10000, 'history query_timeout_ms'),
+    maxPendingQueries: configInteger(config.max_pending_queries, 16, 1, 128, 'history max_pending_queries'),
+    shutdownTimeoutMs: configInteger(config.shutdown_timeout_ms, 2000, 100, 10000,
       'history shutdown_timeout_ms'),
   }
   if (result.batchSize > result.queueCapacity)

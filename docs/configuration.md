@@ -29,8 +29,21 @@ Overrides use dotted paths and are applied before semantic validation:
 graphx validate graphx.yaml --set observability.telemetry.port=9100
 ```
 
-`GRAPHX_OVERRIDES` accepts comma-separated assignments. Explicit `--set` values
+`GRAPHX_OVERRIDES` accepts semicolon-separated assignments. Explicit `--set` values
 take precedence. The configuration version cannot be overridden.
+
+Functional runtime policy has one owner: `graphx.yaml`. This includes telemetry
+heartbeat timing, capture provider and limits, history retention/queue/query
+limits, and OTLP paths, timing, retry, and queue limits. Use
+`GRAPHX_OVERRIDES` for a temporary deployment-specific change instead of adding
+a second environment variable for the same setting.
+
+Environment variables are reserved for deployment wiring that cannot safely or
+portably live in normalized configuration: credentials and secret-file paths,
+host bind and published ports, container filesystem paths, and operational
+feature toggles such as `GRAPHX_CAPTURE_ENABLED` and `GRAPHX_HISTORY_ENABLED`.
+OTLP credentials remain environment- or secret-file-backed; an operator may set
+`GRAPHX_OTLP_ENDPOINT` when collector discovery belongs to the deployment.
 
 ## Normalized contract
 

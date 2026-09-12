@@ -60,9 +60,9 @@ test('capture downloads are bounded and reject symlink traversal', async t => {
   const port = await availablePort()
   const udpPort = await availablePort()
   const environment = { ...process.env, PORT: String(port), GRAPHX_TELEMETRY_PORT: String(udpPort),
-    ...normalizedConfigEnvironment(join(repository, 'graphx.yaml')), GRAPHX_CAPTURE_ENABLED: 'true',
-    GRAPHX_CAPTURE_DIR: captures, GRAPHX_CAPTURE_MAX_FILE_BYTES: '65536',
-    GRAPHX_CAPTURE_MAX_PACKETS: '2', GRAPHX_CAPTURE_SNAPLEN: '4096' }
+    ...normalizedConfigEnvironment(join(repository, 'graphx.yaml'),
+      'observability.capture.snaplen=4096;observability.capture.max_file_bytes=65536;observability.capture.max_packets=2'),
+    GRAPHX_CAPTURE_ENABLED: 'true', GRAPHX_CAPTURE_DIR: captures }
   for (const key of Object.keys(environment))
     if (key.startsWith('GRAPHX_CONTROL_') || key.startsWith('GRAPHX_RUNTIME_') ||
         key === 'GRAPHX_PREVIOUS_CREDENTIALS_FILE') delete environment[key]
@@ -110,8 +110,9 @@ test('capture catalog bounds filesystem work and snapshot payloads without gatin
   const port = await availablePort()
   const udpPort = await availablePort()
   const environment = { ...process.env, PORT: String(port), GRAPHX_TELEMETRY_PORT: String(udpPort),
-    ...normalizedConfigEnvironment(join(repository, 'graphx.yaml')), GRAPHX_CAPTURE_ENABLED: 'true',
-    GRAPHX_CAPTURE_DIR: captures, GRAPHX_CAPTURE_MAX_FILE_BYTES: '65536',
+    ...normalizedConfigEnvironment(join(repository, 'graphx.yaml'),
+      'observability.capture.max_file_bytes=65536'), GRAPHX_CAPTURE_ENABLED: 'true',
+    GRAPHX_CAPTURE_DIR: captures,
     GRAPHX_CAPTURE_CATALOG_MAX_FILES: '4', GRAPHX_CAPTURE_CATALOG_MAX_ENTRIES: '10' }
   for (const key of Object.keys(environment))
     if (key.startsWith('GRAPHX_CONTROL_') || key.startsWith('GRAPHX_RUNTIME_') ||
@@ -152,17 +153,7 @@ test('capture catalog bounds filesystem work and snapshot payloads without gatin
   assert.deepEqual(Buffer.from(await download.arrayBuffer()), minimalPcapng())
 })
 
-test('invalid capture deployment limits fail before listeners start', async () => {
-  const environment = { ...process.env, PORT: String(await availablePort()),
-    GRAPHX_TELEMETRY_PORT: String(await availablePort()),
-    ...normalizedConfigEnvironment(join(repository, 'graphx.yaml')), GRAPHX_CAPTURE_MAX_PACKETS: '-1' }
-  const child = spawn(process.execPath, ['server.mjs'], { cwd: here, env: environment,
-    stdio: ['ignore', 'pipe', 'pipe'] })
-  let errors = ''
-  child.stderr.on('data', chunk => { errors += chunk })
-  const [code] = await once(child, 'exit')
-  assert.notEqual(code, 0)
-  assert.match(errors, /GRAPHX_CAPTURE_MAX_PACKETS must be an integer between 1 and 100000000/)
+test('invalid capture catalog deployment limits fail before listeners start', async () => {
   assert.match(await rejectedCaptureStartup({ GRAPHX_CAPTURE_CATALOG_MAX_FILES: '0' }),
     /GRAPHX_CAPTURE_CATALOG_MAX_FILES must be an integer between 1 and 1024/)
   assert.match(await rejectedCaptureStartup({ GRAPHX_CAPTURE_CATALOG_MAX_FILES: '10',
@@ -252,8 +243,7 @@ test('capture catalog bounds directory work and returns sorted truncation metada
 async function rejectedCaptureStartup(overrides, configPath = join(repository, 'graphx.yaml')) {
   const environment = { ...process.env, PORT: String(await availablePort()),
     GRAPHX_TELEMETRY_PORT: String(await availablePort()), ...normalizedConfigEnvironment(configPath) }
-  for (const key of ['GRAPHX_CAPTURE_ENABLED', 'GRAPHX_CAPTURE_PROVIDER', 'GRAPHX_CAPTURE_SNAPLEN',
-    'GRAPHX_CAPTURE_MAX_FILE_BYTES', 'GRAPHX_CAPTURE_MAX_PACKETS']) delete environment[key]
+  delete environment.GRAPHX_CAPTURE_ENABLED
   Object.assign(environment, overrides)
   const child = spawn(process.execPath, ['server.mjs'], { cwd: here, env: environment,
     stdio: ['ignore', 'pipe', 'pipe'] })
@@ -273,10 +263,8 @@ function rejectedNormalization(configPath) {
   return result.stderr
 }
 
-test('capture environment overrides fail closed', async () => {
+test('capture deployment toggle fails closed', async () => {
   assert.match(await rejectedCaptureStartup({ GRAPHX_CAPTURE_ENABLED: 'maybe' }), /must be one of/)
-  assert.match(await rejectedCaptureStartup({ GRAPHX_CAPTURE_PROVIDER: 'pcapgn' }),
-    /must be pcapng or ovs-span/)
 })
 
 test('native normalization rejects incomplete capture configuration', async t => {

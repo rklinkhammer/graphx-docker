@@ -37,22 +37,16 @@ test('history configuration and query filters are strict and bounded', () => {
   assert.throws(() => historyConfig({ enabled: false, query_limit: '20' }, {}), /integer/)
   assert.throws(() => historyConfig({ enabled: false, backend: '' }, {}), /backend/)
   assert.throws(() => historyConfig({ enabled: false, database_file: '' }, {}), /database_file/)
-  assert.throws(() => historyConfig({ enabled: false, backend: '' },
-    { GRAPHX_HISTORY_BACKEND: 'sqlite' }), /backend/)
   assert.throws(() => historyConfig({ enabled: false, database_file: '' },
     { GRAPHX_HISTORY_DATABASE_FILE: '/tmp/override.sqlite' }), /database_file/)
   assert.throws(() => historyConfig({ enabled: false, typo_retention_seconds: 60 }, {}),
     /unknown history configuration property/)
   assert.throws(() => historyConfig(null, {}), /must be an object/)
-  assert.throws(() => historyConfig({ enabled: false }, { GRAPHX_HISTORY_QUERY_LIMIT: '1.5' }),
-    /integer/)
   assert.equal(historyConfig({ enabled: false, query_limit: 5 },
-    { GRAPHX_HISTORY_ENABLED: 'true', GRAPHX_HISTORY_QUERY_LIMIT: '9' }).enabled, true)
-  assert.equal(historyConfig({ enabled: false, query_limit: 5 },
-    { GRAPHX_HISTORY_QUERY_LIMIT: '' }).queryLimit, 5)
+    { GRAPHX_HISTORY_ENABLED: 'true' }).enabled, true)
   const emptyEnvironment = historyConfig({ enabled: false, backend: 'sqlite',
     database_file: 'configured.sqlite' },
-    { GRAPHX_HISTORY_BACKEND: '', GRAPHX_HISTORY_DATABASE_FILE: '' }, '/config')
+    { GRAPHX_HISTORY_DATABASE_FILE: '' }, '/config')
   assert.equal(emptyEnvironment.backend, 'sqlite')
   assert.equal(emptyEnvironment.databaseFile, '/config/configured.sqlite')
   const settings = config('/tmp/graphx-history-test.sqlite')
@@ -354,9 +348,10 @@ async function startTelemetry(databaseFile) {
   const child = spawn(process.execPath, ['server.mjs'], { cwd: directory,
     env: { ...process.env, PORT: String(port), GRAPHX_TELEMETRY_PORT: String(udpPort),
       GRAPHX_HTTP_BIND: '127.0.0.1', GRAPHX_TELEMETRY_BIND: '127.0.0.1',
-      ...normalizedConfigEnvironment(resolve(directory, '../../graphx.yaml')), GRAPHX_HISTORY_ENABLED: 'true',
-      GRAPHX_HISTORY_DATABASE_FILE: databaseFile, GRAPHX_HISTORY_FLUSH_INTERVAL_MS: '10',
-      GRAPHX_HISTORY_BATCH_SIZE: '1', GRAPHX_OBSERVATION_TOKEN: secret },
+      ...normalizedConfigEnvironment(resolve(directory, '../../graphx.yaml'),
+        'observability.history.flush_interval_ms=10;observability.history.batch_size=1'),
+      GRAPHX_HISTORY_ENABLED: 'true', GRAPHX_HISTORY_DATABASE_FILE: databaseFile,
+      GRAPHX_OBSERVATION_TOKEN: secret },
     stdio: ['ignore', 'pipe', 'pipe'] })
   const headers = { authorization: `Bearer ${secret}` }
   for (let attempt = 0; attempt < 100; ++attempt) {

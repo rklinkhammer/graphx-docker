@@ -90,11 +90,11 @@ test('authorized control API enforces scope, correlation, idempotency, timeout, 
     const child = spawn(process.execPath, ['server.mjs'], { cwd: moduleDirectory,
       env: { ...process.env, PORT: String(httpPort), GRAPHX_TELEMETRY_PORT: String(udpPort),
         GRAPHX_HTTP_BIND: '127.0.0.1', GRAPHX_TELEMETRY_BIND: '127.0.0.1',
-        ...normalizedConfigEnvironment(resolve(moduleDirectory, '../../graphx.yaml')),
+        ...normalizedConfigEnvironment(resolve(moduleDirectory, '../../graphx.yaml'),
+          'observability.history.batch_size=1;observability.history.flush_interval_ms=10'),
         GRAPHX_CONTROL_POLICY_FILE: policyPath, GRAPHX_RUNTIME_IDENTITY_FILE: identitiesPath,
         GRAPHX_OBSERVATION_TOKEN: observationToken, GRAPHX_HISTORY_ENABLED: 'true',
-        GRAPHX_HISTORY_DATABASE_FILE: join(directory, 'history.sqlite'),
-        GRAPHX_HISTORY_BATCH_SIZE: '1', GRAPHX_HISTORY_FLUSH_INTERVAL_MS: '10' },
+        GRAPHX_HISTORY_DATABASE_FILE: join(directory, 'history.sqlite') },
       stdio: ['ignore', 'pipe', 'pipe'] })
     const base = `http://127.0.0.1:${httpPort}`
     try {
@@ -223,11 +223,11 @@ test('runtime rejection cannot expose configured credentials in commands, audit,
     const environment = { ...process.env, PORT: String(httpPort),
       GRAPHX_TELEMETRY_PORT: String(udpPort), GRAPHX_HTTP_BIND: '127.0.0.1',
       GRAPHX_TELEMETRY_BIND: '127.0.0.1',
-      ...normalizedConfigEnvironment(resolve(moduleDirectory, '../../graphx.yaml')),
+      ...normalizedConfigEnvironment(resolve(moduleDirectory, '../../graphx.yaml'),
+        'observability.history.batch_size=1;observability.history.flush_interval_ms=10'),
       GRAPHX_CONTROL_POLICY_FILE: policyPath, GRAPHX_RUNTIME_IDENTITY_FILE: identityPath,
       GRAPHX_OBSERVATION_TOKEN: observationToken, GRAPHX_HISTORY_ENABLED: 'true',
-      GRAPHX_HISTORY_DATABASE_FILE: historyPath, GRAPHX_HISTORY_BATCH_SIZE: '1',
-      GRAPHX_HISTORY_FLUSH_INTERVAL_MS: '10' }
+      GRAPHX_HISTORY_DATABASE_FILE: historyPath }
     const startCollector = () => {
       const collector = spawn(process.execPath, ['server.mjs'], { cwd: moduleDirectory,
         env: environment, stdio: ['ignore', 'pipe', 'pipe'] })
@@ -380,12 +380,12 @@ test('file-only rotation filters candidate and retired credentials before fan-ou
     const environment = { ...process.env, PORT: String(httpPort),
       GRAPHX_TELEMETRY_PORT: String(udpPort), GRAPHX_HTTP_BIND: '127.0.0.1',
       GRAPHX_TELEMETRY_BIND: '127.0.0.1',
-      ...normalizedConfigEnvironment(resolve(moduleDirectory, '../../graphx.yaml')),
+      ...normalizedConfigEnvironment(resolve(moduleDirectory, '../../graphx.yaml'),
+        'observability.history.batch_size=1;observability.history.flush_interval_ms=10'),
       GRAPHX_CONTROL_POLICY_FILE: policyPath, GRAPHX_RUNTIME_IDENTITY_FILE: identityPath,
       GRAPHX_PREVIOUS_CREDENTIALS_FILE: previousCredentialPath,
       GRAPHX_OBSERVATION_TOKEN: observationToken, GRAPHX_HISTORY_ENABLED: 'true',
-      GRAPHX_HISTORY_DATABASE_FILE: historyPath, GRAPHX_HISTORY_BATCH_SIZE: '1',
-      GRAPHX_HISTORY_FLUSH_INTERVAL_MS: '10',
+      GRAPHX_HISTORY_DATABASE_FILE: historyPath,
       GRAPHX_OTLP_ENDPOINT: `http://127.0.0.1:${otlpPort}` }
     const startCollector = () => {
       const collector = spawn(process.execPath, ['server.mjs'], { cwd: moduleDirectory,
