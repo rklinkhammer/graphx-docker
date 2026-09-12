@@ -160,7 +160,9 @@ export function otlpTraceRequest(event, serviceName = 'graphx-telemetry', random
     { key: 'graphx.edge.id', value: { stringValue: event.edgeId || '' } },
     { key: 'graphx.event', value: { stringValue: event.event || '' } },
   ]
-  for (const [key, value] of [['graphx.message.id', event.messageId],
+  for (const [key, value] of [['graphx.graph.id', event.graphId],
+    ['graphx.instance.id', event.instanceId], ['graphx.execution.id', event.executionId],
+    ['graphx.message.id', event.messageId],
     ['graphx.parent_message.id', event.parentMessageId]])
     if (value) attributes.push({ key, value: { stringValue: value } })
   for (const [key, value] of [['graphx.sequence', event.sequence],
@@ -170,7 +172,7 @@ export function otlpTraceRequest(event, serviceName = 'graphx-telemetry', random
     `graphx-${event.nodeId}` : serviceName
   return { resourceSpans: [{ resource: { attributes: [
     { key: 'service.name', value: { stringValue: sourceServiceName } },
-    { key: 'service.instance.id', value: { stringValue: event.nodeId || 'unknown' } },
+    { key: 'service.instance.id', value: { stringValue: event.executionId || event.nodeId || 'unknown' } },
   ] }, scopeSpans: [{ scope: { name: 'graphx.telemetry' }, spans: [{
     traceId: traceId.toLowerCase(), spanId: spanId.toLowerCase(), name: `graphx.${event.event || 'event'}`,
     kind: event.event === 'receive' ? 5 : event.event === 'send' ? 4 : 1,

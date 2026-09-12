@@ -1,6 +1,7 @@
 #pragma once
 
 #include "graphx/envelope.hpp"
+#include "graphx/runtime_identity.hpp"
 
 #include <chrono>
 #include <array>
@@ -118,7 +119,7 @@ class CompositeTraceSink final : public TraceSink {
 class UdpJsonTraceSink final : public TraceSink {
  public:
   UdpJsonTraceSink(std::string node_id, std::string host, std::uint16_t port,
-                   std::string shared_secret = {});
+                   std::string shared_secret = {}, ExecutionIdentity identity = {});
   ~UdpJsonTraceSink() override;
   UdpJsonTraceSink(const UdpJsonTraceSink&) = delete;
   UdpJsonTraceSink& operator=(const UdpJsonTraceSink&) = delete;
@@ -154,7 +155,8 @@ class UdpJsonTraceSink final : public TraceSink {
 class OtlpHttpTraceSink final : public TraceSink {
  public:
   OtlpHttpTraceSink(std::string node_id, std::string host, std::uint16_t port = 4318,
-                    std::string path = "/v1/traces", std::size_t queue_capacity = 1024);
+                    std::string path = "/v1/traces", std::size_t queue_capacity = 1024,
+                    ExecutionIdentity identity = {});
   ~OtlpHttpTraceSink() override;
   OtlpHttpTraceSink(const OtlpHttpTraceSink&) = delete;
   OtlpHttpTraceSink& operator=(const OtlpHttpTraceSink&) = delete;

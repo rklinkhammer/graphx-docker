@@ -84,6 +84,12 @@ contract tests. `full` adds the standard Compose and UDP broadcast runs, plus
 quality/sanitizer/fuzz gates; it does not invoke Lima verification or boot QEMU.
 The privileged CTests exercise ownership, container veth, OVS network
 profile semantics, TAP lifecycle, capture/faults, external SDR, and static-route policy.
+Portable CTests include trusted runtime registration, stale native control targets,
+and two typed SDR sources with signed execution identities. Telemetry tests cover
+collector restart, retirement, stale observations/acknowledgements, and idempotency
+across node replacement. These checks do not constitute the full two-instance
+deployment proof.
+
 The `graphx-instance-ownership-live` CTest checks two simultaneous instances with
 identical namespace addresses, isolated routes and shutdown, rollback/recovery,
 and collision/replacement refusal. It uses VM-native temporary state under
@@ -108,3 +114,12 @@ Report native Linux, native macOS, OrbStack, and Lima separately, with host and
 guest architectures. The checked-in QEMU launcher selects TCG on both Linux and
 Lima. Report a successful boot as TCG evidence; TAP tests alone establish neither
 TCG guest execution nor KVM. No current example launcher selects KVM.
+
+## Shared instance Compose acceptance
+
+After selecting a ready Docker engine and building current runtime, telemetry,
+and SDR images, run `python3 tests/test_compose_instance_live.py`. This proves the
+sample pipeline and two-source SDR independently, including duplicate-start
+refusal and fresh reactivation. Use [the shared runtime guide](compose-runtime.md)
+for the separate authorized Linux/Lima OVS sample. These checks do not replace
+the full simultaneous two-instance SDR scenario or QEMU guest-boot acceptance.

@@ -1,5 +1,6 @@
 services:
   generator:
+    extends: {file: ../infrastructure/compose/services.yaml, service: native}
     build:
       context: ${GRAPHX_REPO_ROOT:?set repository root}
       secrets: [graphx_ca, graphx_cert_installer]
@@ -7,10 +8,12 @@ services:
     entrypoint: [/usr/local/bin/graphx-generator]
     volumes: ["${GRAPHX_LAB_CONFIG:?set laboratory config}:/etc/graphx/graphx.yaml:ro"]
   transform:
+    extends: {file: ../infrastructure/compose/services.yaml, service: native}
     image: graphx-demo:latest
     entrypoint: [/usr/local/bin/graphx-transform]
     volumes: ["${GRAPHX_LAB_CONFIG:?set laboratory config}:/etc/graphx/graphx.yaml:ro"]
   sink:
+    extends: {file: ../infrastructure/compose/services.yaml, service: native}
     image: graphx-demo:latest
     entrypoint: [/usr/local/bin/graphx-sink]
     volumes: ["${GRAPHX_LAB_CONFIG:?set laboratory config}:/etc/graphx/graphx.yaml:ro"]

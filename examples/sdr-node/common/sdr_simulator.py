@@ -11,7 +11,7 @@ import ssl
 import threading
 import time
 
-from protocol import encode_samples, publish_heartbeat, recv_line
+from protocol import configure_sdr_runtime, encode_samples, publish_heartbeat, recv_line
 
 stop = threading.Event()
 state_lock = threading.Lock()
@@ -29,7 +29,7 @@ def control_server(listener: socket.socket | None = None,
     if listener is None:
         listener = socket.socket()
         listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        listener.bind(("0.0.0.0", int(os.environ.get("SDR_CONTROL_PORT", "18401"))))
+        listener.bind((os.environ.get("SDR_CONTROL_BIND", "0.0.0.0"), int(os.environ.get("SDR_CONTROL_PORT", "18401"))))
         listener.listen(8)
     with listener:
         listener.settimeout(0.5)
@@ -76,6 +76,8 @@ def apply_command(command: object) -> dict[str, object]:
 def main() -> None:
     signal.signal(signal.SIGTERM, lambda *_: stop.set())
     signal.signal(signal.SIGINT, lambda *_: stop.set())
+    configure_sdr_runtime("source")
+    state["frequency_hz"] = int(os.environ.get("SDR_FREQUENCY_HZ", "100000000"))
     target = os.environ.get("SDR_SAMPLE_TARGET", "processor")
     port = int(os.environ.get("SDR_SAMPLE_PORT", "18400"))
     interval = float(os.environ.get("SDR_SAMPLE_INTERVAL_SECONDS", "0.2"))

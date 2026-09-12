@@ -84,6 +84,10 @@ function finiteNumber(value) {
 
 export function telemetryHistoryRecord(event, graphId, recordedAtMs = Date.now()) {
   const data = {
+    ...(event.instanceId ? { graphId: event.graphId, instanceId: event.instanceId,
+      executionId: event.executionId } : {}),
+    ...(event.kind === 'capture' ? { captureFile: event.captureFile, capturePacket: event.capturePacket,
+      captureOffset: event.captureOffset, direction: event.direction } : {}),
     kind: boundedText(event.kind, 32), event: boundedText(event.event, 32),
     nodeId: boundedText(event.nodeId, 64), edgeId: boundedText(event.edgeId, 64),
     sequence: Number.isSafeInteger(event.sequence) ? event.sequence : null,

@@ -1,4 +1,5 @@
 #include "graphx/config.hpp"
+#include "graphx/runtime_identity.hpp"
 #include "graphx/infra.hpp"
 #include "graphx/normalized_config.hpp"
 #include "graphx/instance_resources.hpp"
@@ -25,6 +26,8 @@ void usage(std::ostream& output) {
          << "  graphx infra <create|destroy|status|recover> [config.yaml] [--dry-run]\n"
          << "               [--state-dir DIR]\n"
          << "  graphx infra route <apply|clear> [config.yaml] --router ID --destination CIDR\n"
+         << "  graphx runtime <activate|retire> CONFIG --identity-file FILE --node ID\n"
+         << "                 [--execution-id ID]\n"
          << "  graphx infra capture export [config.yaml] --capture ID --output FILE\n"
          << "                    [--state-dir DIR]\n";
 }
@@ -352,6 +355,33 @@ int infrastructure_command(int argc, char** argv) {
                                        std::cerr);
 }
 
+int runtime_command(int argc, char** argv) {
+  if (argc < 4) throw std::invalid_argument("runtime requires activate|retire CONFIG");
+  const std::string action = argv[2];
+  if (action != "activate" && action != "retire")
+    throw std::invalid_argument("unknown runtime action");
+  std::string manifest, node, execution;
+  for (int index = 4; index < argc; ++index) {
+    const std::string option = argv[index];
+    if (++index == argc) throw std::invalid_argument("runtime option requires a value");
+    if (option == "--identity-file")
+      manifest = argv[index];
+    else if (option == "--node")
+      node = argv[index];
+    else if (option == "--execution-id")
+      execution = argv[index];
+    else
+      throw std::invalid_argument("unknown runtime option");
+  }
+  if (manifest.empty() || node.empty() || (action == "activate" && !execution.empty()))
+    throw std::invalid_argument(
+        "runtime requires --identity-file and --node; only retire accepts --execution-id");
+  const auto identity = graphx::update_runtime_registration(graphx::load_config(argv[3]), manifest,
+                                                            node, action == "retire", execution);
+  if (!identity.empty()) std::cout << identity << '\n';
+  return 0;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -367,6 +397,7 @@ int main(int argc, char** argv) {
   try {
     const std::string command = argv[1];
     if (command == "validate" || command == "inspect") return topology_command(command, argc, argv);
+    if (command == "runtime") return runtime_command(argc, argv);
     if (command == "config") return config_command(argc, argv);
     if (command == "infra") return infrastructure_command(argc, argv);
     throw std::invalid_argument("unknown command '" + command + "'");

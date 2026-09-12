@@ -6,6 +6,8 @@ Run commands from the repository root. Build local binaries with
 | Example | Linux | macOS | Run / verification |
 |---|---|---|---|
 | [Portable TCP pipeline and console](../docs/complete-system-demo.md) | Docker Compose | OrbStack Compose | `scripts/demo.sh start`, `status`, `verify`, `stop` |
+| [Instance-aware sample pipeline](sample-pipeline/README.md) | Docker Compose; alternative OVS profile | OrbStack; OVS inside Lima | `python3 scripts/instance.py up examples/sample-pipeline/graphx.yaml --build` |
+| [Two-source SDR](sdr-node/two-source/README.md) | Docker Compose | OrbStack Compose | `python3 scripts/instance.py up examples/sdr-node/two-source/graphx.yaml --build` |
 | [Shared memory](shared-memory/README.md) | Local processes | Native processes | `examples/shared-memory/run.sh` |
 | [UDP unicast](udp-unicast/README.md) | Local processes | Native processes | `examples/udp-unicast/run.sh` |
 | [UDP multicast](udp-multicast/README.md) | Local processes | Native processes | `examples/udp-multicast/run.sh` |
@@ -46,6 +48,6 @@ it does not boot the declared external QEMU packet source.
 See [test procedure](../docs/test-procedure.md) for acceptance coverage and the
 separate macOS, Lima, native Linux, TCG, and KVM evidence requirements.
 
-The [two-source SDR configuration](sdr-node/two-source/README.md) demonstrates
-instance selection and typed source settings through validation/normalization
-only; it has no runtime launcher.
+The maintained Compose profiles inherit common service policy from
+`infrastructure/compose/services.yaml`. See [shared Compose runtime](../docs/compose-runtime.md)
+for explicit-instance deployment and the compatibility/specialized-launcher boundary.

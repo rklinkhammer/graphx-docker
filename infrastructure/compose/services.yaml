@@ -1,0 +1,42 @@
+# Process policy shared by the generated instance deployment and demo Compose files.
+# This file defines reusable services only; topology selects the concrete services.
+x-process: &process
+  read_only: true
+  tmpfs: [/tmp]
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  pids_limit: 128
+  init: true
+  restart: "no"
+  logging:
+    driver: json-file
+    options: {max-size: "1m", max-file: "2"}
+services:
+  native:
+    <<: *process
+    image: graphx-demo:latest
+  sdr:
+    <<: *process
+    image: graphx-sdr-services:latest
+    pids_limit: 64
+  telemetry:
+    <<: *process
+    image: graphx-telemetry:latest
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:8080/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+  normalize:
+    <<: *process
+    image: graphx-demo:latest
+    user: "0:0"
+    pids_limit: 32
+    entrypoint: [/bin/sh, -ec]
+    command:
+      - >-
+        umask 022;
+        /usr/local/bin/graphx config normalize /config/graphx.yaml > /run/graphx/normalized.json.tmp;
+        chmod 0444 /run/graphx/normalized.json.tmp;
+        mv /run/graphx/normalized.json.tmp /run/graphx/normalized.json

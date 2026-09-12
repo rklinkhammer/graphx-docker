@@ -4,12 +4,14 @@ int main() {
   demo::install_signal_handlers();
   try {
     const auto config = graphx::load_config(demo::config_path());
-    demo::RuntimeTraceSink trace("transform", config);
-    [[maybe_unused]] const auto& node = config.node("transform");
+    const auto node_id = demo::selected_node(config, "transform");
+    demo::RuntimeTraceSink trace(node_id, config);
+    [[maybe_unused]] const auto& node = config.node(node_id);
     graphx::TransportFactory transports;
-    auto input = transports.create(config.edge("samples"), graphx::ConnectionMode::listen, &trace);
-    auto output =
-        transports.create(config.edge("transformed"), graphx::ConnectionMode::connect, &trace);
+    auto input = transports.create(demo::selected_edge(config, node_id, false, "samples"),
+                                   graphx::ConnectionMode::listen, &trace);
+    auto output = transports.create(demo::selected_edge(config, node_id, true, "transformed"),
+                                    graphx::ConnectionMode::connect, &trace);
     const auto maximum = std::stoull(demo::env("GRAPHX_MAX_MESSAGES", "0"));
     std::uint64_t processed{};
     while (!demo::stopping() && (maximum == 0 || processed < maximum)) {
@@ -25,8 +27,8 @@ int main() {
       envelope->type = "TransformedSample";
       envelope->payload = std::to_string(value * 2);
       envelope->attributes["operation"] = "multiply-by-two";
-      trace.on_processing("transform", *envelope,
-                          std::chrono::steady_clock::now() - processing_start, true);
+      trace.on_processing(node_id, *envelope, std::chrono::steady_clock::now() - processing_start,
+                          true);
       output->send(*envelope);
       ++processed;
     }

@@ -2,6 +2,7 @@
 
 #include "graphx/capture.hpp"
 #include "graphx/config.hpp"
+#include "graphx/instance_resources.hpp"
 #include "graphx/framing.hpp"
 #include "graphx/observability.hpp"
 #include "graphx/transport_factory.hpp"
@@ -92,6 +93,36 @@ inline std::string secret_env(const char* name) {
   return value;
 }
 
+inline std::string selected_node(const graphx::GraphConfig& config, std::string legacy) {
+  const auto selected = env("GRAPHX_NODE_ID", config.deployment.instance_id.empty() ? legacy : "");
+  if (!config.deployment.instance_id.empty())
+    static_cast<void>(config.node_for_instance(config.deployment.instance_id, selected));
+  return selected;
+}
+
+inline graphx::ExecutionIdentity execution_identity(const graphx::GraphConfig& config) {
+  if (config.deployment.instance_id.empty()) return {};
+  graphx::ExecutionIdentity identity{config.id, config.deployment.instance_id,
+                                     env("GRAPHX_EXECUTION_ID", "")};
+  graphx::validate_execution_identity(identity);
+  return identity;
+}
+
+inline const graphx::EdgeConfig& selected_edge(const graphx::GraphConfig& config,
+                                               const std::string& node, bool outgoing,
+                                               std::string_view legacy) {
+  if (config.deployment.instance_id.empty()) return config.edge(legacy);
+  const graphx::EdgeConfig* selected{};
+  for (const auto& edge : config.edges) {
+    if ((outgoing ? edge.edge.from_node : edge.edge.to_node) != node) continue;
+    if (selected)
+      throw std::runtime_error("demo process requires exactly one edge in each used direction");
+    selected = &edge;
+  }
+  if (!selected) throw std::runtime_error("demo process has no edge in the requested direction");
+  return *selected;
+}
+
 class ConsoleTraceSink final : public graphx::TraceSink {
  public:
   void on_send(std::string_view edge, const graphx::Envelope& envelope,
@@ -137,6 +168,9 @@ class RuntimeTraceSink final : public graphx::TraceSink {
   RuntimeTraceSink(std::string node_id, const graphx::GraphConfig& config)
       : node_id_(std::move(node_id)),
         heartbeat_interval_(config.observability.telemetry.heartbeat_interval_ms) {
+    static_cast<void>(execution_identity(config));
+    if (!config.deployment.instance_id.empty())
+      static_cast<void>(config.node_for_instance(config.deployment.instance_id, node_id_));
     const auto contains = [](const auto& signal, std::string_view exporter) {
       return signal.enabled &&
              std::ranges::find(signal.exporters, exporter) != signal.exporters.end();
@@ -149,7 +183,7 @@ class RuntimeTraceSink final : public graphx::TraceSink {
         contains(config.observability.tracing, "udp-json")) {
       telemetry_ = std::make_unique<graphx::UdpJsonTraceSink>(
           node_id_, config.observability.telemetry.host, config.observability.telemetry.port,
-          secret_env("GRAPHX_TELEMETRY_SHARED_SECRET"));
+          secret_env("GRAPHX_TELEMETRY_SHARED_SECRET"), execution_identity(config));
       composite_.add(*telemetry_);
     }
     if (contains(config.observability.tracing, "otlp-http")) {
@@ -171,20 +205,31 @@ class RuntimeTraceSink final : public graphx::TraceSink {
             "service for authenticated TLS export");
       otlp_ = std::make_unique<graphx::OtlpHttpTraceSink>(
           node_id_, host == "[::1]" ? "::1" : host, endpoint_port,
-          config.observability.otlp.traces_path, config.observability.otlp.queue_capacity);
+          config.observability.otlp.traces_path, config.observability.otlp.queue_capacity,
+          execution_identity(config));
       composite_.add(*otlp_);
     }
     const auto capture_enabled =
         boolean_env("GRAPHX_CAPTURE_ENABLED", config.observability.capture.enabled);
     const auto& capture_provider = config.observability.capture.provider;
     if (capture_enabled && capture_provider == "pcapng") {
-      const auto directory = env("GRAPHX_CAPTURE_DIR", config.observability.capture.directory);
+      auto directory =
+          std::filesystem::path(env("GRAPHX_CAPTURE_DIR", config.observability.capture.directory));
+      std::string filename = node_id_ + ".pcapng";
+      if (!config.deployment.instance_id.empty()) {
+        directory /= graphx::instance_resource_name(config.id, config.deployment.instance_id,
+                                                    "state", config.id);
+        filename =
+            graphx::instance_resource_name(config.id, config.deployment.instance_id, "capture-file",
+                                           node_id_ + execution_identity(config).execution_id) +
+            ".pcapng";
+      }
       const auto snaplen = config.observability.capture.snaplen;
       const auto max_file_bytes = config.observability.capture.max_file_bytes;
       const auto max_packets = config.observability.capture.max_packets;
       capture_ = std::make_unique<graphx::PcapngCaptureSink>(
-          std::filesystem::path(directory) / (node_id_ + ".pcapng"),
-          static_cast<std::uint32_t>(snaplen), max_file_bytes, max_packets);
+          directory / filename, static_cast<std::uint32_t>(snaplen), max_file_bytes, max_packets,
+          !config.deployment.instance_id.empty());
       std::cout << "capture node=" << node_id_ << " provider=pcapng path=" << capture_->path()
                 << " snaplen=" << snaplen << " max_file_bytes=" << max_file_bytes
                 << " max_packets=" << max_packets << std::endl;

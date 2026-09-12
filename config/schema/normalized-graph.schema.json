@@ -18,7 +18,7 @@
     "deployment": { "$ref": "#/$defs/deployment" },
     "observability": { "$ref": "#/$defs/observability" }
   },
-  "allOf": [{"if": {"properties": {"graph": {"properties": {"nodes": {"contains": {"required": ["sdr"]}}}}}}, "then": {"properties": {"deployment": {"required": ["instance_id"]}}}}],
+  "allOf": [{"if": {"properties": {"deployment": {"required": ["instance_id"]}}}, "then": {"properties": {"deployment": {"required": ["resource_key"]}}}}, {"if": {"properties": {"graph": {"properties": {"nodes": {"contains": {"required": ["sdr"]}}}}}}, "then": {"properties": {"deployment": {"required": ["instance_id"]}}}}],
   "$defs": {
     "sdr": {
       "type": "object",
@@ -513,6 +513,7 @@
       "additionalProperties": false,
       "required": ["project", "services", "telemetry"],
       "properties": {
+        "resource_key": {"type": "string", "pattern": "^gx[0-9a-f]{62}$(?![\\s\\S])"},
         "instance_id": {"type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$(?![\\s\\S])"},
         "project": { "$ref": "#/$defs/stringOrNull" },
         "services": { "type": "array", "items": { "$ref": "#/$defs/service" } },

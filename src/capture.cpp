@@ -159,7 +159,7 @@ class WriterState {
   WriterState(std::filesystem::path output, std::uint32_t maximum, std::uint16_t linktype,
               std::string_view interface_name, std::string_view interface_description,
               std::string_view section_comment, std::uint64_t max_file_bytes,
-              std::uint64_t max_packets)
+              std::uint64_t max_packets, bool exclusive = false)
       : path_(std::move(output)),
         snaplen_(maximum),
         max_file_bytes_(max_file_bytes),
@@ -170,8 +170,10 @@ class WriterState {
     if (max_packets_ == 0)
       throw std::invalid_argument("PCAPNG maximum packet count must be positive");
     if (path_.has_parent_path()) std::filesystem::create_directories(path_.parent_path());
-    descriptor_ = ::open(path_.c_str(), O_WRONLY | O_CREAT | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK,
-                         S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
+    descriptor_ =
+        ::open(path_.c_str(),
+               O_WRONLY | O_CREAT | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK | (exclusive ? O_EXCL : 0),
+               S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
     if (descriptor_ < 0)
       throw std::system_error(errno, std::generic_category(),
                               "cannot safely open PCAPNG capture " + path_.string());
@@ -318,17 +320,19 @@ class WriterState {
 
 struct PcapngCaptureSink::Impl {
   Impl(std::filesystem::path output, std::uint32_t maximum, std::uint64_t max_file_bytes,
-       std::uint64_t max_packets)
+       std::uint64_t max_packets, bool exclusive)
       : writer(std::move(output), maximum, kLinktypeUser0, "graphx-framed-envelope",
                "GraphX application frame, not an Ethernet or IP network packet",
                "GraphX canonical application frames: u32be length + GXE envelope; LINKTYPE_USER0",
-               max_file_bytes, max_packets) {}
+               max_file_bytes, max_packets, exclusive) {}
   WriterState writer;
 };
 
 PcapngCaptureSink::PcapngCaptureSink(std::filesystem::path path, std::uint32_t snaplen,
-                                     std::uint64_t max_file_bytes, std::uint64_t max_packets)
-    : impl_(std::make_unique<Impl>(std::move(path), snaplen, max_file_bytes, max_packets)) {}
+                                     std::uint64_t max_file_bytes, std::uint64_t max_packets,
+                                     bool exclusive)
+    : impl_(std::make_unique<Impl>(std::move(path), snaplen, max_file_bytes, max_packets,
+                                   exclusive)) {}
 
 PcapngCaptureSink::~PcapngCaptureSink() = default;
 

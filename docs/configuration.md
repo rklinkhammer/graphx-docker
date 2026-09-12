@@ -92,9 +92,9 @@ build/dev/graphx config normalize examples/sdr-node/two-source/graphx.yaml \
   --set deployment.instance_id=lab-b
 ```
 
-Normalized contract version 1 includes `deployment.instance_id` when supplied and
-omits it otherwise. Ordinary configurations retain their existing normalized
-shape. C++ consumers use `config.node_for_instance(instance_id, node_id)`;
+Normalized contract version 1 includes `deployment.instance_id` and its derived
+`deployment.resource_key` when an instance ID is supplied; both fields are absent
+otherwise. Ordinary configurations retain their existing normalized shape. C++ consumers use `config.node_for_instance(instance_id, node_id)`;
 normalized-JSON consumers use `selectNormalizedNode(config, {instanceId, nodeId})`
 from `apps/telemetry/normalized-config.mjs`. Both reject missing or mismatched
 instance selection and unknown nodes. These APIs select configuration; they do
@@ -140,9 +140,12 @@ bounds; graph-reference semantics are checked by the C++ loader and by the
 normalized node-selection boundary.
 
 The [two-source example](../examples/sdr-node/two-source/README.md) exercises this
-configuration contract. The current SDR launchers still use their existing
-environment settings. The OVS lifecycle resolves instance-scoped infrastructure;
+configuration contract. SDR runtimes consume typed settings when given normalized
+instance configuration, an explicit node, and a registered execution ID. Legacy
+SDR launchers retain their environment settings. The OVS lifecycle resolves
+instance-scoped infrastructure;
 `graphx config normalize FILE --resources` exposes its resolved names and Compose
-project. Application adoption remains separate: these fields do not make
-simultaneous full example launches safe. See the
+project. Runtime registration and supervision are required; these fields alone
+do not make simultaneous full example launches safe. See
+[runtime activation](runtime-lifecycle.md#instance-aware-activation) and the
 [resource resolution contract](instance-identity.md#infrastructure-resource-resolution).

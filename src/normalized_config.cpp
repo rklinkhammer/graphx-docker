@@ -1,4 +1,5 @@
 #include "graphx/normalized_config.hpp"
+#include "graphx/instance_resources.hpp"
 
 #include <array>
 #include <charconv>
@@ -510,6 +511,10 @@ Json deployment_json(const GraphConfig& config) {
     auto instance = Json::text(config.deployment.instance_id);
     instance.member_name = "instance_id";
     result.object_value.push_back(std::move(instance));
+    auto key = Json::text(
+        instance_resource_name(config.id, config.deployment.instance_id, "state", config.id));
+    key.member_name = "resource_key";
+    result.object_value.push_back(std::move(key));
   }
   return result;
 }

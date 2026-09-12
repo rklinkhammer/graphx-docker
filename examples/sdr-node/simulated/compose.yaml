@@ -3,38 +3,24 @@ x-logging: &bounded-logging
   driver: json-file
   options: { max-size: "1m", max-file: "2" }
 x-sdr-service: &sdr-service
+  extends: {file: ../../../infrastructure/compose/services.yaml, service: sdr}
   image: graphx-sdr-services:latest
   user: "${GRAPHX_HOST_UID:-65532}:${GRAPHX_HOST_GID:-65532}"
-  read_only: true
-  tmpfs: [/tmp]
-  cap_drop: [ALL]
-  security_opt: [no-new-privileges:true]
   pids_limit: 64
-  init: true
   logging: *bounded-logging
 x-sdr-environment: &sdr-environment
   GRAPHX_NORMALIZED_CONFIG: /run/graphx/normalized.json
   GRAPHX_TELEMETRY_SHARED_SECRET: ${GRAPHX_TELEMETRY_SHARED_SECRET:-}
 services:
   normalize-config:
+    extends: {file: ../../../infrastructure/compose/services.yaml, service: normalize}
     build:
       context: ../../..
       secrets: [graphx_ca, graphx_cert_installer]
       args: { GRAPHX_BUILD_TRUST_FINGERPRINT: "${GRAPHX_BUILD_TRUST_FINGERPRINT:-graphx-trust-v1-none}" }
     image: graphx-demo:latest
     user: "0:0"
-    entrypoint: ["/bin/sh", "-ec"]
-    command:
-      - >-
-        umask 022;
-        /usr/local/bin/graphx config normalize /config/graphx.yaml > /run/graphx/normalized.json.tmp;
-        chmod 0444 /run/graphx/normalized.json.tmp;
-        mv /run/graphx/normalized.json.tmp /run/graphx/normalized.json
     volumes: [./graphx.yaml:/config/graphx.yaml:ro, normalized-config:/run/graphx]
-    read_only: true
-    tmpfs: [/tmp]
-    cap_drop: [ALL]
-    security_opt: [no-new-privileges:true]
     pids_limit: 32
     restart: "no"
   sdr-node:
@@ -107,6 +93,7 @@ services:
     depends_on: [packet-capture, telemetry]
     networks: [sdr-ethernet]
   telemetry:
+    extends: {file: ../../../infrastructure/compose/services.yaml, service: telemetry}
     build:
       context: ../../..
       dockerfile: docker/telemetry.Dockerfile
@@ -136,12 +123,7 @@ services:
       normalize-config: { condition: service_completed_successfully }
     networks:
       sdr-ethernet: { ipv4_address: 172.30.13.40 }
-    read_only: true
-    tmpfs: [/tmp]
-    cap_drop: [ALL]
-    security_opt: [no-new-privileges:true]
     pids_limit: 128
-    init: true
     logging: *bounded-logging
 networks:
   sdr-ethernet:

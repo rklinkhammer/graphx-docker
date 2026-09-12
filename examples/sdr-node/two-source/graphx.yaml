@@ -69,4 +69,10 @@ transport:
       framing: none
       tls: {enabled: true, verify_peer: true, require_client_certificate: true, ca_file: /run/sdr-west/ca.pem, certificate_file: /run/processor-west/client.pem, private_key_file: /run/processor-west/client.key, server_name: sdr-west}
 deployment:
+  project: two-source-sdr
+  services:
+    sdr-east: {image: graphx-sdr-services:latest, command: sdr-source}
+    processor-east: {image: graphx-sdr-services:latest, command: sdr-controller}
+    sdr-west: {image: graphx-sdr-services:latest, command: sdr-source}
+    processor-west: {image: graphx-sdr-services:latest, command: sdr-controller}
   instance_id: lab-a

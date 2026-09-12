@@ -32,7 +32,9 @@ deployment and execution identity, including authorization and recovery boundari
 It explicitly identifies the current implementation limits; it does not imply
 that full example launchers can already run concurrently without collisions.
 The common infrastructure resolver scopes managed names, Compose project lookup,
-ledgers, locks, and capture storage to an explicitly configured instance.
+ledgers, locks, and capture storage to an explicitly configured instance. Runtime
+activation extends the existing credential manifest with execution IDs; telemetry
+and control enforce the registered tuple across restarts.
 
 Configuration and state files are bounded, regular, non-symlink inputs. Network
 resources carry a graph ID, configuration hash, owner token, and stable platform
@@ -56,3 +58,8 @@ Detailed current contracts are in [`configuration.md`](configuration.md),
 [`network-infrastructure.md`](network-infrastructure.md),
 [`runtime-lifecycle.md`](runtime-lifecycle.md), and
 [`observability.md`](observability.md).
+
+The [shared Compose runtime](compose-runtime.md) renders supported container graphs
+from authoritative normalization, registers executions, and records immutable
+container/network identities. Shared service policy is separate from each graph
+and from specialized laboratory lifecycle requirements.

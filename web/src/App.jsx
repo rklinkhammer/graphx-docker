@@ -88,7 +88,7 @@ export default function App() {
   const control = async (action) => {
     setActiveCommand(null)
     try {
-      const request = controlCommandRequest(action, controlToken)
+      const request = controlCommandRequest(action, controlToken, null, null, crypto.randomUUID(), snapshot)
       const response = await fetch(request.url, request.options)
       const result = await response.json()
       const command = result.command

@@ -6,14 +6,10 @@ x-logging: &bounded-logging
   options: {max-size: "1m", max-file: "2"}
 
 x-sdr-service: &sdr-service
+  extends: {file: ../../../infrastructure/compose/services.yaml, service: sdr}
   image: graphx-sdr-services:latest
   user: "${GRAPHX_HOST_UID:?set by demo.sh}:${GRAPHX_HOST_GID:?set by demo.sh}"
-  read_only: true
-  tmpfs: [/tmp]
-  cap_drop: [ALL]
-  security_opt: [no-new-privileges:true]
   pids_limit: 64
-  init: true
   logging: *bounded-logging
 
 services:

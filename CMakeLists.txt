@@ -120,6 +120,7 @@ add_library(graphx
   src/network.cpp
   src/normalized_config.cpp
   src/observability.cpp
+  src/runtime_identity.cpp
   src/instance_resources.cpp
   src/ownership.cpp
   src/shared_memory_transport.cpp
@@ -307,6 +308,12 @@ if(GRAPHX_BUILD_TESTS)
   graphx_add_python_test(graphx-config-cli tests/test_example_configs.py 45
     $<TARGET_FILE:graphx-cli> ${CMAKE_SOURCE_DIR})
   graphx_add_python_test(graphx-normalized-config tests/test_normalized_config.py 45
+    $<TARGET_FILE:graphx-cli> ${CMAKE_SOURCE_DIR})
+  graphx_add_python_test(graphx-compose-runtime tests/test_compose_runtime.py 30
+    $<TARGET_FILE:graphx-cli> ${CMAKE_SOURCE_DIR})
+  graphx_add_python_test(graphx-sdr-instance-runtime tests/test_sdr_instance_runtime.py 30
+    $<TARGET_FILE:graphx-cli> ${CMAKE_SOURCE_DIR})
+  graphx_add_python_test(graphx-runtime-registration tests/test_runtime_registration.py 30
     $<TARGET_FILE:graphx-cli> ${CMAKE_SOURCE_DIR})
   graphx_add_python_test(graphx-ovs-ownership-plan tests/test_ovs_ownership_plan.py 30
     $<TARGET_FILE:graphx-cli> ${CMAKE_SOURCE_DIR})

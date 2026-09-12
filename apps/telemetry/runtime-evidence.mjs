@@ -14,12 +14,14 @@ export const diagnosticLayerByState = new Map([
   ['application-unavailable', 'application'],
 ])
 
-export function readBoundedJsonFile(path, maximum = 64 * 1024) {
+export function readBoundedJsonFile(path, maximum = 64 * 1024, protectedFile = false) {
   let descriptor
   try {
     descriptor = openSync(path, constants.O_RDONLY | (constants.O_NOFOLLOW || 0))
     const metadata = fstatSync(descriptor)
-    if (!metadata.isFile() || metadata.size > maximum) return null
+    if (!metadata.isFile() || metadata.size > maximum ||
+        (protectedFile && ((metadata.mode & 0o022) !== 0 ||
+          (metadata.uid !== 0 && metadata.uid !== process.getuid?.())))) return null
     const buffer = Buffer.alloc(Math.min(maximum + 1, metadata.size + 1))
     let offset = 0
     while (offset < buffer.length) {
@@ -33,10 +35,10 @@ export function readBoundedJsonFile(path, maximum = 64 * 1024) {
 }
 
 export function createRuntimeEvidence({ qemuEvidenceFile = '', networkDiagnosticFile = '', topology,
-  now = () => Date.now() }) {
+  now = () => Date.now(), instanceId = null }) {
   function qemuEvidence() {
     if (!qemuEvidenceFile) return null
-    const value = readBoundedJsonFile(qemuEvidenceFile)
+    const value = readBoundedJsonFile(qemuEvidenceFile, 64 * 1024, Boolean(instanceId))
     if (!value || typeof value !== 'object' || !qemuStates.has(value.state) ||
         !Number.isSafeInteger(value.updatedAt)) return null
     if (value.actualAccelerator != null && !qemuAccelerators.has(value.actualAccelerator)) return null
@@ -57,7 +59,7 @@ export function createRuntimeEvidence({ qemuEvidenceFile = '', networkDiagnostic
 
   function networkDiagnosticEvidence() {
     if (!networkDiagnosticFile) return null
-    const value = readBoundedJsonFile(networkDiagnosticFile)
+    const value = readBoundedJsonFile(networkDiagnosticFile, 64 * 1024, Boolean(instanceId))
     if (value?.version !== 1 || !Number.isSafeInteger(value.updatedAt) ||
         typeof value.routeApplied !== 'boolean' || !value.flows ||
         typeof value.flows !== 'object' || Array.isArray(value.flows) ||

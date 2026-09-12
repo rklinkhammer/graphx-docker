@@ -139,5 +139,12 @@ export function createMetricStore(topology) {
         reference.edgeId === event.edgeId).slice(0, 4),
     }))
   }
-  return { nodes, edges, recent, captureReferences, ingest, recordCapture, reset, recentWithCapture }
+  function resetNode(nodeId) {
+    const fresh = createMetricStore(topology)
+    Object.assign(nodes[nodeId], fresh.nodes[nodeId])
+    for (const edge of topology.edges)
+      if (edge.source === nodeId || edge.target === nodeId || edge.from === nodeId || edge.to === nodeId)
+        Object.assign(edges[edge.id], fresh.edges[edge.id])
+  }
+  return { resetNode, nodes, edges, recent, captureReferences, ingest, recordCapture, reset, recentWithCapture }
 }

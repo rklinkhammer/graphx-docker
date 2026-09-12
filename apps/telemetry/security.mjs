@@ -12,6 +12,7 @@ const CONNECTION_STATES = new Set([
 ])
 const BACKPRESSURE_STATES = new Set(['blocked', 'rejected'])
 const TELEMETRY_KEYS = new Set([
+  'graphId', 'instanceId', 'executionId',
   'kind', 'event', 'nodeId', 'edgeId', 'timestamp', 'sequence', 'wireVersion', 'type',
   'payloadBytes', 'wireBytes', 'latencyUs', 'cpuPercent', 'message', 'messageId',
   'parentMessageId', 'traceId', 'spanId', 'captureFile', 'direction', 'capturePacket',
@@ -23,9 +24,11 @@ const NETWORK_PACKET_KEYS = new Set([...TELEMETRY_KEYS,
 const PACKET_ONLY_KEYS = ['protocol', 'sourceAddress', 'destinationAddress', 'sourcePort',
   'destinationPort', 'observationSource']
 const CONTROL_ACK_KEYS = new Set([
+  'graphId', 'instanceId', 'executionId',
   'kind', 'nodeId', 'action', 'accepted', 'commandId', 'state', 'error',
 ])
 const CAPTURE_KEYS = new Set([
+  'graphId', 'instanceId', 'executionId',
   'kind', 'event', 'nodeId', 'edgeId', 'timestamp', 'sequence', 'wireVersion', 'type',
   'messageId', 'parentMessageId', 'traceId', 'direction', 'captureFile', 'capturePacket',
   'captureOffset',

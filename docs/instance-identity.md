@@ -4,8 +4,9 @@ This contract defines instance-aware configuration and the requirements for runt
 isolation. The authoritative loader and normalized JSON support optional
 `deployment.instance_id` and typed SDR source settings. Configuration consumers
 can select a node against an explicit matching instance identity. The OVS
-lifecycle resolves and owns resources by instance. Execution IDs and application
-runtime enforcement are not implemented yet.
+lifecycle resolves and owns resources by instance. Runtime registration, telemetry,
+and control enforce graph/instance/node/execution identity for explicit instances.
+See [runtime activation](runtime-lifecycle.md#instance-aware-activation).
 Configuration and envelope wire versions remain 2. See
 [configuration](configuration.md#instance-selection-and-sdr-source-settings) for
 supported fields and APIs.
@@ -146,8 +147,9 @@ deleted merely because an instance references them.
 ## Implementation acceptance cases
 
 Configuration selection and infrastructure isolation have executable coverage,
-including interruption and recovery. Application restart, authorization, and live
-observation cases below remain runtime requirements. Extend the nearest
+including interruption and recovery. Runtime coverage includes collector restart,
+node execution replacement, stale targets, acknowledgements, and observations.
+The full two-instance SDR deployment proof remains separate from these tests. Extend the nearest
 configuration, ownership, control, and SDR tests.
 
 | Case | Expected result |
@@ -218,10 +220,14 @@ traffic with identical addresses, isolated route changes and shutdown, interrupt
 create/rollback/recovery, duplicate starts, and unowned/replaced bridge refusal.
 TAP lifecycle tests still do not establish QEMU guest execution.
 
-Application runtime policy remains keyed by configured node ID. Current example
-launchers still contain fixed runtime directories, credentials, sockets,
-shared-memory names, QMP paths, and published ports. Their migration and execution
-identity enforcement remain separate from the OVS ownership implementation.
+Explicit-instance native processes and SDR adapters require a registered execution
+and selected node. The collector binds observation, control, history, and capture
+state to the instance; runtime commands carry the selected execution. The [shared Compose launcher](compose-runtime.md) implements credential provisioning,
+instance projects/storage, one-use execution gates, and checked shutdown for its
+supported container profiles. Specialized example launchers still contain fixed
+runtime directories, credentials, sockets,
+shared-memory names, QMP paths, and published ports. Their migration and process
+supervision remain separate from registration and runtime identity enforcement.
 The resolved Compose project must be used when starting containers for an explicit
 instance: infrastructure lookup refuses containers from a different project.
 Changing only an instance ID does not make the existing full demo launchers safe

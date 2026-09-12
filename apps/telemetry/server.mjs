@@ -2,7 +2,7 @@ import dgram from 'node:dgram'
 import { readFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { createServer as createSecureServer } from 'node:https'
-import { join, normalize, resolve } from 'node:path'
+import { basename, dirname, join, normalize, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { WebSocketServer } from 'ws'
 import { loadTelemetryConfiguration } from './normalized-config.mjs'
@@ -54,7 +54,11 @@ const configuredOtlp = otlpConfig(config.observability?.otlp)
 const otlpExporter = new OtlpHttpExporter(configuredOtlp)
 const configuredHistory = historyConfig(config.observability?.history, process.env,
   loadedConfiguration.baseDirectory)
-const historyStore = new HistoryStore(configuredHistory, graph.id)
+if (config.deployment?.resource_key)
+  configuredHistory.databaseFile = join(dirname(configuredHistory.databaseFile),
+    config.deployment.resource_key, basename(configuredHistory.databaseFile))
+const historyStore = new HistoryStore(configuredHistory, config.deployment?.instance_id ?
+  JSON.stringify([graph.id, config.deployment.instance_id]) : graph.id)
 const configuredControl = controlConfig(config.observability?.control)
 const captureConfig = { ...configuredCapture,
   enabled: deploymentBoolean('GRAPHX_CAPTURE_ENABLED', configuredCapture.enabled),
@@ -68,7 +72,8 @@ if (captureConfig.enabled && !captureConfig.provider)
 if (captureConfig.enabled && captureConfig.provider === 'pcapng' &&
     !process.env.GRAPHX_CAPTURE_DIR && !configuredCapture.directory)
   throw new Error('GRAPHX_CAPTURE_DIR is required for the pcapng provider')
-const captureDirectory = resolve(process.env.GRAPHX_CAPTURE_DIR || captureConfig.directory || 'captures')
+const captureDirectory = resolve(process.env.GRAPHX_CAPTURE_DIR || captureConfig.directory || 'captures',
+  config.deployment?.resource_key || '.')
 const captureCatalogMaxFiles = captureInteger('GRAPHX_CAPTURE_CATALOG_MAX_FILES', undefined,
   128, 1, 1024)
 const captureCatalogMaxEntries = captureInteger('GRAPHX_CAPTURE_CATALOG_MAX_ENTRIES', undefined,
@@ -96,9 +101,10 @@ if (!tlsCertificateFile && !isLoopback(httpBind) && process.env.GRAPHX_ALLOW_INS
   throw new Error('plaintext telemetry may bind only to loopback; use TLS or explicitly set GRAPHX_ALLOW_INSECURE_REMOTE=true')
 const allowedOrigins = new Set((process.env.GRAPHX_ALLOWED_ORIGINS || '').split(',').map(v => v.trim()).filter(Boolean))
 const topology = createTopology(config)
-const runtimeEvidence = createRuntimeEvidence({ qemuEvidenceFile, networkDiagnosticFile, topology })
+const runtimeEvidence = createRuntimeEvidence({ qemuEvidenceFile, networkDiagnosticFile, topology,
+  instanceId: config.deployment?.instance_id })
 let udp
-const collector = createTelemetryCollector({ graph, topology, websocketPath, heartbeatTimeout,
+const collector = createTelemetryCollector({ instanceId: config.deployment?.instance_id, graph, topology, websocketPath, heartbeatTimeout,
   configuredOtlp, otlpExporter, configuredHistory, historyStore, configuredControl, sloEvaluator,
   captureConfig, captureDirectory, captureCatalogMaxFiles, captureCatalogMaxEntries,
   packetHistoryUrl, ...runtimeEvidence, runtimeIdentityFile, controlPolicyFile,

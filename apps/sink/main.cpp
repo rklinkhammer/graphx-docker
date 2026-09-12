@@ -4,11 +4,12 @@ int main() {
   demo::install_signal_handlers();
   try {
     const auto config = graphx::load_config(demo::config_path());
-    demo::RuntimeTraceSink trace("sink", config);
-    [[maybe_unused]] const auto& node = config.node("sink");
+    const auto node_id = demo::selected_node(config, "sink");
+    demo::RuntimeTraceSink trace(node_id, config);
+    [[maybe_unused]] const auto& node = config.node(node_id);
     graphx::TransportFactory transports;
-    auto input =
-        transports.create(config.edge("transformed"), graphx::ConnectionMode::listen, &trace);
+    auto input = transports.create(demo::selected_edge(config, node_id, false, "transformed"),
+                                   graphx::ConnectionMode::listen, &trace);
     const auto maximum = std::stoull(demo::env("GRAPHX_MAX_MESSAGES", "0"));
     std::uint64_t processed{};
     while (!demo::stopping() && (maximum == 0 || processed < maximum)) {
@@ -22,7 +23,7 @@ int main() {
       const auto processing_start = std::chrono::steady_clock::now();
       std::cout << "sink seq=" << envelope->sequence << " value=" << envelope->payload
                 << " trace=" << envelope->trace_id << std::endl;
-      trace.on_processing("sink", *envelope, std::chrono::steady_clock::now() - processing_start,
+      trace.on_processing(node_id, *envelope, std::chrono::steady_clock::now() - processing_start,
                           true);
       ++processed;
     }

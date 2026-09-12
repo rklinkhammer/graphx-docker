@@ -19,6 +19,8 @@ export function createTelemetryCollector(options) {
     qemuEvidence, networkDiagnosticEvidence, runtimeIdentityFile, controlPolicyFile,
     previousCredentialFile, controlToken, observationToken, telemetrySecret, allowedOrigins,
     tlsEnabled, sendDatagram } = options
+  const scope = options.instanceId ? { graphId: graph.id, instanceId: options.instanceId } : null
+  const historyKey = scope ? JSON.stringify([scope.graphId, scope.instanceId]) : graph.id
   const rateWindowSeconds = RATE_WINDOW_SECONDS
   const latencyBoundsUs = LATENCY_BOUNDS_US
   let publisher = () => {}
@@ -33,12 +35,13 @@ const edgeIds = new Set(Object.keys(edges))
 const controllableNodeIds = new Set(graph.nodes.filter(node =>
   node.control === 'origin' ||
   ((node.control === 'graphx' || node.control == null) && node.kind === 'source')).map(node => node.id))
-const runtimeIdentities = new RuntimeIdentityStore({ manifestFile: runtimeIdentityFile, nodeIds })
+const runtimeIdentities = new RuntimeIdentityStore({ manifestFile: runtimeIdentityFile, nodeIds, scope })
 const controlAuthorizer = new ControlAuthorizer({ policyFile: controlPolicyFile,
-  staticToken: controlToken, nodeIds })
+  staticToken: controlToken, nodeIds, scope })
 const previousCredentials = new PreviousCredentialStore({ manifestFile: previousCredentialFile })
 const credentialRegistry = new CredentialRegistry({ observationToken, telemetrySecret,
   controlAuthorizer, runtimeIdentities, previousCredentials })
+let reconcileExecutions = () => {}
 let reportedCredentialError = null
 function refreshCredentials(force = false) {
   const valid = credentialRegistry.reload(force)
@@ -46,21 +49,35 @@ function refreshCredentials(force = false) {
     if (credentialRegistry.lastError) {
       controlEndpoints.clear()
       controlStates.clear()
+      if (scope) for (const id of nodeIds) metricStore.resetNode(id)
       console.error(`GraphX credential configuration invalid: ${credentialRegistry.lastError}`)
     } else if (reportedCredentialError)
       console.log('GraphX credential configuration recovered')
     reportedCredentialError = credentialRegistry.lastError
   }
+  if (valid) reconcileExecutions()
   return valid
 }
 refreshCredentials(true)
 const controlPlane = new ControlPlane(configuredControl, controllableNodeIds, {
+  scope,
   auditSink: (entry, recordedAt) => {
     if (configuredHistory.enabled &&
-        !historyStore.enqueue(controlAuditHistoryRecord(entry, graph.id, recordedAt)))
+        !historyStore.enqueue(controlAuditHistoryRecord(entry, historyKey, recordedAt)))
       throw new Error('control audit history queue rejected record')
   },
 })
+reconcileExecutions = () => {
+  if (!scope) return
+  for (const [id, node] of Object.entries(nodes)) {
+    if (!node.executionId || node.executionId === runtimeIdentities.executions.get(id)) continue
+    controlPlane.retireExecution(id, node.executionId)
+    controlEndpoints.delete(id)
+    controlStates.delete(id)
+    metricStore.resetNode(id)
+    delete nodes[id].executionId
+  }
+}
 let serviceState = { httpReady: false, udpReady: false, shuttingDown: false }
 let slo = sloEvaluator.snapshot()
 let captureCatalogCache = { expiresAt: 0, catalog: null }
@@ -91,8 +108,10 @@ function snapshot() {
   const liveEndpoints = [...controlEndpoints.values()].filter(endpoint =>
     timestamp - endpoint.lastSeen <= heartbeatTimeout)
   const catalog = captureCatalog()
-  const evidence = qemuEvidence()
-  const diagnosticEvidence = networkDiagnosticEvidence()
+  const candidateEvidence = qemuEvidence()
+  const evidence = !scope || (runtimeIdentities.matches(candidateEvidence) && candidateEvidence?.nodeId) ? candidateEvidence : null
+  const candidateDiagnostic = networkDiagnosticEvidence()
+  const diagnosticEvidence = !scope || runtimeIdentities.matches(candidateDiagnostic) ? candidateDiagnostic : null
   const nodeViews = { ...nodes }
   const qemuNode = topology.nodes.find(node => node.runtime === 'qemu')
   if (qemuNode && evidence) nodeViews[qemuNode.id] = { ...nodeViews[qemuNode.id],
@@ -103,7 +122,7 @@ function snapshot() {
       if (edgeViews[edgeId]) edgeViews[edgeId] = { ...edgeViews[edgeId],
         connection: flow.state, diagnosticEvidence: flow.evidence,
         diagnosticLayer: diagnosticLayerByState.get(flow.state) }
-  return { kind: 'snapshot', graph: graph.id,
+  return { kind: 'snapshot', graph: graph.id, ...(scope || {}),
     topology: topologyView(topology, evidence, diagnosticEvidence, diagnosticLayerByState),
     telemetry: { websocket: websocketPath, heartbeatTimeoutMs: heartbeatTimeout,
       rateWindowSeconds, latencyBoundsUs }, state,
@@ -176,7 +195,9 @@ function deliverControl(command) {
   for (const nodeId of command.targetNodes) {
     const endpoint = endpoints.get(nodeId)
     if (!endpoint) continue
-    const payload = { kind: 'control', action: command.action, commandId: command.id,
+    if (scope && (endpoint.executionId !== command.targetExecutions?.[nodeId] ||
+        runtimeIdentities.executions.get(nodeId) !== endpoint.executionId)) continue
+    const payload = { ...(scope || {}), ...(scope ? { executionId: endpoint.executionId } : {}), kind: 'control', action: command.action, commandId: command.id,
       targetNode: nodeId, issuedAt: command.issuedAt, expiresAt: command.expiresAt }
     const targetSecret = runtimeIdentities.available ? runtimeIdentities.secretFor(nodeId, false) : telemetrySecret
     if (!targetSecret) continue
@@ -203,7 +224,7 @@ function authorizeControl(request, response, action, targets) {
   return principal
 }
 
-function issueControl(request, response, { action, targetNodes, reason = null }) {
+function issueControl(request, response, { action, targetNodes, reason = null, graphId, instanceId, targetExecutions = null }) {
   if (!['pause', 'resume', 'reset'].includes(action))
     return json(response, 400, { accepted: false, action, error: 'unknown control action' })
   if (!refreshCredentials() || !controlAuthorizer.available ||
@@ -219,7 +240,13 @@ function issueControl(request, response, { action, targetNodes, reason = null })
     return json(response, 400, { accepted: false, action,
       error: 'control reason must not contain a configured credential' })
   try {
+    if (scope && (graphId !== scope.graphId || instanceId !== scope.instanceId))
+      return json(response, 409, { accepted: false, error: 'control instance scope mismatch' })
+    if (scope && action !== 'reset' && targets.some(node =>
+        targetExecutions?.[node] !== runtimeIdentities.executions.get(node) || !targetExecutions?.[node]))
+      return json(response, 409, { accepted: false, error: 'target execution changed' })
     const result = controlPlane.issue({ action, targetNodes: targets, actor: principal.id, reason,
+      targetExecutions,
       idempotencyKey: request.headers['idempotency-key'] || null }, deliverControl)
     if (result.command.status === 'accepted')
       state = { ...state, paused: action === 'pause' ? true : action === 'resume' ? false : state.paused,
@@ -258,7 +285,7 @@ function readControlBody(request) {
       try {
         const parsed = JSON.parse(Buffer.concat(chunks).toString('utf8'))
         if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) ||
-            Object.keys(parsed).some(key => !['action', 'targetNodes', 'reason'].includes(key)))
+            Object.keys(parsed).some(key => !['action', 'targetNodes', 'reason', 'graphId', 'instanceId', 'targetExecutions'].includes(key)))
           throw new Error('control request has unknown or invalid properties')
         settled = true
         resolveBody(parsed)
@@ -438,7 +465,14 @@ function prometheus() {
     lines.push(`graphx_edge_latency_seconds_count{${label}} ${edge.latencyCount}`)
     lines.push(`graphx_edge_connected{${label}} ${edge.connection === 'connected' ? 1 : 0}`)
   }
-  return `${lines.join('\n')}\n`
+  const labeled = scope ? lines.map(line => {
+    if (line.startsWith('#')) return line
+    const labels = `graph="${scope.graphId}",instance="${scope.instanceId}"`
+    const space = line.indexOf(' ')
+    return line.includes('{') ? line.replace('{', `{${labels},`) :
+      `${line.slice(0, space)}{${labels}}${line.slice(space)}`
+  }) : lines
+  return `${labeled.join('\n')}\n`
 }
 
   const replayCache = new ReplayCache()
@@ -453,17 +487,35 @@ function prometheus() {
       if (runtimeIdentityFile && !nodeSecret) return
       const verifiedEvent = verifyEnvelope(envelope, nodeSecret, replayCache)
       if (!validateTelemetryEvent(verifiedEvent, nodeIds, edgeIds)) return
-      if (!refreshCredentials(true)) return
+      if (!refreshCredentials(true) || !runtimeIdentities.matches(verifiedEvent)) return
+      if (scope && verifiedEvent.edgeId) {
+        const edge = graph.edges.find(candidate => candidate.id === verifiedEvent.edgeId)
+        if (!edge || (edge.from.node !== claimedNode && edge.to.node !== claimedNode)) return
+      }
+      if (scope && nodeSecret !== runtimeIdentities.secretFor(claimedNode, false)) return
       const event = sanitizeTelemetryEvent(sanitizeControlAcknowledgement(verifiedEvent),
         credentialRegistry.credentialValues())
       const receivedAt = Date.now()
+      if (scope) {
+        const prior = controlEndpoints.get(event.nodeId)
+        if (prior && prior.executionId === event.executionId &&
+            (prior.address !== remote.address || prior.port !== remote.port) &&
+            receivedAt - prior.lastSeen <= heartbeatTimeout) return
+        if (nodes[event.nodeId].executionId && nodes[event.nodeId].executionId !== event.executionId) {
+          controlPlane.retireExecution(event.nodeId, nodes[event.nodeId].executionId)
+          controlEndpoints.delete(event.nodeId)
+          controlStates.delete(event.nodeId)
+          metricStore.resetNode(event.nodeId)
+        }
+        Object.assign(nodes[event.nodeId], scope, { executionId: event.executionId })
+      }
       if (event.kind === 'control_ack') {
         const endpoint = controlEndpoints.get(event.nodeId)
         if (!endpoint || endpoint.address !== remote.address || endpoint.port !== remote.port ||
             receivedAt - endpoint.lastSeen > heartbeatTimeout) return
         if (controlPlane.acknowledge(event, receivedAt)) {
           if (configuredHistory.enabled)
-            historyStore.enqueue(telemetryHistoryRecord(event, graph.id, receivedAt))
+            historyStore.enqueue(telemetryHistoryRecord(event, historyKey, receivedAt))
           const command = controlPlane.get(event.commandId)
           if (event.accepted && event.state) controlStates.set(event.nodeId, event.state)
           if (command?.status === 'accepted') {
@@ -477,7 +529,7 @@ function prometheus() {
         return
       }
       if (configuredHistory.enabled && event.kind !== 'network_packet')
-        historyStore.enqueue(telemetryHistoryRecord(event, graph.id, receivedAt))
+        historyStore.enqueue(telemetryHistoryRecord(event, historyKey, receivedAt))
       if (configuredOtlp.enabled && event.kind === 'trace')
         otlpExporter.enqueue(configuredOtlp.tracesPath, otlpTraceRequest(event))
       if (event.kind === 'capture' && event.event === 'frame') {
@@ -487,7 +539,7 @@ function prometheus() {
       }
       if (event.kind === 'trace' && nodes[event.nodeId] && controllableNodeIds.has(event.nodeId))
         controlEndpoints.set(event.nodeId, { address: remote.address, port: remote.port,
-          lastSeen: receivedAt })
+          lastSeen: receivedAt, ...(scope ? { executionId: event.executionId } : {}) })
       metricStore.ingest(event, receivedAt)
       broadcast()
     } catch { /* Telemetry is best-effort; malformed datagrams are ignored. */ }
@@ -496,6 +548,7 @@ function prometheus() {
   let timers = []
   function start() {
     const healthTimer = setInterval(() => {
+      refreshCredentials(true)
       const now = Date.now()
       let changed = false
       for (const node of Object.values(nodes)) {
@@ -515,14 +568,19 @@ function prometheus() {
       const readiness = graphReadiness(nodes, edges, timestamp, heartbeatTimeout)
       slo = sloEvaluator.observe(readiness.ready, edges, timestamp)
       if (configuredHistory.enabled)
-        historyStore.enqueue(sloHistoryRecord(slo, readiness, graph.id, timestamp))
+        historyStore.enqueue(sloHistoryRecord(slo, readiness, historyKey, timestamp))
     }, 1000).unref()
     const otlpTimer = setInterval(() => {
       if (configuredOtlp.enabled) {
         const readiness = graphReadiness(nodes, edges, Date.now(), heartbeatTimeout)
-        otlpExporter.enqueue(configuredOtlp.metricsPath, otlpMetricsRequest(
+        const request = otlpMetricsRequest(
           Object.fromEntries(Object.entries(edges).map(([id, edge]) => [id, edgeView(edge)])),
-          nodes, slo, readiness.ready))
+          nodes, slo, readiness.ready)
+        if (scope) for (const resource of request.resourceMetrics)
+          resource.resource.attributes.push(
+            { key: 'graphx.graph.id', value: { stringValue: scope.graphId } },
+            { key: 'graphx.instance.id', value: { stringValue: scope.instanceId } })
+        otlpExporter.enqueue(configuredOtlp.metricsPath, request)
       }
     }, configuredOtlp.exportIntervalMs).unref()
     timers = [healthTimer, sloTimer, otlpTimer, networkDiagnosticTimer].filter(Boolean)
@@ -533,7 +591,7 @@ function prometheus() {
     otlpExporter.close()
   }
   function setPublisher(nextPublisher) { publisher = nextPublisher }
-  return { nodes, edges, nodeIds, edgeIds, serviceState, credentialRegistry, controlPlane,
+  return { scope, nodes, edges, nodeIds, edgeIds, serviceState, credentialRegistry, controlPlane,
     securityHeaders, observationToken, heartbeatTimeout,
     snapshot, prometheus, json, authorized, controlPrincipal, issueControl, readControlBody,
     getSlo: () => slo,

@@ -7,6 +7,7 @@ x-node-environment: &node-environment
   GRAPHX_TELEMETRY_SHARED_SECRET: ${GRAPHX_TELEMETRY_SHARED_SECRET:-}
 
 x-node-service: &node-service
+  extends: {file: infrastructure/compose/services.yaml, service: native}
   build:
     context: .
     secrets: [graphx_ca, graphx_cert_installer]
@@ -16,37 +17,22 @@ x-node-service: &node-service
     - captures:/captures
     - ${GRAPHX_CONFIG_FILE:-./graphx.yaml}:/etc/graphx/graphx.yaml:ro
   networks: [graphx]
-  read_only: true
-  tmpfs: [/tmp]
-  cap_drop: [ALL]
-  security_opt: [no-new-privileges:true]
   pids_limit: 128
-  init: true
 
 services:
   normalize-config:
+    extends: {file: infrastructure/compose/services.yaml, service: normalize}
     build:
       context: .
       secrets: [graphx_ca, graphx_cert_installer]
       args: { GRAPHX_BUILD_TRUST_FINGERPRINT: "${GRAPHX_BUILD_TRUST_FINGERPRINT:-graphx-trust-v1-none}" }
     image: graphx-demo:latest
     user: "0:0"
-    entrypoint: ["/bin/sh", "-ec"]
-    command:
-      - >-
-        umask 022;
-        /usr/local/bin/graphx config normalize /config/graphx.yaml > /run/graphx/normalized.json.tmp;
-        chmod 0444 /run/graphx/normalized.json.tmp;
-        mv /run/graphx/normalized.json.tmp /run/graphx/normalized.json
     environment:
       GRAPHX_OVERRIDES: ${GRAPHX_OVERRIDES:-}
     volumes:
       - ${GRAPHX_CONFIG_FILE:-./graphx.yaml}:/config/graphx.yaml:ro
       - normalized-config:/run/graphx
-    read_only: true
-    tmpfs: [/tmp]
-    cap_drop: [ALL]
-    security_opt: [no-new-privileges:true]
     pids_limit: 32
     restart: "no"
   sink:
@@ -69,6 +55,7 @@ services:
       GRAPHX_INTERVAL_MS: "500"
     depends_on: [transform, telemetry]
   telemetry:
+    extends: {file: infrastructure/compose/services.yaml, service: telemetry}
     build:
       context: .
       dockerfile: docker/telemetry.Dockerfile
@@ -107,12 +94,7 @@ services:
     depends_on:
       normalize-config: { condition: service_completed_successfully }
     networks: [graphx]
-    read_only: true
-    tmpfs: [/tmp]
-    cap_drop: [ALL]
-    security_opt: [no-new-privileges:true]
     pids_limit: 128
-    init: true
 
 networks:
   graphx:

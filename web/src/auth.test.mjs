@@ -48,3 +48,13 @@ test('command status requests retain the in-memory control bearer', () => {
     options: { method: 'GET', headers: { Authorization: 'Bearer control-token' } },
   })
 })
+
+test('instance control binds to the executions shown in the current snapshot', () => {
+  const executionId = 'a'.repeat(32)
+  const request = controlCommandRequest('pause', 'operator', null, null, 'request-2', {
+    graphId: 'graph', instanceId: 'lab-a', control: { controllableNodes: ['source'] },
+    nodes: { source: { executionId } },
+  })
+  assert.deepEqual(JSON.parse(request.options.body), { action: 'pause', graphId: 'graph',
+    instanceId: 'lab-a', targetNodes: ['source'], targetExecutions: { source: executionId } })
+})

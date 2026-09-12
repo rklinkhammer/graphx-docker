@@ -485,7 +485,16 @@ void CompositeTraceSink::on_heartbeat(std::string_view node_id, double cpu_perce
   for (auto* sink : sinks_) sink->on_heartbeat(node_id, cpu_percent);
 }
 
+namespace {
+std::string execution_fields(const ExecutionIdentity& identity) {
+  if (identity.instance_id.empty()) return {};
+  return ",\"graphId\":\"" + identity.graph_id + "\",\"instanceId\":\"" + identity.instance_id +
+         "\",\"executionId\":\"" + identity.execution_id + "\"";
+}
+}  // namespace
+
 struct UdpJsonTraceSink::Impl {
+  ExecutionIdentity identity;
   std::string node_id;
   std::string shared_secret;
   int socket{-1};
@@ -495,8 +504,15 @@ struct UdpJsonTraceSink::Impl {
 };
 
 UdpJsonTraceSink::UdpJsonTraceSink(std::string node_id, std::string host, std::uint16_t port,
-                                   std::string shared_secret)
+                                   std::string shared_secret, ExecutionIdentity identity)
     : impl_(std::make_unique<Impl>()) {
+  if (!identity.instance_id.empty() || !identity.graph_id.empty() ||
+      !identity.execution_id.empty()) {
+    validate_execution_identity(identity);
+    if (shared_secret.size() < 32)
+      throw std::invalid_argument("instance telemetry requires a node credential");
+  }
+  impl_->identity = std::move(identity);
   impl_->node_id = std::move(node_id);
   impl_->shared_secret = std::move(shared_secret);
   addrinfo hints{};
@@ -528,6 +544,11 @@ UdpJsonTraceSink::UdpJsonTraceSink(std::string node_id, std::string host, std::u
         const std::string_view command(buffer.data(), static_cast<std::size_t>(count));
         if (!authenticate_command(command, state->shared_secret, nonces)) continue;
         const auto payload = command_payload(command);
+        if (!state->identity.instance_id.empty() &&
+            (json_string_field(payload, "graphId", 64) != state->identity.graph_id ||
+             json_string_field(payload, "instanceId", 64) != state->identity.instance_id ||
+             json_string_field(payload, "executionId", 32) != state->identity.execution_id))
+          continue;
         const auto kind = json_string_field(payload, "kind", 16);
         const auto command_id = json_string_field(payload, "commandId", 36);
         const auto target_node = json_string_field(payload, "targetNode", 64);
@@ -553,7 +574,8 @@ UdpJsonTraceSink::UdpJsonTraceSink(std::string node_id, std::string host, std::u
               std::string{"{\"kind\":\"control_ack\",\"nodeId\":\""} + escape_json(state->node_id) +
               "\",\"action\":\"" + std::string(action) + "\",\"commandId\":\"" +
               std::string(command_id) + "\",\"accepted\":true,\"state\":\"" +
-              (state->paused.load(std::memory_order_relaxed) ? "paused" : "running") + "\"}";
+              (state->paused.load(std::memory_order_relaxed) ? "paused" : "running") + "\"" +
+              execution_fields(state->identity) + "}";
           const auto acknowledgement =
               signed_datagram(acknowledgement_payload, state->shared_secret);
           ::send(state->socket, acknowledgement.data(), acknowledgement.size(), 0);
@@ -626,7 +648,8 @@ void UdpJsonTraceSink::on_capture(std::string_view edge_id, const Envelope& enve
        << "\",\"parentMessageId\":\"" << escape_json(envelope.parent_message_id)
        << "\",\"traceId\":\"" << escape_json(envelope.trace_id) << "\",\"direction\":\""
        << escape_json(direction) << "\",\"captureFile\":\"" << escape_json(file)
-       << "\",\"capturePacket\":" << packet_index << ",\"captureOffset\":" << file_offset << '}';
+       << "\",\"capturePacket\":" << packet_index << ",\"captureOffset\":" << file_offset
+       << execution_fields(impl_->identity) << '}';
   const auto value = signed_datagram(json.str(), impl_->shared_secret);
   ::send(impl_->socket, value.data(), value.size(), 0);
 }
@@ -642,6 +665,7 @@ void UdpJsonTraceSink::emit(std::string_view event, std::string_view edge_id,
   std::ostringstream json;
   json << "{\"kind\":\"trace\",\"event\":\"" << event << "\",\"nodeId\":\""
        << escape_json(impl_->node_id) << '"';
+  json << execution_fields(impl_->identity);
   if (!edge_id.empty()) json << ",\"edgeId\":\"" << escape_json(edge_id) << '"';
   json << ",\"timestamp\":" << now << ",\"wireBytes\":" << wire_bytes << ",\"latencyUs\":"
        << std::chrono::duration_cast<std::chrono::microseconds>(latency).count();
@@ -661,6 +685,7 @@ void UdpJsonTraceSink::emit(std::string_view event, std::string_view edge_id,
 }
 
 struct OtlpHttpTraceSink::Impl {
+  ExecutionIdentity identity;
   std::string node_id;
   std::string host;
   std::uint16_t port{};
@@ -696,9 +721,12 @@ struct OtlpHttpTraceSink::Impl {
 };
 
 OtlpHttpTraceSink::OtlpHttpTraceSink(std::string node_id, std::string host, std::uint16_t port,
-                                     std::string path, std::size_t queue_capacity)
+                                     std::string path, std::size_t queue_capacity,
+                                     ExecutionIdentity identity)
     : impl_(std::make_unique<Impl>()) {
   impl_->node_id = std::move(node_id);
+  if (!identity.instance_id.empty()) validate_execution_identity(identity);
+  impl_->identity = std::move(identity);
   impl_->host = std::move(host);
   impl_->port = port;
   impl_->path = std::move(path);
@@ -753,8 +781,15 @@ void OtlpHttpTraceSink::enqueue_span(std::string_view name, std::string_view sub
   std::ostringstream json;
   json << "{\"resourceSpans\":[{\"resource\":{\"attributes\":[{\"key\":\"service.name\","
           "\"value\":{\"stringValue\":\"graphx-"
-       << escape_json(impl_->node_id)
-       << "\"}}]},\"scopeSpans\":[{\"scope\":{\"name\":\"graphx.runtime\"},\"spans\":[{"
+       << escape_json(impl_->node_id) << "\"}}";
+  if (!impl_->identity.instance_id.empty()) {
+    for (const auto& [key, value] :
+         {std::pair{"graphx.graph.id", impl_->identity.graph_id},
+          std::pair{"graphx.instance.id", impl_->identity.instance_id},
+          std::pair{"graphx.execution.id", impl_->identity.execution_id}})
+      json << ",{\"key\":\"" << key << "\",\"value\":{\"stringValue\":\"" << value << "\"}}";
+  }
+  json << "]},\"scopeSpans\":[{\"scope\":{\"name\":\"graphx.runtime\"},\"spans\":[{"
           "\"traceId\":\""
        << trace_id << "\",\"spanId\":\"" << span_id << "\",\"name\":\"" << name << ' '
        << escape_json(subject) << "\",\"startTimeUnixNano\":\"" << start

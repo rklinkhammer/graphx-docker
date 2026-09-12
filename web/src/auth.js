@@ -21,8 +21,16 @@ export function controlRequest(action, token = '') {
 }
 
 export function controlCommandRequest(action, token = '', targetNodes = null, reason = null,
-  idempotencyKey = crypto.randomUUID()) {
+  idempotencyKey = crypto.randomUUID(), snapshot = null) {
   const body = { action }
+  if (snapshot?.instanceId) {
+    body.graphId = snapshot.graphId
+    body.instanceId = snapshot.instanceId
+    if (action !== 'reset') {
+      targetNodes ??= snapshot.control.controllableNodes
+      body.targetExecutions = Object.fromEntries(targetNodes.map(id => [id, snapshot.nodes[id]?.executionId]))
+    }
+  }
   if (targetNodes != null) body.targetNodes = targetNodes
   if (reason != null) body.reason = reason
   return { url: '/api/control/commands', options: { method: 'POST', headers: {

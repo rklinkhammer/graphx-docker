@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto'
-import { readFileSync, statSync } from 'node:fs'
+import { closeSync, constants, fstatSync, openSync, readSync, readFileSync, statSync } from 'node:fs'
 import { dirname, isAbsolute, resolve } from 'node:path'
 import { sanitizeControlAcknowledgement, tokenMatches } from './security.mjs'
 
@@ -57,23 +57,36 @@ function readBounded(path, maximum, name) {
 }
 
 function readProtectedBounded(path, maximum, name) {
-  const metadata = statSync(path)
-  if (!metadata.isFile()) throw new Error(`${name} must be a regular file`)
-  if ((metadata.mode & 0o022) !== 0) throw new Error(`${name} must not be group- or world-writable`)
-  if (metadata.size > maximum) throw new Error(`${name} exceeds ${maximum} bytes`)
-  return readFileSync(path, 'utf8')
+  const fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK)
+  try {
+    const metadata = fstatSync(fd)
+    if (!metadata.isFile()) throw new Error(`${name} must be a regular file`)
+    if ((metadata.mode & 0o022) !== 0) throw new Error(`${name} must not be group- or world-writable`)
+    if (metadata.size > maximum) throw new Error(`${name} exceeds ${maximum} bytes`)
+    const bytes = Buffer.alloc(maximum + 1)
+    let size = 0
+    while (size < bytes.length) {
+      const count = readSync(fd, bytes, size, bytes.length - size, null)
+      if (!count) break
+      size += count
+    }
+    if (size > maximum) throw new Error(`${name} exceeds ${maximum} bytes`)
+    return bytes.subarray(0, size).toString('utf8')
+  } finally { closeSync(fd) }
 }
 
-function loadPolicy(path, nodeIds) {
+function loadPolicy(path, nodeIds, scope = null) {
   const base = dirname(path)
   let value
-  try { value = JSON.parse(readBounded(path, MAX_POLICY_BYTES, 'control policy')) }
+  try { value = JSON.parse((scope ? readProtectedBounded : readBounded)(path, MAX_POLICY_BYTES, 'control policy')) }
   catch (error) { throw new Error(`invalid control policy: ${error.message}`) }
-  if (!value || typeof value !== 'object' || Array.isArray(value) || value.version !== 1 ||
+  if (!value || typeof value !== 'object' || Array.isArray(value) || value.version !== (scope ? 2 : 1) ||
       !Array.isArray(value.principals) || value.principals.length < 1 ||
       value.principals.length > MAX_PRINCIPALS ||
-      Object.keys(value).some(key => !['version', 'principals'].includes(key)))
+      Object.keys(value).some(key => !['version', 'principals', ...(scope ? ['graph_id', 'instance_id'] : [])].includes(key)))
     throw new Error('control policy must be version 1 with 1-64 principals')
+  if (scope && (value.graph_id !== scope.graphId || value.instance_id !== scope.instanceId))
+    throw new Error('control policy instance scope mismatch')
   const ids = new Set()
   const tokenDigests = new Set()
   return value.principals.map((entry, index) => {
@@ -86,7 +99,7 @@ function loadPolicy(path, nodeIds) {
     if (typeof entry.token_file !== 'string' || !entry.token_file || entry.token_file.length > 1024 ||
         entry.token_file.includes('\0')) throw new Error(`control principal '${id}' token_file is invalid`)
     const tokenPath = isAbsolute(entry.token_file) ? entry.token_file : resolve(base, entry.token_file)
-    const token = readBounded(tokenPath, 4096, `control principal '${id}' token`).replace(/\r?\n$/, '')
+    const token = (scope ? readProtectedBounded : readBounded)(tokenPath, 4096, `control principal '${id}' token`).replace(/\r?\n$/, '')
     if (Buffer.byteLength(token) < 32) throw new Error(`control principal '${id}' token is too short`)
     const digest = Buffer.from(token).toString('base64')
     if (tokenDigests.has(digest)) throw new Error('control principals must not share a token')
@@ -102,7 +115,9 @@ function loadPolicy(path, nodeIds) {
 }
 
 export class ControlAuthorizer {
-  constructor({ policyFile = '', staticToken = '', nodeIds = new Set(), now = Date.now } = {}) {
+  constructor({ policyFile = '', staticToken = '', nodeIds = new Set(), now = Date.now, scope = null } = {}) {
+    this.scope = scope
+    if (scope && staticToken) throw new Error('instance control requires a scoped policy')
     this.policyFile = policyFile
     this.staticToken = staticToken
     this.nodeIds = nodeIds
@@ -130,7 +145,7 @@ export class ControlAuthorizer {
       // Token files are independent secret projections and may rotate without
       // changing the policy inode or mtime, so re-read the bounded policy and
       // its token files on every throttled check.
-      this.principals = loadPolicy(this.policyFile, this.nodeIds)
+      this.principals = loadPolicy(this.policyFile, this.nodeIds, this.scope)
       this.lastError = null
       return true
     } catch (error) {
@@ -172,38 +187,50 @@ export class ControlAuthorizer {
   }
 }
 
-function loadRuntimeIdentities(path, nodeIds) {
+function loadRuntimeIdentities(path, nodeIds, scope = null) {
   const base = dirname(path)
   let value
-  try { value = JSON.parse(readBounded(path, MAX_POLICY_BYTES, 'runtime identity manifest')) }
+  try { value = JSON.parse((scope ? readProtectedBounded : readBounded)(path, MAX_POLICY_BYTES, 'runtime identity manifest')) }
   catch (error) { throw new Error(`invalid runtime identity manifest: ${error.message}`) }
-  if (!value || typeof value !== 'object' || Array.isArray(value) || value.version !== 1 ||
+  if (!value || typeof value !== 'object' || Array.isArray(value) || value.version !== (scope ? 2 : 1) ||
       !Array.isArray(value.nodes) || value.nodes.length !== nodeIds.size ||
-      Object.keys(value).some(key => !['version', 'nodes'].includes(key)))
+      Object.keys(value).some(key => !['version', 'nodes', ...(scope ? ['graph_id', 'instance_id'] : [])].includes(key)))
     throw new Error('runtime identity manifest must contain exactly every configured node')
+  if (scope && (value.graph_id !== scope.graphId || value.instance_id !== scope.instanceId))
+    throw new Error('runtime identity instance scope mismatch')
+  const executions = new Map()
   const identities = new Map()
   const secrets = new Set()
   for (const [index, entry] of value.nodes.entries()) {
     if (!entry || typeof entry !== 'object' || Array.isArray(entry) ||
-        Object.keys(entry).some(key => !['id', 'secret_file'].includes(key)))
+        Object.keys(entry).some(key => !['id', 'secret_file', ...(scope ? ['execution_id'] : [])].includes(key)))
       throw new Error(`runtime identity ${index} has unknown or invalid properties`)
     const id = identifier(entry.id, `runtime identity ${index} id`)
     if (!nodeIds.has(id) || identities.has(id)) throw new Error(`runtime identity '${id}' is unknown or duplicated`)
     if (typeof entry.secret_file !== 'string' || !entry.secret_file || entry.secret_file.length > 1024 ||
         entry.secret_file.includes('\0')) throw new Error(`runtime identity '${id}' secret_file is invalid`)
     const secretPath = isAbsolute(entry.secret_file) ? entry.secret_file : resolve(base, entry.secret_file)
-    const secret = readBounded(secretPath, 4096, `runtime identity '${id}' secret`).replace(/\r?\n$/, '')
+    const secret = (scope ? readProtectedBounded : readBounded)(secretPath, 4096, `runtime identity '${id}' secret`).replace(/\r?\n$/, '')
     if (Buffer.byteLength(secret) < 32) throw new Error(`runtime identity '${id}' secret is too short`)
     const digest = Buffer.from(secret).toString('base64')
     if (secrets.has(digest)) throw new Error('runtime identities must not share a secret')
     secrets.add(digest)
+    if (scope && entry.execution_id != null && !validExecutionId(entry.execution_id))
+      throw new Error('invalid registered execution ID')
+    if (scope && entry.execution_id != null) executions.set(id, entry.execution_id)
     identities.set(id, secret)
   }
-  return identities
+  return { identities, executions }
 }
 
+export const validExecutionId = value => typeof value === 'string' &&
+  /^[0-9a-f]{32}$/.test(value) && value !== '0'.repeat(32)
+
 export class RuntimeIdentityStore {
-  constructor({ manifestFile = '', nodeIds = new Set(), now = Date.now } = {}) {
+  constructor({ manifestFile = '', nodeIds = new Set(), now = Date.now, scope = null } = {}) {
+    this.scope = scope
+    this.executions = new Map()
+    if (scope && !manifestFile) throw new Error('instance telemetry requires a runtime identity manifest')
     this.manifestFile = manifestFile
     this.nodeIds = nodeIds
     this.now = now
@@ -221,14 +248,23 @@ export class RuntimeIdentityStore {
     if (!force && now - this.lastCheck < 1000) return this.lastError == null
     this.lastCheck = now
     try {
-      this.identities = loadRuntimeIdentities(this.manifestFile, this.nodeIds)
+      const loaded = loadRuntimeIdentities(this.manifestFile, this.nodeIds, this.scope)
+      this.identities = loaded.identities
+      this.executions = loaded.executions
       this.lastError = null
       return true
     } catch (error) {
       this.identities.clear()
+      this.executions.clear()
       this.lastError = String(error.message).slice(0, 256)
       return false
     }
+  }
+
+  matches(event) {
+    return !this.scope || (this.available && event?.graphId === this.scope.graphId &&
+      event?.instanceId === this.scope.instanceId && validExecutionId(event?.executionId) &&
+      this.executions.get(event.nodeId) === event.executionId)
   }
 
   secretFor(nodeId, reload = true) {
@@ -246,6 +282,7 @@ export class RuntimeIdentityStore {
 
   invalidate(message) {
     this.identities.clear()
+    this.executions.clear()
     this.lastError = String(message).slice(0, 256)
   }
 }
@@ -485,6 +522,8 @@ export class CredentialRegistry {
 
 function publicCommand(command) {
   return { id: command.id, action: command.action, targetNodes: [...command.targetNodes],
+    ...(command.scope || {}),
+    ...(command.targetExecutions ? { targetExecutions: { ...command.targetExecutions } } : {}),
     actor: command.actor, reason: command.reason, status: command.status,
     issuedAt: new Date(command.issuedAt).toISOString(), expiresAt: new Date(command.expiresAt).toISOString(),
     acknowledgements: Object.fromEntries(command.acknowledgements), delivered: command.delivered }
@@ -493,7 +532,8 @@ function publicCommand(command) {
 export class ControlConflictError extends Error {}
 
 export class ControlPlane {
-  constructor(config, nodeIds, { now = Date.now, uuid = randomUUID, auditSink = null } = {}) {
+  constructor(config, nodeIds, { now = Date.now, uuid = randomUUID, auditSink = null, scope = null } = {}) {
+    this.scope = scope
     this.config = config
     this.nodeIds = nodeIds
     this.now = now
@@ -510,7 +550,10 @@ export class ControlPlane {
   record({ actor = 'unauthenticated', action = null, targets = [], decision, commandId = null,
     reason = null }, timestamp = this.now()) {
     const entry = { sequence: ++this.auditSequence, timestamp: new Date(timestamp).toISOString(),
-      actor, action, targetNodes: [...targets], decision, commandId, reason }
+      actor, action, targetNodes: [...targets], decision, commandId, reason,
+      ...(this.scope || {}),
+      ...(this.commands.get(commandId)?.targetExecutions ?
+        { targetExecutions: { ...this.commands.get(commandId).targetExecutions } } : {}) }
     if (this.audit.length >= this.config.maxAuditRecords) {
       this.audit.shift()
       this.stats.auditDropped++
@@ -522,7 +565,7 @@ export class ControlPlane {
 
   deny(details) { this.stats.denied++; return this.record({ ...details, decision: 'denied' }) }
 
-  issue({ action, targetNodes, actor, reason = null, idempotencyKey = null }, delivered) {
+  issue({ action, targetNodes, actor, reason = null, idempotencyKey = null, targetExecutions = null }, delivered) {
     this.#maintain()
     if (!CONTROL_ACTIONS.has(action)) throw new Error('unknown control action')
     const targets = [...new Set(targetNodes)]
@@ -534,8 +577,15 @@ export class ControlPlane {
     if (idempotencyKey != null && (typeof idempotencyKey !== 'string' ||
         !/^[A-Za-z0-9._:-]{1,128}$/.test(idempotencyKey)))
       throw new Error('Idempotency-Key is invalid')
-    const fingerprint = JSON.stringify({ action, targets: [...targets].sort(), reason })
-    const cacheKey = idempotencyKey ? `${actor}:${idempotencyKey}` : null
+    if (this.scope && action !== 'reset' && (!targetExecutions ||
+        Object.keys(targetExecutions).length !== targets.length ||
+        targets.some(node => !validExecutionId(targetExecutions[node]))))
+      throw new Error('control requires the exact target execution identities')
+    const boundExecutions = this.scope && action !== 'reset' ?
+      Object.fromEntries([...targets].sort().map(node => [node, targetExecutions[node]])) : null
+    const fingerprint = JSON.stringify({ action, targets: [...targets].sort(), reason,
+      ...(this.scope ? { scope: this.scope, targetExecutions: boundExecutions } : {}) })
+    const cacheKey = idempotencyKey ? JSON.stringify([this.scope, actor, idempotencyKey]) : null
     const previous = cacheKey ? this.idempotency.get(cacheKey) : null
     if (previous) {
       if (previous.fingerprint !== fingerprint) throw new ControlConflictError('Idempotency-Key was reused for a different command')
@@ -552,6 +602,7 @@ export class ControlPlane {
       throw new Error('control command capacity exceeded')
     const issuedAt = this.now()
     const command = { id: this.uuid(), action, targetNodes: targets, actor, reason,
+      scope: this.scope, targetExecutions: boundExecutions,
       status: action === 'reset' ? 'accepted' : 'pending', issuedAt,
       expiresAt: issuedAt + this.config.commandTimeoutMs, acknowledgements: new Map(), delivered: 0 }
     command.delivered = delivered(command)
@@ -568,9 +619,10 @@ export class ControlPlane {
 
   acknowledge(event, timestamp = this.now()) {
     this.#maintain(timestamp)
+    if (this.scope && (event.graphId !== this.scope.graphId || event.instanceId !== this.scope.instanceId)) return false
     const safeEvent = sanitizeControlAcknowledgement(event)
     const command = this.commands.get(safeEvent.commandId)
-    if (!command || command.status !== 'pending' || command.action !== safeEvent.action ||
+    if (!command || (command.targetExecutions && command.targetExecutions[safeEvent.nodeId] !== safeEvent.executionId) || command.status !== 'pending' || command.action !== safeEvent.action ||
         !command.targetNodes.includes(safeEvent.nodeId) ||
         command.acknowledgements.has(safeEvent.nodeId)) return false
     const acknowledgement = { accepted: safeEvent.accepted === true,
@@ -587,6 +639,16 @@ export class ControlPlane {
       decision: acknowledgement.accepted ? 'acknowledged' : 'rejected', commandId: command.id,
       reason: acknowledgement.error }, timestamp)
     return true
+  }
+
+  retireExecution(nodeId, executionId) {
+    for (const command of this.commands.values())
+      if (command.status === 'pending' && command.targetExecutions?.[nodeId] === executionId) {
+        command.status = 'rejected'
+        this.stats.rejected++
+        this.record({ actor: command.actor, action: command.action, targets: [nodeId],
+          decision: 'rejected', commandId: command.id, reason: 'execution-retired' })
+      }
   }
 
   get(id) { this.#maintain(); const value = this.commands.get(id); return value ? publicCommand(value) : null }
@@ -615,7 +677,8 @@ export class ControlPlane {
 }
 
 export function controlAuditHistoryRecord(entry, graphId, recordedAtMs = Date.now()) {
-  const data = { actor: entry.actor, action: entry.action, targetNodes: entry.targetNodes,
+  const data = { ...(entry.instanceId ? { graphId: entry.graphId, instanceId: entry.instanceId,
+    targetExecutions: entry.targetExecutions } : {}), actor: entry.actor, action: entry.action, targetNodes: entry.targetNodes,
     decision: entry.decision, commandId: entry.commandId, reason: entry.reason }
   return { graphId, recordedAtMs, eventAtMs: recordedAtMs, kind: 'control_audit',
     event: entry.decision, nodeId: entry.targetNodes.length === 1 ? entry.targetNodes[0] : null,

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { closeSync, constants, fstatSync, openSync, readSync } from 'node:fs'
 import { dirname, normalize } from 'node:path'
 
@@ -132,7 +133,14 @@ function validateNormalizedConfig(value) {
     routers: 1024, attachments: 4096, edge_paths: 4096,
     captures: 1024, faults: 1024 })) array(network[name], `network.${name}`, maximum)
   const deployment = object(root.deployment, 'deployment')
-  if (Object.hasOwn(deployment, 'instance_id')) identity(deployment.instance_id, 'deployment.instance_id')
+  if (Object.hasOwn(deployment, 'instance_id')) {
+    identity(deployment.instance_id, 'deployment.instance_id')
+    const tuple = [graph.id, deployment.instance_id, 'state', graph.id]
+    const input = 'graphx-instance-resources-v1' + tuple.map(part => `${part.length}:${part}`).join('')
+    const expectedKey = 'gx' + createHash('sha256').update(input).digest('hex').slice(0, 62)
+    if (deployment.resource_key !== expectedKey)
+      fail('instance configuration requires a normalized resource_key')
+  } else if (Object.hasOwn(deployment, 'resource_key')) fail('resource_key requires instance_id')
   for (const node of graph.nodes) {
     if (Object.hasOwn(node, 'sdr')) validateSdr(node, graph, deployment.instance_id)
   }

@@ -16,7 +16,7 @@ class PcapngCaptureSink final : public CaptureSink {
   explicit PcapngCaptureSink(std::filesystem::path path,
                              std::uint32_t snaplen = 16 * 1024 * 1024 + 4,
                              std::uint64_t max_file_bytes = 256ULL * 1024 * 1024,
-                             std::uint64_t max_packets = 1'000'000);
+                             std::uint64_t max_packets = 1'000'000, bool exclusive = false);
   ~PcapngCaptureSink() override;
   PcapngCaptureSink(const PcapngCaptureSink&) = delete;
   PcapngCaptureSink& operator=(const PcapngCaptureSink&) = delete;

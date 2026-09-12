@@ -12,7 +12,8 @@ import ssl
 import threading
 import time
 
-from protocol import decode_samples, recv_line, signed, telemetry_endpoint, verified
+from protocol import (configure_sdr_runtime, decode_samples, execution_context, recv_line,
+                      signed, telemetry_endpoint, telemetry_secret, verified)
 
 stop = threading.Event()
 
@@ -38,7 +39,9 @@ def decode_sample_datagram(payload: bytes, peer: tuple[str, int], source: str):
 def telemetry_control() -> None:
     """Register this controller with telemetry and relay GUI control to the SDR."""
     host, port = telemetry_endpoint()
-    secret = os.environ.get("GRAPHX_TELEMETRY_SHARED_SECRET", "")
+    secret = telemetry_secret()
+    node_id = execution_context().get("nodeId", "processor")
+    replay = {}
     sequence = 0
     last_heartbeat = 0.0
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as endpoint:
@@ -48,7 +51,7 @@ def telemetry_control() -> None:
             now = time.monotonic()
             if now - last_heartbeat >= 1:
                 sequence += 1
-                event = {"kind": "trace", "event": "heartbeat", "nodeId": "processor",
+                event = {"kind": "trace", "event": "heartbeat", "nodeId": node_id,
                          "timestamp": int(time.time() * 1000), "sequence": sequence}
                 try:
                     endpoint.sendto(signed(event, secret), (host, port))
@@ -59,9 +62,9 @@ def telemetry_control() -> None:
                 packet, peer = endpoint.recvfrom(16_384)
             except TimeoutError:
                 continue
-            command = verified(packet, secret)
+            command = verified(packet, secret, replay)
             if not command or command.get("kind") != "control" or \
-                    command.get("targetNode") != "processor":
+                    command.get("targetNode") != node_id:
                 continue
             action = command.get("action")
             accepted = action in ("pause", "resume") and \
@@ -77,7 +80,7 @@ def telemetry_control() -> None:
                         state = "running"
                 except (OSError, ssl.SSLError, RuntimeError, ValueError):
                     accepted = False
-            acknowledgement = {"kind": "control_ack", "nodeId": "processor",
+            acknowledgement = {"kind": "control_ack", "nodeId": node_id,
                                "action": action, "accepted": accepted,
                                "commandId": command.get("commandId"), "state": state}
             try:
@@ -107,6 +110,9 @@ def control(action: str, frequency_hz: int | None = None) -> dict[str, object]:
 
 
 def send_result(result: dict[str, object]) -> None:
+    if os.environ.get("SDR_RESULT_LOCAL") == "1":
+        print(json.dumps(result, separators=(",", ":")), flush=True)
+        return
     payload = json.dumps(result, separators=(",", ":")).encode() + b"\n"
     if len(payload) > 4096:
         raise RuntimeError("result exceeds 4096 bytes")
@@ -118,6 +124,7 @@ def send_result(result: dict[str, object]) -> None:
 def main() -> None:
     signal.signal(signal.SIGTERM, lambda *_: stop.set())
     signal.signal(signal.SIGINT, lambda *_: stop.set())
+    configure_sdr_runtime("controller")
     bind = os.environ.get("SDR_SAMPLE_BIND", "0.0.0.0")
     port = int(os.environ.get("SDR_SAMPLE_PORT", "18400"))
     sample_source = expected_sample_source(os.environ["SDR_SAMPLE_SOURCE"])

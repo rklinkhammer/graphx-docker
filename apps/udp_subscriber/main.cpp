@@ -5,10 +5,11 @@ int main() {
   try {
     const auto config = graphx::load_config(demo::config_path());
     const auto edge_id = demo::env("GRAPHX_EDGE", "messages");
-    const auto node_id = demo::env("GRAPHX_NODE", "subscriber");
+    const auto node_id = demo::selected_node(config, demo::env("GRAPHX_NODE", "subscriber"));
     demo::RuntimeTraceSink trace(node_id, config);
     graphx::TransportFactory transports;
-    auto input = transports.create(config.edge(edge_id), graphx::ConnectionMode::listen, &trace);
+    auto input = transports.create(demo::selected_edge(config, node_id, false, edge_id),
+                                   graphx::ConnectionMode::listen, &trace);
     const auto maximum = demo::unsigned_env("GRAPHX_MAX_MESSAGES", 5, 1, 1'000'000);
     const auto timeout =
         std::chrono::milliseconds(demo::unsigned_env("GRAPHX_TIMEOUT_MS", 5000, 1, 600'000));

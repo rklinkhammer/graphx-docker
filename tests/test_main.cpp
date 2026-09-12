@@ -347,6 +347,16 @@ void pcapng_capture() {
       "PCAPNG correlation metadata");
   std::filesystem::remove(path);
 
+  {
+    graphx::PcapngCaptureSink first(path, 65535, 1024 * 1024, 10, true);
+    const auto original_size = std::filesystem::file_size(path);
+    expect_failure([&] { graphx::PcapngCaptureSink duplicate(path, 65535, 1024 * 1024, 10, true); },
+                   "PCAPNG capture");
+    expect(std::filesystem::file_size(path) == original_size,
+           "duplicate execution preserves capture");
+  }
+  std::filesystem::remove(path);
+
   const auto link = path.string() + ".link";
   const auto target = path.string() + ".target";
   {
@@ -617,7 +627,7 @@ void metrics_sink() {
          "metrics backpressure");
 }
 
-void udp_runtime_control() {
+void udp_runtime_control(bool scoped = false) {
   const int collector = ::socket(AF_INET, SOCK_DGRAM, 0);
   expect(collector >= 0, "UDP control collector socket");
   sockaddr_in address{};
@@ -634,8 +644,10 @@ void udp_runtime_control() {
 
   {
     constexpr std::string_view secret = "runtime-control-secret-012345678901";
-    graphx::UdpJsonTraceSink sink("generator", "127.0.0.1", ntohs(address.sin_port),
-                                  std::string(secret));
+    graphx::UdpJsonTraceSink sink(
+        "generator", "127.0.0.1", ntohs(address.sin_port), std::string(secret),
+        scoped ? graphx::ExecutionIdentity{"test-graph", "lab-a", std::string(32, 'a')}
+               : graphx::ExecutionIdentity{});
     sink.on_heartbeat("generator", 1.0);
     std::array<char, 2048> event{};
     sockaddr_storage runtime{};
@@ -663,6 +675,11 @@ void udp_runtime_control() {
                    std::string_view::npos &&
                event_json.find("\"type\":\"Observed\\u0001\"") != std::string_view::npos,
            "UDP event carries canonical protocol identities");
+    if (scoped)
+      expect(heartbeat_json.find("\"executionId\":\"" + std::string(32, 'a') + "\"") !=
+                 std::string_view::npos,
+             "instance heartbeat carries the registered execution");
+    std::string execution_target(32, 'a');
     std::uint64_t command_sequence{};
     const auto command = [&](std::string_view action, std::string_view target = "generator",
                              std::int64_t expiry_offset = 1000) {
@@ -672,10 +689,14 @@ void udp_runtime_control() {
       const auto timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
                                  std::chrono::system_clock::now().time_since_epoch())
                                  .count();
-      const auto payload = std::string{"{\"kind\":\"control\",\"action\":\""} +
-                           std::string(action) + "\",\"commandId\":\"" + command_id +
-                           "\",\"targetNode\":\"" + std::string(target) +
-                           "\",\"expiresAt\":" + std::to_string(timestamp + expiry_offset) + "}";
+      const auto payload =
+          std::string{"{\"kind\":\"control\",\"action\":\""} + std::string(action) +
+          "\",\"commandId\":\"" + command_id + "\",\"targetNode\":\"" + std::string(target) +
+          "\",\"expiresAt\":" + std::to_string(timestamp + expiry_offset) +
+          (scoped ? ",\"graphId\":\"test-graph\",\"instanceId\":\"lab-a\",\"executionId\":\"" +
+                        execution_target + "\""
+                  : "") +
+          "}";
       const auto nonce = std::string(31, '0') + std::to_string(command_sequence);
       const auto signed_value = std::to_string(timestamp) + "." + nonce + "." + payload;
       std::array<unsigned char, EVP_MAX_MD_SIZE> digest{};
@@ -705,6 +726,13 @@ void udp_runtime_control() {
       }
       return false;
     };
+    if (scoped) {
+      execution_target.assign(32, 'b');
+      command("pause");
+      std::this_thread::sleep_for(30ms);
+      expect(!sink.paused(), "stale execution command rejected despite valid node credential");
+      execution_target.assign(32, 'a');
+    }
     command("pause", "transform");
     std::this_thread::sleep_for(20ms);
     expect(!sink.paused(), "UDP command for another node is ignored");
@@ -717,6 +745,11 @@ void udp_runtime_control() {
     expect(await(false), "UDP resume command");
   }
   ::close(collector);
+}
+
+void udp_runtime_control_coverage() {
+  udp_runtime_control();
+  udp_runtime_control(true);
 }
 
 struct RawListener {
@@ -2002,7 +2035,7 @@ int main(int argc, char** argv) {
       {"UDP concurrent close stress", udp_concurrent_close_stress},
       {"UDP observer failure", udp_observer_failure_is_non_blocking},
       {"UDP multicast two listeners", udp_multicast_two_listeners},
-      {"UDP runtime control", udp_runtime_control},
+      {"UDP runtime control", udp_runtime_control_coverage},
       {"OTLP HTTP JSON", otlp_http_json_export},
       {"OTLP fork-safe span identities", otlp_span_ids_are_fork_safe},
       {"shared-memory wraparound", shared_memory_wraparound_and_cleanup},

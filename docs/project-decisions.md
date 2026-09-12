@@ -9,8 +9,10 @@ This page records the active design constraints for GraphX 1.1.0.
   graph/node identity, deployment instances, execution freshness, and infrastructure
   ownership. The configuration model supports explicit instance selection and
   typed SDR source settings. OVS resources, ledgers, and locks are instance-scoped;
-  application runtimes and example launchers do not yet provide concurrent-instance
-  guarantees.
+  explicit-instance runtimes enforce registered execution identities in telemetry
+  and control. The shared Compose launcher provisions per-node credentials,
+  registered executions, and instance storage for supported container graphs.
+  Specialized laboratory launchers retain their documented resource boundaries.
 - System Open vSwitch is the only managed data-plane backend.
 - Docker Compose owns processes and management connectivity only.
 - Containers use owned veth pairs; QEMU uses an owned TAP. All cleanup verifies

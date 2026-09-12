@@ -1,9 +1,10 @@
 # Two-source SDR configuration
 
-Platform: configuration validation and normalization on native Linux or macOS.
+Platform: native validation/normalization on Linux or macOS; deployment with
+Docker Compose on Linux or OrbStack on macOS.
 This example defines two independent source/controller pairs with distinct raw
-sample/control edges, TLS file references, and source settings. It does not start
-services, access hardware, or create Linux infrastructure.
+sample/control edges, TLS file references, and source settings. The shared instance launcher runs all four processes with generated mutual-TLS
+credentials. It does not access physical hardware or create OVS infrastructure.
 
 From the repository root after building GraphX:
 
@@ -19,7 +20,32 @@ Consumers select `sdr-east`, `processor-east`, `sdr-west`, or `processor-west` b
 node ID and the expected instance. No credentials need to exist for normalization;
 the `/run` paths represent runtime-mounted files and contain no secret values.
 
-This configuration has no launcher. Existing SDR processes have not adopted these
-settings yet, and infrastructure ownership is not instance-scoped. It is not the
-concurrent-instance runtime acceptance topology. See the
-[configuration contract](../../../docs/configuration.md#instance-selection-and-sdr-source-settings).
+The shared SDR source and controller processes consume these typed settings when
+started with `GRAPHX_NORMALIZED_CONFIG`, `GRAPHX_NODE_ID`, a registered
+`GRAPHX_EXECUTION_ID`, and the selected node's telemetry credential. Sources select
+their own `sdr` block; controllers select the source connected through their control
+edge. This configuration has no result sink, so controllers print processed
+results locally. Its nodes declare `control: none`, so it does not expose GUI
+pause/resume actions.
+
+The portable `graphx-sdr-instance-runtime` test provisions temporary TLS files and
+runs both sources concurrently, checking their distinct frequencies, UDP ports,
+and signed execution identities. It runs on native Linux or macOS without OVS.
+
+Run the four graph processes, collector, and private namespace holder with:
+
+```sh
+python3 scripts/instance.py up examples/sdr-node/two-source/graphx.yaml --build --port 28081
+python3 scripts/instance.py status examples/sdr-node/two-source/graphx.yaml
+python3 scripts/instance.py restart examples/sdr-node/two-source/graphx.yaml --node processor-east
+python3 scripts/instance.py down examples/sdr-node/two-source/graphx.yaml
+```
+
+Use `--set deployment.instance_id=lab-b` and another published console port for a
+second deployment. Repeat the instance selection on every command. Each instance
+has a private shared network namespace, so its loopback sample/control ports can
+remain unchanged. Startup generates separate TLS credentials for each source pair;
+controllers print processed samples at 100 MHz and 200 MHz respectively.
+See [shared Compose runtime](../../../docs/compose-runtime.md) for credential,
+storage, interruption, restart, and platform boundaries. This launcher is available
+for the full two-instance proving scenario; that acceptance test remains separate.
