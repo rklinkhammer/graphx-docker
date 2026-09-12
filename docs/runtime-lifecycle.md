@@ -10,3 +10,8 @@ ledger records the graph ID, configuration hash, owner token, expected objects, 
 stable identities for resources that were created. Create publishes state
 atomically; recover and destroy verify the complete identity set before mutation.
 Collisions, replacements, partial ownership, and insecure state files fail closed.
+
+The [instance identity contract](instance-identity.md) defines identity lifetimes,
+restart freshness, and isolation requirements for instance-aware execution. Its
+implementation-boundary section distinguishes those requirements from the current
+graph-ID-keyed ownership lifecycle.

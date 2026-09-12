@@ -27,6 +27,11 @@ OVS resources; OrbStack runs portable Compose workloads on macOS.
 
 ## Trust and ownership boundaries
 
+The [instance identity contract](instance-identity.md) specifies the design for
+deployment and execution identity, including authorization and recovery boundaries.
+It explicitly identifies the current implementation limits; it does not imply
+that examples can already run concurrently without collisions.
+
 Configuration and state files are bounded, regular, non-symlink inputs. Network
 resources carry a graph ID, configuration hash, owner token, and stable platform
 identity. Destruction verifies those identities and refuses ambiguous cleanup.
