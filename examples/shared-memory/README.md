@@ -1,5 +1,7 @@
 # Shared-memory process pipeline
 
+Platform: native Linux and macOS; no Docker or privileged networking required.
+
 This example runs generator, transform, and sink as three local processes. Both
 logical edges use bounded POSIX shared-memory rings rather than sockets.
 

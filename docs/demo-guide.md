@@ -4,6 +4,9 @@ Complete the [`user guide`](user-guide.md) first for the shared build,
 configuration, networking, capture, and telemetry model. This page only selects
 the example that exercises a particular behavior.
 
+The [complete example platform matrix](../examples/README.md) lists all transport,
+capture, network, SDR, and QEMU examples with Linux and macOS execution paths.
+
 Choose a current scenario by the behavior you want to observe:
 
 | Scenario | What it demonstrates | Launcher |
@@ -21,7 +24,8 @@ portable pipeline runs with Docker Compose on Linux or OrbStack on macOS.
 On Apple Silicon macOS, follow the
 [`Docker and OVS with Lima`](../infrastructure/lima/README.md) guide. The network
 and QEMU launchers run at the macOS prompt and dispatch privileged work to the
-Lima VM automatically.
+Lima VM automatically. External SDR and route-policy launchers require an
+explicit guest shell; they do not dispatch automatically.
 
 For browser-oriented checks see [`graphical-examples-guide.md`](graphical-examples-guide.md).
 For exact prerequisites and non-interactive verification see

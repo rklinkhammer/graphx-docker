@@ -43,6 +43,8 @@ def main() -> int:
         root / "CONTRIBUTING.md",
         root / "SUPPORT.md",
         root / "SECURITY.md",
+        root / "infrastructure/lima/README.md",
+        root / "wireshark/README.md",
         *(
             path
             for path in (root / "docs").rglob("*.md")

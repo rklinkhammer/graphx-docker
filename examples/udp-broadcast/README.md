@@ -2,7 +2,7 @@
 
 This example confines directed broadcast traffic to an internal Docker network
 at `172.31.91.0/24`; it never chooses or transmits through a physical host
-interface. Docker with Compose and a locally available GraphX runtime image are
+interface. Docker Engine with Compose on Linux, or OrbStack on macOS, and a locally available GraphX runtime image are
 required. Prepare the image while dependencies are available, or load the same
 image from an offline artifact:
 
@@ -54,3 +54,15 @@ Capture is limited to the disposable publisher veth and UDP destination port
 47102. No physical interface is opened. `scripts/test-features.sh
 linux-network` enables this check automatically when both tools are available
 and reports an explicit skip otherwise.
+
+On macOS, the namespace runner must be invoked inside the verified Lima guest;
+it does not dispatch automatically:
+
+```sh
+limactl shell --workdir /workspace/graphx-docker graphx
+export GRAPHX_BUILD_DIR=/var/lib/graphx/runtime/build/dev
+GRAPHX_VERIFY_LIVE_CAPTURE=1 examples/udp-broadcast/run-native-linux.sh
+examples/udp-broadcast/down-native-linux.sh
+```
+
+Report this as Linux ARM64 guest evidence under Lima, separately from native Linux.

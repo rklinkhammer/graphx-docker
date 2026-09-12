@@ -1,5 +1,7 @@
 # Standalone PCAPNG capture demo
 
+Platform: native Linux and macOS; no Docker or privileged networking required.
+
 This portable demo runs the local three-process TCP graph for ten messages and
 records one PCAPNG file per node without changing application code.
 

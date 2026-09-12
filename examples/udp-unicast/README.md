@@ -1,5 +1,7 @@
 # UDP unicast example
 
+Platform: native Linux and macOS; no Docker or privileged networking required.
+
 This bounded example sends five GraphX framed envelopes over IPv4 UDP loopback.
 It requires no privileges and does not contact an external network.
 

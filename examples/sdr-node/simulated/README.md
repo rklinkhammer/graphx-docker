@@ -2,9 +2,9 @@
 
 ## Prerequisites
 
-Docker with Compose, OpenSSL, curl, and Python 3 are required. On macOS, Docker
-Desktop must be running. Configure optional organizational build trust once as
-described in `docs/test-reference.md`; the SDR and telemetry images use the
+Docker with Compose, OpenSSL, curl, and Python 3 are required. On Linux, use Docker Engine; on macOS, run OrbStack and select
+its `orbstack` Docker context. Configure optional organizational build trust once as
+using `GRAPHX_CA_CERT` and `GRAPHX_CERT_INSTALL_SCRIPT` (absolute paths); the SDR and telemetry images use the
 same global certificate/install-script inputs as the rest of GraphX.
 
 ## Run it

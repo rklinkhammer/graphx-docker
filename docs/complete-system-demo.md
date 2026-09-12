@@ -106,8 +106,8 @@ again without resetting sequence numbers and remains available as a recovery
 action after a collector restart. The controls remain disabled when
 the browser token field is empty or no live runtime is connected.
 The server returns an explicit error for invalid credentials. Reset only clears
-accumulated counters and does not stop traffic. Fault injection remains a native
-network-lab operation.
+accumulated counters and does not stop traffic. Fault injection is a privileged Linux network-lab operation, run on native
+Linux or inside the GraphX Lima guest.
 
 Advanced deployments can override the generated values by exporting distinct
 `GRAPHX_CONTROL_TOKEN` and `GRAPHX_TELEMETRY_SHARED_SECRET` values before
@@ -200,7 +200,7 @@ Common causes:
 | Counters move but sink output is absent | Inspect the `transformed` edge and sink logs; the verify command reports this edge separately. |
 | Pause cannot be clicked | Run `scripts/demo.sh token`, paste the result into **Control token**, and wait for a live runtime. |
 | Pause says invalid token | Run `scripts/demo.sh token` again and replace the browser value; externally supplied credentials require a restart after changing them. |
-| Fault cannot be clicked | Expected: native Linux fault injection is available in the network labs. |
+| Fault cannot be clicked | Expected: privileged Linux/Lima fault injection is available in the network labs. |
 
 ## Standard demo versus network laboratories
 

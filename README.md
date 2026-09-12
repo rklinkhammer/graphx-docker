@@ -62,7 +62,9 @@ current plan, create, status, and destroy workflow.
 ## Examples and documentation
 
 After the complete user guide, use [`docs/demo-guide.md`](docs/demo-guide.md) to
-choose a scenario. Current examples include the
+choose a scenario. The [example platform matrix](examples/README.md) identifies
+native Linux, native macOS, OrbStack, and Lima requirements for every example.
+Current examples include the
 shared OVS network labs, the [`QEMU TAP lab`](examples/qemu-node/README.md), the
 [`SDR scenarios`](examples/sdr-node/README.md), and the
 [`route and policy lab`](examples/static-route-policy/README.md).

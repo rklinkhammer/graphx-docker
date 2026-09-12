@@ -44,6 +44,8 @@ Run from the repository root on macOS:
 
 ```sh
 infrastructure/lima/start.sh
+limactl shell --workdir /workspace/graphx-docker graphx -- \
+  docker build -t graphx-demo:latest .
 infrastructure/lima/verify.sh
 ```
 
@@ -52,6 +54,11 @@ infrastructure/lima/verify.sh
 system Open vSwitch, QEMU, nftables, packet tools, and Node.js 24. It refuses to
 reuse a VM whose architecture, virtualization type, source checkout, or GraphX
 Lima configuration differs from the current definition.
+
+Build `graphx-demo:latest` in the guest before first verification: the container-veth
+CTest requires that local image, and an OrbStack image is not available to Lima.
+The network lifecycle test also pulls `debian:bookworm-slim` if absent; external
+SDR setup builds its Compose image. These steps need registry access.
 
 `verify.sh` checks Docker and OVS, builds GraphX in the VM, and exercises a
 disposable system-OVS topology containing a namespace, veth pair, TAP device,
@@ -69,6 +76,11 @@ scripts/network-lab.sh mixed-network up
 scripts/network-lab.sh mixed-network status
 scripts/network-lab.sh mixed-network down
 ```
+
+Only these four network profiles and the QEMU runtime launcher dispatch
+automatically. External SDR, static-route policy, network-observability CLI
+operations, and the isolated Linux broadcast runner require an explicit guest
+shell; see the [example matrix](../../examples/README.md).
 
 Replace `mixed-network` with `macvlan`, `ipvlan-l2`, or `ipvlan-l3` to run a
 focused topology. `up` starts the lab containers with Docker inside the VM and
@@ -98,7 +110,11 @@ examples/qemu-node/scripts/demo.sh verify
 examples/qemu-node/scripts/demo.sh stop
 ```
 
-The x86_64 QEMU guest uses TCG emulation in this ARM64 VM.
+The x86_64 QEMU guest uses TCG emulation in this ARM64 VM. The current
+Buildroot builder writes its build output and download cache to
+`examples/qemu-node/output` and `examples/qemu-node/dl` on the mounted checkout.
+The launcher verifies the image manifest and copies boot images to guest-local
+`/var/lib/graphx/qemu` for execution.
 
 ## Work directly in the VM
 
@@ -126,8 +142,8 @@ and QMP sockets are not forwarded to macOS.
 ## Files, ports, and evidence
 
 The repository is the only writable host mount and appears in the VM at
-`/workspace/graphx-docker`. Linux build state and privileged runtime data remain
-on the VM disk:
+`/workspace/graphx-docker`. The GraphX CMake build, ownership ledgers, and
+network/QEMU runtime artifacts use these locations on the VM disk:
 
 ```text
 /var/lib/docker
@@ -140,12 +156,18 @@ on the VM disk:
 /var/log/graphx
 ```
 
+The external SDR and static-route launchers currently write their auxiliary
+`.state` files beneath their example directories on the shared checkout; external
+SDR also writes TLS material and its simulator log there. These locations, and
+the Buildroot cache described above, are exceptions to guest-local storage.
+
 The only application port forwarded to macOS is guest loopback port 8080 at
 `127.0.0.1:18080`. Lima's own SSH transport remains implementation-managed.
 
 Verification evidence is retained under
-`/var/lib/graphx/runtime/evidence`, with at most ten runs and 256 MiB. The VM
-build directory is separate from macOS CMake output, so the two platforms do
+`/var/lib/graphx/runtime/evidence`, without automatic run-count or aggregate-size
+pruning. Remove old verification logs deliberately when no longer needed.
+Declarative capture retention is separate. The VM build directory is separate from macOS CMake output, so the two platforms do
 not share incompatible build caches.
 
 ## Stop, restart, and troubleshoot

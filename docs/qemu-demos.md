@@ -5,12 +5,15 @@ with a TAP device attached to a system Open vSwitch bridge. A Linux namespace pe
 access VLANs, OVS mirroring, packet observation, PCAPNG, SQLite packet history, and
 QMP state evidence are part of the lab.
 
-Build the guest image, then run the demo on native Linux or in the GraphX Lima VM:
+Build the guest image, then run the demo from the repository root on native Linux:
 
 ```sh
 examples/qemu-node/scripts/build.sh
 examples/qemu-node/scripts/demo.sh start
 ```
+
+On macOS, build inside Lima with the [Lima QEMU procedure](../infrastructure/lima/README.md#run-the-qemu-tapovs-lab),
+then invoke `demo.sh` at the macOS prompt for automatic guest dispatch.
 
 Use `status`, `verify`, `pause`, `resume`, and `stop` with the same launcher. The
 x86_64 guest uses TCG consistently on native Linux and in the ARM64 Lima VM. The

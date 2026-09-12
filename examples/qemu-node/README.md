@@ -8,6 +8,7 @@ history, and collects QMP runtime evidence.
 examples/qemu-node/scripts/build.sh
 examples/qemu-node/scripts/demo.sh start
 examples/qemu-node/scripts/demo.sh status
+examples/qemu-node/scripts/demo.sh verify
 examples/qemu-node/scripts/demo.sh stop
 ```
 
@@ -18,3 +19,11 @@ read-only snapshot is handed to the unprivileged packet observer, which records
 telemetry and SQLite packet history without access to the live capture directory.
 On macOS, build and run it using the [`Docker and OVS with Lima`](../../infrastructure/lima/README.md)
 procedure.
+
+Native Linux prerequisites include `qemu-system-x86_64`, system OVS, Docker
+with Buildx for image builds, `iproute2`, `nft`, `dumpcap`, `capinfos`, Python 3,
+curl, and `setpriv`. UID and GID 65532 must both belong to the dedicated
+`graphx-qemu` account/group; the launcher refuses any other identity. Provision
+that account deliberately on native Linux, checking for numeric ID conflicts
+first. Lima provisioning creates it automatically. The launcher drops QEMU and
+observer privileges to that identity and always selects TCG.

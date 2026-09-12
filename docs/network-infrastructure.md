@@ -23,7 +23,7 @@ ranges, mirror output ports, router interfaces, and graph-edge path hops. The
 
 ## Infrastructure lifecycle
 
-On native Linux, the version-2 `graphx infra create` lifecycle creates and
+On native Linux or inside the GraphX Lima guest, the version-2 `graphx infra create` lifecycle creates and
 identity-records OVS bridges/ports, veth or TAP endpoints, router namespaces,
 addresses, forwarding, nftables policy, mirrors, bounded capture processes, and
 timed qdiscs. The descriptive `deployment` section does not create containers;
@@ -66,7 +66,7 @@ sudo ./build/dev/graphx infra route clear examples/static-route-policy/graphx.ya
 ```
 
 Use `--dry-run` without sudo on any platform for inspection. Runtime route,
-policy, OVS, and packet claims require the native-Linux lab procedure.
+policy, OVS, and packet claims require the privileged Linux lab procedure, on native Linux or inside Lima.
 
 ## Declarative capture and faults
 
