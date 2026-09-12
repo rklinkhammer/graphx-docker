@@ -44,8 +44,13 @@ test run must leave no newly created GraphX Compose projects, OVS resources,
 namespaces, TAP/veth devices, capture processes, qdiscs, or temporary state. Existing workloads must
 be preserved. Sealed captures and verification logs are retained evidence.
 
-Portable and full acceptance require Node.js 24.x and fail before installing
-dependencies when another Node.js major version is selected. Privileged workflows
+Portable and full acceptance require Node.js 24.x. They keep a Node 24 toolchain
+already on `PATH`; otherwise they select an installed Homebrew `node@24` for the
+verification process and its children. This does not change your shell default.
+On macOS, install it with `brew install node@24`, then rerun the same verification
+command. On other installations, put Node 24 and npm on `PATH` using your Node
+version manager. If no supported toolchain is available, verification fails before
+installing project dependencies. Privileged workflows
 are registered as CTests with the `privileged` label; `native-linux` configures that
 test set and runs it after portable acceptance.
 
