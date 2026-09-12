@@ -20,7 +20,7 @@ to the changed area.
 
 ## QEMU TAP
 
-1. Build and start the TAP scenario with `--accel auto`.
+1. Build and start the TCG-backed TAP scenario.
 2. Confirm bidirectional TCP/UDP traffic, VLAN isolation, SPAN capture growth,
    packet history, and QMP runtime evidence.
 3. Stop it and confirm TAP, bridge, namespace, QEMU, observer, and state files are

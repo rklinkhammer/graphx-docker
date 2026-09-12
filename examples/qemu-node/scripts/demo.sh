@@ -7,6 +7,11 @@ tap_lab=${script_dir}/../tap/scripts/ovs-lab.sh
 action=${1:-}
 if [[ -n ${action} ]]; then shift; fi
 
+if (($#)); then
+  echo "usage: $0 <start|status|verify|pause|resume|stop>" >&2
+  exit 64
+fi
+
 case ${action} in
   start) tap_action=up ;;
   stop) tap_action=down ;;

@@ -92,14 +92,13 @@ limactl shell --workdir /workspace/graphx-docker graphx -- \
 Then control the lab from the macOS prompt. Its launcher dispatches to Lima:
 
 ```sh
-examples/qemu-node/scripts/demo.sh start --accel auto
+examples/qemu-node/scripts/demo.sh start
 examples/qemu-node/scripts/demo.sh status
 examples/qemu-node/scripts/demo.sh verify
 examples/qemu-node/scripts/demo.sh stop
 ```
 
-The VM is ARM64. The x86_64 QEMU guest normally uses TCG emulation; this setup
-does not claim KVM acceleration.
+The x86_64 QEMU guest uses TCG emulation in this ARM64 VM.
 
 ## Work directly in the VM
 

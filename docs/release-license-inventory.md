@@ -65,7 +65,7 @@ resolve to newer versions.
 ## Release OCI base and operating-system packages
 
 The release workflow publishes `graphx-runtime` from the pinned Debian 12 slim
-digest and `graphx-telemetry` from the pinned Node.js 22 Alpine digest. BuildKit
+digest and `graphx-telemetry` from the pinned Node.js 24 Alpine digest. BuildKit
 attaches a separate SPDX inventory to each amd64 and arm64 image digest.
 
 A local scan of the exact 1.1.0 Dockerfiles found 151 package records in the

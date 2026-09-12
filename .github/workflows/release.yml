@@ -42,10 +42,12 @@ jobs:
             --package graphx-runtime --package graphx-telemetry
       - name: Run portable Linux acceptance
         run: scripts/test-linux-container.sh portable
-      - name: Run pinned static analysis and fuzz smoke
+      - name: Run pinned static analysis
+        run: scripts/test-linux-container.sh quality
+      - name: Run fuzz smoke
         env:
           GRAPHX_FUZZ_SECONDS: '30'
-        run: scripts/test-linux-container.sh quality
+        run: scripts/test-linux-container.sh fuzz
       - name: Run sanitizer suite
         run: scripts/test-linux-container.sh sanitizers
       - name: Audit production JavaScript dependencies

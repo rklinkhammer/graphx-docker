@@ -9,7 +9,7 @@ test "$#" -ge 1 && test "$#" -le 2 || { usage; exit 64; }
 
 run_dir=$1
 display_filter=${2:-'tcp.port == 18001 || udp.port == 18001 || tcp.port == 19001 || udp.port == 19001'}
-capture=$run_dir/qemu-node.pcapng
+capture=$run_dir/qemu-span.pcapng
 tshark_bin=${TSHARK:-tshark}
 
 command -v "$tshark_bin" >/dev/null || {

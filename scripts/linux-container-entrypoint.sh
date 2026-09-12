@@ -29,25 +29,19 @@ case "$MODE" in
     build=/tmp/graphx-linux-tls
     cmake -S "$ROOT" -B "$build" -G Ninja \
       -DCMAKE_BUILD_TYPE=Debug \
-      -DCMAKE_CXX_STANDARD=23 \
       -DGRAPHX_BUILD_TESTS=ON
     cmake --build "$build" --target graphx-tls-smoke -j "$GRAPHX_BUILD_JOBS"
     ctest --test-dir "$build" -R '^graphx-tls-security$' --output-on-failure --verbose
     ;;
   ctest)
-    for standard in 23 20; do
-      build="/tmp/graphx-linux-cxx${standard}"
-      cmake -S "$ROOT" -B "$build" -G Ninja \
-        -DCMAKE_BUILD_TYPE=Debug \
-        -DCMAKE_CXX_STANDARD="$standard" \
-        -DGRAPHX_BUILD_TESTS=ON
-      cmake --build "$build" -j "$GRAPHX_BUILD_JOBS"
-      ctest --test-dir "$build" --output-on-failure
-    done
+    build=/tmp/graphx-linux-cxx20
+    cmake -S "$ROOT" -B "$build" -G Ninja \
+      -DCMAKE_BUILD_TYPE=Debug -DGRAPHX_BUILD_TESTS=ON
+    cmake --build "$build" -j "$GRAPHX_BUILD_JOBS"
+    ctest --test-dir "$build" --output-on-failure
     ;;
   portable)
-    GRAPHX_BUILD_DIR=/tmp/graphx-linux-portable-cxx23 \
-    GRAPHX_CXX20_BUILD_DIR=/tmp/graphx-linux-portable-cxx20 \
+    GRAPHX_BUILD_DIR=/tmp/graphx-linux-portable-cxx20 \
       "$ROOT/scripts/test-features.sh" portable
     ;;
   quality)
@@ -70,7 +64,6 @@ case "$MODE" in
     build=/tmp/graphx-linux-sanitizers
     CC=clang-21 CXX=clang++-21 cmake -S "$ROOT" -B "$build" -G Ninja \
       -DCMAKE_BUILD_TYPE=Debug \
-      -DCMAKE_CXX_STANDARD=23 \
       -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
       -DGRAPHX_BUILD_TESTS=ON \
       -DGRAPHX_ENABLE_SANITIZERS=ON

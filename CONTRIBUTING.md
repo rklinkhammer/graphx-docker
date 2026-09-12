@@ -10,7 +10,7 @@ Before submitting a change:
    [`docs/project-decisions.md`](docs/project-decisions.md).
 2. Update the authoritative configuration model and normalized contract together.
 3. Add focused tests for changed behavior and remove superseded expectations.
-4. Run `scripts/verify.sh portable`; run `full` or `privileged-linux` when the
+4. Run `scripts/verify.sh portable`; run `full` or `native-linux` when the
    affected surface requires it.
 5. Update current user documentation and examples in the same change.
 

@@ -22,11 +22,7 @@ set(GRAPHX_SANITIZERS "address,undefined" CACHE STRING
 option(GRAPHX_ENABLE_CLANG_TIDY "Run clang-tidy while compiling GraphX targets" OFF)
 option(GRAPHX_ENABLE_CPPCHECK "Run cppcheck while compiling GraphX targets" OFF)
 option(GRAPHX_FORCE_BUNDLED_YAML_CPP "Use the pinned yaml-cpp source archive" OFF)
-set(CMAKE_CXX_STANDARD 23 CACHE STRING "C++ language standard (20 or 23)")
-set_property(CACHE CMAKE_CXX_STANDARD PROPERTY STRINGS 20 23)
-if(NOT CMAKE_CXX_STANDARD STREQUAL "20" AND NOT CMAKE_CXX_STANDARD STREQUAL "23")
-  message(FATAL_ERROR "GraphX supports CMAKE_CXX_STANDARD=20 or 23")
-endif()
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
@@ -306,8 +302,11 @@ if(GRAPHX_BUILD_TESTS)
   else()
     message(STATUS "tshark not found; graphx-wireshark-dissector runtime test is unavailable")
   endif()
-  add_test(NAME graphx-config-cli
-    COMMAND graphx-cli validate ${CMAKE_SOURCE_DIR}/graphx.yaml)
+  add_test(NAME graphx-config-cli COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/test_example_configs.py $<TARGET_FILE:graphx-cli>
+    ${CMAKE_SOURCE_DIR})
+  set_tests_properties(graphx-config-cli PROPERTIES TIMEOUT 45
+    ENVIRONMENT "GRAPHX_OVERRIDES=")
   add_test(NAME graphx-normalized-config COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/test_normalized_config.py $<TARGET_FILE:graphx-cli>
     ${CMAKE_SOURCE_DIR})
@@ -350,9 +349,6 @@ if(GRAPHX_BUILD_TESTS)
     set_tests_properties(graphx-network-observability-live PROPERTIES TIMEOUT 180
       ENVIRONMENT "GRAPHX_OVERRIDES=")
   endif()
-  add_test(NAME graphx-config-projections
-    COMMAND graphx-cli project ${CMAKE_SOURCE_DIR}/graphx.yaml --check
-            --output-dir ${CMAKE_SOURCE_DIR}/config)
   add_test(NAME graphx-config-projection-behavior COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/test_projections.py $<TARGET_FILE:graphx-cli>
     ${CMAKE_SOURCE_DIR})
@@ -378,22 +374,6 @@ if(GRAPHX_BUILD_TESTS)
     # way, so keep this packaging-only test in the ordinary Release/Debug gates.
     set_tests_properties(graphx-package PROPERTIES DISABLED TRUE)
   endif()
-  set(graphx_config_cli_tests graphx-config-cli)
-  foreach(example mixed-network macvlan ipvlan-l2 ipvlan-l3 shared-memory udp-unicast
-                  udp-broadcast udp-multicast static-route-policy)
-    add_test(NAME graphx-config-${example}
-      COMMAND graphx-cli validate ${CMAKE_SOURCE_DIR}/examples/${example}/graphx.yaml)
-    list(APPEND graphx_config_cli_tests graphx-config-${example})
-  endforeach()
-  add_test(NAME graphx-config-qemu-node
-    COMMAND graphx-cli validate ${CMAKE_SOURCE_DIR}/examples/qemu-node/tap/graphx.yaml)
-  list(APPEND graphx_config_cli_tests graphx-config-qemu-node)
-  # Configuration tests must validate the checked-in files exactly as written.
-  # Do not let deployment overrides exported by an earlier manual demo leak into
-  # CTest and invalidate topologies that intentionally use another transport.
-  set_tests_properties(${graphx_config_cli_tests}
-    PROPERTIES ENVIRONMENT "GRAPHX_OVERRIDES=")
-
   add_test(NAME graphx-udp-transport
     COMMAND graphx-tests --filter "UDP" --repeat 3)
   set_tests_properties(graphx-udp-transport PROPERTIES TIMEOUT 30)
@@ -416,20 +396,10 @@ if(GRAPHX_BUILD_TESTS)
       $<TARGET_FILE:graphx-cli> ${CMAKE_SOURCE_DIR})
   set_tests_properties(graphx-network-observability-plan PROPERTIES
     TIMEOUT 30 ENVIRONMENT "GRAPHX_OVERRIDES=")
-  add_test(NAME graphx-config-network-observability
-    COMMAND graphx-cli validate ${CMAKE_SOURCE_DIR}/examples/network-observability/graphx.yaml)
-  set_tests_properties(graphx-config-network-observability PROPERTIES
-    ENVIRONMENT "GRAPHX_OVERRIDES=")
   add_test(NAME graphx-sdr-node-portable
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_sdr_example.py
       ${CMAKE_SOURCE_DIR})
-  add_test(NAME graphx-config-sdr-simulated
-    COMMAND graphx-cli validate ${CMAKE_SOURCE_DIR}/examples/sdr-node/simulated/graphx.yaml)
-  add_test(NAME graphx-config-sdr-external
-    COMMAND graphx-cli validate ${CMAKE_SOURCE_DIR}/examples/sdr-node/external/graphx.yaml)
   set_tests_properties(graphx-sdr-node-portable PROPERTIES TIMEOUT 15)
-  set_tests_properties(graphx-config-sdr-simulated graphx-config-sdr-external
-    PROPERTIES ENVIRONMENT "GRAPHX_OVERRIDES=")
   add_test(NAME graphx-static-route-policy-portable
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_static_route_policy.py
       ${CMAKE_SOURCE_DIR} $<TARGET_FILE:graphx-cli>)

@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   native:
-    name: ${{ matrix.os }} / C++${{ matrix.standard }}
+    name: ${{ matrix.os }} / C++20
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:
@@ -25,17 +25,7 @@ jobs:
       matrix:
         include:
           - os: ubuntu-24.04
-            standard: 23
-            tests: all
           - os: macos-15
-            standard: 23
-            tests: all
-          - os: ubuntu-24.04
-            standard: 20
-            tests: smoke
-          - os: macos-15
-            standard: 20
-            tests: smoke
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -53,20 +43,13 @@ jobs:
         run: >-
           cmake -S . -B build/ci -G Ninja
           -DCMAKE_BUILD_TYPE=Debug
-          -DCMAKE_CXX_STANDARD=${{ matrix.standard }}
           -DGRAPHX_BUILD_TESTS=ON
       - name: Build
         run: cmake --build build/ci -j 4
       - name: Test
-        run: |
-          if test "${{ matrix.tests }}" = smoke; then
-            ctest --test-dir build/ci --output-on-failure \
-              -R '^(graphx-tests|graphx-config-tests|graphx-config-cli)$'
-          else
-            ctest --test-dir build/ci --output-on-failure -L quick
-          fi
+        run: ctest --test-dir build/ci --output-on-failure -L quick
       - name: Scheduled stress tests
-        if: github.event_name == 'schedule' && matrix.standard == 23
+        if: github.event_name == 'schedule'
         run: ctest --test-dir build/ci --output-on-failure -L stress
 
   sanitizers:

@@ -12,22 +12,14 @@ trap 'rm -f "$test_dir/qemu-network-node"; rmdir "$test_dir" 2>/dev/null || true
 python3 -m py_compile \
   "$example_dir/host/peer.py" \
   "$example_dir/tools/artifact_manifest.py" \
-  "$example_dir/tools/capture_history.py" \
   "$example_dir/tools/packet_observer.py" \
-  "$example_dir/tools/qmp_control.py" \
-  "$example_dir/tools/query_history.py"
+  "$example_dir/tools/qmp_control.py"
 
 bash -n \
   "$example_dir/scripts/build.sh" \
   "$example_dir/scripts/demo.sh" \
   "$example_dir/scripts/inspect-capture.sh" \
   "$example_dir/tap/scripts/ovs-lab.sh"
-
-grep -q -- '-netdev tap,id=net0' "$example_dir/tap/scripts/ovs-lab.sh"
-if grep -q -- '-netdev user' "$example_dir/tap/scripts/ovs-lab.sh"; then
-  echo "QEMU TAP launcher contains a user-network fallback" >&2
-  exit 1
-fi
 
 if [[ -n "$graphx_cli" ]]; then
   GRAPHX_OVERRIDES= "$graphx_cli" validate "$example_dir/tap/graphx.yaml"

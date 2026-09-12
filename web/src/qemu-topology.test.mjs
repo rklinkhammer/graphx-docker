@@ -5,23 +5,23 @@ import { applicationEdges, applicationNodes, infrastructureNodes } from './data/
 test('QEMU raw topology preserves deployment and observation metadata', () => {
   const topology = {
     nodes: [{ id: 'qemu-node', label: 'qemu-node', role: 'virtual-machine',
-      image: 'graphx-qemu-runtime:latest', runtime: 'qemu', execution: 'container',
-      lifecycle: 'managed', control: 'none', accelerator: 'kvm',
-      requestedAccelerator: 'auto', selectedAccelerator: 'kvm', actualAccelerator: 'kvm',
+      image: 'local process', runtime: 'qemu', execution: 'host',
+      lifecycle: 'external', control: 'none', accelerator: 'tcg',
+      requestedAccelerator: 'tcg', selectedAccelerator: 'tcg', actualAccelerator: 'tcg',
       acceleratorEvidence: 'QMP query-status + query-kvm',
       vmState: 'running', guestState: 'ready', guestProtocols: { tcp: true, udp: true },
       guestArchitecture: 'x86_64', input: true, output: true }],
-    edges: [{ id: 'origin-qemu-udp', source: 'host-origin', target: 'qemu-node',
+    edges: [{ id: 'peer-qemu-udp', source: 'host-peer', target: 'qemu-node',
       transport: 'udp', dataPlane: 'external', framing: 'none',
       observationSource: 'qemu-pcap', port: 18001, schema: 'RawUdpDatagram' }],
   }
   const [node] = applicationNodes(topology)
   assert.equal(node.data.runtime, 'qemu')
-  assert.equal(node.data.execution, 'container')
+  assert.equal(node.data.execution, 'host')
   assert.equal(node.data.control, 'none')
-  assert.equal(node.data.accelerator, 'kvm')
-  assert.equal(node.data.requestedAccelerator, 'auto')
-  assert.equal(node.data.actualAccelerator, 'kvm')
+  assert.equal(node.data.accelerator, 'tcg')
+  assert.equal(node.data.requestedAccelerator, 'tcg')
+  assert.equal(node.data.actualAccelerator, 'tcg')
   assert.equal(node.data.guestArchitecture, 'x86_64')
   assert.equal(node.data.vmState, 'running')
   assert.equal(node.data.guestState, 'ready')
@@ -32,23 +32,23 @@ test('QEMU raw topology preserves deployment and observation metadata', () => {
   assert.equal(edge.data.observationSource, 'qemu-pcap')
   const [networkNode] = infrastructureNodes({ networkNodes: topology.nodes })
   assert.equal(networkNode.data.runtime, 'qemu')
-  assert.equal(networkNode.data.execution, 'container')
+  assert.equal(networkNode.data.execution, 'host')
 })
 
 test('QEMU deployment hierarchy remains distinct in the network view', () => {
   const topology = { networkNodes: [
-    { id: 'qemu-node-container', label: 'qemu-node container', role: 'Docker container',
-      hierarchy: 'container', runtimeLayer: 'boundary', status: 'running', input: true, output: true },
+    { id: 'qemu-node-host-runtime', label: 'Host QEMU process', role: 'Host runtime',
+      hierarchy: 'host', runtimeLayer: 'boundary', status: 'running', input: true, output: true },
     { id: 'qemu-node', label: 'qemu-node', role: 'virtual-machine', hierarchy: 'virtual-machine',
-      parent: 'qemu-node-container', runtimeLayer: 'vm', status: 'paused', vmState: 'paused',
+      parent: 'qemu-node-host-runtime', runtimeLayer: 'vm', status: 'paused', vmState: 'paused',
       input: true, output: true },
     { id: 'qemu-node-guest-app', label: 'guest application', role: 'Guest application',
       hierarchy: 'guest', parent: 'qemu-node', runtimeLayer: 'guest', status: 'unavailable',
       guestState: 'unavailable', guestProtocols: { tcp: false, udp: false }, input: true, output: true },
   ] }
   const nodes = infrastructureNodes(topology)
-  assert.deepEqual(nodes.map(node => node.data.hierarchy), ['container', 'virtual-machine', 'guest'])
-  assert.equal(nodes[1].data.parent, 'qemu-node-container')
+  assert.deepEqual(nodes.map(node => node.data.hierarchy), ['host', 'virtual-machine', 'guest'])
+  assert.equal(nodes[1].data.parent, 'qemu-node-host-runtime')
   assert.equal(nodes[2].data.parent, 'qemu-node')
   assert.deepEqual(nodes.map(node => node.data.status), ['running', 'paused', 'unavailable'])
   assert.equal(nodes[1].data.vmState, 'paused')

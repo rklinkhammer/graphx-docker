@@ -5,10 +5,6 @@ ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 source "$ROOT/scripts/configure-build-trust.sh"
 MODE=${1:-portable}
 BUILD_DIR=${GRAPHX_BUILD_DIR:-"$ROOT/build/dev"}
-CXX20_BUILD_DIR=${GRAPHX_CXX20_BUILD_DIR:-"$ROOT/build/cxx20-features"}
-if test -n "${GRAPHX_BUILD_DIR:-}" && test -z "${GRAPHX_CXX20_BUILD_DIR:-}"; then
-  CXX20_BUILD_DIR="${BUILD_DIR}-cxx20"
-fi
 TMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/graphx-feature-test.XXXXXX")
 PIDS=()
 
@@ -88,22 +84,15 @@ portable() {
   test "$first_demo_token" = aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
   test "$second_demo_token" = "$first_demo_token"
 
-  step "Configure, build, and run the C++23 suite"
+  step "Configure, build, and run the C++20 suite"
   if test "$BUILD_DIR" = "$ROOT/build/dev"; then
     cmake --preset dev -S "$ROOT"
   else
     cmake -S "$ROOT" -B "$BUILD_DIR" -G Ninja \
-      -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_STANDARD=23 -DGRAPHX_BUILD_TESTS=ON
+      -DCMAKE_BUILD_TYPE=Debug -DGRAPHX_BUILD_TESTS=ON
   fi
   cmake --build "$BUILD_DIR" -j "${GRAPHX_BUILD_JOBS:-4}"
   ctest --test-dir "$BUILD_DIR" --output-on-failure -L quick
-
-  step "Build and test the supported C++20 configuration"
-  cmake -S "$ROOT" -B "$CXX20_BUILD_DIR" -G Ninja \
-    -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_STANDARD=20 -DGRAPHX_BUILD_TESTS=ON
-  cmake --build "$CXX20_BUILD_DIR" -j "${GRAPHX_BUILD_JOBS:-4}"
-  ctest --test-dir "$CXX20_BUILD_DIR" --output-on-failure \
-    -R '^(graphx-tests|graphx-config-tests|graphx-config-cli)$'
 
   step "Validate and inspect every checked-in topology"
   for config in "$ROOT/graphx.yaml" "$ROOT"/examples/*/graphx.yaml; do
@@ -111,7 +100,6 @@ portable() {
     example_name=$(basename "$(dirname "$config")")
     test "$config" != "$ROOT/graphx.yaml" || example_name=root
     test "$(configuration_version "$config")" = 2
-    "$BUILD_DIR/graphx" validate "$config"
     "$BUILD_DIR/graphx" inspect "$config" >"$TMP_DIR/$example_name.inspect"
     "$BUILD_DIR/graphx" infra create "$config" --dry-run >"$TMP_DIR/$example_name.plan"
     "$BUILD_DIR/graphx" infra status "$config" --dry-run >/dev/null

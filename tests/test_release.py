@@ -387,6 +387,8 @@ for marker in ("ghcr_release.py assert-absent", "staging-${{ github.run_id }}",
                "validate_oci_sbom.py", "rollback-containers",
                "ghcr_release.py delete-tag"):
     assert marker in workflow, marker
+assert workflow.count("scripts/test-linux-container.sh quality") == 1
+assert workflow.count("scripts/test-linux-container.sh fuzz") == 1
 assert "tags: ghcr.io/${{ github.repository_owner }}/graphx-runtime:${{ steps.version.outputs.version }}" not in workflow
 assert "needs.publish.result != 'success'" in workflow
 rollback = workflow.split("  rollback-containers:", 1)[1]

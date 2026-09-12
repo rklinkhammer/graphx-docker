@@ -13,7 +13,7 @@ Profiles:
   quality       Run formatting and static analysis
   sanitizers    Run the platform-safe LLVM 21 sanitizer suite
   fuzz          Run bounded LLVM 21 libFuzzer smoke tests
-  portable      Run complete non-Docker acceptance for C++20 and C++23
+  portable      Run complete non-Docker acceptance with C++20
   full          Run native quality, macOS-hosted Linux quality, sanitizers,
                 fuzzing, portable acceptance, and Docker acceptance
   native-linux  Run portable and privileged native Linux network acceptance

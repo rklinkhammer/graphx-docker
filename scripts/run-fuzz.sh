@@ -80,7 +80,6 @@ cp "$TMP_DIR/envelope/current" "$TMP_DIR/frame/current-envelope"
 
 cmake --fresh -S "$ROOT" -B "$BUILD_DIR" -G Ninja \
   -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-  -DCMAKE_CXX_STANDARD=23 \
   -DGRAPHX_BUILD_TESTS=OFF \
   -DGRAPHX_ENABLE_SANITIZERS=ON \
   -DGRAPHX_SANITIZERS="${GRAPHX_SANITIZERS:-address,undefined}" \

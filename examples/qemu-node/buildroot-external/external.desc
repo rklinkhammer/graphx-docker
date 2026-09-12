@@ -1,2 +1,2 @@
 name: GRAPHX_QEMU
-desc: GraphX external raw TCP/UDP QEMU example
+desc: GraphX QEMU TAP/OVS guest

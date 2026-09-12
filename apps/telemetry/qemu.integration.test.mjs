@@ -40,7 +40,7 @@ test('QEMU packet observations remain raw and drive the shared topology', { time
   const temporary = await mkdtemp(resolve(tmpdir(), 'graphx-qemu-evidence-'))
   const evidence = resolve(temporary, 'accelerator-evidence.json')
   const runtimeEvidence = { state: 'booting', vmState: 'running', guestState: 'probing',
-    guestProtocols: { tcp: false, udp: false }, requestedAccelerator: 'auto',
+    guestProtocols: { tcp: false, udp: false }, requestedAccelerator: 'tcg',
     selectedAccelerator: 'tcg', actualAccelerator: 'tcg',
     evidenceSource: 'QMP query-status + query-kvm', qmpStatus: { running: true },
     kvm: { present: false, enabled: false }, updatedAt: Date.now() }
@@ -54,7 +54,7 @@ test('QEMU packet observations remain raw and drive the shared topology', { time
       ...normalizedConfigEnvironment(resolve(repository, 'examples/qemu-node/tap/graphx.yaml')),
       GRAPHX_TELEMETRY_SHARED_SECRET: secret, GRAPHX_CONTROL_TOKEN: secret.split('').reverse().join(''),
       GRAPHX_CAPTURE_ENABLED: 'false', GRAPHX_HISTORY_ENABLED: 'false',
-      GRAPHX_QEMU_ACCEL: 'tcg', GRAPHX_QEMU_REQUESTED_ACCEL: 'auto',
+      GRAPHX_QEMU_ACCEL: 'tcg', GRAPHX_QEMU_REQUESTED_ACCEL: 'tcg',
       GRAPHX_QEMU_EVIDENCE_FILE: evidence,
       GRAPHX_PACKET_HISTORY_URL: '' },
     stdio: ['ignore', 'pipe', 'pipe'],

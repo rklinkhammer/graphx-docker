@@ -1,5 +1,5 @@
 config BR2_PACKAGE_GRAPHX_QEMU_NODE
 	bool "graphx-qemu-node"
 	help
-	  Raw TCP/UDP echo and traffic generator used by the external QEMU
+	  Raw TCP/UDP echo and traffic generator used by the QEMU TAP/OVS
 	  GraphX topology example. The program has no GraphX dependencies.

@@ -6,7 +6,7 @@ history, and collects QMP runtime evidence.
 
 ```sh
 examples/qemu-node/scripts/build.sh
-examples/qemu-node/scripts/demo.sh start --accel auto
+examples/qemu-node/scripts/demo.sh start
 examples/qemu-node/scripts/demo.sh status
 examples/qemu-node/scripts/demo.sh stop
 ```

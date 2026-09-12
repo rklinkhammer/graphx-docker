@@ -5,17 +5,23 @@ Use the smallest profile that covers the change:
 ```sh
 scripts/verify.sh quick
 scripts/verify.sh quality
+scripts/verify.sh sanitizers
+scripts/verify.sh fuzz
 scripts/verify.sh portable
 scripts/verify.sh full
 scripts/verify.sh native-linux
+scripts/verify.sh release
 ```
 
 - `quick` builds and runs unit and portable contract tests.
 - `quality` runs formatting, clang-tidy, and cppcheck on the host toolchain.
-- `portable` runs complete non-Docker acceptance with C++20 and C++23.
+- `sanitizers` runs the LLVM 21 address/undefined-behavior suite supported by the host.
+- `fuzz` runs bounded LLVM 21 libFuzzer smoke tests.
+- `portable` runs complete non-Docker acceptance with C++20.
 - `full` adds sanitizers, fuzzing, Docker acceptance, and, when invoked on macOS,
   the Linux Clang 21/libstdc++ 15 quality container.
 - `native-linux` runs OVS, veth, namespace, TAP, capture, and fault lifecycles.
+- `release` builds and independently verifies a local release candidate from a clean tree.
 
 Run the Linux quality environment directly on any Docker host with:
 

@@ -18,6 +18,15 @@ runtime_images=$run_dir/images
 qmp=$run_dir/qmp_control.py
 peer=$run_dir/peer.py
 observer=$run_dir/packet_observer.py
+qemu_args=(
+  -machine q35,accel=tcg -cpu qemu64 -m 256M -smp 1
+  -kernel "$runtime_images/bzImage" -initrd "$runtime_images/rootfs.cpio.gz"
+  -append "console=ttyS0 panic=1" -no-reboot -display none -monitor none
+  -serial "file:$run_dir/guest-console.log" -daemonize
+  -pidfile "$run_dir/qemu.pid" -qmp "unix:$run_dir/qemu.qmp,server=on,wait=off"
+  -netdev tap,id=net0,ifname=gxqtap0,script=no,downscript=no
+  -device virtio-net-pci,netdev=net0,mac=02:00:00:00:02:15
+)
 
 require() { command -v "$1" >/dev/null || { echo "missing required command: $1" >&2; exit 1; }; }
 owned_pid() {
@@ -100,13 +109,7 @@ start_capture() {
 }
 start_qemu() {
   sudo setpriv --reuid "$qemu_uid" --regid "$qemu_gid" --clear-groups \
-    qemu-system-x86_64 -machine q35,accel=tcg -cpu qemu64 -m 256M -smp 1 \
-      -kernel "$runtime_images/bzImage" -initrd "$runtime_images/rootfs.cpio.gz" \
-      -append "console=ttyS0 panic=1" -no-reboot -display none -monitor none \
-      -serial "file:$run_dir/guest-console.log" -daemonize \
-      -pidfile "$run_dir/qemu.pid" -qmp "unix:$run_dir/qemu.qmp,server=on,wait=off" \
-      -netdev tap,id=net0,ifname=gxqtap0,script=no,downscript=no \
-      -device virtio-net-pci,netdev=net0,mac=02:00:00:00:02:15
+    qemu-system-x86_64 "${qemu_args[@]}"
   for _ in {1..50}; do owned_pid qemu.pid qemu-system-x86_64 && break; sleep 0.1; done
   owned_pid qemu.pid qemu-system-x86_64 || { echo "QEMU failed to start" >&2; return 1; }
   qmp_as_qemu probe --socket "$run_dir/qemu.qmp" \
@@ -177,6 +180,9 @@ verify_network() {
 }
 
 case ${1:-} in
+  print-qemu-command)
+    printf '%s\n' qemu-system-x86_64 "${qemu_args[@]}"
+    ;;
   up)
     test "$(uname -s)" = Linux; test -x "$graphx"; sudo -v
     for command in qemu-system-x86_64 ovs-vsctl ovs-appctl ip tcpdump setpriv python3 curl; do require "$command"; done

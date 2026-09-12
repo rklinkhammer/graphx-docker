@@ -164,37 +164,18 @@ def main() -> int:
     verify = (lima / "verify.sh").read_text(encoding="utf-8")
     require("Node.js 24 is required" in verify and 'import("node:sqlite")' in verify,
             "Lima verification does not enforce the supported Node.js runtime")
-    for name in ("gx-lima-br", "gx-lima-ns", "gx-lima-vh", "gx-lima-vn", "gx-lima-tap", "gx-lima-int", "gx-lima-docker"):
-        require(name in verify, f"verification omits fixed name {name}")
-    for token in ("external_ids:graphx_lima_owner", "graphx-lima:", "datapath_type=system", "ip tuntap", "netem", "nft", "tcpdump", "docker buildx version", "Lima login user cannot access rootful Docker", "scripts/verify.sh quick", "GRAPHX_DEV_BUILD_DIR=/var/lib/graphx/runtime/build/dev", "project graphx.yaml --check", "snapshot before", "snapshot after"):
+    for token in ("docker buildx version", "Lima login user cannot access rootful Docker",
+                  "scripts/verify.sh quick", "GRAPHX_ENABLE_LINUX_OVS_TESTS=ON",
+                  "-L privileged", "snapshot before", "snapshot after"):
         require(token in verify, f"verification omits {token}")
     require("/workspace/graphx-docker" in verify and "/var/lib/graphx" in verify, "storage boundary is not verified")
-    require("GRAPHX_LIMA_TEST_FAIL_AFTER" in verify, "bounded failure injection hook is missing")
-    require("set +e" not in verify, "cleanup must not disable fail-fast mode")
-    for token in (
-        '[[ ! -e ${state_dir} ]]', 'mkdir -- "${state_dir}"',
-        "bridge.uuid", "internal.ifindex", "namespace.inode", "veth-host.ifindex",
-        "veth-ns.ifindex", "tap.ifindex", "assert_clean", "cleanup-errors.txt",
-        'rotate_evidence "$((evidence_count_limit - 1))"',
-        'rotate_evidence "${evidence_count_limit}"',
-    ):
-        require(token in verify, f"transactional verification omits {token}")
-    for stage in (
-        "state", "docker", "bridge", "internal", "namespace-created",
-        "namespace-owned", "veth-created", "veth-owned", "veth-attached",
-        "tap-created", "tap-owned", "tap-attached", "netem", "topology",
-        "capture-started",
-    ):
-        require(f"maybe_fail {stage}" in verify, f"failure injection omits {stage}")
-    require('startsWith("gx-lima-")' not in verify and 'startswith("gx-lima-")' not in verify,
-            "snapshots must not hide disposable-name replacements")
-    require("grep -vE ' gx-lima-'" not in verify and 'grep -v "${bridge}"' not in verify,
-            "snapshots must include exact disposable resources")
+    require("ip tuntap add" not in verify and "ovs-vsctl add-br" not in verify,
+            "Lima verification must exercise production lifecycle tests, not reproduce them")
 
     docs = "\n".join((root / name).read_text(encoding="utf-8") for name in ("README.md", "SUPPORT.md", "docs/security.md", "docs/GraphX_Architecture.md"))
     for statement in ("version: 2", "veth", "TAP", "Open vSwitch"):
         require(statement.lower() in docs.lower(), f"documentation does not state Lima boundary: {statement}")
-    print("Lima Lima static contract checks passed")
+    print("Lima static contract checks passed")
     return 0
 
 

@@ -9,12 +9,13 @@ Build the guest image, then run the demo on native Linux or in the GraphX Lima V
 
 ```sh
 examples/qemu-node/scripts/build.sh
-examples/qemu-node/scripts/demo.sh start --accel auto
+examples/qemu-node/scripts/demo.sh start
 ```
 
-Use `status`, `logs`, and `stop` with the same launcher. `--accel auto` chooses KVM
-when available and otherwise uses TCG. The launcher never falls back to QEMU user
-networking. Runtime files remain under `/var/lib/graphx/qemu` in the Linux runtime.
+Use `status`, `verify`, `pause`, `resume`, and `stop` with the same launcher. The
+x86_64 guest uses TCG consistently on native Linux and in the ARM64 Lima VM. The
+launcher never uses QEMU user networking. Runtime files remain under
+`/var/lib/graphx/qemu` in the Linux runtime.
 
 See [`../examples/qemu-node/tap/README.md`](../examples/qemu-node/tap/README.md) for
 requirements and evidence checks.

@@ -13,29 +13,15 @@
       }
     },
     {
-      "name": "ci-cxx20",
-      "inherits": "dev",
-      "displayName": "CI C++20",
-      "binaryDir": "${sourceDir}/build/ci-cxx20",
-      "cacheVariables": { "CMAKE_CXX_STANDARD": "20" }
-    },
-    {
-      "name": "ci-cxx23",
-      "inherits": "dev",
-      "displayName": "CI C++23",
-      "binaryDir": "${sourceDir}/build/ci-cxx23",
-      "cacheVariables": { "CMAKE_CXX_STANDARD": "23" }
-    },
-    {
       "name": "sanitizers",
-      "inherits": "ci-cxx23",
+      "inherits": "dev",
       "displayName": "Address and undefined behavior sanitizers",
       "binaryDir": "${sourceDir}/build/sanitizers",
       "cacheVariables": { "GRAPHX_ENABLE_SANITIZERS": "ON" }
     },
     {
       "name": "quality",
-      "inherits": "ci-cxx20",
+      "inherits": "dev",
       "displayName": "clang-tidy and cppcheck",
       "binaryDir": "${sourceDir}/build/quality",
       "cacheVariables": {
@@ -56,24 +42,12 @@
   ],
   "buildPresets": [
     { "name": "dev", "configurePreset": "dev" },
-    { "name": "ci-cxx20", "configurePreset": "ci-cxx20" },
-    { "name": "ci-cxx23", "configurePreset": "ci-cxx23" },
     { "name": "sanitizers", "configurePreset": "sanitizers" },
     { "name": "quality", "configurePreset": "quality" },
     { "name": "fuzz", "configurePreset": "fuzz" }
   ],
   "testPresets": [
     { "name": "dev", "configurePreset": "dev", "output": { "outputOnFailure": true } },
-    {
-      "name": "ci-cxx20",
-      "configurePreset": "ci-cxx20",
-      "output": { "outputOnFailure": true }
-    },
-    {
-      "name": "ci-cxx23",
-      "configurePreset": "ci-cxx23",
-      "output": { "outputOnFailure": true }
-    },
     {
       "name": "sanitizers",
       "configurePreset": "sanitizers",

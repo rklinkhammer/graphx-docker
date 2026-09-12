@@ -25,14 +25,14 @@ Open the URL printed by the command. Use `scripts/demo.sh logs`,
 
 ## Build and test
 
-Development requires CMake 3.25+, Ninja, OpenSSL 3, and a C++23 compiler.
+Development requires CMake 3.25+, Ninja, OpenSSL 3, and a C++20 compiler.
 
 ```sh
 scripts/verify.sh quick
 ```
 
-Available verification profiles are `quick`, `portable`, `full`, and
-`privileged-linux`. Their requirements are documented in
+Available verification profiles are `quick`, `quality`, `sanitizers`, `fuzz`,
+`portable`, `full`, `native-linux`, and `release`. Their requirements are documented in
 [`docs/test-procedure.md`](docs/test-procedure.md).
 
 For a direct build:

@@ -29,7 +29,8 @@ def main() -> int:
     graphx, root = Path(sys.argv[1]), Path(sys.argv[2])
     profile = root / "examples" / "qemu-node" / "tap"
     config = profile / "graphx.yaml"
-    launcher = (profile / "scripts" / "ovs-lab.sh").read_text(encoding="utf-8")
+    launcher = profile / "scripts" / "ovs-lab.sh"
+    demo = root / "examples" / "qemu-node" / "scripts" / "demo.sh"
 
     run(graphx, "validate", config)
     with tempfile.TemporaryDirectory(prefix="graphx-qemu-tap-") as raw:
@@ -67,16 +68,16 @@ def main() -> int:
     require(rejected.returncode != 0 and "non-root UID" in rejected.stderr,
             "QEMU TAP must reject root ownership")
 
-    for marker in ("-netdev tap,id=net0,ifname=gxqtap0,script=no,downscript=no",
-                   "--reuid \"$qemu_uid\"", "mac=02:00:00:00:02:15",
-                   "qemu-span.pcap", "vm-control", "ovs-appctl fdb/show",
-                   "value[\"records\"] > 0", "set -Eeuo pipefail",
-                   "refusing to signal PID", "UID/GID 65532 must belong to graphx-qemu",
-                   'runtime_images=$run_dir/images', 'python3 "$qmp"',
-                   'trap - ERR', 'exit "$original"'):
-        require(marker in launcher, f"missing QEMU launcher contract: {marker}")
-    require("-netdev user" not in launcher and "docker compose" not in launcher,
-            "the QEMU launcher must not use slirp or Docker networking")
+    command = run("bash", launcher, "print-qemu-command").stdout
+    require("q35,accel=tcg" in command, "QEMU must use the supported TCG accelerator")
+    require("tap,id=net0,ifname=gxqtap0,script=no,downscript=no" in command,
+            "QEMU must attach to the GraphX-owned TAP")
+    require("mac=02:00:00:00:02:15" in command, "QEMU must use the configured guest MAC")
+    require("-netdev user" not in command, "QEMU must not use user networking")
+
+    unsupported = run("bash", demo, "start", "--accel", "auto", check=False)
+    require(unsupported.returncode == 64 and "usage:" in unsupported.stderr,
+            "the QEMU launcher must reject unsupported options")
 
     qmp = (root / "examples" / "qemu-node" / "tools" / "qmp_control.py").read_text()
     require('commands.add_parser("vm-control")' in qmp and '"stop"' in qmp and '"cont"' in qmp,

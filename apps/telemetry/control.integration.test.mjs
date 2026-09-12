@@ -13,12 +13,12 @@ import { WebSocket } from 'ws'
 import { ReplayCache, signEnvelope, verifyEnvelope } from './security.mjs'
 import { normalizedConfigEnvironment } from './test-config.mjs'
 
-const sharedSecret = 'phase-8-telemetry-secret-0123456789'
-const transformSecret = 'phase-8-transform-secret-012345678901'
-const sinkSecret = 'phase-8-sink-secret-01234567890123456'
-const sourceToken = 'phase-8-source-operator-token-0123456789'
-const adminToken = 'phase-8-admin-operator-token-01234567890'
-const observationToken = 'phase-8-observation-token-0123456789012'
+const sharedSecret = 'telemetry-test-secret-0123456789012345'
+const transformSecret = 'transform-test-secret-0123456789012345'
+const sinkSecret = 'sink-test-secret-012345678901234567890'
+const sourceToken = 'source-operator-test-token-012345678901'
+const adminToken = 'admin-operator-test-token-0123456789012'
+const observationToken = 'observation-test-token-012345678901234'
 
 async function availablePort() {
   const server = createServer().listen(0, '127.0.0.1')
@@ -371,8 +371,8 @@ test('file-only rotation filters candidate and retired credentials before fan-ou
     const identityPath = join(directory, 'identities.json')
     const previousCredentialPath = join(directory, 'previous-credentials.json')
     const historyPath = join(directory, 'history.sqlite')
-    const rotatedAdmin = 'phase-8-rotated-admin-token-012345678901'
-    const rotatedRuntime = 'phase-8-rotated-generator-secret-012345678'
+    const rotatedAdmin = 'rotated-admin-test-token-012345678901234'
+    const rotatedRuntime = 'rotated-generator-test-secret-01234567890'
     const runtime = dgram.createSocket('udp4')
     const logs = []
     let child = null

@@ -36,13 +36,13 @@ def packet_rules() -> list[dict[str, object]]:
     source = os.environ.get("GRAPHX_PACKET_RULES", "")
     if not source:
         return [
-            {"edge_id": "origin-qemu-tcp", "direction": "host-to-qemu", "node_id": "qemu-node",
+            {"edge_id": "peer-qemu-tcp", "direction": "host-to-qemu", "node_id": "qemu-node",
              "protocol": "TCP", "destination": GUEST_ADDRESS, "destination_port": GUEST_PORT},
-            {"edge_id": "origin-qemu-udp", "direction": "host-to-qemu", "node_id": "qemu-node",
+            {"edge_id": "peer-qemu-udp", "direction": "host-to-qemu", "node_id": "qemu-node",
              "protocol": "UDP", "destination": GUEST_ADDRESS, "destination_port": GUEST_PORT},
-            {"edge_id": "qemu-receiver-tcp", "direction": "qemu-to-host", "node_id": "host-receiver",
+            {"edge_id": "qemu-peer-tcp", "direction": "qemu-to-host", "node_id": "host-peer",
              "protocol": "TCP", "source": GUEST_ADDRESS, "destination_port": RECEIVER_PORT},
-            {"edge_id": "qemu-receiver-udp", "direction": "qemu-to-host", "node_id": "host-receiver",
+            {"edge_id": "qemu-peer-udp", "direction": "qemu-to-host", "node_id": "host-peer",
              "protocol": "UDP", "source": GUEST_ADDRESS, "destination_port": RECEIVER_PORT},
         ]
     try:

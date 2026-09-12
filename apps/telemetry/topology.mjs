@@ -50,11 +50,8 @@ export function createTopology(config, environment = process.env) {
   const qemu = graphNodes.find(node => node.runtime === 'qemu')
   const paths = structuredClone(network.edge_paths || {})
   if (qemu) {
-    const boundary = qemu.execution === 'container'
-      ? { id: `${qemu.id}-container`, label: `${qemu.id} container`, role: 'Docker container',
-          image: qemu.image, hierarchy: 'container', input: true, output: true }
-      : { id: `${qemu.id}-host-runtime`, label: 'Host QEMU process', role: 'Host runtime',
-          image: 'externally managed', hierarchy: 'host', input: true, output: true }
+    const boundary = { id: `${qemu.id}-host-runtime`, label: 'Host QEMU process', role: 'Host runtime',
+      image: 'externally managed', hierarchy: 'host', input: true, output: true }
     infrastructure.set(boundary.id, boundary)
     infrastructure.set(`${qemu.id}-guest-app`, { id: `${qemu.id}-guest-app`,
       label: 'Raw TCP/UDP guest application', role: 'Guest application', image: qemu.guestArchitecture,
@@ -106,7 +103,7 @@ export function topologyView(topology, evidence, diagnosticEvidence = null, diag
       if (node.id === `${qemuNode.id}-guest-app`) return { ...node,
         status: evidence.guestState || evidence.state, runtimeLayer: 'guest',
         guestState: evidence.guestState || null, guestProtocols: evidence.guestProtocols || null }
-      if (node.id === `${qemuNode.id}-${qemuNode.execution === 'container' ? 'container' : 'host-runtime'}`)
+      if (node.id === `${qemuNode.id}-host-runtime`)
         return { ...node, status: boundaryState, runtimeLayer: 'boundary' }
       return node
     }) }

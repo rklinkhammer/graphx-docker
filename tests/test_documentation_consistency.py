@@ -62,6 +62,22 @@ def main() -> int:
         if not condition:
             raise AssertionError(f"{label} does not match VERSION")
 
+    help_text = subprocess.check_output(
+        [root / "scripts/verify.sh", "--help"], cwd=root, text=True
+    )
+    profiles = re.findall(r"^  ([a-z-]+)\s+", help_text, re.MULTILINE)
+    documented = re.search(
+        r"Available verification profiles are (.*?)\. Their requirements",
+        readme, re.DOTALL,
+    )
+    if not documented:
+        raise AssertionError("README does not list verification profiles")
+    readme_profiles = re.findall(r"`([a-z-]+)`", documented.group(1))
+    if readme_profiles != profiles:
+        raise AssertionError(
+            f"README verification profiles {readme_profiles} do not match CLI {profiles}"
+        )
+
     for relative in (
         "apps/telemetry/package.json",
         "apps/telemetry/package-lock.json",
