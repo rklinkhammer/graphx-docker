@@ -1,2 +1,0 @@
-Capturing on 'rtl-cap', 'rtm-cap', and 'rtr-cap'
-dumpcap: The file to which the capture would be saved ("/home/rklinkhammer/workspace/graphx-docker/outputs/static-route-policy/20260907T013537Z/route-policy.pcapng") could not be opened: Permission denied.

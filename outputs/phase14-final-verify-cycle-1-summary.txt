@@ -1,9 +1,0 @@
-run_dir=/home/rklinkhammer/workspace/graphx-docker/outputs/static-route-policy/20260907T134544Z
-owner=rklinkhammer:rklinkhammer mode=644 size=27928
-File name:           /home/rklinkhammer/workspace/graphx-docker/outputs/static-route-policy/20260907T134544Z/route-policy.pcapng
-Number of packets:   196
-File size:           27 kB
-namespace_inode=4026532923
-link_ifindex=2039
-bridge_uuid=e38396d2-91fb-46ec-9a85-6c916ce5edd4
-docker_id=b207d58195b3e344bc272718d7d5b4c4ca0e7f191e277390b7e9e6757b829b45

@@ -1,4 +1,0 @@
-PASS raw TCP and UDP traffic in both directions
-indexed 142 TCP/UDP packets in /Users/rklinkhammer/workspace/graphx-docker/outputs/qemu-node/20260906T155208Z/packet-history.sqlite
-converted 152 Ethernet packets to /Users/rklinkhammer/workspace/graphx-docker/outputs/qemu-node/20260906T155208Z/qemu-node.pcapng
-QEMU run artifacts: /Users/rklinkhammer/workspace/graphx-docker/outputs/qemu-node/20260906T155208Z

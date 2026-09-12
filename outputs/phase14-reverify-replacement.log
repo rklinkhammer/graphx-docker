@@ -1,6 +1,0 @@
-+ ip link add rtl-ovs type veth peer name rtl-end
-+ ip link set rtl-ovs up
-+ ip link set rtl-end up
-+ ip link add rtl-cap-ovs type veth peer name rtl-cap
-graphx: command failed with status 23: ip link add rtl-cap-ovs type veth peer name rtl-cap
-! rollback skipped; resource identity changed: ip link add rtl-ovs type veth peer name rtl-end

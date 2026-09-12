@@ -1,6 +1,0 @@
-Capturing on 'rtl-cap', 'rtm-cap', and 'rtr-cap'
-File: -
-Packets captured: 135
-Packets received/dropped on interface 'rtl-cap': 69/0 (pcap:0/dumpcap:0/flushed:0/ps_ifdrop:0) (100.0%)
-Packets received/dropped on interface 'rtm-cap': 66/0 (pcap:0/dumpcap:0/flushed:0/ps_ifdrop:0) (100.0%)
-Packets received/dropped on interface 'rtr-cap': 0/0 (pcap:0/dumpcap:0/flushed:0/ps_ifdrop:0) (0.0%)

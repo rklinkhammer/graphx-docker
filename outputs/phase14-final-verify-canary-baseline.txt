@@ -1,4 +1,0 @@
-namespace_inode=4026532923
-link_ifindex=2039
-bridge_uuid=e38396d2-91fb-46ec-9a85-6c916ce5edd4
-docker_id=b207d58195b3e344bc272718d7d5b4c4ca0e7f191e277390b7e9e6757b829b45
