@@ -19,9 +19,10 @@ struct Json {
   bool boolean_value{};
   std::uint64_t unsigned_value{};
   double real_value{};
+  std::string member_name;
   std::string string_value;
   std::vector<Json> array_value;
-  std::vector<std::pair<std::string, Json>> object_value;
+  std::vector<Json> object_value;
 
   static Json null() { return {}; }
   static Json boolean(bool value) {
@@ -54,13 +55,20 @@ struct Json {
     result.array_value = std::move(values);
     return result;
   }
-  static Json object(std::initializer_list<std::pair<std::string, Json>> values) {
-    Json result;
-    result.kind = Kind::object;
-    result.object_value.assign(values);
-    return result;
-  }
+  static Json object(std::initializer_list<std::pair<std::string, Json>> values);
 };
+
+Json Json::object(std::initializer_list<std::pair<std::string, Json>> values) {
+  Json result;
+  result.kind = Kind::object;
+  result.object_value.reserve(values.size());
+  for (const auto& [name, value] : values) {
+    auto member = value;
+    member.member_name = name;
+    result.object_value.push_back(std::move(member));
+  }
+  return result;
+}
 
 std::string escaped(std::string_view value) {
   std::string result;
@@ -148,9 +156,9 @@ void render(const Json& value, std::string& output, std::size_t indentation) {
       }
       output += "{\n";
       for (std::size_t index = 0; index < value.object_value.size(); ++index) {
-        const auto& [name, child] = value.object_value[index];
+        const auto& child = value.object_value[index];
         indent(indentation + 2);
-        output += escaped(name);
+        output += escaped(child.member_name);
         output += ": ";
         render(child, output, indentation + 2);
         output += index + 1 == value.object_value.size() ? "\n" : ",\n";
