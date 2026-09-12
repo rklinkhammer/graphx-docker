@@ -447,9 +447,8 @@
       "description": "Normalized descriptive placement metadata; process managers own service execution.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["network", "project", "services", "telemetry"],
+      "required": ["project", "services", "telemetry"],
       "properties": {
-        "network": { "$ref": "#/$defs/stringOrNull" },
         "project": { "$ref": "#/$defs/stringOrNull" },
         "services": { "type": "array", "items": { "$ref": "#/$defs/service" } },
         "telemetry": {

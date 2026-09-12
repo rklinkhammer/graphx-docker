@@ -37,7 +37,9 @@ take precedence. The configuration version cannot be overridden.
 `graphx config normalize` emits deterministic JSON with resolved defaults and one
 shape for all consumers. The contract is defined by
 `config/schema/normalized-graph.schema.json` and contains the graph, OVS network
-model, deployment, and observability settings. It never contains credentials.
+model, deployment, and observability settings. Consumers use that shape directly:
+edges contain their endpoint and transport objects, while services and edge paths
+remain ordered arrays. It never contains credentials.
 
 ```sh
 graphx config normalize graphx.yaml > normalized.json

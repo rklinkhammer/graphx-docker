@@ -4,13 +4,20 @@ import { createTopology, topologyView } from './topology.mjs'
 
 const config = {
   graph: { id: 'test', nodes: [
-    { id: 'source', kind: 'source', ports: [{ name: 'out', direction: 'output', schema: 'bytes' }] },
+    { id: 'source', kind: 'source', runtime: 'process', execution: 'local',
+      lifecycle: 'managed', control: 'graphx', accelerator: null, architecture: null,
+      ports: [{ name: 'out', direction: 'output', schema: 'bytes' }] },
     { id: 'guest', kind: 'transform', runtime: 'qemu', execution: 'host', architecture: 'ppc',
+      lifecycle: 'external', control: 'origin', accelerator: 'auto',
       ports: [{ name: 'in', direction: 'input', schema: 'bytes' }] },
-  ], edges: [{ id: 'flow', from: 'source.out', to: 'guest.in', transport: 'tcp' }] },
-  transport: { tcp: { flow: { port: 9001, framing: 'u32be' } } },
-  network: { switches: [{ id: 'switch', datapath: 'system' }],
-    edge_paths: { flow: ['source', 'switch', 'guest'] } },
+  ], edges: [{ id: 'flow', from: { node: 'source', port: 'out' },
+    to: { node: 'guest', port: 'in' }, data_plane: 'graphx',
+    transport: { kind: 'tcp', port: 9001, framing: 'u32be' } }] },
+  deployment: { project: null, services: [], telemetry: { service: null, port: 0 } },
+  network: { backend: 'ovs', networks: [], switches: [{ id: 'switch', datapath: 'system' }],
+    routers: [], attachments: [], captures: [], faults: [],
+    edge_paths: [{ edge_id: 'flow', hops: ['source', 'switch', 'guest'] }] },
+  observability: { capture: { provider: 'packet-stream' } },
 }
 
 test('topology construction preserves runtime hierarchy and edge semantics', () => {

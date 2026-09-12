@@ -96,7 +96,14 @@ endif()
 add_library(graphx
   src/capture.cpp
   src/config.cpp
+  src/config_deployment.cpp
+  src/config_graph.cpp
+  src/config_network.cpp
   src/config_network_profiles.cpp
+  src/config_observability.cpp
+  src/config_parser.cpp
+  src/config_transport.cpp
+  src/config_validation.cpp
   src/envelope.cpp
   src/framing.cpp
   src/in_process_transport.cpp
@@ -271,10 +278,13 @@ if(GRAPHX_BUILD_TESTS)
   target_include_directories(graphx-resource-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
   add_test(NAME graphx-resource-modules COMMAND graphx-resource-tests)
   set_tests_properties(graphx-resource-modules PROPERTIES TIMEOUT 15)
-  graphx_add_test_target(graphx-config-tests tests/test_config.cpp)
-  target_compile_definitions(graphx-config-tests PRIVATE GRAPHX_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
-  add_test(NAME graphx-config-tests COMMAND graphx-config-tests)
-  set_tests_properties(graphx-config-tests PROPERTIES TIMEOUT 30)
+  foreach(domain graph network observability transport)
+    graphx_add_test_target(graphx-config-${domain}-tests tests/test_config_${domain}.cpp)
+    target_compile_definitions(graphx-config-${domain}-tests
+      PRIVATE GRAPHX_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+    add_test(NAME graphx-config-${domain} COMMAND graphx-config-${domain}-tests)
+    set_tests_properties(graphx-config-${domain} PROPERTIES TIMEOUT 30)
+  endforeach()
   graphx_add_test_target(graphx-tls-smoke tests/tls_smoke.cpp)
   add_test(NAME graphx-tls-security
     COMMAND bash ${CMAKE_SOURCE_DIR}/scripts/test-tls.sh $<TARGET_FILE:graphx-tls-smoke>)

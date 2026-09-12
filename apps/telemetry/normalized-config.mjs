@@ -94,38 +94,11 @@ export function loadNormalizedConfig(path) {
   return validateNormalizedConfig(parsed)
 }
 
-function normalizedAsTelemetryConfig(document) {
-  const deploymentServices = Object.fromEntries(document.deployment.services.map(service =>
-    [service.node_id, { image: service.image, command: service.command }]))
-  const nodes = document.graph.nodes
-  const edges = document.graph.edges.map(edge => ({
-    id: edge.id,
-    from: `${edge.from.node}.${edge.from.port}`,
-    to: `${edge.to.node}.${edge.to.port}`,
-    data_plane: edge.data_plane,
-    transport: edge.transport.kind,
-  }))
-  const transports = {}
-  for (const edge of document.graph.edges) {
-    transports[edge.transport.kind] ||= {}
-    transports[edge.transport.kind][edge.id] = edge.transport
-  }
-  const edgePaths = Object.fromEntries(document.network.edge_paths.map(path =>
-    [path.edge_id, path.hops]))
-  return {
-    graph: { ...document.graph, nodes, edges },
-    deployment: { ...document.deployment, services: deploymentServices },
-    transport: transports,
-    network: { ...document.network, edge_paths: edgePaths },
-    observability: document.observability,
-  }
-}
-
 export function loadTelemetryConfiguration({ environment = process.env } = {}) {
   const normalizedPath = environment.GRAPHX_NORMALIZED_CONFIG
   if (!normalizedPath) fail('GRAPHX_NORMALIZED_CONFIG is required')
   return {
-    config: normalizedAsTelemetryConfig(loadNormalizedConfig(normalizedPath)),
+    config: loadNormalizedConfig(normalizedPath),
     baseDirectory: normalize(environment.GRAPHX_CONFIG_DIRECTORY || dirname(normalizedPath)),
   }
 }

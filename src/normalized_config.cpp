@@ -489,8 +489,6 @@ Json document_json(const GraphConfig& config) {
                   })},
       {"deployment",
        Json::object({
-           {"network", config.deployment.network.empty() ? Json::null()
-                                                         : Json::text(config.deployment.network)},
            {"project", config.deployment.project.empty() ? Json::null()
                                                          : Json::text(config.deployment.project)},
            {"services", converted_array(config.deployment.services, deployment_service_json)},

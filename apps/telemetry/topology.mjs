@@ -1,17 +1,17 @@
 export function createTopology(config, environment = process.env) {
-  const graph = config.graph || { id: 'graphx', nodes: [], edges: [] }
-  const deployment = config.deployment?.services || {}
-  const transport = config.transport || {}
+  const graph = config.graph
+  const deployment = new Map(config.deployment.services.map(service =>
+    [service.node_id, service]))
   const requestedQemuAccelerator = environment.GRAPHX_QEMU_REQUESTED_ACCEL || ''
   const selectedQemuAccelerator = environment.GRAPHX_QEMU_ACCEL || ''
   const externalObservationSource = graph.nodes.some(node => node.runtime === 'qemu')
     ? 'qemu-pcap'
-    : config.observability?.capture?.provider === 'ovs-span' ? 'ovs-span' : 'ethernet-pcap'
+    : config.observability.capture.provider === 'ovs-span' ? 'ovs-span' : 'ethernet-pcap'
   const graphNodes = graph.nodes.map(node => ({
-    id: node.id, label: node.id, role: node.kind, image: deployment[node.id]?.image || 'local process',
-    runtime: node.runtime || (deployment[node.id] ? 'docker' : 'process'),
-    execution: node.execution || (deployment[node.id] ? 'container' : 'local'),
-    lifecycle: node.lifecycle || 'managed', control: node.control || 'graphx',
+    id: node.id, label: node.id, role: node.kind,
+    image: deployment.get(node.id)?.image || 'local process',
+    runtime: node.runtime, execution: node.execution,
+    lifecycle: node.lifecycle, control: node.control,
     accelerator: node.runtime === 'qemu' ? selectedQemuAccelerator || node.accelerator || 'unknown' : null,
     requestedAccelerator: node.runtime === 'qemu' ? requestedQemuAccelerator || node.accelerator || 'unknown' : null,
     selectedAccelerator: node.runtime === 'qemu' ? selectedQemuAccelerator || 'unknown' : null,
@@ -21,34 +21,36 @@ export function createTopology(config, environment = process.env) {
     output: node.ports.some(port => port.direction === 'output'),
   }))
   const graphEdges = graph.edges.map(edge => {
-    const [source] = edge.from.split('.')
-    const [target, targetPort] = edge.to.split('.')
+    const source = edge.from.node
+    const target = edge.to.node
+    const targetPort = edge.to.port
     const targetNode = graph.nodes.find(node => node.id === target)
     const schema = targetNode?.ports.find(port => port.name === targetPort)?.schema || 'unknown'
-    const settings = transport[edge.transport]?.[edge.id] || {}
-    return { id: edge.id, source, target, transport: edge.transport,
+    const settings = edge.transport
+    return { id: edge.id, source, target, transport: settings.kind,
       dataPlane: edge.data_plane || 'graphx', framing: settings.framing || 'u32be',
       observationSource: edge.data_plane === 'external' ? externalObservationSource : 'runtime',
       port: settings.port || null, schema }
   })
-  const network = config.network || {}
+  const network = config.network
   const infrastructure = new Map(graphNodes.map(node => [node.id, node]))
-  for (const item of network.networks || []) infrastructure.set(item.id, {
+  for (const item of network.networks) infrastructure.set(item.id, {
     id: item.id, label: item.id, role: item.profile,
-    image: (item.subnets || [item.subnet]).join(', '), input: true, output: true,
+    image: item.subnets.join(', '), input: true, output: true,
   })
-  for (const item of network.switches || []) infrastructure.set(item.id, {
+  for (const item of network.switches) infrastructure.set(item.id, {
     id: item.id, label: item.id, role: 'Open vSwitch',
     image: item.mirror ? `SPAN · ${item.mirror.id}` : item.datapath || 'system',
     input: true, output: true,
   })
-  for (const item of network.routers || []) infrastructure.set(item.id, {
+  for (const item of network.routers) infrastructure.set(item.id, {
     id: item.id, label: item.id, role: item.kind.replaceAll('_', ' '),
     image: item.forwarding === false ? 'forwarding off' : 'IPv4 forwarding',
     input: true, output: true,
   })
   const qemu = graphNodes.find(node => node.runtime === 'qemu')
-  const paths = structuredClone(network.edge_paths || {})
+  const paths = Object.fromEntries(network.edge_paths.map(path =>
+    [path.edge_id, structuredClone(path.hops)]))
   if (qemu) {
     const boundary = { id: `${qemu.id}-host-runtime`, label: 'Host QEMU process', role: 'Host runtime',
       image: 'externally managed', hierarchy: 'host', input: true, output: true }

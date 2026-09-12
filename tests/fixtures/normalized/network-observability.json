@@ -133,7 +133,6 @@
     ]
   },
   "deployment": {
-    "network": null,
     "project": null,
     "services": [],
     "telemetry": {

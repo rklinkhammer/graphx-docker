@@ -18,15 +18,11 @@ function temporaryFile(contents) {
   return { path, cleanup: () => rmSync(directory, { recursive: true }) }
 }
 
-test('loads normalized JSON and adapts its arrays without changing topology meaning', () => {
+test('loads normalized JSON without a second configuration representation', () => {
   const loaded = loadTelemetryConfiguration({
     environment: { GRAPHX_NORMALIZED_CONFIG: fixturePath }, fallbackPath: '/not-used.yaml',
   })
-  assert.equal(loaded.config.graph.id, fixture.graph.id)
-  assert.deepEqual(loaded.config.graph.nodes, fixture.graph.nodes)
-  assert.deepEqual(loaded.config.network.edge_paths, {})
-  assert.equal(loaded.config.network.networks[0].profile, 'ethernet')
-  assert.deepEqual(loaded.config.deployment.services, {})
+  assert.deepEqual(loaded.config, fixture)
 })
 
 test('rejects malformed, oversized, incompatible, and unsafe normalized files', t => {

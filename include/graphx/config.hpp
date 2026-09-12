@@ -83,7 +83,6 @@ struct DeploymentService {
 };
 
 struct DeploymentConfig {
-  std::string network;
   std::string project;
   std::vector<DeploymentService> services;
   std::string telemetry_service;

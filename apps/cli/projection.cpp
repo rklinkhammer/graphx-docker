@@ -275,7 +275,6 @@ YAML::Node network_projection(const GraphConfig& config) {
 
 YAML::Node deployment_projection(const GraphConfig& config) {
   YAML::Node root;
-  if (!config.deployment.network.empty()) root["network"] = config.deployment.network;
   if (!config.deployment.services.empty()) {
     YAML::Node services(YAML::NodeType::Sequence);
     for (const auto& service : config.deployment.services) {
