@@ -30,7 +30,8 @@ void authoritative_config_loads() {
   const auto config = graphx::load_config(std::filesystem::path(GRAPHX_SOURCE_DIR) / "graphx.yaml");
   expect(config.version == 2 && config.id == "sample-pipeline", "root model");
   expect(config.nodes.size() == 3 && config.edges.size() == 2, "topology counts");
-  expect(config.edge("samples").transport.host == "transform", "TCP settings");
+  expect(std::get<graphx::TcpTransportConfig>(config.edge("samples").transport).host == "transform",
+         "TCP settings");
   expect(config.node("transform").ports.size() == 2, "node lookup");
   expect(config.deployment.services.size() == 3, "deployment placements");
   expect(config.deployment.services.front().node_id == "generator", "deployment separation");
@@ -71,8 +72,10 @@ void explicit_override_wins() {
       file.path(),
       {{"transport.tcp.sample-edge.host", "explicit"}, {"transport.tcp.sample-edge.port", "8123"}});
   ::unsetenv("GRAPHX_OVERRIDES");
-  expect(config.edge("sample-edge").transport.host == "explicit", "override precedence");
-  expect(config.edge("sample-edge").transport.port == 8123, "numeric override");
+  const auto& transport =
+      std::get<graphx::TcpTransportConfig>(config.edge("sample-edge").transport);
+  expect(transport.host == "explicit", "override precedence");
+  expect(transport.port == 8123, "numeric override");
 }
 
 void invalid_override_is_rejected() {
@@ -280,7 +283,9 @@ deployment:
              config.node("guest").architecture == "x86_64",
          "external runtime metadata");
   expect(
-      config.edge("raw").data_plane == "external" && config.edge("raw").transport.framing == "none",
+      config.edge("raw").data_plane == "external" &&
+          std::holds_alternative<graphx::ExternalTransportConfig>(config.edge("raw").transport) &&
+          graphx::transport_framing(config.edge("raw").transport) == "none",
       "raw data-plane metadata");
 
   graphx::TransportFactory factory;

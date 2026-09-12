@@ -123,15 +123,21 @@ void ConfigParser::parse_edges(const YAML::Node& edges, GraphConfig& config) {
     if (edge.data_plane != "graphx" && edge.data_plane != "external")
       error(path + ".data_plane", "must be 'graphx' or 'external'");
     if (transport == "tcp")
-      edge.transport.kind = TransportKind::tcp;
+      edge.transport = edge.data_plane == "external"
+                           ? TransportSettings{ExternalTransportConfig{TcpTransportConfig{}}}
+                           : TransportSettings{TcpTransportConfig{}};
     else if (transport == "udp")
-      edge.transport.kind = TransportKind::udp;
-    else if (transport == "unix")
-      edge.transport.kind = TransportKind::unix_socket;
-    else if (transport == "in_process")
-      edge.transport.kind = TransportKind::in_process;
-    else if (transport == "shared_memory")
-      edge.transport.kind = TransportKind::shared_memory;
+      edge.transport = edge.data_plane == "external"
+                           ? TransportSettings{ExternalTransportConfig{UdpTransportConfig{}}}
+                           : TransportSettings{UdpTransportConfig{}};
+    else if (transport == "unix" && edge.data_plane == "graphx")
+      edge.transport = UnixSocketTransportConfig{};
+    else if (transport == "in_process" && edge.data_plane == "graphx")
+      edge.transport = InProcessTransportConfig{};
+    else if (transport == "shared_memory" && edge.data_plane == "graphx")
+      edge.transport = SharedMemoryTransportConfig{};
+    else if (transport == "unix" || transport == "in_process" || transport == "shared_memory")
+      error(path + ".transport", "external data-plane edges support only TCP or UDP");
     else
       error(path + ".transport", "unsupported transport '" + transport + "'");
     config.edges.push_back(std::move(edge));

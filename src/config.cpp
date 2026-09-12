@@ -8,6 +8,7 @@
 #include <cstdlib>
 #include <fstream>
 #include <sstream>
+#include <type_traits>
 #include <unordered_set>
 
 namespace graphx {
@@ -169,6 +170,49 @@ std::string_view to_string(UdpMode mode) noexcept {
       return "multicast";
   }
   return "unknown";
+}
+
+TransportKind transport_kind(const TransportSettings& transport) {
+  return std::visit(
+      [](const auto& settings) -> TransportKind {
+        using Settings = std::decay_t<decltype(settings)>;
+        if constexpr (std::is_same_v<Settings, TcpTransportConfig>)
+          return TransportKind::tcp;
+        else if constexpr (std::is_same_v<Settings, UdpTransportConfig>)
+          return TransportKind::udp;
+        else if constexpr (std::is_same_v<Settings, UnixSocketTransportConfig>)
+          return TransportKind::unix_socket;
+        else if constexpr (std::is_same_v<Settings, InProcessTransportConfig>)
+          return TransportKind::in_process;
+        else if constexpr (std::is_same_v<Settings, SharedMemoryTransportConfig>)
+          return TransportKind::shared_memory;
+        else
+          return std::visit(
+              [](const auto& protocol) {
+                using Protocol = std::decay_t<decltype(protocol)>;
+                return std::is_same_v<Protocol, TcpTransportConfig> ? TransportKind::tcp
+                                                                    : TransportKind::udp;
+              },
+              settings.protocol);
+      },
+      transport);
+}
+
+std::string_view transport_framing(const TransportSettings& transport) {
+  return std::visit(
+      [](const auto& settings) -> std::string_view {
+        using Settings = std::decay_t<decltype(settings)>;
+        if constexpr (std::is_same_v<Settings, InProcessTransportConfig> ||
+                      std::is_same_v<Settings, SharedMemoryTransportConfig>)
+          return "u32be";
+        else if constexpr (std::is_same_v<Settings, ExternalTransportConfig>)
+          return std::visit(
+              [](const auto& protocol) -> std::string_view { return protocol.framing; },
+              settings.protocol);
+        else
+          return settings.framing;
+      },
+      transport);
 }
 
 }  // namespace graphx

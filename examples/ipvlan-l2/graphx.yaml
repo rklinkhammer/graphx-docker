@@ -159,4 +159,5 @@ deployment:
     sink: {image: graphx-demo:latest, command: graphx-sink}
   project: ipvlan-l2-pipeline
 observability:
+  telemetry: {host: telemetry, port: 9000, websocket: /ws, heartbeat_interval_ms: 1000, heartbeat_timeout_ms: 5000}
   capture: {enabled: true, provider: ovs-span}

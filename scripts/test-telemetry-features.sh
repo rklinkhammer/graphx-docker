@@ -41,7 +41,7 @@ telemetry_features() {
   sed "s|{enabled: true, provider: ovs-span}|{enabled: true, provider: pcapng, directory: $TMP_DIR/captures}|" \
     "$ROOT/examples/ipvlan-l2/graphx.yaml" >"$TMP_DIR/telemetry-graphx.yaml"
   mkdir -p "$TMP_DIR/captures"
-  GRAPHX_OVERRIDES=observability.telemetry.heartbeat_timeout_ms=1000 \
+  GRAPHX_OVERRIDES='observability.telemetry.heartbeat_interval_ms=500;observability.telemetry.heartbeat_timeout_ms=1000' \
     "$BUILD_DIR/graphx" config normalize "$TMP_DIR/telemetry-graphx.yaml" \
     >"$TMP_DIR/telemetry-normalized.json"
   export GRAPHX_TELEMETRY_SHARED_SECRET=telemetry-feature-secret-0123456789

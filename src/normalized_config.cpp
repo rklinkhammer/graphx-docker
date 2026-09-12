@@ -6,6 +6,7 @@
 #include <stdexcept>
 #include <string>
 #include <system_error>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -203,87 +204,95 @@ Json node_json(const NodeConfig& node) {
   });
 }
 
-Json transport_json(const TransportConfig& transport) {
-  switch (transport.kind) {
-    case TransportKind::in_process:
-      return Json::object({
-          {"kind", Json::text("in_process")},
-          {"channel", Json::text(transport.channel)},
-          {"capacity", Json::number(transport.capacity)},
-          {"backpressure", Json::text(transport.backpressure)},
-          {"send_timeout_ms", Json::number(transport.send_timeout_ms)},
-      });
-    case TransportKind::tcp:
-      return Json::object({
-          {"kind", Json::text("tcp")},
-          {"host", Json::text(transport.host)},
-          {"bind", Json::text(transport.bind)},
-          {"port", Json::number(transport.port)},
-          {"framing", Json::text(transport.framing)},
-          {"connect_timeout_ms", Json::number(transport.connect_timeout_ms)},
-          {"send_timeout_ms", Json::number(transport.send_timeout_ms)},
-          {"reconnect", Json::boolean(transport.reconnect)},
-          {"retry", Json::object({
-                        {"max_attempts", Json::number(transport.retry_attempts)},
-                        {"initial_backoff_ms", Json::number(transport.retry_initial_backoff_ms)},
-                        {"max_backoff_ms", Json::number(transport.retry_max_backoff_ms)},
-                    })},
-          {"tls",
-           Json::object({
-               {"enabled", Json::boolean(transport.tls_enabled)},
-               {"verify_peer", Json::boolean(transport.tls_verify_peer)},
-               {"require_client_certificate",
-                Json::boolean(transport.tls_require_client_certificate)},
-               {"ca_file",
-                transport.tls_ca_file.empty() ? Json::null() : Json::text(transport.tls_ca_file)},
-               {"certificate_file", transport.tls_certificate_file.empty()
-                                        ? Json::null()
-                                        : Json::text(transport.tls_certificate_file)},
-               {"private_key_file", transport.tls_private_key_file.empty()
-                                        ? Json::null()
-                                        : Json::text(transport.tls_private_key_file)},
-               {"server_name", transport.tls_server_name.empty()
-                                   ? Json::null()
-                                   : Json::text(transport.tls_server_name)},
-           })},
-      });
-    case TransportKind::udp:
-      return Json::object({
-          {"kind", Json::text("udp")},
-          {"mode", Json::text(to_string(transport.udp_mode))},
-          {"destination", Json::text(transport.destination)},
-          {"bind", Json::text(transport.bind)},
-          {"port", Json::number(transport.port)},
-          {"interface",
-           transport.interface.empty() ? Json::null() : Json::text(transport.interface)},
-          {"ttl", Json::number(transport.ttl)},
-          {"loopback", Json::boolean(transport.loopback)},
-          {"reuse_address", Json::boolean(transport.reuse_address)},
-          {"receive_buffer_bytes", Json::number(transport.receive_buffer_bytes)},
-          {"send_buffer_bytes", Json::number(transport.send_buffer_bytes)},
-          {"max_datagram_bytes", Json::number(transport.max_datagram_bytes)},
-          {"framing", Json::text(transport.framing)},
-      });
-    case TransportKind::unix_socket:
-      return Json::object({
-          {"kind", Json::text("unix")},
-          {"path", Json::text(transport.path)},
-          {"framing", Json::text(transport.framing)},
-          {"connect_timeout_ms", Json::number(transport.connect_timeout_ms)},
-          {"send_timeout_ms", Json::number(transport.send_timeout_ms)},
-      });
-    case TransportKind::shared_memory:
-      return Json::object({
-          {"kind", Json::text("shared_memory")},
-          {"segment", Json::text(transport.segment)},
-          {"capacity", Json::number(transport.capacity)},
-          {"max_message_bytes", Json::number(transport.max_message_bytes)},
-          {"backpressure", Json::text(transport.backpressure)},
-          {"connect_timeout_ms", Json::number(transport.connect_timeout_ms)},
-          {"send_timeout_ms", Json::number(transport.send_timeout_ms)},
-      });
-  }
-  return Json::null();
+Json transport_json(const InProcessTransportConfig& transport) {
+  return Json::object({{"kind", Json::text("in_process")},
+                       {"channel", Json::text(transport.channel)},
+                       {"capacity", Json::number(transport.capacity)},
+                       {"backpressure", Json::text(transport.backpressure)},
+                       {"send_timeout_ms", Json::number(transport.send_timeout_ms)}});
+}
+
+Json transport_json(const TcpTransportConfig& transport) {
+  return Json::object({
+      {"kind", Json::text("tcp")},
+      {"host", Json::text(transport.host)},
+      {"bind", Json::text(transport.bind)},
+      {"port", Json::number(transport.port)},
+      {"framing", Json::text(transport.framing)},
+      {"connect_timeout_ms", Json::number(transport.connect_timeout_ms)},
+      {"send_timeout_ms", Json::number(transport.send_timeout_ms)},
+      {"reconnect", Json::boolean(transport.reconnect)},
+      {"retry",
+       Json::object({{"max_attempts", Json::number(transport.retry.max_attempts)},
+                     {"initial_backoff_ms", Json::number(transport.retry.initial_backoff_ms)},
+                     {"max_backoff_ms", Json::number(transport.retry.max_backoff_ms)}})},
+      {"tls",
+       Json::object({
+           {"enabled", Json::boolean(transport.tls.enabled)},
+           {"verify_peer", Json::boolean(transport.tls.verify_peer)},
+           {"require_client_certificate", Json::boolean(transport.tls.require_client_certificate)},
+           {"ca_file",
+            transport.tls.ca_file.empty() ? Json::null() : Json::text(transport.tls.ca_file)},
+           {"certificate_file", transport.tls.certificate_file.empty()
+                                    ? Json::null()
+                                    : Json::text(transport.tls.certificate_file)},
+           {"private_key_file", transport.tls.private_key_file.empty()
+                                    ? Json::null()
+                                    : Json::text(transport.tls.private_key_file)},
+           {"server_name", transport.tls.server_name.empty()
+                               ? Json::null()
+                               : Json::text(transport.tls.server_name)},
+       })},
+  });
+}
+
+Json transport_json(const UdpTransportConfig& transport) {
+  return Json::object({
+      {"kind", Json::text("udp")},
+      {"mode", Json::text(to_string(transport.mode))},
+      {"destination", Json::text(transport.destination)},
+      {"bind", Json::text(transport.bind)},
+      {"port", Json::number(transport.port)},
+      {"interface", transport.interface.empty() ? Json::null() : Json::text(transport.interface)},
+      {"ttl", Json::number(transport.ttl)},
+      {"loopback", Json::boolean(transport.loopback)},
+      {"reuse_address", Json::boolean(transport.reuse_address)},
+      {"receive_buffer_bytes", Json::number(transport.receive_buffer_bytes)},
+      {"send_buffer_bytes", Json::number(transport.send_buffer_bytes)},
+      {"max_datagram_bytes", Json::number(transport.max_datagram_bytes)},
+      {"framing", Json::text(transport.framing)},
+  });
+}
+
+Json transport_json(const UnixSocketTransportConfig& transport) {
+  return Json::object({{"kind", Json::text("unix")},
+                       {"path", Json::text(transport.path)},
+                       {"framing", Json::text(transport.framing)},
+                       {"connect_timeout_ms", Json::number(transport.connect_timeout_ms)},
+                       {"send_timeout_ms", Json::number(transport.send_timeout_ms)}});
+}
+
+Json transport_json(const SharedMemoryTransportConfig& transport) {
+  return Json::object({{"kind", Json::text("shared_memory")},
+                       {"segment", Json::text(transport.segment)},
+                       {"capacity", Json::number(transport.capacity)},
+                       {"max_message_bytes", Json::number(transport.max_message_bytes)},
+                       {"backpressure", Json::text(transport.backpressure)},
+                       {"connect_timeout_ms", Json::number(transport.connect_timeout_ms)},
+                       {"send_timeout_ms", Json::number(transport.send_timeout_ms)}});
+}
+
+Json transport_json(const TransportSettings& transport) {
+  return std::visit(
+      [](const auto& settings) {
+        using Settings = std::decay_t<decltype(settings)>;
+        if constexpr (std::is_same_v<Settings, ExternalTransportConfig>)
+          return std::visit([](const auto& protocol) { return transport_json(protocol); },
+                            settings.protocol);
+        else
+          return transport_json(settings);
+      },
+      transport);
 }
 
 Json edge_json(const EdgeConfig& edge) {

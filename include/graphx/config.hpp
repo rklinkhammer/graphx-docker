@@ -9,6 +9,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <variant>
 #include <vector>
 
 namespace graphx {
@@ -22,13 +23,39 @@ inline constexpr std::size_t kMaxPortsPerNode = 256;
 enum class TransportKind { in_process, tcp, udp, unix_socket, shared_memory };
 enum class UdpMode { unicast, broadcast, multicast };
 
-struct TransportConfig {
-  TransportKind kind{};
+struct RetryConfig {
+  std::uint32_t max_attempts{60};
+  std::uint32_t initial_backoff_ms{100};
+  std::uint32_t max_backoff_ms{2000};
+};
+
+struct TlsConfig {
+  bool enabled{};
+  bool verify_peer{true};
+  bool require_client_certificate{};
+  std::string ca_file;
+  std::string certificate_file;
+  std::string private_key_file;
+  std::string server_name;
+};
+
+struct TcpTransportConfig {
   std::string host;
   std::string bind;
   std::uint16_t port{};
-  UdpMode udp_mode{UdpMode::unicast};
+  std::string framing{"u32be"};
+  std::uint32_t connect_timeout_ms{5000};
+  std::uint32_t send_timeout_ms{5000};
+  RetryConfig retry;
+  bool reconnect{true};
+  TlsConfig tls;
+};
+
+struct UdpTransportConfig {
+  UdpMode mode{UdpMode::unicast};
   std::string destination;
+  std::string bind;
+  std::uint16_t port{};
   std::string interface;
   std::uint32_t ttl{1};
   bool loopback{true};
@@ -36,27 +63,39 @@ struct TransportConfig {
   std::uint32_t receive_buffer_bytes{4 * 1024 * 1024};
   std::uint32_t send_buffer_bytes{4 * 1024 * 1024};
   std::uint32_t max_datagram_bytes{65507};
+  std::string framing{"u32be"};
+};
+
+struct UnixSocketTransportConfig {
   std::string path;
-  std::string channel;
   std::string framing{"u32be"};
   std::uint32_t connect_timeout_ms{5000};
   std::uint32_t send_timeout_ms{5000};
-  std::uint32_t retry_attempts{60};
-  std::uint32_t retry_initial_backoff_ms{100};
-  std::uint32_t retry_max_backoff_ms{2000};
-  bool reconnect{true};
-  bool tls_enabled{};
-  bool tls_verify_peer{true};
-  bool tls_require_client_certificate{};
-  std::string tls_ca_file;
-  std::string tls_certificate_file;
-  std::string tls_private_key_file;
-  std::string tls_server_name;
+};
+
+struct InProcessTransportConfig {
+  std::string channel;
+  std::uint32_t capacity{64};
+  std::string backpressure{"block"};
+  std::uint32_t send_timeout_ms{5000};
+};
+
+struct SharedMemoryTransportConfig {
   std::string segment;
   std::uint32_t capacity{64};
   std::uint32_t max_message_bytes{1024 * 1024};
   std::string backpressure{"block"};
+  std::uint32_t connect_timeout_ms{5000};
+  std::uint32_t send_timeout_ms{5000};
 };
+
+struct ExternalTransportConfig {
+  std::variant<TcpTransportConfig, UdpTransportConfig> protocol;
+};
+
+using TransportSettings =
+    std::variant<TcpTransportConfig, UdpTransportConfig, UnixSocketTransportConfig,
+                 InProcessTransportConfig, SharedMemoryTransportConfig, ExternalTransportConfig>;
 
 struct NodeConfig {
   std::string id;
@@ -72,7 +111,7 @@ struct NodeConfig {
 
 struct EdgeConfig {
   Edge edge;
-  TransportConfig transport;
+  TransportSettings transport;
   std::string data_plane{"graphx"};
 };
 
@@ -217,5 +256,7 @@ class ConfigError final : public std::runtime_error {
 
 [[nodiscard]] std::string_view to_string(TransportKind kind) noexcept;
 [[nodiscard]] std::string_view to_string(UdpMode mode) noexcept;
+[[nodiscard]] TransportKind transport_kind(const TransportSettings& transport);
+[[nodiscard]] std::string_view transport_framing(const TransportSettings& transport);
 
 }  // namespace graphx

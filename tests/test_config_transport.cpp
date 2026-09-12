@@ -5,12 +5,40 @@ using namespace config_test;
 
 namespace {
 
+template <typename Settings>
+concept HasTls = requires(Settings settings) { settings.tls; };
+
+template <typename Settings>
+concept HasUdpMode = requires(Settings settings) { settings.mode; };
+
+template <typename Settings>
+concept HasQueueCapacity = requires(Settings settings) { settings.capacity; };
+
+static_assert(HasTls<graphx::TcpTransportConfig>);
+static_assert(!HasTls<graphx::UdpTransportConfig>);
+static_assert(!HasTls<graphx::UnixSocketTransportConfig>);
+static_assert(HasUdpMode<graphx::UdpTransportConfig>);
+static_assert(!HasUdpMode<graphx::TcpTransportConfig>);
+static_assert(HasQueueCapacity<graphx::InProcessTransportConfig>);
+static_assert(HasQueueCapacity<graphx::SharedMemoryTransportConfig>);
+static_assert(!HasQueueCapacity<graphx::TcpTransportConfig>);
+static_assert(!HasQueueCapacity<graphx::UdpTransportConfig>);
+static_assert(!HasQueueCapacity<graphx::UnixSocketTransportConfig>);
+static_assert(std::variant_size_v<decltype(graphx::ExternalTransportConfig::protocol)> == 2);
+
+template <typename Settings>
+const Settings& transport_as(const graphx::TransportSettings& transport) {
+  return std::get<Settings>(transport);
+}
+
 void tcp_policy_loads() {
   TemporaryConfig file(valid_config);
-  const auto transport = graphx::load_config(file.path()).edge("sample-edge").transport;
+  const auto config = graphx::load_config(file.path());
+  const auto& transport =
+      transport_as<graphx::TcpTransportConfig>(config.edge("sample-edge").transport);
   expect(transport.connect_timeout_ms == 1200 && transport.send_timeout_ms == 900, "TCP timeouts");
-  expect(transport.retry_attempts == 7 && transport.retry_initial_backoff_ms == 10 &&
-             transport.retry_max_backoff_ms == 80,
+  expect(transport.retry.max_attempts == 7 && transport.retry.initial_backoff_ms == 10 &&
+             transport.retry.max_backoff_ms == 80,
          "TCP retry policy");
   expect(transport.reconnect, "TCP reconnect policy");
 }
@@ -52,8 +80,9 @@ transport:
       connect_timeout_ms: 75
       send_timeout_ms: 250
 )yaml");
-  const auto transport = graphx::load_config(file.path()).edge("shared-edge").transport;
-  expect(transport.kind == graphx::TransportKind::shared_memory, "shared-memory kind");
+  const auto config = graphx::load_config(file.path());
+  const auto& transport =
+      transport_as<graphx::SharedMemoryTransportConfig>(config.edge("shared-edge").transport);
   expect(transport.segment == "gx-config-shared" && transport.capacity == 8,
          "shared-memory layout settings");
   expect(transport.max_message_bytes == 8192 && transport.backpressure == "reject" &&
@@ -94,14 +123,13 @@ void in_process_factory_shares_named_channel() {
   graphx::TransportFactory factory;
   graphx::EdgeConfig edge;
   edge.edge.id = "local";
-  edge.transport.kind = graphx::TransportKind::in_process;
-  edge.transport.channel = "local-channel";
+  edge.transport = graphx::InProcessTransportConfig{.channel = "local-channel"};
   auto sender = factory.create(edge, graphx::ConnectionMode::connect);
   auto receiver = factory.create(edge, graphx::ConnectionMode::listen);
   sender->send(graphx::Envelope::make(4, "Test", "factory"));
   const auto message = receiver->receive(20ms);
   expect(message && message->payload == "factory", "factory in-process delivery");
-  edge.transport.capacity = 2;
+  std::get<graphx::InProcessTransportConfig>(edge.transport).capacity = 2;
   try {
     [[maybe_unused]] auto inconsistent = factory.create(edge, graphx::ConnectionMode::listen);
     throw std::runtime_error("inconsistent named channel settings were accepted");
@@ -130,7 +158,8 @@ transport:
     local: { channel: bounded, capacity: 7, backpressure: reject, send_timeout_ms: 25 }
 )yaml");
   const auto config = graphx::load_config(valid.path());
-  const auto& settings = config.edge("local").transport;
+  const auto& settings =
+      transport_as<graphx::InProcessTransportConfig>(config.edge("local").transport);
   expect(
       settings.capacity == 7 && settings.backpressure == "reject" && settings.send_timeout_ms == 25,
       "bounded in-process settings load");
@@ -182,7 +211,8 @@ transport:
     local: { path: /tmp/graphx-bounded.sock, connect_timeout_ms: 30, send_timeout_ms: 40 }
 )yaml");
   const auto config = graphx::load_config(valid.path());
-  const auto& settings = config.edge("local").transport;
+  const auto& settings =
+      transport_as<graphx::UnixSocketTransportConfig>(config.edge("local").transport);
   expect(settings.connect_timeout_ms == 30 && settings.send_timeout_ms == 40,
          "Unix-domain deadlines load");
 
@@ -238,10 +268,9 @@ transport:
         server_name: target.internal
 )yaml");
   const auto config = graphx::load_config(valid.path());
-  const auto& tls = config.edge("secure").transport;
-  expect(tls.tls_enabled && tls.tls_verify_peer && tls.tls_require_client_certificate &&
-             tls.tls_ca_file == "/run/secrets/graphx-ca.pem" &&
-             tls.tls_server_name == "target.internal",
+  const auto& tls = transport_as<graphx::TcpTransportConfig>(config.edge("secure").transport).tls;
+  expect(tls.enabled && tls.verify_peer && tls.require_client_certificate &&
+             tls.ca_file == "/run/secrets/graphx-ca.pem" && tls.server_name == "target.internal",
          "TLS settings load");
 
   TemporaryConfig invalid(R"yaml(
@@ -311,9 +340,9 @@ void udp_configuration_loads_and_validates() {
         std::pair{"multicast", "239.255.42.1"}}) {
     TemporaryConfig file(udp_config(mode, destination));
     const auto config = graphx::load_config(file.path());
-    const auto& udp = config.edge("datagrams").transport;
-    expect(udp.kind == graphx::TransportKind::udp && udp.destination == destination &&
-               udp.max_datagram_bytes == 1400 && udp.receive_buffer_bytes == 65536,
+    const auto& udp = transport_as<graphx::UdpTransportConfig>(config.edge("datagrams").transport);
+    expect(udp.destination == destination && udp.max_datagram_bytes == 1400 &&
+               udp.receive_buffer_bytes == 65536,
            "UDP configuration loads");
   }
 
@@ -336,7 +365,7 @@ void udp_configuration_loads_and_validates() {
         changed(base, "      max_datagram_bytes: 1400\n", "      max_datagram_bytes: 64\n"),
         changed(base, "      max_datagram_bytes: 1400\n", "      max_datagram_bytes: 65507\n")}) {
     TemporaryConfig file(valid);
-    expect(graphx::load_config(file.path()).edge("datagrams").transport.kind ==
+    expect(graphx::transport_kind(graphx::load_config(file.path()).edge("datagrams").transport) ==
                graphx::TransportKind::udp,
            "UDP boundary configuration loads");
   }
@@ -395,7 +424,7 @@ void factory_rejects_unvalidated_settings() {
   graphx::TransportFactory factory;
   graphx::EdgeConfig edge;
   edge.edge.id = "invalid";
-  edge.transport.kind = graphx::TransportKind::tcp;
+  edge.transport = graphx::TcpTransportConfig{};
   try {
     [[maybe_unused]] auto ignored = factory.create(edge, graphx::ConnectionMode::connect);
     throw std::runtime_error("invalid factory settings were accepted");
@@ -407,13 +436,16 @@ void socket_factory_round_trip(graphx::TransportKind kind) {
   graphx::TransportFactory factory;
   graphx::EdgeConfig edge;
   edge.edge.id = kind == graphx::TransportKind::tcp ? "factory-tcp" : "factory-unix";
-  edge.transport.kind = kind;
   if (kind == graphx::TransportKind::tcp) {
-    edge.transport.host = "127.0.0.1";
-    edge.transport.bind = "127.0.0.1";
-    edge.transport.port = static_cast<std::uint16_t>(43000 + (::getpid() % 1000));
+    graphx::TcpTransportConfig transport;
+    transport.host = "127.0.0.1";
+    transport.bind = "127.0.0.1";
+    transport.port = static_cast<std::uint16_t>(43000 + (::getpid() % 1000));
+    edge.transport = std::move(transport);
   } else {
-    edge.transport.path = "/tmp/graphx-factory-" + std::to_string(::getpid()) + ".sock";
+    graphx::UnixSocketTransportConfig transport;
+    transport.path = "/tmp/graphx-factory-" + std::to_string(::getpid()) + ".sock";
+    edge.transport = std::move(transport);
   }
   std::exception_ptr listener_error;
   std::thread listener([&] {
@@ -456,10 +488,11 @@ void shared_memory_factory_round_trip() {
   graphx::TransportFactory factory;
   graphx::EdgeConfig edge;
   edge.edge.id = "factory-shared";
-  edge.transport.kind = graphx::TransportKind::shared_memory;
-  edge.transport.segment = "/gx-factory-shared-" + std::to_string(::getpid());
-  edge.transport.capacity = 2;
-  edge.transport.max_message_bytes = 4096;
+  graphx::SharedMemoryTransportConfig transport;
+  transport.segment = "/gx-factory-shared-" + std::to_string(::getpid());
+  transport.capacity = 2;
+  transport.max_message_bytes = 4096;
+  edge.transport = std::move(transport);
   auto receiver = factory.create(edge, graphx::ConnectionMode::listen);
   auto sender = factory.create(edge, graphx::ConnectionMode::connect);
   sender->send(graphx::Envelope::make(6, "Test", "shared factory"));
@@ -472,9 +505,10 @@ void shared_memory_factory_uses_connect_timeout() {
   graphx::TransportFactory factory;
   graphx::EdgeConfig edge;
   edge.edge.id = "factory-shared-timeout";
-  edge.transport.kind = graphx::TransportKind::shared_memory;
-  edge.transport.segment = "/gx-factory-missing-" + std::to_string(::getpid());
-  edge.transport.connect_timeout_ms = 30;
+  graphx::SharedMemoryTransportConfig transport;
+  transport.segment = "/gx-factory-missing-" + std::to_string(::getpid());
+  transport.connect_timeout_ms = 30;
+  edge.transport = std::move(transport);
   const auto start = std::chrono::steady_clock::now();
   bool failed{};
   try {
@@ -491,14 +525,15 @@ void udp_factory_round_trip() {
   graphx::TransportFactory factory;
   graphx::EdgeConfig edge;
   edge.edge.id = "factory-udp";
-  edge.transport.kind = graphx::TransportKind::udp;
-  edge.transport.udp_mode = graphx::UdpMode::unicast;
-  edge.transport.destination = "127.0.0.1";
-  edge.transport.bind = "127.0.0.1";
-  edge.transport.port = static_cast<std::uint16_t>(45000 + (::getpid() % 1000));
-  edge.transport.receive_buffer_bytes = 65536;
-  edge.transport.send_buffer_bytes = 65536;
-  edge.transport.max_datagram_bytes = 1400;
+  graphx::UdpTransportConfig transport;
+  transport.mode = graphx::UdpMode::unicast;
+  transport.destination = "127.0.0.1";
+  transport.bind = "127.0.0.1";
+  transport.port = static_cast<std::uint16_t>(45000 + (::getpid() % 1000));
+  transport.receive_buffer_bytes = 65536;
+  transport.send_buffer_bytes = 65536;
+  transport.max_datagram_bytes = 1400;
+  edge.transport = std::move(transport);
   auto receiver = factory.create(edge, graphx::ConnectionMode::listen);
   auto sender = factory.create(edge, graphx::ConnectionMode::connect);
   sender->send(graphx::Envelope::make(7, "Test", "udp factory"));

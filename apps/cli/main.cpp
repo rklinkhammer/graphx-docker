@@ -9,6 +9,7 @@
 #include <filesystem>
 #include <iostream>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 namespace {
@@ -118,39 +119,52 @@ int topology_command(const std::string& command, int argc, char** argv) {
   for (const auto& edge : config.edges) {
     std::cout << "edge " << edge.edge.id << ' ' << edge.edge.from_node << '.' << edge.edge.from_port
               << " -> " << edge.edge.to_node << '.' << edge.edge.to_port
-              << " transport=" << to_string(edge.transport.kind)
-              << " data-plane=" << edge.data_plane << " framing=" << edge.transport.framing;
-    if (edge.transport.kind == graphx::TransportKind::tcp)
-      std::cout << " connect=" << edge.transport.host << ':' << edge.transport.port
-                << " listen=" << edge.transport.bind << ':' << edge.transport.port
-                << " connect-timeout-ms=" << edge.transport.connect_timeout_ms
-                << " send-timeout-ms=" << edge.transport.send_timeout_ms
-                << " retry=" << edge.transport.retry_attempts << '/'
-                << edge.transport.retry_initial_backoff_ms << '-'
-                << edge.transport.retry_max_backoff_ms
-                << "ms reconnect=" << (edge.transport.reconnect ? "true" : "false");
-    else if (edge.transport.kind == graphx::TransportKind::udp)
-      std::cout << " mode=" << to_string(edge.transport.udp_mode)
-                << " destination=" << edge.transport.destination << ':' << edge.transport.port
-                << " bind=" << edge.transport.bind << ':' << edge.transport.port
-                << (edge.transport.interface.empty() ? ""
-                                                     : " interface=" + edge.transport.interface)
-                << " ttl=" << edge.transport.ttl
-                << " loopback=" << (edge.transport.loopback ? "true" : "false")
-                << " reuse-address=" << (edge.transport.reuse_address ? "true" : "false")
-                << " receive-buffer=" << edge.transport.receive_buffer_bytes
-                << " send-buffer=" << edge.transport.send_buffer_bytes
-                << " max-datagram=" << edge.transport.max_datagram_bytes;
-    else if (edge.transport.kind == graphx::TransportKind::unix_socket)
-      std::cout << " path=" << edge.transport.path;
-    else if (edge.transport.kind == graphx::TransportKind::shared_memory)
-      std::cout << " segment=" << edge.transport.segment << " capacity=" << edge.transport.capacity
-                << " max-message=" << edge.transport.max_message_bytes
-                << " backpressure=" << edge.transport.backpressure
-                << " connect-timeout-ms=" << edge.transport.connect_timeout_ms
-                << " send-timeout-ms=" << edge.transport.send_timeout_ms;
-    else
-      std::cout << " channel=" << edge.transport.channel;
+              << " transport=" << to_string(transport_kind(edge.transport))
+              << " data-plane=" << edge.data_plane
+              << " framing=" << transport_framing(edge.transport);
+    const auto inspect_transport = [](const auto& transport) {
+      using Settings = std::decay_t<decltype(transport)>;
+      if constexpr (std::is_same_v<Settings, graphx::TcpTransportConfig>)
+        std::cout << " connect=" << transport.host << ':' << transport.port
+                  << " listen=" << transport.bind << ':' << transport.port
+                  << " connect-timeout-ms=" << transport.connect_timeout_ms
+                  << " send-timeout-ms=" << transport.send_timeout_ms
+                  << " retry=" << transport.retry.max_attempts << '/'
+                  << transport.retry.initial_backoff_ms << '-' << transport.retry.max_backoff_ms
+                  << "ms reconnect=" << (transport.reconnect ? "true" : "false");
+      else if constexpr (std::is_same_v<Settings, graphx::UdpTransportConfig>)
+        std::cout << " mode=" << to_string(transport.mode)
+                  << " destination=" << transport.destination << ':' << transport.port
+                  << " bind=" << transport.bind << ':' << transport.port
+                  << (transport.interface.empty() ? "" : " interface=" + transport.interface)
+                  << " ttl=" << transport.ttl
+                  << " loopback=" << (transport.loopback ? "true" : "false")
+                  << " reuse-address=" << (transport.reuse_address ? "true" : "false")
+                  << " receive-buffer=" << transport.receive_buffer_bytes
+                  << " send-buffer=" << transport.send_buffer_bytes
+                  << " max-datagram=" << transport.max_datagram_bytes;
+      else if constexpr (std::is_same_v<Settings, graphx::UnixSocketTransportConfig>)
+        std::cout << " path=" << transport.path;
+      else if constexpr (std::is_same_v<Settings, graphx::SharedMemoryTransportConfig>)
+        std::cout << " segment=" << transport.segment << " capacity=" << transport.capacity
+                  << " max-message=" << transport.max_message_bytes
+                  << " backpressure=" << transport.backpressure
+                  << " connect-timeout-ms=" << transport.connect_timeout_ms
+                  << " send-timeout-ms=" << transport.send_timeout_ms;
+      else if constexpr (std::is_same_v<Settings, graphx::InProcessTransportConfig>)
+        std::cout << " channel=" << transport.channel;
+    };
+    std::visit(
+        [&inspect_transport](const auto& transport) {
+          using Settings = std::decay_t<decltype(transport)>;
+          if constexpr (std::is_same_v<Settings, graphx::ExternalTransportConfig>)
+            std::visit(inspect_transport, transport.protocol);
+          else
+            inspect_transport(transport);
+        },
+        edge.transport);
+    if (std::holds_alternative<graphx::ExternalTransportConfig>(edge.transport))
+      std::cout << " observed-only=true";
     std::cout << '\n';
   }
   for (const auto& network : config.network_infrastructure.networks) {

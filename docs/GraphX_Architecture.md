@@ -14,6 +14,13 @@ resources, and observation.
    provide health, topology, metrics, trace, history, capture, and authorized
    control APIs.
 
+Each edge stores exactly one transport-specific configuration. TCP owns retry and
+TLS policy, UDP owns datagram and multicast policy, and the queue-based transports
+own capacity and backpressure policy. External data-plane edges use an explicit
+observed-only wrapper around TCP or UDP configuration, so they cannot be passed to
+the managed transport factory accidentally. This typed model prevents unrelated
+settings, such as TLS on UDP or queue capacity on TCP, from existing after parsing.
+
 Docker Compose owns application processes and their management network. It does not
 own the GraphX data plane. Native Linux hosts or the GraphX Lima guest own privileged
 OVS resources; OrbStack runs portable Compose workloads on macOS.

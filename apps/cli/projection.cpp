@@ -8,6 +8,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <system_error>
+#include <type_traits>
 
 namespace graphx::cli {
 namespace {
@@ -58,7 +59,7 @@ YAML::Node graph_projection(const GraphConfig& config) {
     item["id"] = edge.edge.id;
     item["from"] = edge.edge.from_node + "." + edge.edge.from_port;
     item["to"] = edge.edge.to_node + "." + edge.edge.to_port;
-    item["transport"] = std::string(to_string(edge.transport.kind));
+    item["transport"] = std::string(to_string(transport_kind(edge.transport)));
     item["data_plane"] = edge.data_plane;
     edges.push_back(item);
   }
@@ -70,20 +71,19 @@ YAML::Node transport_projection(const GraphConfig& config) {
   YAML::Node root;
   YAML::Node links(YAML::NodeType::Sequence);
   for (const auto& edge : config.edges) {
-    const auto& transport = edge.transport;
     YAML::Node item;
     item["edge"] = edge.edge.id;
-    item["type"] = std::string(to_string(transport.kind));
+    item["type"] = std::string(to_string(transport_kind(edge.transport)));
     item["data_plane"] = edge.data_plane;
-    item["framing"] = transport.framing;
-    switch (transport.kind) {
-      case TransportKind::in_process:
+    item["framing"] = std::string(transport_framing(edge.transport));
+    const auto project = [&](const auto& transport) {
+      using Settings = std::decay_t<decltype(transport)>;
+      if constexpr (std::is_same_v<Settings, InProcessTransportConfig>) {
         item["channel"] = transport.channel;
         item["capacity"] = transport.capacity;
         item["backpressure"] = transport.backpressure;
         item["send_timeout_ms"] = transport.send_timeout_ms;
-        break;
-      case TransportKind::tcp: {
+      } else if constexpr (std::is_same_v<Settings, TcpTransportConfig>) {
         item["host"] = transport.host;
         item["bind"] = transport.bind;
         item["port"] = transport.port;
@@ -91,25 +91,23 @@ YAML::Node transport_projection(const GraphConfig& config) {
         item["send_timeout_ms"] = transport.send_timeout_ms;
         item["reconnect"] = transport.reconnect;
         YAML::Node retry;
-        retry["max_attempts"] = transport.retry_attempts;
-        retry["initial_backoff_ms"] = transport.retry_initial_backoff_ms;
-        retry["max_backoff_ms"] = transport.retry_max_backoff_ms;
+        retry["max_attempts"] = transport.retry.max_attempts;
+        retry["initial_backoff_ms"] = transport.retry.initial_backoff_ms;
+        retry["max_backoff_ms"] = transport.retry.max_backoff_ms;
         item["retry"] = retry;
         YAML::Node tls;
-        tls["enabled"] = transport.tls_enabled;
-        tls["verify_peer"] = transport.tls_verify_peer;
-        tls["require_client_certificate"] = transport.tls_require_client_certificate;
-        if (!transport.tls_ca_file.empty()) tls["ca_file"] = transport.tls_ca_file;
-        if (!transport.tls_certificate_file.empty())
-          tls["certificate_file"] = transport.tls_certificate_file;
-        if (!transport.tls_private_key_file.empty())
-          tls["private_key_file"] = transport.tls_private_key_file;
-        if (!transport.tls_server_name.empty()) tls["server_name"] = transport.tls_server_name;
+        tls["enabled"] = transport.tls.enabled;
+        tls["verify_peer"] = transport.tls.verify_peer;
+        tls["require_client_certificate"] = transport.tls.require_client_certificate;
+        if (!transport.tls.ca_file.empty()) tls["ca_file"] = transport.tls.ca_file;
+        if (!transport.tls.certificate_file.empty())
+          tls["certificate_file"] = transport.tls.certificate_file;
+        if (!transport.tls.private_key_file.empty())
+          tls["private_key_file"] = transport.tls.private_key_file;
+        if (!transport.tls.server_name.empty()) tls["server_name"] = transport.tls.server_name;
         item["tls"] = tls;
-        break;
-      }
-      case TransportKind::udp:
-        item["mode"] = std::string(to_string(transport.udp_mode));
+      } else if constexpr (std::is_same_v<Settings, UdpTransportConfig>) {
+        item["mode"] = std::string(to_string(transport.mode));
         item["destination"] = transport.destination;
         item["bind"] = transport.bind;
         item["port"] = transport.port;
@@ -120,21 +118,28 @@ YAML::Node transport_projection(const GraphConfig& config) {
         item["receive_buffer_bytes"] = transport.receive_buffer_bytes;
         item["send_buffer_bytes"] = transport.send_buffer_bytes;
         item["max_datagram_bytes"] = transport.max_datagram_bytes;
-        break;
-      case TransportKind::unix_socket:
+      } else if constexpr (std::is_same_v<Settings, UnixSocketTransportConfig>) {
         item["path"] = transport.path;
         item["connect_timeout_ms"] = transport.connect_timeout_ms;
         item["send_timeout_ms"] = transport.send_timeout_ms;
-        break;
-      case TransportKind::shared_memory:
+      } else if constexpr (std::is_same_v<Settings, SharedMemoryTransportConfig>) {
         item["segment"] = transport.segment;
         item["capacity"] = transport.capacity;
         item["max_message_bytes"] = transport.max_message_bytes;
         item["backpressure"] = transport.backpressure;
         item["connect_timeout_ms"] = transport.connect_timeout_ms;
         item["send_timeout_ms"] = transport.send_timeout_ms;
-        break;
-    }
+      }
+    };
+    std::visit(
+        [&](const auto& transport) {
+          using Settings = std::decay_t<decltype(transport)>;
+          if constexpr (std::is_same_v<Settings, ExternalTransportConfig>)
+            std::visit(project, transport.protocol);
+          else
+            project(transport);
+        },
+        edge.transport);
     links.push_back(item);
   }
   root["links"] = links;

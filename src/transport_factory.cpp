@@ -11,12 +11,12 @@ namespace graphx {
 
 TransportPtr TransportFactory::create(const EdgeConfig& edge, ConnectionMode mode,
                                       TraceSink* trace_sink) {
-  if (edge.data_plane == "external")
+  if (std::holds_alternative<ExternalTransportConfig>(edge.transport))
     throw std::invalid_argument("external data-plane edge '" + edge.edge.id +
                                 "' is observed but not managed by TransportFactory");
-  const auto& transport = edge.transport;
-  switch (transport.kind) {
+  switch (transport_kind(edge.transport)) {
     case TransportKind::tcp: {
+      const auto& transport = std::get<TcpTransportConfig>(edge.transport);
       if (transport.port == 0 || transport.host.empty() || transport.bind.empty())
         throw std::invalid_argument("TCP transport requires host, bind, and nonzero port");
       const Endpoint endpoint{mode == ConnectionMode::connect ? transport.host : transport.bind,
@@ -24,17 +24,17 @@ TransportPtr TransportFactory::create(const EdgeConfig& edge, ConnectionMode mod
       TcpOptions options;
       options.connect_timeout = std::chrono::milliseconds(transport.connect_timeout_ms);
       options.send_timeout = std::chrono::milliseconds(transport.send_timeout_ms);
-      options.retry.max_attempts = transport.retry_attempts;
-      options.retry.initial_backoff = std::chrono::milliseconds(transport.retry_initial_backoff_ms);
-      options.retry.max_backoff = std::chrono::milliseconds(transport.retry_max_backoff_ms);
+      options.retry.max_attempts = transport.retry.max_attempts;
+      options.retry.initial_backoff = std::chrono::milliseconds(transport.retry.initial_backoff_ms);
+      options.retry.max_backoff = std::chrono::milliseconds(transport.retry.max_backoff_ms);
       options.reconnect = transport.reconnect;
-      options.tls.enabled = transport.tls_enabled;
-      options.tls.verify_peer = transport.tls_verify_peer;
-      options.tls.require_client_certificate = transport.tls_require_client_certificate;
-      options.tls.ca_file = transport.tls_ca_file;
-      options.tls.certificate_file = transport.tls_certificate_file;
-      options.tls.private_key_file = transport.tls_private_key_file;
-      options.tls.server_name = transport.tls_server_name;
+      options.tls.enabled = transport.tls.enabled;
+      options.tls.verify_peer = transport.tls.verify_peer;
+      options.tls.require_client_certificate = transport.tls.require_client_certificate;
+      options.tls.ca_file = transport.tls.ca_file;
+      options.tls.certificate_file = transport.tls.certificate_file;
+      options.tls.private_key_file = transport.tls.private_key_file;
+      options.tls.server_name = transport.tls.server_name;
       if (mode == ConnectionMode::connect)
         return std::make_unique<TcpTransport>(
             TcpTransport::connect(endpoint, edge.edge.id, trace_sink, options));
@@ -42,10 +42,11 @@ TransportPtr TransportFactory::create(const EdgeConfig& edge, ConnectionMode mod
           TcpTransport::listen(endpoint, edge.edge.id, trace_sink, options));
     }
     case TransportKind::udp: {
+      const auto& transport = std::get<UdpTransportConfig>(edge.transport);
       if (transport.port == 0 || transport.destination.empty() || transport.bind.empty())
         throw std::invalid_argument("UDP transport requires destination, bind, and nonzero port");
       UdpOptions options;
-      options.mode = transport.udp_mode;
+      options.mode = transport.mode;
       options.interface = transport.interface;
       options.ttl = static_cast<std::uint8_t>(transport.ttl);
       options.loopback = transport.loopback;
@@ -61,20 +62,21 @@ TransportPtr TransportFactory::create(const EdgeConfig& edge, ConnectionMode mod
           UdpTransport::listen({transport.bind, transport.port}, transport.destination,
                                edge.edge.id, trace_sink, options));
     }
-    case TransportKind::unix_socket:
+    case TransportKind::unix_socket: {
+      const auto& transport = std::get<UnixSocketTransportConfig>(edge.transport);
       if (transport.path.empty())
         throw std::invalid_argument("Unix-domain transport requires a path");
-      {
-        UnixDomainSocketOptions options;
-        options.connect_timeout = std::chrono::milliseconds(transport.connect_timeout_ms);
-        options.send_timeout = std::chrono::milliseconds(transport.send_timeout_ms);
-        if (mode == ConnectionMode::connect)
-          return std::make_unique<UnixDomainSocketTransport>(UnixDomainSocketTransport::connect(
-              transport.path, edge.edge.id, trace_sink, options));
+      UnixDomainSocketOptions options;
+      options.connect_timeout = std::chrono::milliseconds(transport.connect_timeout_ms);
+      options.send_timeout = std::chrono::milliseconds(transport.send_timeout_ms);
+      if (mode == ConnectionMode::connect)
         return std::make_unique<UnixDomainSocketTransport>(
-            UnixDomainSocketTransport::listen(transport.path, edge.edge.id, trace_sink, options));
-      }
+            UnixDomainSocketTransport::connect(transport.path, edge.edge.id, trace_sink, options));
+      return std::make_unique<UnixDomainSocketTransport>(
+          UnixDomainSocketTransport::listen(transport.path, edge.edge.id, trace_sink, options));
+    }
     case TransportKind::shared_memory: {
+      const auto& transport = std::get<SharedMemoryTransportConfig>(edge.transport);
       if (transport.segment.empty())
         throw std::invalid_argument("shared-memory transport requires a segment name");
       SharedMemoryOptions options;
@@ -91,6 +93,7 @@ TransportPtr TransportFactory::create(const EdgeConfig& edge, ConnectionMode mod
           SharedMemoryTransport::listen(transport.segment, edge.edge.id, trace_sink, options));
     }
     case TransportKind::in_process: {
+      const auto& transport = std::get<InProcessTransportConfig>(edge.transport);
       if (transport.channel.empty())
         throw std::invalid_argument("in-process transport requires a channel name");
       InProcessOptions options;
