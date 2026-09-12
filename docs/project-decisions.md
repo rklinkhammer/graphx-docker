@@ -7,8 +7,9 @@ This page records the active design constraints for GraphX 1.1.0.
   accepted by telemetry.
 - The [instance identity contract](instance-identity.md) distinguishes logical
   graph/node identity, deployment instances, execution freshness, and infrastructure
-  ownership. It is the design boundary for instance-aware execution; current
-  runtimes do not yet provide its concurrent-instance guarantees.
+  ownership. The configuration model supports explicit instance selection and
+  typed SDR source settings; current runtimes do not yet provide concurrent-instance
+  guarantees.
 - System Open vSwitch is the only managed data-plane backend.
 - Docker Compose owns processes and management connectivity only.
 - Containers use owned veth pairs; QEMU uses an owned TAP. All cleanup verifies

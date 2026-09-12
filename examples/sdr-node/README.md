@@ -9,3 +9,6 @@ Use [simulated SDR](simulated/README.md) with Docker Engine on Linux or OrbStack
 on macOS. Use [external SDR](external/README.md) with sudo and system OVS on
 native Linux or from an explicit shell in the GraphX Lima guest. The external
 example uses a simulated device in a namespace; it does not require radio hardware.
+
+The [two-source configuration](two-source/README.md) exercises per-source settings
+and instance-aware node selection without launching processes.

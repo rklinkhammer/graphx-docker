@@ -22,7 +22,7 @@ void ConfigParser::parse_nodes(const YAML::Node& nodes, GraphConfig& config) {
     if (!require_map(value, path)) continue;
     strict_keys(value, path,
                 {"id", "kind", "runtime", "execution", "lifecycle", "control", "accelerator",
-                 "architecture", "ports"});
+                 "architecture", "ports", "sdr"});
     NodeConfig node;
     node.id = text(value["id"], path + ".id", 64);
     identifier(node.id, path + ".id");
@@ -57,7 +57,85 @@ void ConfigParser::parse_nodes(const YAML::Node& nodes, GraphConfig& config) {
     if (!node.id.empty() && !ids.insert(node.id).second)
       error(path + ".id", "duplicate node id '" + node.id + "'");
     parse_ports(value["ports"], path + ".ports", node);
+    if (value["sdr"]) node.sdr = parse_sdr(value["sdr"], path + ".sdr");
     config.nodes.push_back(std::move(node));
+  }
+}
+
+SdrConfig ConfigParser::parse_sdr(const YAML::Node& value, const std::string& path) {
+  SdrConfig result;
+  if (!require_map(value, path)) return result;
+  strict_keys(
+      value, path,
+      {"samples_edge", "control_edge", "frequency_hz", "sample_interval_ms", "credentials"});
+  result.samples_edge = strict_text(value["samples_edge"], path + ".samples_edge", 64);
+  result.control_edge = strict_text(value["control_edge"], path + ".control_edge", 64);
+  identifier(result.samples_edge, path + ".samples_edge");
+  identifier(result.control_edge, path + ".control_edge");
+  if (value["frequency_hz"])
+    result.frequency_hz = strict_unsigned_64_value(value["frequency_hz"], path + ".frequency_hz");
+  if (result.frequency_hz < 1000000 || result.frequency_hz > 6000000000ULL)
+    error(path + ".frequency_hz", "must be between 1000000 and 6000000000");
+  if (value["sample_interval_ms"])
+    result.sample_interval_ms =
+        strict_unsigned_value(value["sample_interval_ms"], path + ".sample_interval_ms");
+  if (result.sample_interval_ms < 20 || result.sample_interval_ms > 60000)
+    error(path + ".sample_interval_ms", "must be between 20 and 60000");
+  const auto credentials = value["credentials"];
+  if (require_map(credentials, path + ".credentials")) {
+    strict_keys(credentials, path + ".credentials",
+                {"ca_file", "certificate_file", "private_key_file", "server_name"});
+    auto file = [&](std::string_view name) {
+      const auto field = path + ".credentials." + std::string(name);
+      const auto result_path = strict_text(credentials[std::string(name)], field, 1024);
+      if (result_path.empty() || result_path.front() != '/' ||
+          std::ranges::any_of(result_path, [](unsigned char c) { return c < 32 || c == 127; }))
+        error(field, "must be an absolute path without control characters");
+      return result_path;
+    };
+    result.credentials.ca_file = file("ca_file");
+    result.credentials.certificate_file = file("certificate_file");
+    result.credentials.private_key_file = file("private_key_file");
+    result.credentials.server_name =
+        strict_text(credentials["server_name"], path + ".credentials.server_name", 253);
+    if (!std::regex_match(result.credentials.server_name,
+                          std::regex("^[A-Za-z0-9][A-Za-z0-9.-]{0,252}$")))
+      error(path + ".credentials.server_name", "must be a bounded TLS server name");
+  }
+  return result;
+}
+
+void ConfigParser::validate_sdr(const GraphConfig& config) {
+  for (const auto& node : config.nodes) {
+    if (!node.sdr) continue;
+    const auto path = "graph.nodes." + node.id + ".sdr";
+    if (config.deployment.instance_id.empty()) error(path, "requires deployment.instance_id");
+    const auto& sdr = *node.sdr;
+    const auto samples = std::ranges::find_if(
+        config.edges, [&](const auto& edge) { return edge.edge.id == sdr.samples_edge; });
+    const auto control = std::ranges::find_if(
+        config.edges, [&](const auto& edge) { return edge.edge.id == sdr.control_edge; });
+    if (samples == config.edges.end() || samples->data_plane != "external" ||
+        transport_kind(samples->transport) != TransportKind::udp ||
+        samples->edge.from_node != node.id)
+      error(path + ".samples_edge", "must reference an external UDP edge originating at this node");
+    if (control == config.edges.end() || control->data_plane != "external" ||
+        transport_kind(control->transport) != TransportKind::tcp ||
+        control->edge.to_node != node.id)
+      error(path + ".control_edge", "must reference an external TCP edge terminating at this node");
+    if (samples != config.edges.end() && transport_framing(samples->transport) != "none")
+      error(path + ".samples_edge", "requires raw framing 'none'");
+    if (control != config.edges.end() && control->data_plane == "external" &&
+        transport_kind(control->transport) == TransportKind::tcp) {
+      const auto& tcp = std::get<TcpTransportConfig>(
+          std::get<ExternalTransportConfig>(control->transport).protocol);
+      if (tcp.framing != "none" || !tcp.tls.enabled || !tcp.tls.verify_peer ||
+          !tcp.tls.require_client_certificate || tcp.tls.server_name != sdr.credentials.server_name)
+        error(path + ".control_edge", "requires raw mutual TLS with matching server_name");
+    }
+    if (samples != config.edges.end() && control != config.edges.end() &&
+        samples->edge.to_node != control->edge.from_node)
+      error(path, "sample receiver and controller must be the same node");
   }
 }
 

@@ -45,3 +45,7 @@ it does not boot the declared external QEMU packet source.
 
 See [test procedure](../docs/test-procedure.md) for acceptance coverage and the
 separate macOS, Lima, native Linux, TCG, and KVM evidence requirements.
+
+The [two-source SDR configuration](sdr-node/two-source/README.md) demonstrates
+instance selection and typed source settings through validation/normalization
+only; it has no runtime launcher.

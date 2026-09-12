@@ -76,6 +76,15 @@ const NodeConfig& GraphConfig::node(std::string_view node_id) const {
   return *found;
 }
 
+const NodeConfig& GraphConfig::node_for_instance(std::string_view instance_id,
+                                                 std::string_view node_id) const {
+  if (instance_id.empty() || deployment.instance_id.empty() ||
+      instance_id != deployment.instance_id)
+    throw std::invalid_argument(
+        "instance selection requires the configured deployment.instance_id");
+  return node(node_id);
+}
+
 const EdgeConfig& GraphConfig::edge(std::string_view edge_id) const {
   const auto found =
       std::ranges::find_if(edges, [&](const auto& value) { return value.edge.id == edge_id; });

@@ -1,0 +1,72 @@
+version: 2
+graph:
+  id: two-source-sdr
+  nodes:
+    - id: sdr-east
+      kind: radio
+      control: none
+      ports:
+        - {name: samples, direction: output, schema: RawIqSamples}
+        - {name: control, direction: input, schema: RawSdrControl}
+      sdr:
+        samples_edge: samples-east
+        control_edge: control-east
+        frequency_hz: 100000000
+        sample_interval_ms: 200
+        credentials:
+          ca_file: /run/sdr-east/ca.pem
+          certificate_file: /run/sdr-east/server.pem
+          private_key_file: /run/sdr-east/server.key
+          server_name: sdr-east
+    - id: processor-east
+      kind: transform
+      control: none
+      ports:
+        - {name: samples, direction: input, schema: RawIqSamples}
+        - {name: control, direction: output, schema: RawSdrControl}
+    - id: sdr-west
+      kind: radio
+      control: none
+      ports:
+        - {name: samples, direction: output, schema: RawIqSamples}
+        - {name: control, direction: input, schema: RawSdrControl}
+      sdr:
+        samples_edge: samples-west
+        control_edge: control-west
+        frequency_hz: 200000000
+        sample_interval_ms: 200
+        credentials:
+          ca_file: /run/sdr-west/ca.pem
+          certificate_file: /run/sdr-west/server.pem
+          private_key_file: /run/sdr-west/server.key
+          server_name: sdr-west
+    - id: processor-west
+      kind: transform
+      control: none
+      ports:
+        - {name: samples, direction: input, schema: RawIqSamples}
+        - {name: control, direction: output, schema: RawSdrControl}
+  edges:
+    - {id: samples-east, from: sdr-east.samples, to: processor-east.samples, transport: udp, data_plane: external}
+    - {id: control-east, from: processor-east.control, to: sdr-east.control, transport: tcp, data_plane: external}
+    - {id: samples-west, from: sdr-west.samples, to: processor-west.samples, transport: udp, data_plane: external}
+    - {id: control-west, from: processor-west.control, to: sdr-west.control, transport: tcp, data_plane: external}
+transport:
+  udp:
+    samples-east: {mode: unicast, destination: 127.0.0.1, bind: 127.0.0.1, port: 18400, framing: none}
+    samples-west: {mode: unicast, destination: 127.0.0.1, bind: 127.0.0.1, port: 18410, framing: none}
+  tcp:
+    control-east:
+      host: 127.0.0.1
+      bind: 127.0.0.1
+      port: 18401
+      framing: none
+      tls: {enabled: true, verify_peer: true, require_client_certificate: true, ca_file: /run/sdr-east/ca.pem, certificate_file: /run/processor-east/client.pem, private_key_file: /run/processor-east/client.key, server_name: sdr-east}
+    control-west:
+      host: 127.0.0.1
+      bind: 127.0.0.1
+      port: 18411
+      framing: none
+      tls: {enabled: true, verify_peer: true, require_client_certificate: true, ca_file: /run/sdr-west/ca.pem, certificate_file: /run/processor-west/client.pem, private_key_file: /run/processor-west/client.key, server_name: sdr-west}
+deployment:
+  instance_id: lab-a

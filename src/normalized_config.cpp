@@ -191,7 +191,7 @@ Json port_json(const Port& port) {
 }
 
 Json node_json(const NodeConfig& node) {
-  return Json::object({
+  auto result = Json::object({
       {"id", Json::text(node.id)},
       {"kind", Json::text(node.kind)},
       {"runtime", Json::text(node.runtime)},
@@ -202,6 +202,24 @@ Json node_json(const NodeConfig& node) {
       {"architecture", node.architecture.empty() ? Json::null() : Json::text(node.architecture)},
       {"ports", converted_array(node.ports, port_json)},
   });
+  if (node.sdr) {
+    const auto& sdr = *node.sdr;
+    auto value = Json::object({
+        {"samples_edge", Json::text(sdr.samples_edge)},
+        {"control_edge", Json::text(sdr.control_edge)},
+        {"frequency_hz", Json::number(sdr.frequency_hz)},
+        {"sample_interval_ms", Json::number(sdr.sample_interval_ms)},
+        {"credentials", Json::object({
+                            {"ca_file", Json::text(sdr.credentials.ca_file)},
+                            {"certificate_file", Json::text(sdr.credentials.certificate_file)},
+                            {"private_key_file", Json::text(sdr.credentials.private_key_file)},
+                            {"server_name", Json::text(sdr.credentials.server_name)},
+                        })},
+    });
+    value.member_name = "sdr";
+    result.object_value.push_back(std::move(value));
+  }
+  return result;
 }
 
 Json transport_json(const InProcessTransportConfig& transport) {
@@ -476,6 +494,26 @@ Json signal_json(const ObservabilitySignalConfig& signal) {
   });
 }
 
+Json deployment_json(const GraphConfig& config) {
+  auto result = Json::object({
+      {"project",
+       config.deployment.project.empty() ? Json::null() : Json::text(config.deployment.project)},
+      {"services", converted_array(config.deployment.services, deployment_service_json)},
+      {"telemetry", Json::object({
+                        {"service", config.deployment.telemetry_service.empty()
+                                        ? Json::null()
+                                        : Json::text(config.deployment.telemetry_service)},
+                        {"port", Json::number(config.deployment.telemetry_port)},
+                    })},
+  });
+  if (!config.deployment.instance_id.empty()) {
+    auto instance = Json::text(config.deployment.instance_id);
+    instance.member_name = "instance_id";
+    result.object_value.push_back(std::move(instance));
+  }
+  return result;
+}
+
 Json document_json(const GraphConfig& config) {
   const auto& network = config.network_infrastructure;
   const auto& observability = config.observability;
@@ -496,18 +534,7 @@ Json document_json(const GraphConfig& config) {
                       {"captures", converted_array(network.captures, network_capture_json)},
                       {"faults", converted_array(network.faults, network_fault_json)},
                   })},
-      {"deployment",
-       Json::object({
-           {"project", config.deployment.project.empty() ? Json::null()
-                                                         : Json::text(config.deployment.project)},
-           {"services", converted_array(config.deployment.services, deployment_service_json)},
-           {"telemetry", Json::object({
-                             {"service", config.deployment.telemetry_service.empty()
-                                             ? Json::null()
-                                             : Json::text(config.deployment.telemetry_service)},
-                             {"port", Json::number(config.deployment.telemetry_port)},
-                         })},
-       })},
+      {"deployment", deployment_json(config)},
       {"observability",
        Json::object({
            {"metrics", signal_json(observability.metrics)},

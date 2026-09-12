@@ -18,7 +18,70 @@
     "deployment": { "$ref": "#/$defs/deployment" },
     "observability": { "$ref": "#/$defs/observability" }
   },
+  "allOf": [{"if": {"properties": {"graph": {"properties": {"nodes": {"contains": {"required": ["sdr"]}}}}}}, "then": {"properties": {"deployment": {"required": ["instance_id"]}}}}],
   "$defs": {
+    "sdr": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "samples_edge",
+        "control_edge",
+        "frequency_hz",
+        "sample_interval_ms",
+        "credentials"
+      ],
+      "properties": {
+        "samples_edge": {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$(?![\\s\\S])"
+        },
+        "control_edge": {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$(?![\\s\\S])"
+        },
+        "frequency_hz": {
+          "type": "integer",
+          "minimum": 1000000,
+          "maximum": 6000000000
+        },
+        "sample_interval_ms": {
+          "type": "integer",
+          "minimum": 20,
+          "maximum": 60000
+        },
+        "credentials": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "ca_file",
+            "certificate_file",
+            "private_key_file",
+            "server_name"
+          ],
+          "properties": {
+            "ca_file": {
+              "type": "string",
+              "maxLength": 1024,
+              "pattern": "^/[^\\u0000-\\u001f\\u007f]*$(?![\\s\\S])"
+            },
+            "certificate_file": {
+              "type": "string",
+              "maxLength": 1024,
+              "pattern": "^/[^\\u0000-\\u001f\\u007f]*$(?![\\s\\S])"
+            },
+            "private_key_file": {
+              "type": "string",
+              "maxLength": 1024,
+              "pattern": "^/[^\\u0000-\\u001f\\u007f]*$(?![\\s\\S])"
+            },
+            "server_name": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9.-]{0,252}$(?![\\s\\S])"
+            }
+          }
+        }
+      }
+    },
     "stringOrNull": { "type": ["string", "null"] },
     "uint": { "type": "integer", "minimum": 0 },
     "endpoint": {
@@ -48,7 +111,8 @@
         "accelerator", "architecture", "ports"
       ],
       "properties": {
-        "id": { "type": "string" },
+        "sdr": { "$ref": "#/$defs/sdr" },
+        "id": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$(?![\\s\\S])" },
         "kind": { "type": "string" },
         "runtime": { "enum": ["process", "docker", "qemu", "external"] },
         "execution": { "enum": ["local", "host", "container"] },
@@ -199,7 +263,7 @@
       "additionalProperties": false,
       "required": ["id", "nodes", "edges"],
       "properties": {
-        "id": { "type": "string" },
+        "id": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$(?![\\s\\S])" },
         "nodes": {
           "type": "array",
           "maxItems": 1024,
@@ -449,6 +513,7 @@
       "additionalProperties": false,
       "required": ["project", "services", "telemetry"],
       "properties": {
+        "instance_id": {"type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$(?![\\s\\S])"},
         "project": { "$ref": "#/$defs/stringOrNull" },
         "services": { "type": "array", "items": { "$ref": "#/$defs/service" } },
         "telemetry": {

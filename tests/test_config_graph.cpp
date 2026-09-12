@@ -1,9 +1,127 @@
 #include "config_test_support.hpp"
+#include "graphx/normalized_config.hpp"
 
 using namespace std::chrono_literals;
 using namespace config_test;
 
 namespace {
+
+void instance_and_sdr_configuration() {
+  const auto path =
+      std::filesystem::path(GRAPHX_SOURCE_DIR) / "examples/sdr-node/two-source/graphx.yaml";
+  const auto config = graphx::load_config_literal(path);
+  const auto& east = config.node_for_instance("lab-a", "sdr-east");
+  const auto& west = config.node_for_instance("lab-a", "sdr-west");
+  expect(east.sdr && west.sdr, "per-source typed SDR settings");
+  expect(east.sdr->frequency_hz == 100000000 && west.sdr->frequency_hz == 200000000,
+         "independent source processing settings");
+  expect(east.sdr->samples_edge == "samples-east", "sample endpoint reference");
+  expect(config.node("processor-east").sdr == std::nullopt, "ordinary nodes remain unchanged");
+  for (const auto& selection :
+       {std::pair{"lab-b", "sdr-east"}, {"", "sdr-east"}, {"lab-a", "missing"}}) {
+    bool rejected = false;
+    try {
+      static_cast<void>(config.node_for_instance(selection.first, selection.second));
+    } catch (const std::exception&) {
+      rejected = true;
+    }
+    expect(rejected, "unknown or inconsistent selection must be refused");
+  }
+  ::setenv("GRAPHX_OVERRIDES", "deployment.instance_id=environment", 1);
+  const auto explicit_config = graphx::load_config(path, {{"deployment.instance_id", "explicit"}});
+  ::unsetenv("GRAPHX_OVERRIDES");
+  expect(explicit_config.deployment.instance_id == "explicit", "instance override precedence");
+  expect(graphx::load_config_literal(path).deployment.instance_id == "lab-a",
+         "literal identity ignores overrides");
+  for (const auto& id : {std::string("A"), std::string(64, 'A')}) {
+    const auto selected = graphx::load_config(path, {{"deployment.instance_id", id}});
+    expect(selected.deployment.instance_id == id, "identifier boundaries");
+  }
+  const auto normalized = graphx::normalize_config_json(explicit_config);
+  expect(normalized.find("explicit") != std::string::npos, "resolved instance is normalized");
+  expect(normalized.find("server.key") != std::string::npos,
+         "credential reference is normalized without reading file");
+  std::ifstream input(path);
+  const std::string source((std::istreambuf_iterator<char>(input)), {});
+  auto defaults = source;
+  for (const auto& line : {std::string("        frequency_hz: 100000000\n"),
+                           std::string("        sample_interval_ms: 200\n")}) {
+    defaults.erase(defaults.find(line), line.size());
+  }
+  TemporaryConfig defaults_file(defaults);
+  const auto defaults_config = graphx::load_config_literal(defaults_file.path());
+  expect(defaults_config.node("sdr-east").sdr->frequency_hz == 100000000 &&
+             defaults_config.node("sdr-east").sdr->sample_interval_ms == 200,
+         "SDR defaults resolve in authoritative model");
+  for (const auto& value : {std::string("true"), std::string("123")}) {
+    auto scalar_source = source;
+    const std::string field = "server_name: sdr-east";
+    for (auto at = scalar_source.find(field); at != std::string::npos;
+         at = scalar_source.find(field))
+      scalar_source.replace(at, field.size(), "server_name: " + value);
+    TemporaryConfig file(scalar_source);
+    bool refused = false;
+    try {
+      static_cast<void>(graphx::load_config_literal(file.path()));
+    } catch (const graphx::ConfigError& error) {
+      refused = diagnostic_contains(error, "must be a string");
+    }
+    expect(refused, "credential reference scalar type must not be coerced");
+  }
+  const std::pair<std::string, std::string> invalid[] = {
+      {"instance_id: lab-a", "instance_id: ''"},
+      {"instance_id: lab-a", "instance_id: " + std::string(65, 'A')},
+      {"instance_id: lab-a", "instance_id: '../lab'"},
+      {"instance_id: lab-a", "instance_id: 'lab a'"},
+      {"instance_id: lab-a", "instance_id: 'láb'"},
+      {"instance_id: lab-a", "instance_id: true"},
+      {"instance_id: lab-a", "instance_id: null"},
+      {"instance_id: lab-a", "instance_id: [lab-a]"},
+      {"instance_id: lab-a", "instance_id: lab-a\n  instance_id: lab-b"},
+      {"instance_id: lab-a", "project: lab-a"},
+      {"samples_edge: samples-east", "samples_edge: missing"},
+      {"samples_edge: samples-east", "samples_edge: samples-west"},
+      {"control_edge: control-east", "control_edge: samples-east"},
+      {"to: processor-east.samples", "to: processor-west.samples"},
+      {"frequency_hz: 100000000", "frequency_hz: 999999"},
+      {"frequency_hz: 100000000", "frequency_hz: 6000000001"},
+      {"frequency_hz: 100000000", "frequency_hz: '100000000'"},
+      {"sample_interval_ms: 200", "sample_interval_ms: 19"},
+      {"sample_interval_ms: 200", "sample_interval_ms: 60001"},
+      {"sample_interval_ms: 200", "sample_interval_ms: true"},
+      {"private_key_file: /run/sdr-east/server.key", "private_key: inline-secret"},
+      {"private_key_file: /run/sdr-east/server.key", "private_key_file: relative.key"},
+      {"server_name: sdr-east", "server_name: wrong-server"},
+      {"server_name: sdr-east", "server_name: true"},
+      {"server_name: sdr-east", "server_name: 123"},
+      {"require_client_certificate: true", "require_client_certificate: false"},
+      {"id: sdr-west", "id: sdr-east"},
+  };
+  for (const auto& [from, to] : invalid) {
+    auto contents = source;
+    const auto found = contents.find(from);
+    expect(found != std::string::npos, "negative fixture replacement exists");
+    contents.replace(found, from.size(), to);
+    TemporaryConfig file(contents);
+    bool rejected = false;
+    try {
+      static_cast<void>(graphx::load_config_literal(file.path()));
+    } catch (const graphx::ConfigError&) {
+      rejected = true;
+    }
+    expect(rejected, ("accepted invalid instance/SDR input: " + to).c_str());
+  }
+  TemporaryConfig legacy(valid_config);
+  const auto legacy_config = graphx::load_config_literal(legacy.path());
+  expect(legacy_config.deployment.instance_id.empty(), "no invented instance default");
+  bool rejected = false;
+  try {
+    static_cast<void>(legacy_config.node_for_instance("lab-a", "source"));
+  } catch (const std::invalid_argument&) {
+    rejected = true;
+  }
+  expect(rejected, "instance-aware lookup refuses missing instance");
+}
 
 void current_configuration_is_strict() {
   const std::pair<std::string, std::string> invalid[] = {
@@ -339,6 +457,7 @@ deployment:
 int main() {
   return run_tests({
       {"authoritative config", authoritative_config_loads},
+      {"instance and SDR configuration", instance_and_sdr_configuration},
       {"strict current configuration", current_configuration_is_strict},
       {"override precedence", explicit_override_wins},
       {"invalid override", invalid_override_is_rejected},

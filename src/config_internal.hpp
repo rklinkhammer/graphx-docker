@@ -44,6 +44,7 @@ class ConfigParser {
                    std::initializer_list<std::string_view> allowed);
   std::string text(const YAML::Node& node, const std::string& path,
                    std::size_t maximum = kMaxTextLength);
+  std::string strict_text(const YAML::Node& node, const std::string& path, std::size_t maximum);
   std::uint32_t unsigned_value(const YAML::Node& node, const std::string& path);
   std::uint32_t strict_unsigned_value(const YAML::Node& node, const std::string& path);
   std::uint64_t unsigned_64_value(const YAML::Node& node, const std::string& path);
@@ -54,6 +55,8 @@ class ConfigParser {
   void identifier(const std::string& value, const std::string& path);
 
   void parse_nodes(const YAML::Node& nodes, GraphConfig& config);
+  SdrConfig parse_sdr(const YAML::Node& value, const std::string& path);
+  void validate_sdr(const GraphConfig& config);
   void parse_ports(const YAML::Node& ports, const std::string& path, NodeConfig& node);
   static std::pair<std::string, std::string> endpoint(const std::string& value);
   void parse_edges(const YAML::Node& edges, GraphConfig& config);

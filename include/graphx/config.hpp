@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -97,6 +98,22 @@ using TransportSettings =
     std::variant<TcpTransportConfig, UdpTransportConfig, UnixSocketTransportConfig,
                  InProcessTransportConfig, SharedMemoryTransportConfig, ExternalTransportConfig>;
 
+struct SdrCredentials {
+  std::string ca_file;
+  std::string certificate_file;
+  std::string private_key_file;
+  std::string server_name;
+};
+
+// Raw SDR source settings. Referenced edges own endpoint configuration.
+struct SdrConfig {
+  std::string samples_edge;
+  std::string control_edge;
+  std::uint64_t frequency_hz{100000000};
+  std::uint32_t sample_interval_ms{200};
+  SdrCredentials credentials;
+};
+
 struct NodeConfig {
   std::string id;
   std::string kind;
@@ -107,6 +124,7 @@ struct NodeConfig {
   std::string accelerator;
   std::string architecture;
   std::vector<Port> ports;
+  std::optional<SdrConfig> sdr;
 };
 
 struct EdgeConfig {
@@ -122,6 +140,7 @@ struct DeploymentService {
 };
 
 struct DeploymentConfig {
+  std::string instance_id;
   std::string project;
   std::vector<DeploymentService> services;
   std::string telemetry_service;
@@ -221,6 +240,8 @@ struct GraphConfig {
   ObservabilityConfig observability;
 
   [[nodiscard]] const NodeConfig& node(std::string_view id) const;
+  [[nodiscard]] const NodeConfig& node_for_instance(std::string_view instance_id,
+                                                    std::string_view node_id) const;
   [[nodiscard]] const EdgeConfig& edge(std::string_view id) const;
 };
 

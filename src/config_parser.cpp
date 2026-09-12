@@ -62,6 +62,7 @@ GraphConfig ConfigParser::parse() {
   parse_deployment(root_["deployment"], config);
   parse_observability(root_["observability"], config);
   validate_graph(config);
+  validate_sdr(config);
   if (!errors_.empty()) throw ConfigError(std::move(errors_));
   return config;
 }
@@ -123,6 +124,24 @@ std::string ConfigParser::text(const YAML::Node& node, const std::string& path,
   const auto& value = node.Scalar();
   if (value.empty()) error(path, "must not be empty");
   if (value.size() > maximum) error(path, "exceeds maximum length " + std::to_string(maximum));
+  return value;
+}
+
+std::string ConfigParser::strict_text(const YAML::Node& node, const std::string& path,
+                                      std::size_t maximum) {
+  const auto value = text(node, path, maximum);
+  if (node && node.IsScalar() && node.Tag() == "?") {
+    try {
+      static_cast<void>(node.as<double>());
+      error(path, "must be a string, not a number");
+    } catch (const YAML::Exception&) {
+      // Plain nonnumeric scalars remain strings, except booleans checked below.
+    }
+  }
+  if (node && node.IsScalar() && node.Tag() != "!" && node.Tag() != "tag:yaml.org,2002:str" &&
+      (node.Tag() != "?" ||
+       std::regex_match(value, std::regex("^(true|false|True|False|TRUE|FALSE)$"))))
+    error(path, "must be a string, not a typed scalar");
   return value;
 }
 

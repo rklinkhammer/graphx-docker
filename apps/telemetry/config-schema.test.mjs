@@ -105,3 +105,27 @@ test('raw external edge and runtime metadata pass structural schema checks', () 
   invalidPlane.graph.edges[0].data_plane = 'raw'
   assert.equal(validate(invalidPlane), false, 'unknown data plane unexpectedly valid')
 })
+
+test('instance and SDR schema requires bounded settings and credential references', () => {
+  const source = parseYaml(readFileSync(resolve(repository,
+    'examples/sdr-node/two-source/graphx.yaml'), 'utf8'))
+  assert.equal(validate(source), true, JSON.stringify(validate.errors))
+  const mutations = [
+    c => { delete c.deployment.instance_id },
+    c => { c.deployment.instance_id = '' },
+    c => { c.deployment.instance_id = 'a'.repeat(65) },
+    c => { c.deployment.instance_id = 'lab\n' },
+    c => { c.deployment.instance_id = true },
+    c => { c.graph.nodes[0].sdr.frequency_hz = '100000000' },
+    c => { c.graph.nodes[0].sdr.sample_interval_ms = 60001 },
+    c => { c.graph.nodes[0].sdr.credentials.private_key = 'inline-secret' },
+    c => { delete c.graph.nodes[0].sdr.credentials.ca_file },
+    c => { c.graph.nodes[0].sdr.credentials.private_key_file = 'relative.key' },
+    c => { c.graph.nodes[0].sdr.credentials.server_name = 'sdr-east\n' },
+  ]
+  for (const mutate of mutations) {
+    const candidate = structuredClone(source)
+    mutate(candidate)
+    assert.equal(validate(candidate), false, JSON.stringify(candidate))
+  }
+})

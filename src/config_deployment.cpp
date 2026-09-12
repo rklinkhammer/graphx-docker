@@ -13,7 +13,12 @@ namespace graphx::config_internal {
 void ConfigParser::parse_deployment(const YAML::Node& deployment, GraphConfig& config) {
   if (!deployment) return;
   if (!require_map(deployment, "deployment")) return;
-  strict_keys(deployment, "deployment", {"project", "services", "telemetry"});
+  strict_keys(deployment, "deployment", {"project", "services", "telemetry", "instance_id"});
+  if (deployment["instance_id"]) {
+    config.deployment.instance_id =
+        strict_text(deployment["instance_id"], "deployment.instance_id", 64);
+    identifier(config.deployment.instance_id, "deployment.instance_id");
+  }
   if (deployment["project"])
     config.deployment.project = text(deployment["project"], "deployment.project", 63);
   if (!config.deployment.project.empty() &&

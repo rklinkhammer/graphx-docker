@@ -1,10 +1,13 @@
 # Instance identity contract
 
-This is the design contract for instance-aware execution. It defines terminology
-and requirements; it does not enable multi-instance execution. The current loader
-has graph and node IDs, but no instance ID or execution ID fields. Do not add the
-conceptual fields below to a configuration until the authoritative C++ model and
-normalized schema support them. Configuration and envelope wire versions remain 2.
+This contract defines instance-aware configuration and the requirements for runtime
+isolation. The authoritative loader and normalized JSON support optional
+`deployment.instance_id` and typed SDR source settings. Configuration consumers
+can select a node against an explicit matching instance identity. Execution IDs,
+instance-scoped infrastructure, and runtime enforcement are not implemented yet.
+Configuration and envelope wire versions remain 2. See
+[configuration](configuration.md#instance-selection-and-sdr-source-settings) for
+supported fields and APIs.
 
 ## Identity domains
 
@@ -140,8 +143,9 @@ deleted merely because an instance references them.
 
 ## Implementation acceptance cases
 
-These are required executable checks for the implementation, not claims of current
-coverage. Extend the nearest configuration, ownership, control, and SDR tests.
+Configuration validation and selection cases have executable coverage. Runtime
+isolation, restart, authorization, and recovery cases below remain requirements
+for runtime implementation, not claims of current coverage. Extend the nearest configuration, ownership, control, and SDR tests.
 
 | Case | Expected result |
 |---|---|
@@ -169,8 +173,11 @@ separately. TAP lifecycle tests alone do not establish guest execution.
 The current infrastructure ledger and lock are keyed by graph ID; runtime policy
 identities are keyed by configured node ID. Existing examples also contain fixed
 resource names and paths. They do not yet satisfy the concurrent-instance contract.
-No YAML fields, CLI switches, credential formats, ledger layouts, wire formats, or
-launcher behavior are changed by this document. Existing running resources must
-be deliberately stopped before a later identity-layout migration; migration must
-not silently adopt them. Configuration/schema integration and runtime enforcement
-are separate implementation work governed by this contract.
+Configuration supports explicit instance selection through the existing dotted-path
+overrides; no new activation CLI, credential format, ledger layout, or wire format
+is introduced. Missing instance IDs remain absent for existing configurations;
+instance-aware node lookup and SDR source settings require an explicit ID. Current
+launchers do not consume the new SDR settings or isolate resources by instance.
+Do not use an instance override as a way to launch concurrent copies yet.
+Existing running resources must be deliberately stopped before a later
+identity-layout migration; migration must not silently adopt them.
