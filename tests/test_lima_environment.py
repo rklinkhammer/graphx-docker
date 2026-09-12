@@ -127,7 +127,7 @@ def main() -> int:
                 and "scripts/network-lab.sh macvlan status" in invocations[1],
                 "macOS dispatcher does not route the canonical action through Lima")
     provision = (lima / "provision.sh").read_text(encoding="utf-8")
-    for token in ("docker.io", "docker-buildx", "docker-compose-v2", "openvswitch-switch", "nftables", "qemu-system-ppc", "tcpdump", "tshark", "/var/lib/graphx"):
+    for token in ("docker.io", "docker-buildx", "docker-compose-v2", "openvswitch-switch", "nftables", "qemu-system-ppc", "tshark", "/var/lib/graphx"):
         require(token in provision, f"provisioning omits {token}")
     require("node:24-bookworm-slim@sha256:" in provision,
             "provisioning does not use the digest-pinned Node.js 24 runtime")

@@ -38,6 +38,8 @@ def main() -> int:
                    "--state-dir", Path(raw) / "state").stdout
     for marker in ("ip tuntap add dev gxqtap0 mode tap user 65532 group 65532",
                    "ovs-vsctl add-port br-qemu-tap gxqtap0", "mirror qemu-span",
+                   "dumpcap attachment=qemu-span format=ethernet-pcapng",
+                   "directory=/var/lib/graphx/captures/qemu-tap",
                    "owner=qemu-peer", "address=10.0.2.2/24"):
         require(marker in plan, f"missing QEMU TAP plan marker: {marker}")
     require("docker network" not in plan and "macvlan" not in plan and "ipvlan" not in plan,

@@ -14,10 +14,13 @@ qemu_gid=65532
 qmp_source=$example_dir/tools/qmp_control.py
 peer_source=$example_dir/host/peer.py
 observer_source=$example_dir/tools/packet_observer.py
+exporter_source=$example_dir/tools/capture_exporter.sh
 runtime_images=$run_dir/images
 qmp=$run_dir/qmp_control.py
 peer=$run_dir/peer.py
 observer=$run_dir/packet_observer.py
+capture_handoff=${GRAPHX_QEMU_CAPTURE_HANDOFF_DIR:-/var/lib/graphx/qemu-capture-handoff}
+capture_exporter=$capture_handoff/capture_exporter.sh
 qemu_args=(
   -machine q35,accel=tcg -cpu qemu64 -m 256M -smp 1
   -kernel "$runtime_images/bzImage" -initrd "$runtime_images/rootfs.cpio.gz"
@@ -31,20 +34,22 @@ qemu_args=(
 require() { command -v "$1" >/dev/null || { echo "missing required command: $1" >&2; exit 1; }; }
 owned_pid() {
   local file=$1 marker=$2 pid command
-  pid=$(sudo cat "$run_dir/$file" 2>/dev/null || true)
+  [[ "$file" = /* ]] || file=$run_dir/$file
+  pid=$(sudo cat "$file" 2>/dev/null || true)
   [[ "$pid" =~ ^[1-9][0-9]*$ ]] || return 1
   command=$(sudo ps -p "$pid" -o command= 2>/dev/null || true)
   test -n "$command" && [[ "$command" == *"$marker"* ]]
 }
 stop_owned() {
   local file=$1 marker=$2 pid command
-  sudo test -e "$run_dir/$file" || return 0
-  pid=$(sudo cat "$run_dir/$file")
+  [[ "$file" = /* ]] || file=$run_dir/$file
+  sudo test -e "$file" || return 0
+  pid=$(sudo cat "$file")
   [[ "$pid" =~ ^[1-9][0-9]*$ ]] || {
     echo "refusing malformed $file process identity" >&2; return 1;
   }
   if ! sudo kill -0 "$pid" 2>/dev/null; then
-    sudo rm -f "$run_dir/$file"
+    sudo rm -f "$file"
     return 0
   fi
   command=$(sudo ps -p "$pid" -o command= 2>/dev/null || true)
@@ -54,7 +59,7 @@ stop_owned() {
   sudo kill "$pid" 2>/dev/null || true
   for _ in {1..30}; do sudo kill -0 "$pid" 2>/dev/null || break; sleep 0.1; done
   sudo kill -0 "$pid" 2>/dev/null && sudo kill -KILL "$pid" 2>/dev/null || true
-  sudo rm -f "$run_dir/$file"
+  sudo rm -f "$file"
 }
 qemu_identity() {
   local uid_name gid_name
@@ -81,12 +86,20 @@ prepare_run_dir() {
   sudo install -d -o "$qemu_uid" -g "$qemu_gid" -m 0750 "$runtime_images"
   sudo install -o "$qemu_uid" -g "$qemu_gid" -m 0550 -t "$run_dir" \
     "$qmp_source" "$peer_source" "$observer_source"
+  sudo install -d -o root -g "$qemu_gid" -m 0750 "$capture_handoff"
+  sudo install -o root -g root -m 0550 "$exporter_source" "$capture_exporter"
   sudo install -o "$qemu_uid" -g "$qemu_gid" -m 0440 "$normalized" "$run_dir/normalized.json"
   rm -f "$normalized"
   sudo install -o "$qemu_uid" -g "$qemu_gid" -m 0440 -t "$runtime_images" \
     "$images/bzImage" "$images/rootfs.cpio.gz"
   sudo rm -f "$run_dir/qemu.qmp" "$run_dir/qemu.pid" "$run_dir/peer.pid" \
-    "$run_dir/tcpdump.pid" "$run_dir/observer.pid"
+    "$run_dir/observer.pid"
+  sudo rm -f "$run_dir/packet-history.sqlite" "$run_dir/packet-history.sqlite-wal" \
+    "$run_dir/packet-history.sqlite-shm"
+  sudo rm -f "$run_dir/accelerator-evidence.json" "$run_dir/guest-console.log" \
+    "$run_dir/observer.log" "$run_dir/peer.log"
+  sudo rm -f "$capture_handoff/exporter.pid" "$capture_handoff/qemu-span.pcapng" \
+    "$capture_handoff"/.qemu-span.*.pcapng
 }
 start_peer() {
   # shellcheck disable=SC2024
@@ -97,19 +110,29 @@ start_peer() {
   sudo mv "/tmp/graphx-qemu-tap-peer.$$.log" "$run_dir/peer.log"
 }
 start_capture() {
-  # shellcheck disable=SC2024
-  sudo sh -c 'echo $$ >"$1"; exec tcpdump -U -n -i gxqcap1 -s 65535 -w "$2"' \
-    sh "$run_dir/tcpdump.pid" "$run_dir/qemu-span.pcap" \
-    >"/tmp/graphx-qemu-tap-tcpdump.$$.log" 2>&1 &
-  for _ in {1..30}; do owned_pid tcpdump.pid tcpdump && test -s "$run_dir/qemu-span.pcap" && break; sleep 0.1; done
-  owned_pid tcpdump.pid tcpdump || { echo "SPAN capture failed to start" >&2; return 1; }
-  sudo mv "/tmp/graphx-qemu-tap-tcpdump.$$.log" "$run_dir/tcpdump.log"
-  sudo chmod 0644 "$run_dir/qemu-span.pcap"
+  sudo "$capture_exporter" "$capture_handoff/exporter.pid" "$graphx" "$config" \
+    qemu-span "$capture_handoff" "$qemu_gid" >/dev/null 2>&1 &
+  for _ in {1..100}; do
+    if owned_pid "$capture_handoff/exporter.pid" capture_exporter.sh &&
+       sudo test -s "$capture_handoff/qemu-span.pcapng"; then
+      break
+    fi
+    sleep 0.1
+  done
+  owned_pid "$capture_handoff/exporter.pid" capture_exporter.sh || {
+    echo "managed capture exporter failed to start" >&2
+    return 1
+  }
+  sudo test -s "$capture_handoff/qemu-span.pcapng" || {
+    echo "managed capture did not publish a bounded snapshot" >&2
+    return 1
+  }
   sudo setpriv --reuid "$qemu_uid" --regid "$qemu_gid" --clear-groups \
     env GRAPHX_QEMU_RUN_ID=m6-tap GRAPHX_PACKET_OBSERVATION_SOURCE=ovs-span \
+    GRAPHX_NETWORK_CAPTURE_ID=qemu-span \
     GRAPHX_NORMALIZED_CONFIG="$run_dir/normalized.json" \
-    python3 "$observer" --capture "$run_dir/qemu-span.pcap" \
-      --pcapng "$run_dir/qemu-span.pcapng" --database "$run_dir/packet-history.sqlite" \
+    python3 "$observer" --capture "$capture_handoff/qemu-span.pcapng" \
+      --database "$run_dir/packet-history.sqlite" \
       --http-port 9106 --daemonize --pid-file "$run_dir/observer.pid" \
       --log-file "$run_dir/observer.log"
 }
@@ -134,7 +157,7 @@ stop_qemu() {
 stop_runtime() {
   stop_qemu
   stop_owned observer.pid packet_observer.py
-  stop_owned tcpdump.pid tcpdump
+  stop_owned "$capture_handoff/exporter.pid" capture_exporter.sh
   stop_owned peer.pid peer.py
 }
 rollback_up() {
@@ -165,12 +188,14 @@ verify_network() {
   test "$(sudo ovs-vsctl get Port gxqtap0 tag)" = 42
   test "$(sudo ovs-vsctl get Port gxqpeer0 tag)" = 42
   test "$(sudo ovs-vsctl get Port gxqiso0 tag)" = 43
-  before=$(sudo stat -c %s "$run_dir/qemu-span.pcap")
+  before=$(curl -fsS http://127.0.0.1:9106/status | python3 -c \
+    'import json,sys; print(json.load(sys.stdin)["capturePackets"])')
   tap_before=$(sudo cat /sys/class/net/gxqtap0/statistics/tx_packets)
   sudo ip netns exec gx-qemu-peer python3 -c \
     'import socket; s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); s.bind(("10.0.2.2",0)); s.settimeout(2); s.setsockopt(socket.SOL_SOCKET,socket.SO_BROADCAST,1); payload=b"graphx-broadcast"; s.sendto(payload,("10.0.2.255",18001)); reply,_=s.recvfrom(1024); assert reply==payload; s.setsockopt(socket.IPPROTO_IP,socket.IP_MULTICAST_IF,socket.inet_aton("10.0.2.2")); s.sendto(b"graphx-multicast",("239.1.2.3",18001))'
   sleep 1
-  after=$(sudo stat -c %s "$run_dir/qemu-span.pcap")
+  after=$(curl -fsS http://127.0.0.1:9106/status | python3 -c \
+    'import json,sys; print(json.load(sys.stdin)["capturePackets"])')
   tap_after=$(sudo cat /sys/class/net/gxqtap0/statistics/tx_packets)
   test "$after" -gt "$before"
   test "$tap_after" -ge $((tap_before + 2))
@@ -191,7 +216,7 @@ case ${1:-} in
     ;;
   up)
     test "$(uname -s)" = Linux; test -x "$graphx"; sudo -v
-    for command in qemu-system-x86_64 ovs-vsctl ovs-appctl ip tcpdump setpriv python3 curl; do require "$command"; done
+    for command in qemu-system-x86_64 ovs-vsctl ovs-appctl ip dumpcap setpriv python3 curl; do require "$command"; done
     qemu_identity
     test -r "$images/bzImage" && test -r "$images/rootfs.cpio.gz"
     ! owned_pid qemu.pid qemu-system-x86_64 || { echo "QEMU TAP QEMU is already running" >&2; exit 2; }
@@ -201,8 +226,8 @@ case ${1:-} in
     start_capture
     start_peer
     start_qemu
-    trap - ERR
     verify_network
+    trap - ERR
     ;;
   status)
     sudo "$graphx" infra status "$config"

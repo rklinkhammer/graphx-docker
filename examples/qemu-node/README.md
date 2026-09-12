@@ -12,5 +12,9 @@ examples/qemu-node/scripts/demo.sh stop
 ```
 
 Run it on native Linux or through the dispatcher into the GraphX Lima guest. Runtime
-artifacts stay under `/var/lib/graphx/qemu`. On macOS, build and run it using the
-[`Docker and OVS with Lima`](../../infrastructure/lima/README.md) procedure.
+artifacts stay under `/var/lib/graphx/qemu`. GraphX owns the only Ethernet capture
+process and its root-only PCAPNG ring under `/var/lib/graphx/captures`. A bounded,
+read-only snapshot is handed to the unprivileged packet observer, which records
+telemetry and SQLite packet history without access to the live capture directory.
+On macOS, build and run it using the [`Docker and OVS with Lima`](../../infrastructure/lima/README.md)
+procedure.

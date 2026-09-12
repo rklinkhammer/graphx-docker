@@ -13,7 +13,7 @@ packages=(
   build-essential ca-certificates clang cmake curl docker-buildx docker-compose-v2 docker.io
   gnupg iproute2 jq libssl-dev libyaml-cpp-dev nftables ninja-build
   openvswitch-switch openssl pkg-config python3 python3-jsonschema python3-yaml
-  qemu-system-arm qemu-system-ppc qemu-system-x86 qemu-utils tcpdump tshark
+  qemu-system-arm qemu-system-ppc qemu-system-x86 qemu-utils tshark
 )
 readonly node_runtime_image='node:24-bookworm-slim@sha256:ba849c60be29959425b8734d57b8b4b7d56f98edd9504c9af091d5281095a71e'
 readonly node_runtime_root=/opt/graphx-node-24

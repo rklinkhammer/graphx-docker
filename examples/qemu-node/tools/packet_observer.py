@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bounded live QEMU PCAP observer, PCAPNG writer, history API, and telemetry adapter."""
+"""Bounded packet observer, history API, and telemetry adapter."""
 
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ import secrets
 import signal
 import socket
 import sqlite3
+import stat
 import struct
 import threading
 import time
@@ -26,6 +27,9 @@ MAGIC = {
     b"\x4d\x3c\xb2\xa1": ("<", 1_000_000_000),
     b"\xa1\xb2\x3c\x4d": (">", 1_000_000_000),
 }
+PCAPNG_SECTION = b"\x0a\x0d\x0d\x0a"
+PCAPNG_LITTLE_ENDIAN = b"\x4d\x3c\x2b\x1a"
+PCAPNG_BIG_ENDIAN = b"\x1a\x2b\x3c\x4d"
 MAX_PACKET_BYTES = 16 * 1024 * 1024
 GUEST_ADDRESS = "10.0.2.15"
 GUEST_PORT = 18001
@@ -205,7 +209,7 @@ def decode_packet(packet: bytes) -> dict[str, object] | None:
 
 
 class Observer:
-    def __init__(self, capture: Path, pcapng: Path, database: Path) -> None:
+    def __init__(self, capture: Path, database: Path, pcapng: Path | None = None) -> None:
         self.capture = capture
         self.pcapng = pcapng
         self.database = database
@@ -214,13 +218,23 @@ class Observer:
         )
         if not self.capture_session.replace("-", "").replace("_", "").isalnum() or len(self.capture_session) > 64:
             raise ValueError("GRAPHX_QEMU_RUN_ID must be a bounded identifier")
-        runtime = {}
+        normalized = {}
         normalized_config = os.environ.get("GRAPHX_NORMALIZED_CONFIG", "")
         if normalized_config:
             with open(normalized_config, encoding="utf-8") as stream:
-                runtime = json.load(stream).get("observability", {})
+                normalized = json.load(stream)
+        runtime = normalized.get("observability", {})
         history = runtime.get("history", {})
         capture_config = runtime.get("capture", {})
+        network_capture_id = os.environ.get("GRAPHX_NETWORK_CAPTURE_ID", "")
+        if network_capture_id:
+            captures = normalized.get("network", {}).get("captures", [])
+            network_capture = next(
+                (value for value in captures if value.get("id") == network_capture_id), None
+            )
+            if network_capture is None:
+                raise ValueError(f"network capture {network_capture_id!r} is not configured")
+            capture_config = {**capture_config, "max_file_bytes": network_capture["max_file_bytes"]}
         telemetry = runtime.get("telemetry", {})
         self.max_records = history.get("max_records", 50_000)
         self.history_enabled = boolean("GRAPHX_PACKET_HISTORY_ENABLED", True)
@@ -239,6 +253,11 @@ class Observer:
         self.capture_generation = 0
         self.capture_identity: tuple[int, int] | None = None
         self.invalid_identity: tuple[int, int] | None = None
+        self.pcapng_offset = 0
+        self.pcapng_identity: tuple[int, int] | None = None
+        self.pcapng_checkpoint: tuple[int, bytes] | None = None
+        self.pcapng_endian = "<"
+        self.pcapng_interfaces: dict[int, float] = {}
         self.endian = "<"
         self.timestamp_scale = 1_000_000
         self.snaplen = 65_535
@@ -250,7 +269,8 @@ class Observer:
         self.stop = threading.Event()
         self.lock = threading.Lock()
         self.database.parent.mkdir(parents=True, exist_ok=True)
-        self.pcapng.parent.mkdir(parents=True, exist_ok=True)
+        if self.pcapng is not None:
+            self.pcapng.parent.mkdir(parents=True, exist_ok=True)
         self.connection = sqlite3.connect(self.database, check_same_thread=False)
         self.connection.execute("PRAGMA journal_mode=WAL")
         self.connection.execute("PRAGMA synchronous=NORMAL")
@@ -279,20 +299,13 @@ class Observer:
             CREATE INDEX IF NOT EXISTS packet_history_time ON packet_history(captured_at);
             """
         )
-        columns = {row[1] for row in self.connection.execute("PRAGMA table_info(packet_history)")}
-        for name, definition in (
-            ("captured_length", "INTEGER NOT NULL DEFAULT 0"),
-            ("original_length", "INTEGER NOT NULL DEFAULT 0"),
-            ("truncated", "INTEGER NOT NULL DEFAULT 0 CHECK(truncated IN (0, 1))"),
-        ):
-            if name not in columns:
-                self.connection.execute(f"ALTER TABLE packet_history ADD COLUMN {name} {definition}")
         self.connection.commit()
         os.chmod(self.database, 0o600)
-        with self.pcapng.open("wb") as output:
-            output.write(pcapng_headers())
-        os.chmod(self.pcapng, 0o644)
-        self.capture_bytes = self.pcapng.stat().st_size
+        if self.pcapng is not None:
+            with self.pcapng.open("wb") as output:
+                output.write(pcapng_headers())
+            os.chmod(self.pcapng, 0o644)
+            self.capture_bytes = self.pcapng.stat().st_size
 
     def close(self) -> None:
         self.stop.set()
@@ -388,7 +401,7 @@ class Observer:
         return cursor.rowcount > 0
 
     def append_capture(self, timestamp: float, wire_length: int, packet: bytes) -> None:
-        if not self.capture_enabled:
+        if not self.capture_enabled or self.pcapng is None:
             return
         block = pcapng_packet(timestamp, wire_length, packet)
         if self.capture_packets >= self.max_packets or self.capture_bytes + len(block) > self.max_capture_bytes:
@@ -399,7 +412,7 @@ class Observer:
         self.capture_packets += 1
         self.capture_bytes += len(block)
 
-    def read_available(self) -> bool:
+    def read_classic_available(self) -> bool:
         try:
             metadata = self.capture.stat()
         except FileNotFoundError:
@@ -467,6 +480,152 @@ class Observer:
                     if self.retain(capture_offset, timestamp, original, included, decoded):
                         self.publish(decoded, timestamp, original)
             return progressed
+
+    def open_pcapng_snapshot(self):
+        flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+        descriptor = os.open(self.capture, flags)
+        try:
+            metadata = os.fstat(descriptor)
+            published = self.capture.lstat()
+            if (not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1 or
+                    (metadata.st_mode & 0o022) != 0 or metadata.st_uid not in (0, os.getuid()) or
+                    (published.st_dev, published.st_ino) != (metadata.st_dev, metadata.st_ino)):
+                raise ValueError("PCAPNG snapshot has an unsafe identity, owner, or mode")
+            if metadata.st_size > self.max_capture_bytes + MAX_PACKET_BYTES + 266_240:
+                raise ValueError("PCAPNG snapshot exceeds its configured bound")
+            return os.fdopen(descriptor, "rb"), metadata
+        except BaseException:
+            os.close(descriptor)
+            raise
+
+    def reset_pcapng(self, identity: tuple[int, int]) -> None:
+        if self.pcapng_identity is not None:
+            self.capture_generation += 1
+        self.pcapng_identity = identity
+        self.pcapng_offset = 0
+        self.pcapng_checkpoint = None
+        self.pcapng_interfaces.clear()
+
+    def read_pcapng_available(self) -> bool:
+        try:
+            source, metadata = self.open_pcapng_snapshot()
+        except FileNotFoundError:
+            return False
+        with source:
+            identity = (metadata.st_dev, metadata.st_ino)
+            if identity != self.pcapng_identity:
+                continued = False
+                if self.pcapng_checkpoint is not None:
+                    checkpoint_offset, checkpoint_digest = self.pcapng_checkpoint
+                    source.seek(checkpoint_offset)
+                    header = source.read(8)
+                    if len(header) == 8:
+                        length = struct.unpack(f"{self.pcapng_endian}I", header[4:8])[0]
+                        source.seek(checkpoint_offset)
+                        block = source.read(length) if 12 <= length <= MAX_PACKET_BYTES + 4096 else b""
+                        continued = hashlib.sha256(block).digest() == checkpoint_digest
+                if continued:
+                    self.pcapng_identity = identity
+                else:
+                    self.reset_pcapng(identity)
+            if metadata.st_size < self.pcapng_offset:
+                self.reset_pcapng(identity)
+            source.seek(self.pcapng_offset)
+            progressed = False
+            while self.pcapng_offset + 12 <= metadata.st_size:
+                block_start = self.pcapng_offset
+                header = source.read(12)
+                if len(header) != 12:
+                    break
+                if header[:4] == PCAPNG_SECTION:
+                    if header[8:12] == PCAPNG_LITTLE_ENDIAN:
+                        endian = "<"
+                    elif header[8:12] == PCAPNG_BIG_ENDIAN:
+                        endian = ">"
+                    else:
+                        self.dropped += 1
+                        break
+                    block_type = 0x0A0D0D0A
+                else:
+                    endian = self.pcapng_endian
+                    block_type = struct.unpack(f"{endian}I", header[:4])[0]
+                block_length = struct.unpack(f"{endian}I", header[4:8])[0]
+                if (block_length < 12 or block_length % 4 != 0 or
+                        block_length > MAX_PACKET_BYTES + 4096 or
+                        block_start + block_length > metadata.st_size):
+                    break
+                remainder = source.read(block_length - 12)
+                block = header + remainder
+                if len(block) != block_length or struct.unpack(f"{endian}I", block[-4:])[0] != block_length:
+                    self.dropped += 1
+                    break
+                if block_type == 0x0A0D0D0A:
+                    self.pcapng_endian = endian
+                    self.pcapng_interfaces.clear()
+                elif block_type == 1:
+                    body = block[8:-4]
+                    if len(body) < 8 or struct.unpack(f"{endian}H", body[:2])[0] != 1:
+                        self.dropped += 1
+                    else:
+                        scale = 1_000_000.0
+                        option = 8
+                        while option + 4 <= len(body):
+                            code, length = struct.unpack_from(f"{endian}HH", body, option)
+                            option += 4
+                            value = body[option:option + length]
+                            option += (length + 3) & ~3
+                            if code == 0:
+                                break
+                            if code == 9 and length == 1:
+                                resolution = value[0]
+                                scale = float(2 ** (resolution & 0x7f) if resolution & 0x80
+                                              else 10 ** resolution)
+                        self.pcapng_interfaces[len(self.pcapng_interfaces)] = scale
+                elif block_type == 6:
+                    body = block[8:-4]
+                    if len(body) < 20:
+                        self.dropped += 1
+                    else:
+                        interface, high, low, included, original = struct.unpack_from(
+                            f"{endian}IIIII", body)
+                        packet = body[20:20 + included]
+                        scale = self.pcapng_interfaces.get(interface)
+                        if (scale is None or included == 0 or included > original or
+                                included > MAX_PACKET_BYTES or len(packet) != included):
+                            self.dropped += 1
+                        else:
+                            timestamp = ((high << 32) | low) / scale
+                            self.capture_packets += 1
+                            decoded = decode_packet(packet)
+                            if decoded is not None and self.retain(
+                                    block_start, timestamp, original, included, decoded):
+                                self.publish(decoded, timestamp, original)
+                self.pcapng_offset += block_length
+                self.pcapng_checkpoint = (block_start, hashlib.sha256(block).digest())
+                progressed = True
+            self.capture_bytes = metadata.st_size
+            return progressed
+
+    def read_available(self) -> bool:
+        flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+        try:
+            descriptor = os.open(self.capture, flags)
+        except FileNotFoundError:
+            return False
+        try:
+            magic = os.read(descriptor, 4)
+        finally:
+            os.close(descriptor)
+        if magic == PCAPNG_SECTION:
+            if self.pcapng is not None:
+                raise ValueError("a PCAPNG source must not specify a second PCAPNG output")
+            return self.read_pcapng_available()
+        if magic in MAGIC:
+            if self.pcapng is None:
+                raise ValueError("classic PCAP input requires an explicit PCAPNG output")
+            return self.read_classic_available()
+        self.dropped += 1
+        return False
 
     def status(self) -> dict[str, object]:
         with self.lock:
@@ -565,7 +724,7 @@ def make_handler(observer: Observer):
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--capture", type=Path, required=True)
-    parser.add_argument("--pcapng", type=Path, required=True)
+    parser.add_argument("--pcapng", type=Path)
     parser.add_argument("--database", type=Path, required=True)
     parser.add_argument("--once", action="store_true")
     parser.add_argument("--daemonize", action="store_true")
@@ -580,7 +739,7 @@ def main() -> None:
             parser.error("--daemonize requires --pid-file and --log-file and cannot use --once")
         if not daemonize(args.pid_file, args.log_file):
             return
-    observer = Observer(args.capture, args.pcapng, args.database)
+    observer = Observer(args.capture, args.database, args.pcapng)
     server = None
     try:
         signal.signal(signal.SIGTERM, lambda *_: observer.stop.set())

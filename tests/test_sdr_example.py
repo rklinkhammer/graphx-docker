@@ -133,6 +133,35 @@ def main() -> int:
     assert decoded and decoded["edge_id"] == "sdr-samples" and decoded["node_id"] == "sdr-node"
     assert observer.decode_packet(packet(6, "10.63.0.10", "10.63.0.20", 40000,
                                          18400, b"wrong protocol")) is None
+    with tempfile.TemporaryDirectory(prefix="graphx-pcapng-observer-") as temporary:
+        directory = Path(temporary)
+        capture = directory / "managed.pcapng"
+        database = directory / "history.sqlite"
+        first_packet = packet(17, "10.63.0.10", "10.63.0.20", 40000, 18400, encoded)
+        captured_at = time.time()
+        first = observer.pcapng_headers() + observer.pcapng_packet(
+            captured_at, len(first_packet), first_packet)
+        capture.write_bytes(first)
+        capture.chmod(0o600)
+        packet_observer = observer.Observer(capture, database)
+        assert packet_observer.read_available()
+        assert packet_observer.status()["capturePackets"] == 1
+        second_packet = packet(17, "10.63.0.10", "10.63.0.20", 40000, 18400,
+                               protocol.encode_samples(8, 915_000_000, 16))
+        replacement = directory / "replacement.pcapng"
+        replacement.write_bytes(first + observer.pcapng_packet(
+            captured_at + 1.0, len(second_packet), second_packet))
+        replacement.chmod(0o600)
+        replacement.replace(capture)
+        assert packet_observer.read_available()
+        status = packet_observer.status()
+        assert status["capturePackets"] == 2 and status["records"] == 2
+        packet_observer.close()
+        capture.chmod(0o666)
+        unsafe = observer.Observer(capture, directory / "unsafe.sqlite")
+        expect_value_error(unsafe.read_available,
+                           "writable managed PCAPNG snapshot was accepted")
+        unsafe.close()
     processor_module = import_path("sdr_processor_endpoint_test", common / "processor.py")
     assert processor_module.expected_sample_source("10.63.0.10") == "10.63.0.10"
     expect_value_error(lambda: processor_module.expected_sample_source("not-an-address"),

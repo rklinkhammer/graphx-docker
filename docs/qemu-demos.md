@@ -15,7 +15,10 @@ examples/qemu-node/scripts/demo.sh start
 Use `status`, `verify`, `pause`, `resume`, and `stop` with the same launcher. The
 x86_64 guest uses TCG consistently on native Linux and in the ARM64 Lima VM. The
 launcher never uses QEMU user networking. Runtime files remain under
-`/var/lib/graphx/qemu` in the Linux runtime.
+`/var/lib/graphx/qemu` in the Linux runtime. GraphX owns one root-only `dumpcap`
+ring beneath `/var/lib/graphx/captures`; the unprivileged observer receives bounded,
+read-only PCAPNG snapshots and produces packet telemetry and SQLite history. It has
+no access to the live capture directory.
 
 See [`../examples/qemu-node/tap/README.md`](../examples/qemu-node/tap/README.md) for
 requirements and evidence checks.
