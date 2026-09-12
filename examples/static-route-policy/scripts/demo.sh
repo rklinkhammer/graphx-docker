@@ -61,6 +61,7 @@ case ${1:-} in
       --destination 10.64.30.10/32
     ;;
   down)
+    if test ! -r "$state"; then echo "static-route policy lab is already down"; exit 0; fi
     load_state
     cleanup_external
     sudo "$graphx" infra destroy "$config"

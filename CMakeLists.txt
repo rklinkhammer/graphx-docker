@@ -239,57 +239,48 @@ include(CPack)
 if(GRAPHX_BUILD_TESTS)
   enable_testing()
   find_package(Python3 REQUIRED COMPONENTS Interpreter)
-  add_executable(graphx-tests tests/test_main.cpp)
-  target_link_libraries(graphx-tests PRIVATE graphx)
-  graphx_enable_analysis(graphx-tests)
-  graphx_enable_sanitizers(graphx-tests)
+
+  function(graphx_add_test_target target)
+    add_executable(${target} ${ARGN})
+    target_link_libraries(${target} PRIVATE graphx)
+    graphx_enable_analysis(${target})
+    graphx_enable_sanitizers(${target})
+  endfunction()
+
+  function(graphx_add_python_test name script timeout)
+    add_test(NAME ${name} COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_SOURCE_DIR}/${script} ${ARGN})
+    set_tests_properties(${name} PROPERTIES TIMEOUT ${timeout}
+      ENVIRONMENT "GRAPHX_OVERRIDES=")
+  endfunction()
+
+  graphx_add_test_target(graphx-tests tests/test_main.cpp)
   target_compile_definitions(graphx-tests PRIVATE GRAPHX_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
   add_test(NAME graphx-tests COMMAND graphx-tests)
-  add_executable(graphx-command-runner-tests tests/test_command_runner.cpp)
-  target_link_libraries(graphx-command-runner-tests PRIVATE graphx)
+  graphx_add_test_target(graphx-command-runner-tests tests/test_command_runner.cpp)
   target_include_directories(graphx-command-runner-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
-  graphx_enable_analysis(graphx-command-runner-tests)
-  graphx_enable_sanitizers(graphx-command-runner-tests)
   add_test(NAME graphx-command-runner COMMAND graphx-command-runner-tests)
   set_tests_properties(graphx-command-runner PROPERTIES TIMEOUT 15)
-  add_executable(graphx-ownership-state-tests tests/test_ownership_state.cpp)
-  target_link_libraries(graphx-ownership-state-tests PRIVATE graphx)
+  graphx_add_test_target(graphx-ownership-state-tests tests/test_ownership_state.cpp)
   target_include_directories(graphx-ownership-state-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
   target_compile_definitions(graphx-ownership-state-tests
     PRIVATE GRAPHX_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
-  graphx_enable_analysis(graphx-ownership-state-tests)
-  graphx_enable_sanitizers(graphx-ownership-state-tests)
   add_test(NAME graphx-ownership-state COMMAND graphx-ownership-state-tests)
   set_tests_properties(graphx-ownership-state PROPERTIES TIMEOUT 15)
-  add_executable(graphx-resource-tests tests/test_resource_modules.cpp)
-  target_link_libraries(graphx-resource-tests PRIVATE graphx)
+  graphx_add_test_target(graphx-resource-tests tests/test_resource_modules.cpp)
   target_include_directories(graphx-resource-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
-  graphx_enable_analysis(graphx-resource-tests)
-  graphx_enable_sanitizers(graphx-resource-tests)
   add_test(NAME graphx-resource-modules COMMAND graphx-resource-tests)
   set_tests_properties(graphx-resource-modules PROPERTIES TIMEOUT 15)
-  add_executable(graphx-config-tests tests/test_config.cpp)
-  target_link_libraries(graphx-config-tests PRIVATE graphx)
-  graphx_enable_analysis(graphx-config-tests)
-  graphx_enable_sanitizers(graphx-config-tests)
+  graphx_add_test_target(graphx-config-tests tests/test_config.cpp)
   target_compile_definitions(graphx-config-tests PRIVATE GRAPHX_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
   add_test(NAME graphx-config-tests COMMAND graphx-config-tests)
   set_tests_properties(graphx-config-tests PROPERTIES TIMEOUT 30)
-  add_executable(graphx-tls-smoke tests/tls_smoke.cpp)
-  target_link_libraries(graphx-tls-smoke PRIVATE graphx)
-  graphx_enable_analysis(graphx-tls-smoke)
-  graphx_enable_sanitizers(graphx-tls-smoke)
+  graphx_add_test_target(graphx-tls-smoke tests/tls_smoke.cpp)
   add_test(NAME graphx-tls-security
     COMMAND bash ${CMAKE_SOURCE_DIR}/scripts/test-tls.sh $<TARGET_FILE:graphx-tls-smoke>)
   set_tests_properties(graphx-tls-security PROPERTIES TIMEOUT 15)
-  add_executable(graphx-capture-fixture tests/capture_fixture.cpp)
-  target_link_libraries(graphx-capture-fixture PRIVATE graphx)
-  graphx_enable_analysis(graphx-capture-fixture)
-  graphx_enable_sanitizers(graphx-capture-fixture)
-  add_executable(graphx-capture-runtime-config tests/capture_runtime_config.cpp)
-  target_link_libraries(graphx-capture-runtime-config PRIVATE graphx)
-  graphx_enable_analysis(graphx-capture-runtime-config)
-  graphx_enable_sanitizers(graphx-capture-runtime-config)
+  graphx_add_test_target(graphx-capture-fixture tests/capture_fixture.cpp)
+  graphx_add_test_target(graphx-capture-runtime-config tests/capture_runtime_config.cpp)
   add_test(NAME graphx-capture-runtime-config COMMAND graphx-capture-runtime-config)
   add_test(NAME graphx-extcap COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/test_extcap.py ${CMAKE_SOURCE_DIR}/tools/graphx-extcap
@@ -302,63 +293,86 @@ if(GRAPHX_BUILD_TESTS)
   else()
     message(STATUS "tshark not found; graphx-wireshark-dissector runtime test is unavailable")
   endif()
-  add_test(NAME graphx-config-cli COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_SOURCE_DIR}/tests/test_example_configs.py $<TARGET_FILE:graphx-cli>
-    ${CMAKE_SOURCE_DIR})
-  set_tests_properties(graphx-config-cli PROPERTIES TIMEOUT 45
-    ENVIRONMENT "GRAPHX_OVERRIDES=")
-  add_test(NAME graphx-normalized-config COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_SOURCE_DIR}/tests/test_normalized_config.py $<TARGET_FILE:graphx-cli>
-    ${CMAKE_SOURCE_DIR})
-  set_tests_properties(graphx-normalized-config PROPERTIES
-    TIMEOUT 45 ENVIRONMENT "GRAPHX_OVERRIDES=")
-  add_test(NAME graphx-ovs-ownership-plan COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_SOURCE_DIR}/tests/test_ovs_ownership_plan.py $<TARGET_FILE:graphx-cli>
-    ${CMAKE_SOURCE_DIR})
-  set_tests_properties(graphx-ovs-ownership-plan PROPERTIES TIMEOUT 30 ENVIRONMENT "GRAPHX_OVERRIDES=")
-  add_test(NAME graphx-container-veth-plan COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_SOURCE_DIR}/tests/test_container_veth_plan.py $<TARGET_FILE:graphx-cli>
-    ${CMAKE_SOURCE_DIR})
-  set_tests_properties(graphx-container-veth-plan PROPERTIES TIMEOUT 30
-    ENVIRONMENT "GRAPHX_OVERRIDES=")
-  add_test(NAME graphx-network-lab-plans COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_SOURCE_DIR}/tests/test_network_lab_plans.py $<TARGET_FILE:graphx-cli>
-    ${CMAKE_SOURCE_DIR})
-  set_tests_properties(graphx-network-lab-plans PROPERTIES TIMEOUT 60
-    ENVIRONMENT "GRAPHX_OVERRIDES=")
+  graphx_add_python_test(graphx-config-cli tests/test_example_configs.py 45
+    $<TARGET_FILE:graphx-cli> ${CMAKE_SOURCE_DIR})
+  graphx_add_python_test(graphx-normalized-config tests/test_normalized_config.py 45
+    $<TARGET_FILE:graphx-cli> ${CMAKE_SOURCE_DIR})
+  graphx_add_python_test(graphx-ovs-ownership-plan tests/test_ovs_ownership_plan.py 30
+    $<TARGET_FILE:graphx-cli> ${CMAKE_SOURCE_DIR})
+  graphx_add_python_test(graphx-container-veth-plan tests/test_container_veth_plan.py 30
+    $<TARGET_FILE:graphx-cli> ${CMAKE_SOURCE_DIR})
+  graphx_add_python_test(graphx-network-lab-plans tests/test_network_lab_plans.py 60
+    $<TARGET_FILE:graphx-cli> ${CMAKE_SOURCE_DIR})
   if(GRAPHX_ENABLE_LINUX_OVS_TESTS AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    add_test(NAME graphx-ovs-ownership-live COMMAND ${Python3_EXECUTABLE}
+    add_test(NAME graphx-ovs-ownership-live COMMAND sudo -n ${Python3_EXECUTABLE}
       ${CMAKE_SOURCE_DIR}/tests/test_ovs_ownership_live.py $<TARGET_FILE:graphx-cli>
       ${CMAKE_SOURCE_DIR})
     set_tests_properties(graphx-ovs-ownership-live PROPERTIES TIMEOUT 60
       ENVIRONMENT "GRAPHX_OVERRIDES=")
-    add_test(NAME graphx-container-veth-live COMMAND ${Python3_EXECUTABLE}
+    add_test(NAME graphx-container-veth-live COMMAND sudo -n ${Python3_EXECUTABLE}
       ${CMAKE_SOURCE_DIR}/tests/test_container_veth_live.py $<TARGET_FILE:graphx-cli>)
     set_tests_properties(graphx-container-veth-live PROPERTIES TIMEOUT 120
       ENVIRONMENT "GRAPHX_OVERRIDES=")
-    add_test(NAME graphx-network-labs-live COMMAND ${Python3_EXECUTABLE}
+    add_test(NAME graphx-network-labs-live COMMAND sudo -n ${Python3_EXECUTABLE}
       ${CMAKE_SOURCE_DIR}/tests/test_network_lab_live.py $<TARGET_FILE:graphx-cli>)
     set_tests_properties(graphx-network-labs-live PROPERTIES TIMEOUT 180
       ENVIRONMENT "GRAPHX_OVERRIDES=")
-    add_test(NAME graphx-qemu-tap-live COMMAND ${Python3_EXECUTABLE}
+    add_test(NAME graphx-qemu-tap-live COMMAND sudo -n ${Python3_EXECUTABLE}
       ${CMAKE_SOURCE_DIR}/tests/test_qemu_tap_live.py $<TARGET_FILE:graphx-cli>)
     set_tests_properties(graphx-qemu-tap-live PROPERTIES TIMEOUT 120
       ENVIRONMENT "GRAPHX_OVERRIDES=")
-    add_test(NAME graphx-network-observability-live COMMAND ${Python3_EXECUTABLE}
+    add_test(NAME graphx-network-observability-live COMMAND sudo -n ${Python3_EXECUTABLE}
       ${CMAKE_SOURCE_DIR}/tests/test_network_observability_live.py $<TARGET_FILE:graphx-cli>)
     set_tests_properties(graphx-network-observability-live PROPERTIES TIMEOUT 180
       ENVIRONMENT "GRAPHX_OVERRIDES=")
+
+    add_test(NAME graphx-sdr-node-live-setup
+      COMMAND ${CMAKE_SOURCE_DIR}/examples/sdr-node/external/scripts/demo.sh up)
+    set_tests_properties(graphx-sdr-node-live-setup PROPERTIES
+      FIXTURES_SETUP graphx-sdr-node-live TIMEOUT 300 RUN_SERIAL TRUE
+      ENVIRONMENT "GRAPHX_BIN=$<TARGET_FILE:graphx-cli>;GRAPHX_OVERRIDES=")
+    add_test(NAME graphx-sdr-node-live
+      COMMAND ${CMAKE_SOURCE_DIR}/examples/sdr-node/external/scripts/demo.sh verify)
+    set_tests_properties(graphx-sdr-node-live PROPERTIES
+      FIXTURES_REQUIRED graphx-sdr-node-live TIMEOUT 60 RUN_SERIAL TRUE
+      ENVIRONMENT "GRAPHX_BIN=$<TARGET_FILE:graphx-cli>;GRAPHX_OVERRIDES=")
+    add_test(NAME graphx-sdr-node-live-cleanup
+      COMMAND ${CMAKE_SOURCE_DIR}/examples/sdr-node/external/scripts/demo.sh down)
+    set_tests_properties(graphx-sdr-node-live-cleanup PROPERTIES
+      FIXTURES_CLEANUP graphx-sdr-node-live TIMEOUT 120 RUN_SERIAL TRUE
+      ENVIRONMENT "GRAPHX_BIN=$<TARGET_FILE:graphx-cli>;GRAPHX_OVERRIDES=")
+
+    add_test(NAME graphx-static-route-policy-live-setup
+      COMMAND ${CMAKE_SOURCE_DIR}/examples/static-route-policy/scripts/demo.sh up)
+    set_tests_properties(graphx-static-route-policy-live-setup PROPERTIES
+      FIXTURES_SETUP graphx-static-route-policy-live TIMEOUT 120 RUN_SERIAL TRUE
+      ENVIRONMENT "GRAPHX_BIN=$<TARGET_FILE:graphx-cli>;GRAPHX_OVERRIDES=")
+    add_test(NAME graphx-static-route-policy-live
+      COMMAND bash ${CMAKE_SOURCE_DIR}/tests/test_static_route_policy_live.sh
+        $<TARGET_FILE:graphx-cli> ${CMAKE_SOURCE_DIR})
+    set_tests_properties(graphx-static-route-policy-live PROPERTIES
+      FIXTURES_REQUIRED graphx-static-route-policy-live TIMEOUT 60 RUN_SERIAL TRUE
+      ENVIRONMENT "GRAPHX_OVERRIDES=")
+    add_test(NAME graphx-static-route-policy-live-cleanup
+      COMMAND ${CMAKE_SOURCE_DIR}/examples/static-route-policy/scripts/demo.sh down)
+    set_tests_properties(graphx-static-route-policy-live-cleanup PROPERTIES
+      FIXTURES_CLEANUP graphx-static-route-policy-live TIMEOUT 60 RUN_SERIAL TRUE
+      ENVIRONMENT "GRAPHX_BIN=$<TARGET_FILE:graphx-cli>;GRAPHX_OVERRIDES=")
   endif()
   add_test(NAME graphx-config-projection-behavior COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/test_projections.py $<TARGET_FILE:graphx-cli>
     ${CMAKE_SOURCE_DIR})
   add_test(NAME graphx-documentation-consistency COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_SOURCE_DIR}/tests/test_documentation_consistency.py ${CMAKE_SOURCE_DIR})
+    ${CMAKE_SOURCE_DIR}/tests/test_documentation_consistency.py ${CMAKE_SOURCE_DIR}
+    $<TARGET_FILE:graphx-cli>)
   add_test(NAME graphx-repository-hygiene COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/test_repository_hygiene.py ${CMAKE_SOURCE_DIR})
   add_test(NAME graphx-lima-static COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/test_lima_environment.py ${CMAKE_SOURCE_DIR})
   set_tests_properties(graphx-lima-static PROPERTIES TIMEOUT 15)
+  add_test(NAME graphx-node-version COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/test_node_version.py ${CMAKE_SOURCE_DIR})
+  set_tests_properties(graphx-node-version PROPERTIES TIMEOUT 15)
   add_test(NAME graphx-version COMMAND graphx-cli --version)
   set_tests_properties(graphx-version PROPERTIES
     PASS_REGULAR_EXPRESSION "^graphx ${GRAPHX_VERSION}")
@@ -420,7 +434,7 @@ if(GRAPHX_BUILD_TESTS)
   foreach(graphx_test IN LISTS graphx_registered_tests)
     if(graphx_test STREQUAL "graphx-package")
       set_tests_properties(${graphx_test} PROPERTIES LABELS package)
-    elseif(graphx_test MATCHES "-live$")
+    elseif(graphx_test MATCHES "-live($|-)")
       set_tests_properties(${graphx_test} PROPERTIES LABELS privileged)
     elseif(graphx_test MATCHES "stress|graphx-udp-transport")
       set_tests_properties(${graphx_test} PROPERTIES LABELS stress)

@@ -17,7 +17,9 @@ x-node-service: &node-service
     secrets: [graphx_ca, graphx_cert_installer]
     args: { GRAPHX_BUILD_TRUST_FINGERPRINT: "${GRAPHX_BUILD_TRUST_FINGERPRINT:-graphx-trust-v1-none}" }
   image: graphx-demo:latest
-  volumes: [captures:/captures]
+  volumes:
+    - captures:/captures
+    - ${GRAPHX_CONFIG_FILE:-./graphx.yaml}:/etc/graphx/graphx.yaml:ro
   networks: [graphx]
   read_only: true
   tmpfs: [/tmp]
@@ -42,7 +44,7 @@ services:
         chmod 0444 /run/graphx/normalized.json.tmp;
         mv /run/graphx/normalized.json.tmp /run/graphx/normalized.json
     volumes:
-      - ./graphx.yaml:/config/graphx.yaml:ro
+      - ${GRAPHX_CONFIG_FILE:-./graphx.yaml}:/config/graphx.yaml:ro
       - normalized-config:/run/graphx
     read_only: true
     tmpfs: [/tmp]

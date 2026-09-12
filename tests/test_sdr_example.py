@@ -312,7 +312,9 @@ def main() -> int:
     for required in ("GRAPHX_EXTERNAL_OWNER", "external-ovs-boundary.sh",
                      "graphx_external_namespace_create",
                      "graphx_external_namespace_delete", 'chown "$5:$6"',
-                     "Rollback retained network-lab SDR state", "trap rollback_up ERR"):
+                     "Rollback retained network-lab SDR state", "trap rollback_up ERR",
+                     "verify)", "external SDR results did not reach the sink",
+                     "external SDR profile is already down"):
         assert required in external_script, f"external lifecycle is missing {required}"
     print("SDR example portable behavioral checks passed")
     return 0

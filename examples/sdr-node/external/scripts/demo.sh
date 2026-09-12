@@ -15,6 +15,13 @@ GRAPHX_HOST_UID=$(id -u)
 GRAPHX_HOST_GID=$(id -g)
 export GRAPHX_HOST_UID GRAPHX_HOST_GID
 
+usage() {
+  echo "usage: $0 <up|verify|status|down>" >&2
+}
+require() {
+  command -v "$1" >/dev/null || { echo "missing prerequisite: $1" >&2; return 2; }
+}
+
 load_state() {
   test -r "$state"
   # shellcheck disable=SC1090
@@ -60,6 +67,32 @@ start_sdr() {
   for _ in {1..50}; do owned_pid && return; sleep 0.1; done
   echo "SDR simulator failed to start" >&2; return 1
 }
+verify_sdr() {
+  load_state
+  local running ready=false
+  running=$(sudo --preserve-env=GRAPHX_SDR_TLS_DIR,GRAPHX_HOST_UID,GRAPHX_HOST_GID \
+    docker compose -f "$compose" ps --status running --services)
+  for service in processor sink; do
+    grep -qx "$service" <<<"$running" || {
+      echo "external SDR service is not running: $service" >&2
+      return 1
+    }
+  done
+  owned_pid || { echo "external SDR simulator is not running" >&2; return 1; }
+  sudo --preserve-env=GRAPHX_SDR_TLS_DIR,GRAPHX_HOST_UID,GRAPHX_HOST_GID \
+    docker compose -f "$compose" exec -T processor python3 common/sdrctl.py status \
+    | grep -q '"accepted": true'
+  for _ in {1..30}; do
+    if sudo --preserve-env=GRAPHX_SDR_TLS_DIR,GRAPHX_HOST_UID,GRAPHX_HOST_GID \
+        docker compose -f "$compose" logs sink | grep -q 'result '; then
+      ready=true
+      break
+    fi
+    sleep 0.2
+  done
+  test "$ready" = true || { echo "external SDR results did not reach the sink" >&2; return 1; }
+  echo "external SDR delivery and mutual-TLS control passed"
+}
 rollback_up() {
   local original=$? cleanup_status=0 core_status=0 compose_status=0
   set +e
@@ -98,12 +131,17 @@ case ${1:-} in
       docker compose -f "$compose" ps
     owned_pid && echo "external SDR simulator: running"
     ;;
+  verify)
+    require docker
+    verify_sdr
+    ;;
   down)
+    if test ! -r "$state"; then echo "external SDR profile is already down"; exit 0; fi
     load_state; stop_sdr; cleanup_external
     sudo "$graphx" infra destroy "$config"
     sudo --preserve-env=GRAPHX_SDR_TLS_DIR,GRAPHX_HOST_UID,GRAPHX_HOST_GID \
       docker compose -f "$compose" down
     rm -f "$state"
     ;;
-  *) echo "usage: $0 <up|status|down>" >&2; exit 64 ;;
+  *) usage; exit 64 ;;
 esac

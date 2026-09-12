@@ -4,10 +4,12 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
 import sys
+import tempfile
 
 
 def local_links(path: Path) -> list[str]:
@@ -20,9 +22,12 @@ def local_links(path: Path) -> list[str]:
 
 
 def main() -> int:
-    if len(sys.argv) != 2:
-        raise SystemExit("usage: test_documentation_consistency.py SOURCE_ROOT")
+    if len(sys.argv) != 3:
+        raise SystemExit(
+            "usage: test_documentation_consistency.py SOURCE_ROOT GRAPHX_CLI"
+        )
     root = Path(sys.argv[1]).resolve()
+    graphx_cli = Path(sys.argv[2]).resolve()
     version = (root / "VERSION").read_text(encoding="ascii").strip()
     tracked = {
         root / relative
@@ -76,6 +81,20 @@ def main() -> int:
     if readme_profiles != profiles:
         raise AssertionError(
             f"README verification profiles {readme_profiles} do not match CLI {profiles}"
+        )
+
+    user_guide = (root / "docs/user-guide.md").read_text(encoding="utf-8")
+    minimal_config = re.search(r"```yaml\n(.*?)\n```", user_guide, re.DOTALL)
+    if not minimal_config:
+        raise AssertionError("user guide does not contain a YAML configuration")
+    with tempfile.TemporaryDirectory(prefix="graphx-user-guide-") as temporary:
+        example = Path(temporary) / "graphx.yaml"
+        example.write_text(minimal_config.group(1) + "\n", encoding="utf-8")
+        subprocess.run(
+            [graphx_cli, "validate", example],
+            cwd=root,
+            check=True,
+            env={**os.environ, "GRAPHX_OVERRIDES": ""},
         )
 
     for relative in (

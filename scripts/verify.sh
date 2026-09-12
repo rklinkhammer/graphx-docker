@@ -266,6 +266,7 @@ case "$PROFILE" in
     scripts/test-features.sh docker
     ;;
   native-linux)
+    network_build_dir=${GRAPHX_BUILD_DIR:-"$ROOT/build/dev"}
     test "$(uname -s)" = Linux || {
       echo "native-linux verification requires a native Linux host" >&2
       exit 2
@@ -274,40 +275,26 @@ case "$PROFILE" in
       echo "set GRAPHX_ALLOW_PRIVILEGED_TESTS=1 after reviewing the native Linux section" >&2
       exit 2
     }
-    command -v dumpcap >/dev/null || {
-      echo "native-linux verification requires dumpcap for the live capture gate" >&2
-      exit 2
-    }
-    command -v tshark >/dev/null || {
-      echo "native-linux verification requires tshark for the dissector gate" >&2
-      exit 2
-    }
-    gate "portable and privileged native Linux network acceptance"
-    scripts/test-features.sh linux-network
-    gate "native Linux SDR OVS/SPAN acceptance"
-    trap 'examples/sdr-node/external/scripts/demo.sh stop >/dev/null 2>&1 || true' EXIT
-    examples/sdr-node/external/scripts/demo.sh start
-    examples/sdr-node/external/scripts/demo.sh verify
-    examples/sdr-node/external/scripts/demo.sh stop
-    trap - EXIT
-    gate "native Linux static-route and deny-policy acceptance"
-    route_graphx="${GRAPHX_BUILD_DIR:-$ROOT/build/dev}/graphx"
-    trap 'examples/static-route-policy/scripts/demo.sh down >/dev/null 2>&1 || true' EXIT
-    for _ in 1 2; do
-      GRAPHX_BIN="$route_graphx" examples/static-route-policy/scripts/demo.sh up
-      GRAPHX_BIN="$route_graphx" examples/static-route-policy/scripts/demo.sh status
-      sudo ip netns exec gx-route-left-end ping -c 1 -W 1 10.64.2.10
-      ! sudo ip netns exec gx-route-middle-end ping -c 1 -W 1 10.64.1.10
-      ! sudo ip netns exec gx-route-left-end ping -c 1 -W 1 10.64.30.10
-      sudo ip netns exec gx-route-router nft list chain inet graphx forward
-      GRAPHX_BIN="$route_graphx" examples/static-route-policy/scripts/demo.sh apply-route
-      sudo ip netns exec gx-route-router ip route show 10.64.30.10/32
-      sudo ip netns exec gx-route-left-end ping -c 1 -W 1 10.64.30.10
-      GRAPHX_BIN="$route_graphx" examples/static-route-policy/scripts/demo.sh clear-route
-      GRAPHX_BIN="$route_graphx" examples/static-route-policy/scripts/demo.sh status
-      GRAPHX_BIN="$route_graphx" examples/static-route-policy/scripts/demo.sh down
+    for prerequisite in sudo docker ovs-vsctl ip nft tc dumpcap tshark capinfos; do
+      command -v "$prerequisite" >/dev/null || {
+        echo "native-linux verification requires $prerequisite" >&2
+        exit 2
+      }
     done
-    trap - EXIT
+    sudo -v
+    gate "portable acceptance"
+    scripts/test-features.sh portable
+    gate "configure privileged native Linux CTests"
+    if test "$network_build_dir" = "$ROOT/build/dev"; then
+      cmake --preset dev -DGRAPHX_ENABLE_LINUX_OVS_TESTS=ON
+    else
+      cmake -S "$ROOT" -B "$network_build_dir" -G Ninja \
+        -DCMAKE_BUILD_TYPE=Debug -DGRAPHX_BUILD_TESTS=ON \
+        -DGRAPHX_ENABLE_LINUX_OVS_TESTS=ON
+    fi
+    cmake --build "$network_build_dir" -j "${GRAPHX_BUILD_JOBS:-4}"
+    gate "privileged native Linux CTest suite"
+    ctest --test-dir "$network_build_dir" --output-on-failure -L privileged
     ;;
   release)
     run_release

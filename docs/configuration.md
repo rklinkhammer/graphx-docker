@@ -1,5 +1,8 @@
 # Configuration
 
+For an end-to-end walkthrough covering nodes, transports, managed networking,
+capture, and telemetry, start with the [complete user guide](user-guide.md).
+
 `graphx.yaml` is the single authoritative input. The loader accepts `version: 2`
 and rejects unknown keys, wrong scalar types, invalid references, graph cycles,
 inconsistent transport definitions, and contradictory network attachments.
@@ -39,6 +42,17 @@ model, deployment, and observability settings. It never contains credentials.
 ```sh
 graphx config normalize graphx.yaml > normalized.json
 ```
+
+The repository Compose stack uses `graphx.yaml` by default. Set
+`GRAPHX_CONFIG_FILE` to mount another compatible source file into the example
+nodes and the one-shot normalization service:
+
+```sh
+GRAPHX_CONFIG_FILE="$PWD/my-graphx.yaml" docker compose up --build
+```
+
+This changes configuration input; it does not generate services from the
+`deployment` section. Custom applications still need their own Compose services.
 
 The source schema is `config/schema/graphx.schema.json`. Semantic checks in the C++
 loader remain authoritative where JSON Schema cannot express cross-reference or

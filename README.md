@@ -77,6 +77,7 @@ shared OVS network labs, the [`QEMU TAP lab`](examples/qemu-node/README.md), the
 
 - [`Architecture`](docs/GraphX_Architecture.md)
 - [`Configuration`](docs/configuration.md)
+- [`Complete user guide`](docs/user-guide.md)
 - [`Network infrastructure`](docs/network-infrastructure.md)
 - [`macOS Docker and OVS with Lima`](infrastructure/lima/README.md)
 - [`Runtime lifecycle`](docs/runtime-lifecycle.md)

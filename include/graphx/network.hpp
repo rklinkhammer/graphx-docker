@@ -115,7 +115,7 @@ struct EdgeNetworkPath {
   std::vector<std::string> hops;
 };
 
-// network observation network observation is deliberately separate from application USER0
+// Network observation is deliberately separate from application USER0
 // capture. These definitions describe Ethernet frames emitted by an owned OVS
 // mirror attachment and retained on the Linux host/VM native filesystem.
 struct NetworkCaptureDefinition {

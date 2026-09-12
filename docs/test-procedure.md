@@ -36,3 +36,8 @@ Run privileged tests only on native Linux or inside the GraphX Lima guest. Repor
 host architecture, guest architecture, and QEMU accelerator with results. A passing
 test run must leave no GraphX Compose projects, OVS resources, namespaces, TAP/veth
 devices, capture processes, qdiscs, or temporary state.
+
+Portable and full acceptance require Node.js 24.x and fail before installing
+dependencies when another Node.js major version is selected. Privileged workflows
+are registered as CTests with the `privileged` label; `native-linux` configures that
+test set and runs it after portable acceptance.
