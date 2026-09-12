@@ -1,5 +1,9 @@
 # Demo guide
 
+Complete the [`user guide`](user-guide.md) first for the shared build,
+configuration, networking, capture, and telemetry model. This page only selects
+the example that exercises a particular behavior.
+
 Choose a current scenario by the behavior you want to observe:
 
 | Scenario | What it demonstrates | Launcher |

@@ -50,8 +50,8 @@ def main() -> int:
     with tempfile.TemporaryDirectory(prefix="graphx-ovs-live-", dir="/var/tmp") as raw:
         temporary = Path(raw)
         config = temporary / "mixed-v2.yaml"
-        # Keep this OVS regression bridge-only now that migrated container
-        # attachments are exercised by the dedicated container-veth lifecycle test.
+        # Keep this OVS regression bridge-only; container attachments are exercised
+        # by the dedicated container-veth lifecycle test.
         config.write_text("""\
 version: 2
 graph:

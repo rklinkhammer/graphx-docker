@@ -6,6 +6,9 @@ GraphX 1.1.0 is an educational framework for describing a processing graph once,
 running nodes in processes, containers, QEMU, or external runtimes, and observing
 traffic across graph edges.
 
+Start with the [`complete user guide`](docs/user-guide.md) for installation,
+configuration, node, transport, networking, capture, and telemetry workflows.
+
 The current configuration format is `version: 2`. GraphX manages Linux network
 infrastructure with system Open vSwitch: containers use veth pairs and QEMU guests
 use TAP devices. Docker Compose manages application processes and management
@@ -35,13 +38,8 @@ Available verification profiles are `quick`, `quality`, `sanitizers`, `fuzz`,
 `portable`, `full`, `native-linux`, and `release`. Their requirements are documented in
 [`docs/test-procedure.md`](docs/test-procedure.md).
 
-For a direct build:
-
-```sh
-cmake -S . -B build/dev -G Ninja -DGRAPHX_BUILD_TESTS=ON
-cmake --build build/dev -j 4
-ctest --test-dir build/dev -L quick --output-on-failure
-```
+The direct CMake workflow and exact prerequisites are maintained in the
+[`complete user guide`](docs/user-guide.md#1-build-graphx).
 
 ## Configuration and infrastructure
 
@@ -53,31 +51,25 @@ build/dev/graphx validate graphx.yaml
 build/dev/graphx config normalize graphx.yaml > normalized.json
 ```
 
-Preview and manage owned Linux infrastructure with:
-
-```sh
-sudo build/dev/graphx infra create graphx.yaml --dry-run
-sudo build/dev/graphx infra create graphx.yaml
-sudo build/dev/graphx infra status graphx.yaml
-sudo build/dev/graphx infra destroy graphx.yaml
-```
-
 Cleanup verifies stable resource identities and fails closed when an object has been
 replaced or ownership cannot be proven. On macOS, ordinary Compose demos use
 OrbStack; privileged Docker/OVS and QEMU/TAP laboratories run in the dedicated
 Lima VM. Follow the complete [`macOS Lima/OVS guide`](infrastructure/lima/README.md)
-to install, verify, run, inspect, and stop that environment.
+to install, verify, run, inspect, and stop that environment. The
+[`networking section`](docs/user-guide.md#6-configure-networking) contains the
+current plan, create, status, and destroy workflow.
 
 ## Examples and documentation
 
-Start with [`docs/demo-guide.md`](docs/demo-guide.md). Current examples include the
+After the complete user guide, use [`docs/demo-guide.md`](docs/demo-guide.md) to
+choose a scenario. Current examples include the
 shared OVS network labs, the [`QEMU TAP lab`](examples/qemu-node/README.md), the
 [`SDR scenarios`](examples/sdr-node/README.md), and the
 [`route and policy lab`](examples/static-route-policy/README.md).
 
 - [`Architecture`](docs/GraphX_Architecture.md)
-- [`Configuration`](docs/configuration.md)
 - [`Complete user guide`](docs/user-guide.md)
+- [`Configuration contract`](docs/configuration.md)
 - [`Network infrastructure`](docs/network-infrastructure.md)
 - [`macOS Docker and OVS with Lima`](infrastructure/lima/README.md)
 - [`Runtime lifecycle`](docs/runtime-lifecycle.md)

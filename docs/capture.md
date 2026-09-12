@@ -1,5 +1,8 @@
 # Capture
 
+For the end-to-end configuration and verification workflow, see
+[PCAP configuration](user-guide.md#7-configure-pcap-capture).
+
 Application capture writes framed GraphX envelopes to bounded PCAPNG files using the
 USER0 link type. Metadata includes direction, edge, sequence, timestamp, message,
 trace, parent, and type information.

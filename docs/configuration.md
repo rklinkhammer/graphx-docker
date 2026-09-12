@@ -13,7 +13,7 @@ The top-level sections are:
 - `transport`: TCP, UDP, Unix-domain, in-process, and shared-memory settings.
 - `network`: semantic networks, OVS switches, routers, attachments, paths,
   captures, and bounded faults.
-- `deployment`: Compose project, services, and telemetry placement.
+- `deployment`: descriptive project, service, and telemetry placement metadata.
 - `observability`: metrics, tracing, capture, OTLP, history, SLO, and control limits.
 
 Validate and inspect a file with:
@@ -51,8 +51,10 @@ nodes and the one-shot normalization service:
 GRAPHX_CONFIG_FILE="$PWD/my-graphx.yaml" docker compose up --build
 ```
 
-This changes configuration input; it does not generate services from the
-`deployment` section. Custom applications still need their own Compose services.
+This changes configuration input; it does not generate, create, or start services
+from the `deployment` section. Docker Compose or another process manager owns
+application execution and management connectivity. GraphX separately owns only
+declared Linux data-plane resources.
 
 The source schema is `config/schema/graphx.schema.json`. Semantic checks in the C++
 loader remain authoritative where JSON Schema cannot express cross-reference or

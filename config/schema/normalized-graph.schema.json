@@ -444,6 +444,7 @@
       }
     },
     "deployment": {
+      "description": "Normalized descriptive placement metadata; process managers own service execution.",
       "type": "object",
       "additionalProperties": false,
       "required": ["network", "project", "services", "telemetry"],

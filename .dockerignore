@@ -1,8 +1,10 @@
 .git
 build
 build-*
-web/node_modules
-web/dist
+**/node_modules
+**/dist
+captures
+**/.state
 outputs
 work
 /outputs/linux-container/

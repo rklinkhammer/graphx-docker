@@ -207,19 +207,19 @@ The optional deployment section maps managed graph nodes to process metadata:
 ```yaml
 deployment:
   project: temperature-pipeline
-  network: graphx-management
   services:
     sensor: {image: sensor:1.0, command: sensor-node}
     recorder: {image: recorder:1.0, command: recorder-node}
   telemetry: {service: telemetry, port: 8080}
 ```
 
-This section is validated, normalized, projected, and displayed. It does not
-dynamically generate or start Compose services. The applicable Compose file or
-process manager must define the same service names, images, commands, volumes, and
-management connectivity. A node marked `lifecycle: external` must not appear in
-`deployment.services`; every managed node must appear when deployment services are
-declared.
+This descriptive metadata is validated, normalized, included in configuration
+projections, and displayed. It does not generate, create, or start services. Docker
+Compose or another process manager must define the same service names, images,
+commands, volumes, and management connectivity. GraphX separately realizes only
+the declared Linux data-plane resources. A node marked `lifecycle: external` must
+not appear in `deployment.services`; every managed node must appear when deployment
+services are declared.
 
 ## 6. Configure networking
 

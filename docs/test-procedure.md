@@ -31,6 +31,8 @@ scripts/test-linux-container.sh quality
 
 Its `quality` mode contains formatting and static analysis only. Fuzzing remains
 the separate `fuzz` mode and is not duplicated when `verify.sh full` runs both.
+CI uses this digest-pinned verifier image as the single Linux toolchain owner for
+quality, sanitizers, and fuzzing; macOS sanitizer acceptance remains native.
 
 Run privileged tests only on native Linux or inside the GraphX Lima guest. Report
 host architecture, guest architecture, and QEMU accelerator with results. A passing

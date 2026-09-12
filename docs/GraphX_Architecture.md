@@ -37,6 +37,7 @@ telemetry, and redacted from logs and APIs.
 - Application capture and OVS SPAN capture are separate evidence sources.
 - Fault injection is bounded and owned by the infrastructure ledger.
 
+The [`complete user guide`](user-guide.md) is the primary operational entry point.
 Detailed current contracts are in [`configuration.md`](configuration.md),
 [`network-infrastructure.md`](network-infrastructure.md),
 [`runtime-lifecycle.md`](runtime-lifecycle.md), and

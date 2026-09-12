@@ -68,73 +68,42 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
-      - name: Install Ninja on Linux
+      - name: Run pinned Linux sanitizer suite
         if: runner.os == 'Linux'
-        run: |
-          curl --fail --silent --show-error https://apt.llvm.org/llvm-snapshot.gpg.key -o /tmp/llvm-snapshot.gpg.key
-          test "$(gpg --show-keys --with-colons /tmp/llvm-snapshot.gpg.key | awk -F: '$1 == "fpr" { print $10; exit }')" = "6084F3CF814B57C1CF12EFD515CF4D18AF4F7421"
-          gpg --dearmor < /tmp/llvm-snapshot.gpg.key | sudo tee /usr/share/keyrings/apt.llvm.org.gpg >/dev/null
-          echo "deb [signed-by=/usr/share/keyrings/apt.llvm.org.gpg] https://apt.llvm.org/noble/ llvm-toolchain-noble-21 main" | sudo tee /etc/apt/sources.list.d/llvm-21.list
-          sudo apt-get update
-          sudo apt-get install -y clang-21 clang-tools-21 llvm-21 libclang-rt-21-dev ninja-build libssl-dev
-      - name: Install Ninja on macOS
+        run: scripts/test-linux-container.sh sanitizers
+      - name: Install sanitizer tools on macOS
         if: runner.os == 'macOS'
         run: brew install llvm@21 ninja openssl@3
       - name: Select LLVM 21
+        if: runner.os == 'macOS'
         shell: bash
         run: |
-          if test "$RUNNER_OS" = macOS; then
-            llvm_bin="$(brew --prefix llvm@21)/bin"
-            cc="$llvm_bin/clang"
-            cxx="$llvm_bin/clang++"
-            symbolizer="$llvm_bin/llvm-symbolizer"
-            echo "SDKROOT=$(xcrun --show-sdk-path)" >> "$GITHUB_ENV"
-          else
-            cc=/usr/bin/clang-21
-            cxx=/usr/bin/clang++-21
-            symbolizer=/usr/bin/llvm-symbolizer-21
-          fi
-          echo "CC=$cc" >> "$GITHUB_ENV"
-          echo "CXX=$cxx" >> "$GITHUB_ENV"
-          echo "ASAN_SYMBOLIZER_PATH=$symbolizer" >> "$GITHUB_ENV"
+          llvm_bin="$(brew --prefix llvm@21)/bin"
+          echo "CC=$llvm_bin/clang" >> "$GITHUB_ENV"
+          echo "CXX=$llvm_bin/clang++" >> "$GITHUB_ENV"
+          echo "ASAN_SYMBOLIZER_PATH=$llvm_bin/llvm-symbolizer" >> "$GITHUB_ENV"
+          echo "SDKROOT=$(xcrun --show-sdk-path)" >> "$GITHUB_ENV"
       - name: Configure and build
+        if: runner.os == 'macOS'
         run: |
           cmake --preset sanitizers
           cmake --build --preset sanitizers -j 4
       - name: Test
+        if: runner.os == 'macOS'
         env:
           ASAN_OPTIONS: ${{ matrix.asan_options }}
           UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
         run: ctest --preset sanitizers
 
   quality:
-    name: Format and static analysis
+    name: Pinned Linux format and static analysis
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
-      - name: Install pinned analysis toolchain
-        run: |
-          curl --fail --silent --show-error https://apt.llvm.org/llvm-snapshot.gpg.key -o /tmp/llvm-snapshot.gpg.key
-          test "$(gpg --show-keys --with-colons /tmp/llvm-snapshot.gpg.key | awk -F: '$1 == "fpr" { print $10; exit }')" = "6084F3CF814B57C1CF12EFD515CF4D18AF4F7421"
-          gpg --dearmor < /tmp/llvm-snapshot.gpg.key | sudo tee /usr/share/keyrings/apt.llvm.org.gpg >/dev/null
-          echo "deb [signed-by=/usr/share/keyrings/apt.llvm.org.gpg] https://apt.llvm.org/noble/ llvm-toolchain-noble-21 main" | sudo tee /etc/apt/sources.list.d/llvm-21.list
-          sudo apt-get update
-          sudo apt-get install -y clang-21 clang-format-21 clang-tidy-21 cppcheck ninja-build libssl-dev
-      - name: Check formatting
-        env:
-          CLANG_FORMAT: clang-format-21
-        run: scripts/check-format.sh
-      - name: Run clang-tidy and cppcheck
-        env:
-          CC: clang-21
-          CXX: clang++-21
-          CLANG_TIDY: clang-tidy-21
-          CPPCHECK: cppcheck
-        run: scripts/run-static-analysis.sh
-      - name: Run Clang 21 with libstdc++ 15
+      - name: Run the authoritative pinned quality gate
         run: scripts/test-linux-container.sh quality
 
   fuzz:
@@ -145,20 +114,10 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
-      - name: Install Clang and corpus tools
-        run: |
-          curl --fail --silent --show-error https://apt.llvm.org/llvm-snapshot.gpg.key -o /tmp/llvm-snapshot.gpg.key
-          test "$(gpg --show-keys --with-colons /tmp/llvm-snapshot.gpg.key | awk -F: '$1 == "fpr" { print $10; exit }')" = "6084F3CF814B57C1CF12EFD515CF4D18AF4F7421"
-          gpg --dearmor < /tmp/llvm-snapshot.gpg.key | sudo tee /usr/share/keyrings/apt.llvm.org.gpg >/dev/null
-          echo "deb [signed-by=/usr/share/keyrings/apt.llvm.org.gpg] https://apt.llvm.org/noble/ llvm-toolchain-noble-21 main" | sudo tee /etc/apt/sources.list.d/llvm-21.list
-          sudo apt-get update
-          sudo apt-get install -y clang-21 clang-tools-21 llvm-21 libclang-rt-21-dev libfuzzer-21-dev ninja-build xxd libssl-dev
       - name: Fuzz envelope and frame decoders
         env:
-          CC: clang-21
-          CXX: clang++-21
           GRAPHX_FUZZ_SECONDS: ${{ github.event_name == 'schedule' && '300' || '30' }}
-        run: scripts/run-fuzz.sh
+        run: scripts/test-linux-container.sh fuzz
 
   portable:
     name: Portable integration

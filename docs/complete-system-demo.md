@@ -5,6 +5,10 @@ C++ node containers, their private Docker bridge, the telemetry collector, and
 the browser console. You do **not** need to build C++, install npm packages, run
 `graphx infra`, or start the advanced macvlan/ipvlan laboratories first.
 
+This page covers the guided demo only. Use the
+[`complete user guide`](user-guide.md) when creating a configuration, defining
+nodes or networks, selecting capture, or operating telemetry outside this demo.
+
 ## What will run
 
 ```text

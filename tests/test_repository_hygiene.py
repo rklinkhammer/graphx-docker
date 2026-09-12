@@ -12,15 +12,17 @@ def main() -> int:
     if len(sys.argv) != 2:
         raise SystemExit("usage: test_repository_hygiene.py SOURCE_ROOT")
     root = Path(sys.argv[1]).resolve()
-    tracked = subprocess.run(
-        ["git", "ls-files", "-z"], cwd=root, capture_output=True, check=True
-    ).stdout.split(b"\0")
+    git_files = subprocess.run(
+        ["git", "ls-files", "-z"], cwd=root, capture_output=True
+    )
+    repository_files = (
+        [encoded.decode("utf-8") for encoded in git_files.stdout.split(b"\0") if encoded]
+        if git_files.returncode == 0
+        else [path.relative_to(root).as_posix() for path in root.rglob("*") if path.is_file()]
+    )
 
     violations: list[str] = []
-    for encoded in tracked:
-        if not encoded:
-            continue
-        relative = encoded.decode("utf-8")
+    for relative in repository_files:
         path = PurePosixPath(relative)
         if (
             path.parts[0] in {"outputs", "captures", "build"}
@@ -36,6 +38,15 @@ def main() -> int:
         raise AssertionError(
             "generated runtime artifacts are tracked:\n" + "\n".join(violations)
         )
+
+    ci = (root / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    if "apt.llvm.org" in ci:
+        raise AssertionError("CI duplicates the toolchain installation owned by the verifier image")
+    for mode in ("quality", "sanitizers", "fuzz"):
+        invocation = f"scripts/test-linux-container.sh {mode}"
+        if ci.count(invocation) != 1:
+            raise AssertionError(f"CI must contain one authoritative {mode} invocation")
+
     print("repository hygiene checks passed")
     return 0
 

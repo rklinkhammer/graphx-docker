@@ -1,7 +1,8 @@
 # Manual acceptance checks
 
 Run [`test-procedure.md`](test-procedure.md) first. Then perform the checks relevant
-to the changed area.
+to the changed area. The [`complete user guide`](user-guide.md) defines the
+commands and terminology these manual observations use.
 
 ## Portable system
 

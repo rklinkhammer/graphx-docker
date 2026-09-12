@@ -1,5 +1,9 @@
 # Network infrastructure layer
 
+Use the [`complete user guide`](user-guide.md#6-configure-networking) for the
+supported operational workflow. This page is the detailed ownership and lifecycle
+reference.
+
 GraphX treats network infrastructure as a peer of logical topology, transport,
 deployment, observability, and GUI/control. The versioned `network` section of
 `graphx.yaml` owns these objects:
@@ -22,7 +26,8 @@ ranges, mirror output ports, router interfaces, and graph-edge path hops. The
 On native Linux, the version-2 `graphx infra create` lifecycle creates and
 identity-records OVS bridges/ports, veth or TAP endpoints, router namespaces,
 addresses, forwarding, nftables policy, mirrors, bounded capture processes, and
-timed qdiscs. Container deployment remains separate. `destroy` verifies exact
+timed qdiscs. The descriptive `deployment` section does not create containers;
+Docker Compose or another process manager owns them. `destroy` verifies exact
 kernel, OVS, process, directory, and qdisc identities before changing anything.
 `status` reports drift, active capture, and active or expired faults.
 

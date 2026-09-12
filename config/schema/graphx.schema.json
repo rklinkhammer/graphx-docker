@@ -36,6 +36,7 @@
     },
     "network": { "$ref": "#/$defs/networkInfrastructure" },
     "deployment": {
+      "description": "Descriptive process placement metadata; it does not create or start services.",
       "type": "object",
       "additionalProperties": false,
       "properties": {

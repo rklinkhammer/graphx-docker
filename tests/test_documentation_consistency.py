@@ -29,12 +29,14 @@ def main() -> int:
     root = Path(sys.argv[1]).resolve()
     graphx_cli = Path(sys.argv[2]).resolve()
     version = (root / "VERSION").read_text(encoding="ascii").strip()
-    tracked = {
-        root / relative
-        for relative in subprocess.check_output(
-            ["git", "ls-files"], cwd=root, text=True
-        ).splitlines()
-    }
+    git_files = subprocess.run(
+        ["git", "ls-files"], cwd=root, capture_output=True, text=True
+    )
+    tracked = (
+        {root / relative for relative in git_files.stdout.splitlines()}
+        if git_files.returncode == 0
+        else {path for path in root.rglob("*") if path.is_file()}
+    )
 
     documents = [
         root / "README.md",

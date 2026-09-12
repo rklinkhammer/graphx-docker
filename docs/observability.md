@@ -1,5 +1,8 @@
 # Observability
 
+For the end-to-end configuration and verification workflow, see
+[telemetry and observability](user-guide.md#8-configure-telemetry-and-observability).
+
 GraphX emits bounded metrics and trace events for nodes, edges, transports, drops,
 errors, reconnects, queue pressure, and latency. The telemetry service combines
 those events with normalized topology and runtime evidence.

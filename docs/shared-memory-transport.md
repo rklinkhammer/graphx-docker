@@ -4,7 +4,7 @@ GraphX provides a bounded, copy-based, single-producer/single-consumer transport
 using POSIX `shm_open`, `mmap`, and process-shared pthread synchronization. It is
 intended for local processes on one Linux or macOS host.
 
-## Version 1 layout
+## Current layout
 
 One mapped segment contains:
 
@@ -17,8 +17,8 @@ One mapped segment contains:
    GraphX `u32be + Envelope` framed bytes.
 
 Slots are selected with `sequence % capacity`; payload bytes are copied into and
-out of the ring. The initial implementation deliberately does not expose mapped
-memory to node code or attempt zero-copy ownership transfer.
+out of the ring. The transport does not expose mapped memory to node code or
+attempt zero-copy ownership transfer.
 
 The total payload capacity is limited to 256 MiB. A slot can hold at most
 16,777,220 bytes, including the four-byte frame prefix. Connector settings must
@@ -61,5 +61,5 @@ offer the same robust process-shared mutex facility: ordinary peer death is
 detected, but death inside the short ring critical section can leave that segment
 unrecoverable until it is recreated by a new listener.
 
-This first version does not support multiple producers, multiple consumers,
+The transport does not support multiple producers, multiple consumers,
 cross-host access, dynamic resizing, or container IPC isolation management.
