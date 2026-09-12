@@ -40,8 +40,9 @@ def rejected(action) -> None:
 
 def rewrite_archive(source: Path, destination: Path, *, omitted: str | None = None,
                     mode_name: str | None = None, mode: int = 0o644) -> None:
+    # Malformed fixtures exercise archive validation, not compression ratio.
     with tarfile.open(source, "r:gz") as input_archive, tarfile.open(
-            destination, "w:gz") as output_archive:
+            destination, "w:gz", compresslevel=1) as output_archive:
         for original in input_archive:
             if original.name == omitted:
                 continue

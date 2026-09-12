@@ -5,6 +5,7 @@ Run commands from the repository root. Build local binaries with
 
 | Example | Linux | macOS | Run / verification |
 |---|---|---|---|
+| [Portable TCP pipeline and console](../docs/complete-system-demo.md) | Docker Compose | OrbStack Compose | `scripts/demo.sh start`, `status`, `verify`, `stop` |
 | [Shared memory](shared-memory/README.md) | Local processes | Native processes | `examples/shared-memory/run.sh` |
 | [UDP unicast](udp-unicast/README.md) | Local processes | Native processes | `examples/udp-unicast/run.sh` |
 | [UDP multicast](udp-multicast/README.md) | Local processes | Native processes | `examples/udp-multicast/run.sh` |
@@ -26,9 +27,19 @@ connectivity. Privileged examples require root/sudo on Linux or inside the
 [dedicated GraphX Lima VM](../infrastructure/lima/README.md).
 Lima support requires Apple Silicon; no privileged data plane runs natively on
 macOS, and OrbStack results do not establish OVS or native Linux acceptance.
+Docker Desktop is not a supported macOS runtime. Native process examples do not
+need OrbStack or Lima. The QEMU launcher always uses an x86_64 guest with TCG;
+it does not select KVM on Linux or HVF on macOS.
 
 For the four network profiles, use `plan`, `status`, and `down` with the same
-lab name. For other examples, follow the linked README for verification and
+lab name. Run these profiles one at a time on a Linux host or Lima guest:
+their checked-in configurations reuse host veth names. A different Compose
+project alone does not isolate those interfaces. Stop an existing profile only
+with its owner's agreement and its matching `down` command before starting
+another; identity checks reject overlapping resources.
+The external SDR profile also reuses the sink veth name, so run it separately
+from these four profiles.
+For other examples, follow the linked README for verification and
 cleanup. The network-observability configuration creates infrastructure only;
 it does not boot the declared external QEMU packet source.
 

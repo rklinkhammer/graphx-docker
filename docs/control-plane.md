@@ -1,8 +1,12 @@
 # Control plane
 
-The telemetry service exposes bounded pause, resume, reset, and fault actions for
-nodes that declare GraphX or origin control. Requests require bearer authentication,
-an idempotency key, an allowed origin, and authorization for the action and node.
+The telemetry service exposes bounded pause, resume, and reset actions for
+nodes that declare GraphX or origin control. Requests require bearer authentication
+and authorization for the action and node. When an Origin header is present, it
+must match the same origin or the configured allowlist. An optional
+`Idempotency-Key` header provides bounded replay detection; the browser supplies
+one for each command. Fault injection uses the privileged Linux infrastructure
+CLI on native Linux or inside Lima, not the telemetry control API.
 
 Production policy mode uses `GRAPHX_CONTROL_POLICY_FILE` together with
 `GRAPHX_RUNTIME_IDENTITY_FILE`. A policy names principals, token files, permissions,

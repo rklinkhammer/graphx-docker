@@ -112,7 +112,7 @@ rollback_up() {
 
 case ${1:-} in
   up)
-    test "$(uname -s)" = Linux; test -x "$graphx"; sudo -v
+    test "$(uname -s)" = Linux; test -x "$graphx"; sudo true
     test ! -e "$state" || { echo "network-lab SDR lab is already owned" >&2; exit 2; }
     save_state
     trap rollback_up ERR

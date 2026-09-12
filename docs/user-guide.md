@@ -369,8 +369,9 @@ removes only unchanged, identity-proven sessions.
 
 ## 8. Linux and macOS networking
 
-Portable process and Compose workloads run directly on Linux. On macOS, use
-OrbStack for the ordinary Compose demo:
+Portable C++ processes run natively on Linux and macOS. Compose workloads use
+Docker Engine on Linux and OrbStack on macOS; Docker Desktop is not a supported
+macOS runtime. For the ordinary Compose demo:
 
 ```sh
 scripts/demo.sh start

@@ -34,7 +34,8 @@ the separate `fuzz` mode and is not duplicated when `verify.sh full` runs both.
 CI uses this digest-pinned verifier image as the single Linux toolchain owner for
 quality, sanitizers, and fuzzing; macOS sanitizer acceptance remains native.
 
-Run privileged tests only on native Linux or inside the GraphX Lima guest. Report
+Run privileged tests only with explicit authorization, on native Linux or inside
+the GraphX Lima guest. Report
 host architecture, guest architecture, and QEMU accelerator with results. A passing
 test run must leave no newly created GraphX Compose projects, OVS resources,
 namespaces, TAP/veth devices, capture processes, qdiscs, or temporary state. Existing workloads must
@@ -86,7 +87,12 @@ profile semantics, TAP lifecycle, capture/faults, external SDR, and static-route
 The QEMU TAP CTest exercises infrastructure without booting a guest.
 
 Use the [complete example matrix](../examples/README.md) for launcher commands.
-For complete example acceptance, also run the standalone capture launcher,
+For complete example acceptance, run each of the four network profiles through
+`plan/up/status/down` on native Linux, preserving any existing lab workloads.
+The checked-in profiles reuse host veth names and must run sequentially. An
+existing profile blocks the other profiles on that host until its owner agrees
+to stop it with the matching launcher; separate Compose projects are insufficient.
+Also run the standalone capture launcher,
 simulated SDR `start/status/verify/stop`, the isolated Linux broadcast runner,
 and QEMU `start/status/verify/stop`. Exercise the macOS network dispatcher for
 all four profile names with `plan/up/status/down`. Use an explicit guest shell

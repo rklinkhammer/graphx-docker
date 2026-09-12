@@ -281,7 +281,7 @@ case "$PROFILE" in
         exit 2
       }
     done
-    sudo -v
+    sudo true
     gate "portable acceptance"
     scripts/test-features.sh portable
     gate "configure privileged native Linux CTests"

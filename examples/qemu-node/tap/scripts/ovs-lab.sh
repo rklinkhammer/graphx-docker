@@ -22,13 +22,13 @@ observer=$run_dir/packet_observer.py
 capture_handoff=${GRAPHX_QEMU_CAPTURE_HANDOFF_DIR:-/var/lib/graphx/qemu-capture-handoff}
 capture_exporter=$capture_handoff/capture_exporter.sh
 qemu_args=(
-  -machine q35,accel=tcg -cpu qemu64 -m 256M -smp 1
+  -machine 'q35,accel=tcg' -cpu qemu64 -m 256M -smp 1
   -kernel "$runtime_images/bzImage" -initrd "$runtime_images/rootfs.cpio.gz"
   -append "console=ttyS0 panic=1" -no-reboot -display none -monitor none
   -serial "file:$run_dir/guest-console.log" -daemonize
   -pidfile "$run_dir/qemu.pid" -qmp "unix:$run_dir/qemu.qmp,server=on,wait=off"
-  -netdev tap,id=net0,ifname=gxqtap0,script=no,downscript=no
-  -device virtio-net-pci,netdev=net0,mac=02:00:00:00:02:15
+  -netdev 'tap,id=net0,ifname=gxqtap0,script=no,downscript=no'
+  -device 'virtio-net-pci,netdev=net0,mac=02:00:00:00:02:15'
 )
 
 require() { command -v "$1" >/dev/null || { echo "missing required command: $1" >&2; exit 1; }; }
@@ -81,7 +81,7 @@ qmp_in_peer() {
 prepare_run_dir() {
   local normalized
   normalized=$(mktemp)
-  GRAPHX_OVERRIDES= "$graphx" config normalize "$config" >"$normalized"
+  GRAPHX_OVERRIDES='' "$graphx" config normalize "$config" >"$normalized"
   sudo install -d -o "$qemu_uid" -g "$qemu_gid" -m 0750 "$run_dir"
   sudo install -d -o "$qemu_uid" -g "$qemu_gid" -m 0750 "$runtime_images"
   sudo install -o "$qemu_uid" -g "$qemu_gid" -m 0550 -t "$run_dir" \
@@ -102,12 +102,12 @@ prepare_run_dir() {
     "$capture_handoff"/.qemu-span.*.pcapng
 }
 start_peer() {
-  # shellcheck disable=SC2024
-  sudo sh -c 'echo $$ >"$1"; exec ip netns exec gx-qemu-peer python3 "$2" --receiver --bind 10.0.2.2' \
-    sh "$run_dir/peer.pid" "$peer" >"/tmp/graphx-qemu-tap-peer.$$.log" 2>&1 &
+  # Open the final log in the privileged process; moving an active log across
+  # filesystems would leave its writer attached to an unlinked temporary file.
+  sudo sh -c 'exec >"$3" 2>&1; echo $$ >"$1"; exec ip netns exec gx-qemu-peer python3 "$2" --receiver --bind 10.0.2.2' \
+    sh "$run_dir/peer.pid" "$peer" "$run_dir/peer.log" &
   for _ in {1..30}; do owned_pid peer.pid peer.py && break; sleep 0.1; done
   owned_pid peer.pid peer.py || { echo "host peer failed to start" >&2; return 1; }
-  sudo mv "/tmp/graphx-qemu-tap-peer.$$.log" "$run_dir/peer.log"
 }
 start_capture() {
   sudo "$capture_exporter" "$capture_handoff/exporter.pid" "$graphx" "$config" \
@@ -215,7 +215,7 @@ case ${1:-} in
     printf '%s\n' qemu-system-x86_64 "${qemu_args[@]}"
     ;;
   up)
-    test "$(uname -s)" = Linux; test -x "$graphx"; sudo -v
+    test "$(uname -s)" = Linux; test -x "$graphx"; sudo true
     for command in qemu-system-x86_64 ovs-vsctl ovs-appctl ip dumpcap setpriv python3 curl; do require "$command"; done
     qemu_identity
     test -r "$images/bzImage" && test -r "$images/rootfs.cpio.gz"

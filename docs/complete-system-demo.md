@@ -25,6 +25,10 @@ The sink logs the result. All four services run continuously until you stop them
 
 ## 1. Start and verify
 
+Use Docker Engine with Compose on Linux, or OrbStack with the `orbstack` Docker
+context on macOS. Docker Desktop is not a supported macOS runtime. This portable
+demo does not require Lima or system Open vSwitch.
+
 From the repository root:
 
 ```sh
@@ -144,11 +148,12 @@ Use `Ctrl-C` to stop following logs; this does not stop the containers. Healthy
 sink output looks like this:
 
 ```text
-sink seq=41 value=82 trace=trace-41
-sink seq=42 value=84 trace=trace-42
+sink seq=41 value=82 trace=b47d5b3c818d9a181e62ff03a327b673
+sink seq=42 value=84 trace=719a2f1f0195538c91c12a5d0d8b88e8
 ```
 
-The sequence increases by one and `value` is twice the sequence. For a compact
+The sequence increases by one, `value` is twice the sequence, and each trace ID
+is a 32-character hexadecimal identity. For a compact
 container and sink summary, run:
 
 ```sh

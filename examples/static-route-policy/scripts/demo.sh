@@ -9,7 +9,12 @@ graphx=${GRAPHX_BIN:-$repo_dir/build/dev/graphx}
 config=$example_dir/graphx.yaml
 state=$example_dir/.state/external.env
 
-load_state() { test -r "$state"; source "$state"; test -n "${GRAPHX_EXTERNAL_OWNER:-}"; }
+load_state() {
+  test -r "$state"
+  # shellcheck disable=SC1090
+  source "$state"
+  test -n "${GRAPHX_EXTERNAL_OWNER:-}"
+}
 save_state() {
   install -d -m 0700 "$(dirname "$state")"
   GRAPHX_EXTERNAL_OWNER=$(openssl rand -hex 16)
@@ -34,7 +39,7 @@ rollback_up() {
 
 case ${1:-} in
   up)
-    test "$(uname -s)" = Linux; test -x "$graphx"; sudo -v
+    test "$(uname -s)" = Linux; test -x "$graphx"; sudo true
     test ! -e "$state" || { echo "network-lab route lab is already owned" >&2; exit 2; }
     save_state
     trap rollback_up ERR
