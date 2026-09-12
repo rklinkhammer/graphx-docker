@@ -4,7 +4,7 @@ The CTest suite is grouped by purpose:
 
 | Label | Coverage |
 |---|---|
-| `quick` | C++ units, configuration, normalized schema, projections, scripts, docs |
+| `quick` | C++ units, configuration, normalized schema, scripts, and documentation |
 | `stress` | repeated transport lifecycle and concurrency pressure |
 | `package` | installation, archive contents, consumer linkage, release contracts |
 | `privileged` | native Linux OVS, veth/TAP, namespaces, capture, faults, SDR, and routes |

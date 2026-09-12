@@ -213,8 +213,8 @@ deployment:
   telemetry: {service: telemetry, port: 8080}
 ```
 
-This descriptive metadata is validated, normalized, included in configuration
-projections, and displayed. It does not generate, create, or start services. Docker
+This descriptive metadata is validated, included in normalized configuration, and
+displayed. It does not generate, create, or start services. Docker
 Compose or another process manager must define the same service names, images,
 commands, volumes, and management connectivity. GraphX separately realizes only
 the declared Linux data-plane resources. A node marked `lifecycle: external` must

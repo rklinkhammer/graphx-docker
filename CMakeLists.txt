@@ -160,7 +160,7 @@ foreach(app udp_publisher udp_subscriber)
   graphx_enable_sanitizers(graphx-${app_name})
 endforeach()
 
-add_executable(graphx-cli apps/cli/main.cpp apps/cli/projection.cpp)
+add_executable(graphx-cli apps/cli/main.cpp)
 set_target_properties(graphx-cli PROPERTIES OUTPUT_NAME graphx)
 target_link_libraries(graphx-cli PRIVATE graphx)
 graphx_enable_analysis(graphx-cli)
@@ -369,9 +369,6 @@ if(GRAPHX_BUILD_TESTS)
       FIXTURES_CLEANUP graphx-static-route-policy-live TIMEOUT 60 RUN_SERIAL TRUE
       ENVIRONMENT "GRAPHX_BIN=$<TARGET_FILE:graphx-cli>;GRAPHX_OVERRIDES=")
   endif()
-  add_test(NAME graphx-config-projection-behavior COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_SOURCE_DIR}/tests/test_projections.py $<TARGET_FILE:graphx-cli>
-    ${CMAKE_SOURCE_DIR})
   add_test(NAME graphx-documentation-consistency COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/test_documentation_consistency.py ${CMAKE_SOURCE_DIR}
     $<TARGET_FILE:graphx-cli>)
