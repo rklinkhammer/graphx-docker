@@ -1,8 +1,12 @@
-version: 1
-phase: M7
-graph_id: fixture-m8
+version: 2
+graph_id: fixture-current
 config_sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 owner_token: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 status: ready
 expected_bridges:
-  - br-fixture-m8
+  - br-current
+expected_namespaces: []
+expected_endpoints: []
+expected_captures: []
+expected_faults: []
+resources: []

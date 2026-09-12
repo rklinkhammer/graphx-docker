@@ -1,1 +1,0 @@
-# inspect ownership-state "<STATE_ROOT>/m7-network-observability.yaml"

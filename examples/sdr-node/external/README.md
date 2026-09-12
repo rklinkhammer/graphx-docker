@@ -1,17 +1,6 @@
-# External SDR OVS laboratory
+# External SDR profile
 
-The external SDR profile uses system OVS, container veth pairs, an explicit
-external boundary, SPAN capture, and the shared GraphX ownership lifecycle.
-MACVLAN is a semantic profile only; Compose supplies management connectivity and
-does not create a Docker macvlan network.
-
-```sh
-examples/sdr-node/external/scripts/demo.sh plan
-examples/sdr-node/external/scripts/demo.sh up
-examples/sdr-node/external/scripts/demo.sh status
-examples/sdr-node/external/scripts/demo.sh down
-```
-
-Run on native Linux or in Lima. Review and configure the external attachment
-boundary before connecting real radio hardware. The version-1 model remains at
-`examples/compatibility/v1/sdr-external.yaml` solely for migration.
+This profile uses a Linux namespace as the bounded external-device endpoint and
+keeps the raw SDR edge outside the GraphX envelope transport factory. The demo
+generates short-lived TLS material, realizes the OVS boundary, runs the services,
+and removes only identity-owned resources during cleanup.

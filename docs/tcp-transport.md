@@ -1,46 +1,9 @@
-# TCP transport lifecycle
+# TCP transport
 
-GraphX TCP transports are blocking framed streams with bounded connection and
-write operations. They intentionally avoid an async runtime.
+TCP edges use length-prefixed GraphX envelopes and support bounded connect and send
+deadlines, reconnect policy, retry count, and exponential backoff. A listener accepts
+subsequent peers after disconnect; close cancels blocked work.
 
-## Framing and receive deadlines
-
-Every frame is a four-byte unsigned big-endian length followed by one serialized
-GraphX envelope. The maximum accepted payload is 16 MiB.
-`receive_result(timeout)` uses one deadline for the whole frame:
-
-- no bytes before the deadline reports `timeout`;
-- closure before a new header reports `end_of_stream` when reconnect is disabled;
-- local close reports `cancelled`;
-- closure or timeout during a header/payload throws a contextual error and closes
-  that connection;
-- malformed and oversized frames throw with edge and endpoint context.
-
-Closing a transport shuts down both its active connection and retained listener,
-which interrupts blocked polling/reads. Linux sends use `MSG_NOSIGNAL`; macOS
-sockets enable `SO_NOSIGPIPE`.
-
-The legacy `receive(timeout)` facade maps every non-message outcome to
-`std::nullopt`; new lifecycle-aware code should use `receive_result`.
-
-## Retry and reconnect
-
-`connect_timeout_ms` bounds each address attempt. Initial connection and later
-reconnection use an exponential policy configured by `retry.max_attempts`,
-`retry.initial_backoff_ms`, and `retry.max_backoff_ms`. Closing an existing
-transport interrupts a retry backoff.
-
-A reconnecting listener retains its listening socket and accepts a replacement
-peer after a clean between-frame disconnect. A reconnecting client retries one
-complete frame after a failed send. This provides at-least-once delivery, not
-exactly-once delivery. Version-2 applications can deduplicate retries by the
-stable envelope `message_id`; sequence and trace identifiers are not unique
-logical-message keys. See [`protocol.md`](protocol.md).
-
-## Backpressure
-
-TCP backpressure is intentionally blocking and bounded. `send_timeout_ms` is the
-maximum time allowed to write a complete framed envelope. A timeout closes the
-connection; with reconnect enabled, the sender reconnects and retries the frame
-once. GraphX does not currently queue frames above the kernel socket buffer, so
-there is no hidden unbounded application queue.
+TLS can verify the server, require client certificates, and use a configured CA,
+certificate, key, and server name. TLS material is never included in normalized
+telemetry output.
