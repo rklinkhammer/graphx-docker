@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-telemetry_first="graphx-phase5-telemetry-first-$$"
-native_first="graphx-phase5-native-first-$$"
+telemetry_first="graphx-container-hardening-telemetry-first-$$"
+native_first="graphx-container-hardening-native-first-$$"
 
 cleanup() {
   docker volume rm "$telemetry_first" "$native_first" >/dev/null 2>&1 || true

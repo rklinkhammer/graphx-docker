@@ -6,7 +6,7 @@ set -euo pipefail
   exit 1
 }
 : "${GRAPHX_LIMA_USER:?Lima user identity was not provided}"
-: "${GRAPHX_M1_CONFIG_DIGEST:?configuration digest was not provided}"
+: "${GRAPHX_LIMA_CONFIG_DIGEST:?configuration digest was not provided}"
 
 export DEBIAN_FRONTEND=noninteractive
 packages=(
@@ -49,13 +49,13 @@ EOF
 
 install -d -m 0755 /var/lib/graphx /var/lib/graphx/qemu
 install -d -m 0700 /var/lib/graphx/runs
-install -d -m 0750 /var/lib/graphx/captures /var/lib/graphx/m1 /var/lib/graphx/m1/evidence
+install -d -m 0750 /var/lib/graphx/captures /var/lib/graphx/runtime /var/lib/graphx/runtime/evidence
 install -d -m 0755 /var/log/graphx
 chown -R "${GRAPHX_LIMA_USER}:${GRAPHX_LIMA_USER}" /var/lib/graphx /var/log/graphx
 chown root:root /var/lib/graphx/captures
 chmod 0750 /var/lib/graphx/captures
 
-# M6 runs QEMU without root while GraphX retains privileged ownership of the
+# QEMU runs without root while GraphX retains privileged ownership of the
 # TAP/OVS lifecycle. Keep this numeric identity aligned with tap_uid/tap_gid in
 # the checked-in QEMU TAP profile.
 if ! getent group graphx-qemu >/dev/null; then
@@ -93,18 +93,18 @@ done
 timeout 30 node -e 'import("node:sqlite")' >/dev/null
 timeout 180 docker pull hello-world:linux
 
-printf '%s\n' "${GRAPHX_M1_CONFIG_DIGEST}" >/etc/graphx-m1-config.sha256
+printf '%s\n' "${GRAPHX_LIMA_CONFIG_DIGEST}" >/etc/graphx-lima-config.sha256
 dpkg-query -W -f='${binary:Package}\t${Version}\n' "${packages[@]}" \
-  | sort >/var/lib/graphx/m1/package-versions.tsv
+  | sort >/var/lib/graphx/runtime/package-versions.tsv
 {
   printf 'provisioned_at='; date -u +%Y-%m-%dT%H:%M:%SZ
   printf 'kernel='; uname -srvm
   printf 'architecture='; dpkg --print-architecture
-  printf 'config_digest=%s\n' "${GRAPHX_M1_CONFIG_DIGEST}"
+  printf 'config_digest=%s\n' "${GRAPHX_LIMA_CONFIG_DIGEST}"
   printf 'docker_probe_image='; docker image inspect hello-world:linux --format '{{index .RepoDigests 0}}'
   printf 'docker_buildx='; docker buildx version
   printf 'node_runtime_image=%s\n' "${node_runtime_image}"
   printf 'node='; node --version
   printf 'npm='; npm --version
-} >/var/lib/graphx/m1/provisioned
-chown -R "${GRAPHX_LIMA_USER}:${GRAPHX_LIMA_USER}" /var/lib/graphx/m1
+} >/var/lib/graphx/runtime/provisioned
+chown -R "${GRAPHX_LIMA_USER}:${GRAPHX_LIMA_USER}" /var/lib/graphx/runtime

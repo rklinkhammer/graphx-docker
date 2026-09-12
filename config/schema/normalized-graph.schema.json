@@ -1,13 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://graphx.dev/schema/normalized-graph-v1.schema.json",
-  "title": "GraphX normalized configuration contract version 1",
+  "$id": "https://graphx.dev/schema/normalized-graph.schema.json",
+  "title": "GraphX normalized configuration contract",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "contract_version",
-    "source_version",
-    "infrastructure_mutable",
     "graph",
     "network",
     "deployment",
@@ -15,61 +13,11 @@
   ],
   "properties": {
     "contract_version": { "const": 1 },
-    "source_version": { "enum": [1, 2] },
-    "infrastructure_mutable": { "type": "boolean" },
     "graph": { "$ref": "#/$defs/graph" },
     "network": { "$ref": "#/$defs/network" },
     "deployment": { "$ref": "#/$defs/deployment" },
     "observability": { "$ref": "#/$defs/observability" }
   },
-  "allOf": [
-    {
-      "if": { "properties": { "source_version": { "const": 1 } } },
-      "then": {
-        "properties": {
-          "infrastructure_mutable": { "const": false },
-          "network": {
-            "properties": {
-              "backend": { "const": "compatibility-only" },
-              "networks": {
-                "items": {
-                  "properties": {
-                    "profile": { "const": null },
-                    "legacy_driver": { "enum": ["bridge", "macvlan", "ipvlan"] },
-                    "semantics": { "const": null }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    {
-      "if": { "properties": { "source_version": { "const": 2 } } },
-      "then": {
-        "properties": {
-          "infrastructure_mutable": { "const": true },
-          "network": {
-            "properties": {
-              "backend": { "const": "ovs" },
-              "networks": {
-                "items": {
-                  "properties": {
-                    "profile": {
-                      "enum": ["ethernet", "macvlan", "ipvlan-l2", "ipvlan-l3", "ipvlan-l3s"]
-                    },
-                    "legacy_driver": { "const": null },
-                    "semantics": { "$ref": "#/$defs/semantics" }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  ],
   "$defs": {
     "stringOrNull": { "type": ["string", "null"] },
     "uint": { "type": "integer", "minimum": 0 },
@@ -287,27 +235,19 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "id", "profile", "legacy_driver", "semantics", "subnets", "gateway",
-        "parent", "uplink", "mode", "external"
+        "id", "profile", "semantics", "subnets", "gateway", "uplink", "external"
       ],
       "properties": {
         "id": { "type": "string" },
         "profile": {
-          "type": ["string", "null"],
-          "enum": ["ethernet", "macvlan", "ipvlan-l2", "ipvlan-l3", "ipvlan-l3s", null]
-        },
-        "legacy_driver": {
-          "type": ["string", "null"],
-          "enum": ["bridge", "macvlan", "ipvlan", null]
+          "enum": ["ethernet", "macvlan", "ipvlan-l2", "ipvlan-l3", "ipvlan-l3s"]
         },
         "semantics": {
-          "oneOf": [{ "$ref": "#/$defs/semantics" }, { "type": "null" }]
+          "$ref": "#/$defs/semantics"
         },
         "subnets": { "type": "array", "items": { "type": "string" } },
         "gateway": { "$ref": "#/$defs/stringOrNull" },
-        "parent": { "$ref": "#/$defs/stringOrNull" },
         "uplink": { "$ref": "#/$defs/stringOrNull" },
-        "mode": { "$ref": "#/$defs/stringOrNull" },
         "external": { "type": "boolean" }
       }
     },
@@ -408,18 +348,6 @@
         "policies": { "type": "array", "items": { "$ref": "#/$defs/policy" } }
       }
     },
-    "networkInterface": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["id", "owner", "network", "address", "mac"],
-      "properties": {
-        "id": { "type": "string" },
-        "owner": { "type": "string" },
-        "network": { "type": "string" },
-        "address": { "type": "string" },
-        "mac": { "$ref": "#/$defs/stringOrNull" }
-      }
-    },
     "attachment": {
       "type": "object",
       "additionalProperties": false,
@@ -491,15 +419,14 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "backend", "networks", "switches", "routers", "interfaces",
-        "attachments", "edge_paths", "captures", "faults"
+        "backend", "networks", "switches", "routers", "attachments",
+        "edge_paths", "captures", "faults"
       ],
       "properties": {
-        "backend": { "enum": ["ovs", "compatibility-only"] },
+        "backend": { "const": "ovs" },
         "networks": { "type": "array", "items": { "$ref": "#/$defs/networkDefinition" } },
         "switches": { "type": "array", "items": { "$ref": "#/$defs/switch" } },
         "routers": { "type": "array", "items": { "$ref": "#/$defs/router" } },
-        "interfaces": { "type": "array", "items": { "$ref": "#/$defs/networkInterface" } },
         "attachments": { "type": "array", "items": { "$ref": "#/$defs/attachment" } },
         "edge_paths": { "type": "array", "items": { "$ref": "#/$defs/edgePath" } },
         "captures": { "type": "array", "items": { "$ref": "#/$defs/capture" } },

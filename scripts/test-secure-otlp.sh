@@ -3,9 +3,9 @@ set -euo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 source "$ROOT/scripts/configure-build-trust.sh"
-PROJECT=${GRAPHX_PHASE6_OTLP_PROJECT:-"graphx-phase6-otlp-$$"}
-PORT=${GRAPHX_PHASE6_OTLP_PORT:-18438}
-TEMP=$(mktemp -d "${TMPDIR:-/tmp}/graphx-phase6-otlp.XXXXXX")
+PROJECT=${GRAPHX_OTLP_TEST_PROJECT:-"graphx-operations-otlp-$$"}
+PORT=${GRAPHX_OTLP_TEST_PORT:-18438}
+TEMP=$(mktemp -d "${TMPDIR:-/tmp}/graphx-operations-otlp.XXXXXX")
 FILES=(-f "$ROOT/compose.yaml" -f "$ROOT/compose.otlp-secure.yaml" -f "$ROOT/compose.otlp-mtls.yaml")
 receiver_pid=
 
@@ -20,7 +20,7 @@ for tool in docker node openssl; do
   command -v "$tool" >/dev/null || { echo "missing prerequisite: $tool" >&2; exit 2; }
 done
 
-openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj '/CN=GraphX Phase 6 Test CA' \
+openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj '/CN=GraphX Operations Test CA' \
   -keyout "$TEMP/ca.key" -out "$TEMP/ca.pem" >/dev/null 2>&1
 openssl req -newkey rsa:2048 -nodes -subj '/CN=host.docker.internal' \
   -addext 'subjectAltName=DNS:host.docker.internal' -addext 'extendedKeyUsage=serverAuth' \
@@ -55,4 +55,4 @@ docker compose -p "$PROJECT" "${FILES[@]}" up -d telemetry
 for _ in $(seq 1 80); do [[ -s "$TEMP/result" ]] && break; sleep 0.25; done
 [[ -s "$TEMP/result" ]]
 grep -q 'authorized OTLP metric export' "$TEMP/result"
-echo "Phase 6 secure Compose token, private-CA, and mTLS export passed"
+echo "Operations secure Compose token, private-CA, and mTLS export passed"

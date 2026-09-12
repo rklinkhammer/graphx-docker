@@ -35,7 +35,7 @@ scripts/network-lab.sh mixed-network plan
 
 On Linux the dispatcher runs locally. On Apple Silicon macOS it requires the
 identity-checked `graphx` Lima instance to be running and invokes the same
-dispatcher inside the guest with `/var/lib/graphx/m1/build/dev/graphx`.
+dispatcher inside the guest with `/var/lib/graphx/runtime/build/dev/graphx`.
 OrbStack is never selected for system-OVS laboratories.
 
 The lifecycle persists an owner-token ledger beneath its state directory and

@@ -1,4 +1,4 @@
-# Canonical M8 OVS realization.
+# Canonical OVS realization.
 version: 2
 graph:
   id: ipvlan-l3-pipeline

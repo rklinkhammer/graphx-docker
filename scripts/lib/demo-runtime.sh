@@ -65,17 +65,17 @@ graphx_demo_dispatch_lima() {
   local lima_dir="$repo_root/infrastructure/lima"
   # shellcheck source=../../infrastructure/lima/common.sh
   source "$lima_dir/common.sh"
-  graphx_m1_require_host
+  graphx_lima_require_host
   local digest status guest_graphx deadline
-  digest=$(graphx_m1_digest)
-  status=$(graphx_m1_assert_identity "$digest")
+  digest=$(graphx_lima_digest)
+  status=$(graphx_lima_assert_identity "$digest")
   if [[ $status != Running ]]; then
-    echo "GraphX Lima instance '$GRAPHX_M1_INSTANCE' is $status; run infrastructure/lima/start.sh." >&2
+    echo "GraphX Lima instance '$GRAPHX_LIMA_INSTANCE' is $status; run infrastructure/lima/start.sh." >&2
     return 2
   fi
-  guest_graphx=${GRAPHX_LIMA_GRAPHX_BIN:-/var/lib/graphx/m1/build/dev/graphx}
-  "${GRAPHX_M1_RUNNER}" 120 limactl shell --workdir "${GRAPHX_M1_GUEST_ROOT}" \
-    "${GRAPHX_M1_INSTANCE}" -- bash -c \
+  guest_graphx=${GRAPHX_LIMA_GRAPHX_BIN:-/var/lib/graphx/runtime/build/dev/graphx}
+  "${GRAPHX_LIMA_RUNNER}" 120 limactl shell --workdir "${GRAPHX_LIMA_GUEST_ROOT}" \
+    "${GRAPHX_LIMA_INSTANCE}" -- bash -c \
     'test -x "$1" && docker info >/dev/null && systemctl is-active --quiet openvswitch-switch.service' \
     _ "${guest_graphx}" || {
       echo "The Lima network-lab prerequisites or Linux GraphX CLI are unavailable." >&2
@@ -83,8 +83,8 @@ graphx_demo_dispatch_lima() {
       return 2
     }
   case "$action" in plan|status) deadline=120 ;; up|down) deadline=1800 ;; esac
-  "${GRAPHX_M1_RUNNER}" "${deadline}" limactl shell --workdir "${GRAPHX_M1_GUEST_ROOT}" \
-    "${GRAPHX_M1_INSTANCE}" -- env GRAPHX_BIN="${guest_graphx}" \
+  "${GRAPHX_LIMA_RUNNER}" "${deadline}" limactl shell --workdir "${GRAPHX_LIMA_GUEST_ROOT}" \
+    "${GRAPHX_LIMA_INSTANCE}" -- env GRAPHX_BIN="${guest_graphx}" \
     scripts/network-lab.sh "${lab}" "${action}"
 }
 

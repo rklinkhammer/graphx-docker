@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Portable M3 planning and ownership-boundary contracts."""
+"""Portable OVS planning and ownership-boundary contracts."""
 
 from __future__ import annotations
 
@@ -31,14 +31,9 @@ def main() -> int:
         raise SystemExit("usage: test_ovs_ownership_plan.py GRAPHX SOURCE_ROOT")
     graphx = Path(sys.argv[1]).resolve()
     root = Path(sys.argv[2]).resolve()
-    with tempfile.TemporaryDirectory(prefix="graphx-m3-") as raw:
+    with tempfile.TemporaryDirectory(prefix="graphx-ovs-") as raw:
         temporary = Path(raw)
-        config = temporary / "mixed-v2.yaml"
-        migrated = run(
-            graphx, "config", "migrate",
-            root / "examples" / "compatibility" / "v1" / "mixed-network.yaml",
-        ).stdout
-        config.write_text(migrated, encoding="utf-8")
+        config = root / "examples" / "mixed-network" / "graphx.yaml"
         state = temporary / "state"
 
         create = run(
@@ -54,7 +49,7 @@ def main() -> int:
                 "external_ids:graphx_graph=mixed-network" in create,
                 "dry-run ownership markers")
         require("docker network" not in create and "Mirror" not in create,
-                "M3 bridge ownership remains free of legacy Docker networks and later mirrors")
+                "OVS ownership plan unexpectedly uses Docker networking or mirrors")
         digest = re.search(r"graphx_config_hash=([0-9a-f]{64})", create)
         require(digest is not None, "configuration SHA-256")
         require(not state.exists(), "dry-run does not create state")
@@ -70,14 +65,7 @@ def main() -> int:
             require(marker in result.stdout and not state.exists(),
                     f"{action} dry-run boundary")
 
-        transactional = run(
-            graphx, "infra", "create", config, "--transactional", "--dry-run",
-            "--state-dir", state, check=False,
-        )
-        require(transactional.returncode != 0 and "always transactional" in transactional.stderr,
-                "v2 rejects redundant legacy transaction mode")
-
-    print("GraphX M3 portable ownership contracts passed")
+    print("GraphX portable OVS ownership contracts passed")
     return 0
 
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Portable contract tests for the Phase 14 native route-policy laboratory."""
+"""Portable contract tests for the route-policy native route-policy laboratory."""
 
 from __future__ import annotations
 
@@ -87,7 +87,7 @@ def main() -> int:
             graphx, "validate", invalid, expect=2)
 
     demo = (example / "scripts/demo.sh").read_text(encoding="utf-8")
-    for marker in ("GRAPHX_M5_EXTERNAL_OWNER", "external-ovs-boundary.sh",
+    for marker in ("GRAPHX_EXTERNAL_OWNER", "external-ovs-boundary.sh",
                    "graphx_external_namespace_create", "graphx_external_namespace_delete",
                    "trap rollback_up ERR", 'infra create "$config"', "apply-route)",
                    "clear-route)"):
@@ -97,7 +97,7 @@ def main() -> int:
     assert not (example / "compose.yaml").exists(), "retired route Compose data plane remains"
     subprocess.run(["bash", "-n", example / "scripts/demo.sh",
                     example / "scripts/inspect.sh"], check=True)
-    print("Phase 14 portable route-policy contract passed")
+    print("route-policy portable route-policy contract passed")
     return 0
 
 

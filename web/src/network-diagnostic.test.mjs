@@ -23,7 +23,7 @@ test('network diagnostics remain visible on application and routed hop edges', (
   assert.ok(hops.every(edge => edge.data.highlighted))
 })
 
-test('M7 failure layers have distinct visual semantics', async () => {
+test('network diagnostic failure layers have distinct visual semantics', async () => {
   const styles = await readFile(new URL('./styles.css', import.meta.url), 'utf8')
   assert.match(styles, /diagnostic-link-down/)
   assert.match(styles, /diagnostic-attachment-missing/)

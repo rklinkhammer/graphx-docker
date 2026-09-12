@@ -31,19 +31,6 @@ def main() -> int:
         ).splitlines()
     }
 
-    adr_dir = root / "docs/adr"
-    index = adr_dir / "README.md"
-    rows = re.findall(
-        r"^\| (\d{4}) \|.*\| \[`[^`]+`\]\(([^)]+)\) \|$",
-        index.read_text(encoding="utf-8"),
-        re.MULTILINE,
-    )
-    numbers = [number for number, _ in rows]
-    indexed = {filename for _, filename in rows}
-    actual = {path.name for path in adr_dir.glob("[0-9][0-9][0-9][0-9]-*.md")}
-    if not rows or numbers != sorted(set(numbers)) or indexed != actual:
-        raise AssertionError("ADR index is incomplete, duplicated, or unordered")
-
     documents = [
         root / "README.md",
         root / "CONTRIBUTING.md",
@@ -66,12 +53,10 @@ def main() -> int:
 
     readme = (root / "README.md").read_text(encoding="utf-8")
     architecture = (root / "docs/GraphX_Architecture.md").read_text(encoding="utf-8")
-    changelog = (root / "CHANGELOG.md").read_text(encoding="utf-8")
     inventory = (root / "docs/release-license-inventory.md").read_text(encoding="utf-8")
     for label, condition in (
         ("README", f"GraphX {version}" in readme),
-        ("architecture baseline", f"GraphX {version}" in architecture),
-        ("changelog", f"## [{version}]" in changelog),
+        ("architecture", f"GraphX {version}" in architecture),
         ("license inventory", f"# GraphX {version}" in inventory),
     ):
         if not condition:

@@ -75,10 +75,8 @@ export CC CXX
 echo "Fuzz compiler: CC=$CC CXX=$CXX"
 
 mkdir -p "$TMP_DIR/envelope" "$TMP_DIR/frame"
-xxd -r -p "$ROOT/tests/fixtures/envelope-v1.hex" >"$TMP_DIR/envelope/v1"
-xxd -r -p "$ROOT/tests/fixtures/envelope-v2.hex" >"$TMP_DIR/envelope/v2"
-cp "$TMP_DIR/envelope/v1" "$TMP_DIR/frame/v1-envelope"
-cp "$TMP_DIR/envelope/v2" "$TMP_DIR/frame/v2-envelope"
+xxd -r -p "$ROOT/tests/fixtures/envelope.hex" >"$TMP_DIR/envelope/current"
+cp "$TMP_DIR/envelope/current" "$TMP_DIR/frame/current-envelope"
 
 cmake --fresh -S "$ROOT" -B "$BUILD_DIR" -G Ninja \
   -DCMAKE_BUILD_TYPE=RelWithDebInfo \

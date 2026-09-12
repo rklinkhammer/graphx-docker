@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 source "$ROOT/scripts/configure-build-trust.sh"
-PROJECT=${GRAPHX_PHASE6_TEST_PROJECT:-"graphx-phase6-test-$$"}
+PROJECT=${GRAPHX_OPERATIONS_TEST_PROJECT:-"graphx-operations-test-$$"}
 FILES=(-f "$ROOT/compose.yaml" -f "$ROOT/compose.observability.yaml")
 
 cleanup() {
@@ -65,7 +65,7 @@ let input=""; process.stdin.on("data", value => input += value).on("end", () => 
 }
 
 diagnostics() {
-  echo "Phase 6 operations stack did not satisfy its acceptance checks before the deadline" >&2
+  echo "Operations operations stack did not satisfy its acceptance checks before the deadline" >&2
   docker compose -p "$PROJECT" "${FILES[@]}" ps -a >&2 || true
   curl -fsS 'http://127.0.0.1:9090/api/v1/targets?state=active' 2>/dev/null | node -e '
 let input=""; process.stdin.on("data", value => input += value).on("end", () => {
@@ -99,4 +99,4 @@ if [[ "$ready" != true ]]; then
   exit 1
 fi
 
-echo "Phase 6 telemetry, Prometheus, rules, scrape, query, and Grafana checks passed"
+echo "Operations telemetry, Prometheus, rules, scrape, query, and Grafana checks passed"

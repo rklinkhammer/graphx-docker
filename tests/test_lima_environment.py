@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Portable static contract checks for the optional GraphX M1 Lima VM."""
+"""Portable static contract checks for the optional GraphX Lima Lima VM."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ def main() -> int:
     root = Path(sys.argv[1]).resolve()
     lima = root / "infrastructure" / "lima"
     expected = {"graphx.yaml", "provision.sh", "start.sh", "verify.sh", "stop.sh", "README.md"}
-    require(expected <= {path.name for path in lima.iterdir()}, "required M1 files are missing")
+    require(expected <= {path.name for path in lima.iterdir()}, "required Lima files are missing")
 
     raw = (lima / "graphx.yaml").read_text(encoding="utf-8")
     for token in (
@@ -55,9 +55,9 @@ def main() -> int:
     launcher_text = dispatcher_text + "\n" + runtime_text
     for token in (
         "macvlan|ipvlan-l2|ipvlan-l3|mixed-network",
-        "plan|up|status|down", "graphx_m1_assert_identity",
-        "/var/lib/graphx/m1/build/dev/graphx", "GRAPHX_LIMA_GRAPHX_BIN",
-        'limactl shell --workdir "${GRAPHX_M1_GUEST_ROOT}"',
+        "plan|up|status|down", "graphx_lima_assert_identity",
+        "/var/lib/graphx/runtime/build/dev/graphx", "GRAPHX_LIMA_GRAPHX_BIN",
+        'limactl shell --workdir "${GRAPHX_LIMA_GUEST_ROOT}"',
         'scripts/network-lab.sh "${lab}" "${action}"',
     ):
         require(token in launcher_text, f"network-lab runtime omits {token}")
@@ -88,7 +88,7 @@ def main() -> int:
                 "Linux network-lab plan does not select the requested version-2 topology")
 
     config_digest = subprocess.run(
-        ["bash", "-c", f'source "{lima / "common.sh"}"; graphx_m1_digest'],
+        ["bash", "-c", f'source "{lima / "common.sh"}"; graphx_lima_digest'],
         text=True, capture_output=True, check=True
     ).stdout.strip()
     with tempfile.TemporaryDirectory(prefix="graphx-network-lab-lima-test-") as temporary:
@@ -123,7 +123,7 @@ def main() -> int:
                 and "openvswitch-switch.service" in invocations[0],
                 "macOS dispatcher does not preflight its guest dependencies")
         require("--workdir /workspace/graphx-docker graphx -- env" in invocations[1]
-                and "GRAPHX_BIN=/var/lib/graphx/m1/build/dev/graphx" in invocations[1]
+                and "GRAPHX_BIN=/var/lib/graphx/runtime/build/dev/graphx" in invocations[1]
                 and "scripts/network-lab.sh macvlan status" in invocations[1],
                 "macOS dispatcher does not route the canonical action through Lima")
     provision = (lima / "provision.sh").read_text(encoding="utf-8")
@@ -156,7 +156,7 @@ def main() -> int:
     require(re.search(r"timeout [0-9]+", provision) is not None, "package/service operations are not bounded")
 
     start = (lima / "start.sh").read_text(encoding="utf-8")
-    for token in ("Refreshing the Lima login session", 'limactl stop "${GRAPHX_M1_INSTANCE}"',
+    for token in ("Refreshing the Lima login session", 'limactl stop "${GRAPHX_LIMA_INSTANCE}"',
                   "docker info >/dev/null && docker buildx version >/dev/null",
                   'node --version | grep -Eq "^v24\\\\."', "node:sqlite"):
         require(token in start, f"Lima start lifecycle omits {token}")
@@ -164,12 +164,12 @@ def main() -> int:
     verify = (lima / "verify.sh").read_text(encoding="utf-8")
     require("Node.js 24 is required" in verify and 'import("node:sqlite")' in verify,
             "Lima verification does not enforce the supported Node.js runtime")
-    for name in ("gx-m1-br", "gx-m1-ns", "gx-m1-vh", "gx-m1-vn", "gx-m1-tap", "gx-m1-int", "gx-m1-docker"):
+    for name in ("gx-lima-br", "gx-lima-ns", "gx-lima-vh", "gx-lima-vn", "gx-lima-tap", "gx-lima-int", "gx-lima-docker"):
         require(name in verify, f"verification omits fixed name {name}")
-    for token in ("external_ids:graphx_m1_owner", "graphx-m1:", "datapath_type=system", "ip tuntap", "netem", "nft", "tcpdump", "docker buildx version", "Lima login user cannot access rootful Docker", "scripts/verify.sh quick", "GRAPHX_DEV_BUILD_DIR=/var/lib/graphx/m1/build/dev", "project graphx.yaml --check", "snapshot before", "snapshot after"):
+    for token in ("external_ids:graphx_lima_owner", "graphx-lima:", "datapath_type=system", "ip tuntap", "netem", "nft", "tcpdump", "docker buildx version", "Lima login user cannot access rootful Docker", "scripts/verify.sh quick", "GRAPHX_DEV_BUILD_DIR=/var/lib/graphx/runtime/build/dev", "project graphx.yaml --check", "snapshot before", "snapshot after"):
         require(token in verify, f"verification omits {token}")
     require("/workspace/graphx-docker" in verify and "/var/lib/graphx" in verify, "storage boundary is not verified")
-    require("GRAPHX_M1_TEST_FAIL_AFTER" in verify, "bounded failure injection hook is missing")
+    require("GRAPHX_LIMA_TEST_FAIL_AFTER" in verify, "bounded failure injection hook is missing")
     require("set +e" not in verify, "cleanup must not disable fail-fast mode")
     for token in (
         '[[ ! -e ${state_dir} ]]', 'mkdir -- "${state_dir}"',
@@ -186,15 +186,15 @@ def main() -> int:
         "capture-started",
     ):
         require(f"maybe_fail {stage}" in verify, f"failure injection omits {stage}")
-    require('startsWith("gx-m1-")' not in verify and 'startswith("gx-m1-")' not in verify,
+    require('startsWith("gx-lima-")' not in verify and 'startswith("gx-lima-")' not in verify,
             "snapshots must not hide disposable-name replacements")
-    require("grep -vE ' gx-m1-'" not in verify and 'grep -v "${bridge}"' not in verify,
+    require("grep -vE ' gx-lima-'" not in verify and 'grep -v "${bridge}"' not in verify,
             "snapshots must include exact disposable resources")
 
     docs = "\n".join((root / name).read_text(encoding="utf-8") for name in ("README.md", "SUPPORT.md", "docs/security.md", "docs/GraphX_Architecture.md"))
-    for statement in ("configuration version 2", "veth", "TAP", "slirp"):
-        require(statement.lower() in docs.lower(), f"documentation does not state M1 boundary: {statement}")
-    print("Lima M1 static contract checks passed")
+    for statement in ("version: 2", "veth", "TAP", "Open vSwitch"):
+        require(statement.lower() in docs.lower(), f"documentation does not state Lima boundary: {statement}")
+    print("Lima Lima static contract checks passed")
     return 0
 
 

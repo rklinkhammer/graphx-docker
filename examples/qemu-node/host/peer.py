@@ -200,7 +200,6 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--receiver", action="store_true")
-    mode.add_argument("--serve", action="store_true", help="compatibility alias for --receiver")
     mode.add_argument("--origin", action="store_true")
     mode.add_argument("--probe", action="store_true")
     parser.add_argument("--bind", default=os.environ.get("GRAPHX_PEER_BIND", "127.0.0.1"))
@@ -216,7 +215,7 @@ def main() -> None:
         parser.error("--interval must be from 0.1 through 60")
     signal.signal(signal.SIGTERM, lambda *_: stop.set())
     signal.signal(signal.SIGINT, lambda *_: stop.set())
-    if args.receiver or args.serve:
+    if args.receiver:
         receiver(args.bind, args.receiver_port)
     elif args.origin:
         origin(args.target, args.port, args.interval)

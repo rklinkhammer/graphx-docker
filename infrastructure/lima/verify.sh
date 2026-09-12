@@ -6,16 +6,16 @@ script_dir=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 if [[ $(uname -s) == Darwin ]]; then
   # shellcheck source=common.sh
   source "${script_dir}/common.sh"
-  graphx_m1_require_host
-  config_digest=$(graphx_m1_digest)
-  status=$(graphx_m1_assert_identity "${config_digest}")
+  graphx_lima_require_host
+  config_digest=$(graphx_lima_digest)
+  status=$(graphx_lima_assert_identity "${config_digest}")
   [[ ${status} == Running ]] || {
-    echo "GraphX M1 is not running; run ${script_dir}/start.sh first." >&2
+    echo "GraphX Lima is not running; run ${script_dir}/start.sh first." >&2
     exit 1
   }
-  exec "${GRAPHX_M1_RUNNER}" 3600 limactl shell --workdir "${GRAPHX_M1_GUEST_ROOT}" \
-    "${GRAPHX_M1_INSTANCE}" -- sudo env GRAPHX_M1_CONFIG_DIGEST="${config_digest}" \
-    bash "${GRAPHX_M1_GUEST_ROOT}/infrastructure/lima/verify.sh" --guest
+  exec "${GRAPHX_LIMA_RUNNER}" 3600 limactl shell --workdir "${GRAPHX_LIMA_GUEST_ROOT}" \
+    "${GRAPHX_LIMA_INSTANCE}" -- sudo env GRAPHX_LIMA_CONFIG_DIGEST="${config_digest}" \
+    bash "${GRAPHX_LIMA_GUEST_ROOT}/infrastructure/lima/verify.sh" --guest
 fi
 
 [[ ${1:-} == --guest && $(uname -s) == Linux && ${EUID} -eq 0 ]] || {
@@ -23,16 +23,16 @@ fi
   exit 1
 }
 
-readonly bridge=gx-m1-br
-readonly namespace=gx-m1-ns
-readonly veth_host=gx-m1-vh
-readonly veth_ns=gx-m1-vn
-readonly tap=gx-m1-tap
-readonly internal=gx-m1-int
-readonly container=gx-m1-docker
+readonly bridge=gx-lima-br
+readonly namespace=gx-lima-ns
+readonly veth_host=gx-lima-vh
+readonly veth_ns=gx-lima-vn
+readonly tap=gx-lima-tap
+readonly internal=gx-lima-int
+readonly container=gx-lima-docker
 readonly nft_table=gx_m1
-readonly state_dir=/run/graphx-m1
-readonly evidence_root=/var/lib/graphx/m1/evidence
+readonly state_dir=/run/graphx-lima
+readonly evidence_root=/var/lib/graphx/runtime/evidence
 readonly evidence_count_limit=10
 readonly evidence_kib_limit=262144
 token=$(openssl rand -hex 16)
@@ -44,12 +44,12 @@ capture_pid=
 cleanup_done=0
 
 fail() {
-  echo "GraphX M1 verification failed: $*" >&2
+  echo "GraphX Lima verification failed: $*" >&2
   return 1
 }
 
 maybe_fail() {
-  [[ ${GRAPHX_M1_TEST_FAIL_AFTER:-} != "$1" ]] || fail "injected failure after $1"
+  [[ ${GRAPHX_LIMA_TEST_FAIL_AFTER:-} != "$1" ]] || fail "injected failure after $1"
 }
 
 remove_evidence_dir() {
@@ -209,7 +209,7 @@ cleanup() {
     expected=$(state_value bridge.uuid || true)
     current=$(ovs-vsctl --if-exists get Bridge "${bridge}" _uuid 2>/dev/null | tr -d '"')
     if [[ -n ${expected} && ${current} == "${expected}" && \
-      $(ovs-vsctl --if-exists get Bridge "${bridge}" external_ids:graphx_m1_owner 2>/dev/null | tr -d '"') == "${token}" ]]; then
+      $(ovs-vsctl --if-exists get Bridge "${bridge}" external_ids:graphx_lima_owner 2>/dev/null | tr -d '"') == "${token}" ]]; then
       ovs-vsctl --timeout=10 --if-exists del-br "${bridge}" || failed=1
     else
       cleanup_issue "Refusing to remove bridge ${bridge}: expected UUID ${expected:-missing}, found ${current:-missing}."
@@ -321,7 +321,7 @@ critical_bridge_create() {
   (
     trap '' INT TERM HUP
     ovs-vsctl --timeout=10 add-br "${bridge}" -- set Bridge "${bridge}" \
-      datapath_type=system external_ids:graphx_m1_owner="${token}" || exit 1
+      datapath_type=system external_ids:graphx_lima_owner="${token}" || exit 1
     current=$(ovs-vsctl get Bridge "${bridge}" _uuid | tr -d '"')
     if ! printf '%s\n' "${current}" >"${state_dir}/bridge.uuid"; then
       ovs-vsctl --timeout=10 --if-exists del-br "${bridge}" || true
@@ -346,7 +346,7 @@ critical_internal_create() {
   (
     trap '' INT TERM HUP
     ovs-vsctl --timeout=10 add-port "${bridge}" "${internal}" -- set Interface "${internal}" \
-      type=internal external_ids:graphx_m1_owner="${token}" || exit 1
+      type=internal external_ids:graphx_lima_owner="${token}" || exit 1
     current=$(cat "/sys/class/net/${internal}/ifindex")
     if ! printf '%s\n' "${current}" >"${state_dir}/internal.ifindex"; then
       ovs-vsctl --timeout=10 --if-exists del-port "${bridge}" "${internal}" || true
@@ -387,7 +387,7 @@ done
 [[ $(node --version) =~ ^v24\. ]] || fail "Node.js 24 is required"
 timeout 30 node -e 'import("node:sqlite")' >/dev/null || fail "Node.js node:sqlite is unavailable"
 [[ $(uname -m) == aarch64 ]] || fail "guest architecture is not aarch64"
-[[ $(cat /etc/graphx-m1-config.sha256) == "${GRAPHX_M1_CONFIG_DIGEST:?missing expected digest}" ]] || fail "guest configuration identity does not match"
+[[ $(cat /etc/graphx-lima-config.sha256) == "${GRAPHX_LIMA_CONFIG_DIGEST:?missing expected digest}" ]] || fail "guest configuration identity does not match"
 login_user=${GRAPHX_LIMA_USER:-${SUDO_USER:-}}
 if [[ -z ${login_user} ]]; then
   login_user=$(stat -c %U /workspace/graphx-docker)
@@ -434,36 +434,36 @@ maybe_fail docker
 critical_bridge_create
 maybe_fail bridge
 critical_internal_create
-ip link set dev "${internal}" alias "graphx-m1:${token}"
+ip link set dev "${internal}" alias "graphx-lima:${token}"
 ip address add 10.254.83.1/30 dev "${internal}"
 ip link set dev "${internal}" up
 maybe_fail internal
 
 critical_namespace_create
 maybe_fail namespace-created
-ip netns exec "${namespace}" ip link set dev lo alias "graphx-m1:${token}"
+ip netns exec "${namespace}" ip link set dev lo alias "graphx-lima:${token}"
 maybe_fail namespace-owned
 
 critical_veth_create
 maybe_fail veth-created
-ip link set dev "${veth_host}" alias "graphx-m1:${token}"
-ip link set dev "${veth_ns}" alias "graphx-m1:${token}"
+ip link set dev "${veth_host}" alias "graphx-lima:${token}"
+ip link set dev "${veth_ns}" alias "graphx-lima:${token}"
 maybe_fail veth-owned
 ip link set dev "${veth_ns}" netns "${namespace}"
 ip netns exec "${namespace}" ip link set lo up
 ip netns exec "${namespace}" ip address add 10.254.83.2/30 dev "${veth_ns}"
 ip netns exec "${namespace}" ip link set dev "${veth_ns}" up
-ovs-vsctl --timeout=10 add-port "${bridge}" "${veth_host}" -- set Interface "${veth_host}" external_ids:graphx_m1_owner="${token}"
+ovs-vsctl --timeout=10 add-port "${bridge}" "${veth_host}" -- set Interface "${veth_host}" external_ids:graphx_lima_owner="${token}"
 ip link set dev "${veth_host}" up
 maybe_fail veth-attached
 
 tap_user=${SUDO_USER:-$(stat -c '%U' /workspace/graphx-docker)}
 critical_tap_create
 maybe_fail tap-created
-ip link set dev "${tap}" alias "graphx-m1:${token}"
+ip link set dev "${tap}" alias "graphx-lima:${token}"
 maybe_fail tap-owned
 ip link set dev "${tap}" up
-ovs-vsctl --timeout=10 add-port "${bridge}" "${tap}" -- set Interface "${tap}" external_ids:graphx_m1_owner="${token}"
+ovs-vsctl --timeout=10 add-port "${bridge}" "${tap}" -- set Interface "${tap}" external_ids:graphx_lima_owner="${token}"
 maybe_fail tap-attached
 
 ip netns exec "${namespace}" tc qdisc add dev "${veth_ns}" root netem delay 1ms
@@ -497,11 +497,11 @@ tshark -r "${evidence_dir}/packet.pcap" -c 2 >"${evidence_dir}/tshark.txt"
 grep -Eq '^bridge_datapath="?system"?$' "${evidence_dir}/runtime-evidence.txt" || fail "OVS did not use the system datapath"
 
 cd /workspace/graphx-docker
-install -d -m 0755 /var/lib/graphx/m1/build
-GRAPHX_DEV_BUILD_DIR=/var/lib/graphx/m1/build/dev \
+install -d -m 0755 /var/lib/graphx/runtime/build
+GRAPHX_DEV_BUILD_DIR=/var/lib/graphx/runtime/build/dev \
   GRAPHX_VERIFY_LOG_DIR="${evidence_dir}/verification-log" \
   timeout 1800 scripts/verify.sh quick >"${evidence_dir}/graphx-quick.txt" 2>&1
-timeout 60 /var/lib/graphx/m1/build/dev/graphx project graphx.yaml --check --output-dir config >"${evidence_dir}/graphx-projections.txt" 2>&1
+timeout 60 /var/lib/graphx/runtime/build/dev/graphx project graphx.yaml --check --output-dir config >"${evidence_dir}/graphx-projections.txt" 2>&1
 
 cleanup_done=1
 cleanup || fail "disposable topology cleanup was incomplete"
@@ -525,4 +525,4 @@ compare_snapshot
 
 rotate_evidence "${evidence_count_limit}"
 trap - EXIT INT TERM HUP
-echo "GraphX M1 verification passed; evidence: ${evidence_dir}"
+echo "GraphX Lima verification passed; evidence: ${evidence_dir}"

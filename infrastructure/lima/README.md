@@ -1,4 +1,4 @@
-# GraphX Lima execution environment (Migration M1)
+# GraphX Lima execution environment (Migration Lima)
 
 This directory defines the optional Linux execution environment used for
 privileged GraphX development on an Apple Silicon Mac. Lima creates one ARM64
@@ -6,7 +6,7 @@ Ubuntu 24.04 VM named `graphx`; the VM, rather than a macOS container or Docker
 Desktop, owns rootful Docker, Open vSwitch, Linux namespaces, veth/TAP devices,
 nftables, netem, QEMU, and packet-capture tools.
 
-M1 established and still verifies those prerequisites. M8 now uses this VM for
+Lima established and still verifies those prerequisites. GraphX uses this VM for
 the configuration-version-2 OVS-only backend, container veth attachments, QEMU
 TAP, capture, and bounded faults. MACVLAN/IPVLAN are semantic profiles only.
 QEMU user networking is retained solely in explicitly deprecated compatibility
@@ -60,9 +60,9 @@ pre-provisioning SSH session and activate the new supplementary group.
 
 `verify.sh` first requires Node.js 24 with `node:sqlite`, then rejects occupied
 fixed names and creates a disposable
-`gx-m1-*` OVS/namespace/veth/TAP topology. It verifies system-datapath packet
+`gx-lima-*` OVS/namespace/veth/TAP topology. It verifies system-datapath packet
 exchange, nftables, netem, capture, Docker, the GraphX quick profile, and
-projection consistency. Each run exclusively owns `/run/graphx-m1`; any stale
+projection consistency. Each run exclusively owns `/run/graphx-lima`; any stale
 or foreign state is rejected without alteration. Resource creation records the
 exact OVS UUID, network-namespace inode, and internal/veth/TAP kernel interface
 indexes inside signal-deferred critical sections. Cleanup validates those
@@ -70,8 +70,8 @@ identities and the complete link inventory inside its namespace, treats a
 mismatch or leftover as a verification failure, compares complete before/after
 guest snapshots, and preserves foreign replacements for inspection.
 Evidence rotation runs on success and failure, retaining at most ten run
-directories and 256 MiB under `/var/lib/graphx/m1/evidence`.
-The guest quick build uses `/var/lib/graphx/m1/build`, so macOS and Linux CMake
+directories and 256 MiB under `/var/lib/graphx/runtime/evidence`.
+The guest quick build uses `/var/lib/graphx/runtime/build`, so macOS and Linux CMake
 caches never collide on the shared source mount.
 
 `stop.sh` stops only the matching instance. Source and VM-local evidence remain.
@@ -82,16 +82,16 @@ It is safe to repeat start and stop.
 ```bash
 limactl list graphx
 limactl shell graphx -- systemctl status docker openvswitch-switch
-limactl shell graphx -- sudo cat /var/lib/graphx/m1/provisioned
-limactl shell graphx -- sudo ls -1 /var/lib/graphx/m1/evidence
+limactl shell graphx -- sudo cat /var/lib/graphx/runtime/provisioned
+limactl shell graphx -- sudo ls -1 /var/lib/graphx/runtime/evidence
 limactl shell graphx -- sudo tail -n 200 /var/log/cloud-init-output.log
 ```
 
 An image/package download, service wait, test, packet operation, and lifecycle
 command has a deadline. A timeout is a failure, not permission to adopt or
-delete unknown state. Resolve occupied `gx-m1-*` objects manually only after
+delete unknown state. Resolve occupied `gx-lima-*` objects manually only after
 inspecting their recorded kernel identity, OVS UUID/external IDs, aliases, or
-Docker label. A retained `/run/graphx-m1` is deliberately not repaired or
+Docker label. A retained `/run/graphx-lima` is deliberately not repaired or
 overwritten automatically; inspect it together with the named resources before
 performing a deliberate recovery.
 
@@ -99,7 +99,7 @@ TAP creation requires `/dev/net/tun`; system OVS requires the guest kernel's
 Open vSwitch facilities. Packet capture runs as guest root and writes only to
 the bounded VM-local evidence directory. On Apple Silicon, QEMU's available
 accelerators are recorded, but x86_64 and PowerPC guests are expected to use TCG
-emulation. M1 does not require or claim KVM.
+emulation. Lima does not require or claim KVM.
 
 ## Deliberate reset or removal
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Portable M4 configuration, planning, and ownership contracts."""
+"""Portable container-veth configuration, planning, and ownership contracts."""
 
 from __future__ import annotations
 
@@ -31,12 +31,12 @@ network:
       address: 10.77.0.2/24
       mac: "02:77:00:00:00:02"
       interface: gxdata0
-      peer: gxm4host0
+      peer: gxcvhost0
       switch: br-m4-port
       mtu: 1400
       routes: [{ destination: 10.78.0.0/24, via: 10.77.0.1 }]
 deployment:
-  project: graphx-m4
+  project: graphx-container-veth
   services:
     worker: { image: graphx-demo:latest, command: graphx-generator }
 """
@@ -59,24 +59,24 @@ def main() -> int:
     if len(sys.argv) != 3:
         raise SystemExit("usage: test_container_veth_plan.py GRAPHX SOURCE_ROOT")
     graphx = Path(sys.argv[1])
-    with tempfile.TemporaryDirectory(prefix="graphx-m4-") as raw:
+    with tempfile.TemporaryDirectory(prefix="graphx-container-veth-") as raw:
         config = Path(raw) / "graphx.yaml"
         config.write_text(CONFIG, encoding="utf-8")
         run(graphx, "validate", config)
         plan = run(graphx, "infra", "create", config, "--dry-run",
                    "--state-dir", Path(raw) / "state").stdout
-        for marker in ("project=graphx-m4", "service=worker", "ip link add gxm4host0",
+        for marker in ("project=graphx-container-veth", "service=worker", "ip link add gxcvhost0",
                        "ovs-vsctl add-port br-m4-port", "address=10.77.0.2/24", "mtu=1400"):
-            require(marker in plan, f"missing M4 plan marker: {marker}")
+            require(marker in plan, f"missing container-veth plan marker: {marker}")
         require("docker network" not in plan and "macvlan" not in plan and "ipvlan" not in plan,
-                "M4 must not create a Docker data-plane network")
-        missing_project = config.read_text().replace("  project: graphx-m4\n", "")
+                "container-veth must not create a Docker data-plane network")
+        missing_project = config.read_text().replace("  project: graphx-container-veth\n", "")
         config.write_text(missing_project, encoding="utf-8")
         rejected = run(graphx, "validate", config, check=False)
         require(rejected.returncode != 0 and "deployment.project" in rejected.stderr,
                 "container attachments require explicit deployment identity")
 
-    print("GraphX M4 portable container-veth contracts passed")
+    print("GraphX container-veth portable container-veth contracts passed")
     return 0
 
 

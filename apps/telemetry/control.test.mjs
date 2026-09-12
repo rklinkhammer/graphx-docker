@@ -411,7 +411,7 @@ test('bounded command and audit state reject overflow and redact credentials', (
 test('runtime rejection stores only allow-listed error codes in commands and audit', () => {
   const credentials = [tokenA, tokenB, tokenC,
     'observation-token-012345678901234567890',
-    'legacy-hmac-secret-012345678901234567890',
+    'direct-hmac-secret-012345678901234567890',
     'generator-runtime-secret-01234567890123456789']
   const durable = []
   let sequence = 0
@@ -437,10 +437,10 @@ test('runtime rejection stores only allow-listed error codes in commands and aud
   for (const credential of credentials) assert.equal(exposed.includes(credential), false)
 })
 
-test('legacy token remains an explicit all-node compatibility principal', () => {
-  const auth = new ControlAuthorizer({ legacyToken: tokenA, nodeIds: nodes })
+test('direct token creates an explicit all-node principal', () => {
+  const auth = new ControlAuthorizer({ staticToken: tokenA, nodeIds: nodes })
   const principal = auth.authenticate(`Bearer ${tokenA}`)
-  assert.equal(principal.id, 'legacy-operator')
+  assert.equal(principal.id, 'direct-operator')
   assert.equal(auth.permits(principal, 'pause', ['generator', 'transform']), true)
   assert.equal(principal.permissions.has('audit:read'), true)
 })

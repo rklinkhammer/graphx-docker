@@ -149,17 +149,12 @@ YAML::Node network_projection(const GraphConfig& config) {
     for (const auto& network : infrastructure.networks) {
       YAML::Node item;
       item["id"] = network.id;
-      if (config.version == 1)
-        item["driver"] = std::string(to_string(network.driver));
-      else
-        item["profile"] = std::string(to_string(*network.profile));
+      item["profile"] = std::string(to_string(*network.profile));
       YAML::Node subnets(YAML::NodeType::Sequence);
       for (const auto& subnet : network.subnets) subnets.push_back(subnet);
       item["subnets"] = subnets;
       if (!network.gateway.empty()) item["gateway"] = network.gateway;
-      if (!network.parent.empty()) item["parent"] = network.parent;
       if (!network.uplink.empty()) item["uplink"] = network.uplink;
-      if (!network.mode.empty()) item["mode"] = network.mode;
       item["external"] = network.external;
       networks.push_back(item);
     }
@@ -245,19 +240,6 @@ YAML::Node network_projection(const GraphConfig& config) {
       routers.push_back(item);
     }
     root["routers"] = routers;
-  }
-  if (!infrastructure.interfaces.empty()) {
-    YAML::Node interfaces(YAML::NodeType::Sequence);
-    for (const auto& interface : infrastructure.interfaces) {
-      YAML::Node item;
-      item["id"] = interface.id;
-      item["owner"] = interface.owner;
-      item["network"] = interface.network;
-      if (!interface.address.empty()) item["address"] = interface.address;
-      if (!interface.mac.empty()) item["mac"] = interface.mac;
-      interfaces.push_back(item);
-    }
-    root["interfaces"] = interfaces;
   }
   if (!infrastructure.attachments.empty()) {
     YAML::Node attachments(YAML::NodeType::Sequence);

@@ -58,7 +58,7 @@ function headers(token, idempotencyKey = null) {
 
 test('authorized control API enforces scope, correlation, idempotency, timeout, and audit',
   { timeout: 15000 }, async () => {
-    const directory = await mkdtemp(join(tmpdir(), 'graphx-phase8-'))
+    const directory = await mkdtemp(join(tmpdir(), 'graphx-control-'))
     const moduleDirectory = dirname(fileURLToPath(import.meta.url))
     const policyPath = join(directory, 'policy.json')
     const httpPort = await availablePort()
@@ -126,7 +126,7 @@ test('authorized control API enforces scope, correlation, idempotency, timeout, 
       assert.equal(denied.status, 403)
 
       const firstResponse = await fetch(`${base}/api/control/commands`, { method: 'POST',
-        headers: headers(sourceToken, 'phase8-pause-1'),
+        headers: headers(sourceToken, 'control-pause-1'),
         body: JSON.stringify({ action: 'pause', targetNodes: ['generator'], reason: 'test pause' }) })
       assert.equal(firstResponse.status, 202)
       const first = await firstResponse.json()
@@ -139,19 +139,19 @@ test('authorized control API enforces scope, correlation, idempotency, timeout, 
       assert.equal(impostorCommands, 0)
 
       const replayResponse = await fetch(`${base}/api/control/commands`, { method: 'POST',
-        headers: headers(sourceToken, 'phase8-pause-1'),
+        headers: headers(sourceToken, 'control-pause-1'),
         body: JSON.stringify({ action: 'pause', targetNodes: ['generator'], reason: 'test pause' }) })
       const repeated = await replayResponse.json()
       assert.equal(repeated.replayed, true)
       assert.equal(repeated.command.id, first.command.id)
       const conflict = await fetch(`${base}/api/control/commands`, { method: 'POST',
-        headers: headers(sourceToken, 'phase8-pause-1'),
+        headers: headers(sourceToken, 'control-pause-1'),
         body: JSON.stringify({ action: 'resume', targetNodes: ['generator'], reason: 'test pause' }) })
       assert.equal(conflict.status, 409)
 
       acknowledge = false
       const pendingResponse = await fetch(`${base}/api/control/commands`, { method: 'POST',
-        headers: headers(sourceToken, 'phase8-resume-1'),
+        headers: headers(sourceToken, 'control-resume-1'),
         body: JSON.stringify({ action: 'resume', targetNodes: ['generator'] }) })
       const pending = await pendingResponse.json()
       impostor.send(JSON.stringify(signEnvelope({ kind: 'control_ack', nodeId: 'generator',
@@ -207,7 +207,7 @@ test('authorized control API enforces scope, correlation, idempotency, timeout, 
 
 test('runtime rejection cannot expose configured credentials in commands, audit, history, or logs',
   { timeout: 15000 }, async () => {
-    const directory = await mkdtemp(join(tmpdir(), 'graphx-phase8-redaction-'))
+    const directory = await mkdtemp(join(tmpdir(), 'graphx-control-redaction-'))
     const moduleDirectory = dirname(fileURLToPath(import.meta.url))
     const httpPort = await availablePort()
     const udpPort = await availablePort()
@@ -351,7 +351,7 @@ test('runtime rejection cannot expose configured credentials in commands, audit,
 
 test('file-only rotation filters candidate and retired credentials before fan-out',
   { timeout: 15000 }, async () => {
-    const directory = await mkdtemp(join(tmpdir(), 'graphx-phase8-rotation-redaction-'))
+    const directory = await mkdtemp(join(tmpdir(), 'graphx-control-rotation-redaction-'))
     const moduleDirectory = dirname(fileURLToPath(import.meta.url))
     const httpPort = await availablePort()
     const udpPort = await availablePort()
@@ -588,8 +588,8 @@ test('file-only rotation filters candidate and retired credentials before fan-ou
     }
   })
 
-test('collector rejects ambiguous legacy and policy credential models', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'graphx-phase8-conflict-'))
+test('collector rejects ambiguous direct-token and policy credential models', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'graphx-control-conflict-'))
   const moduleDirectory = dirname(fileURLToPath(import.meta.url))
   const policyPath = join(directory, 'policy.json')
   await writeFile(policyPath, JSON.stringify({ version: 1, principals: [] }))
@@ -608,7 +608,7 @@ test('collector rejects ambiguous legacy and policy credential models', async ()
 
 test('collector fails readiness and control closed on cross-domain credential reuse',
   { timeout: 15000 }, async () => {
-    const directory = await mkdtemp(join(tmpdir(), 'graphx-phase8-credential-collision-'))
+    const directory = await mkdtemp(join(tmpdir(), 'graphx-control-credential-collision-'))
     const moduleDirectory = dirname(fileURLToPath(import.meta.url))
     const httpPort = await availablePort()
     const udpPort = await availablePort()

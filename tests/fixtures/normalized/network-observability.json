@@ -1,9 +1,7 @@
 {
   "contract_version": 1,
-  "source_version": 2,
-  "infrastructure_mutable": true,
   "graph": {
-    "id": "m7-network-observability",
+    "id": "network-observability",
     "nodes": [
       {
         "id": "packet-source",
@@ -25,7 +23,6 @@
       {
         "id": "observed-lan",
         "profile": "ethernet",
-        "legacy_driver": null,
         "semantics": {
           "mac_identity": "endpoint",
           "learning": "dynamic",
@@ -41,21 +38,19 @@
           "10.77.0.0/24"
         ],
         "gateway": "10.77.0.1",
-        "parent": null,
         "uplink": null,
-        "mode": null,
         "external": false
       }
     ],
     "switches": [
       {
-        "id": "br-gxm7-demo",
+        "id": "br-gx-observe",
         "kind": "openvswitch",
         "datapath": "system",
         "ports": [
           {
             "id": "source",
-            "interface": "gxm7tap0",
+            "interface": "gxobstap0",
             "peer": null,
             "vlan": {
               "access_tag": null,
@@ -64,8 +59,8 @@
           },
           {
             "id": "capture",
-            "interface": "gxm7cap0",
-            "peer": "gxm7cap1",
+            "interface": "gxobscap0",
+            "peer": "gxobscap1",
             "vlan": {
               "access_tag": null,
               "trunks": []
@@ -80,7 +75,6 @@
       }
     ],
     "routers": [],
-    "interfaces": [],
     "attachments": [
       {
         "id": "source-data",
@@ -89,9 +83,9 @@
         "network": "observed-lan",
         "address": "10.77.0.2/24",
         "mac": null,
-        "interface": "gxm7tap0",
+        "interface": "gxobstap0",
         "peer": null,
-        "switch": "br-gxm7-demo",
+        "switch": "br-gx-observe",
         "mtu": 1500,
         "tap_uid": 65532,
         "tap_gid": 65532,
@@ -100,13 +94,13 @@
       {
         "id": "observed-span",
         "kind": "mirror",
-        "owner": "br-gxm7-demo",
+        "owner": "br-gx-observe",
         "network": null,
         "address": null,
         "mac": null,
-        "interface": "gxm7cap0",
+        "interface": "gxobscap0",
         "peer": null,
-        "switch": "br-gxm7-demo",
+        "switch": "br-gx-observe",
         "mtu": 1500,
         "tap_uid": 0,
         "tap_gid": 0,
@@ -118,7 +112,7 @@
       {
         "id": "ethernet-span",
         "attachment": "observed-span",
-        "directory": "/var/lib/graphx/captures/m7-demo",
+        "directory": "/var/lib/graphx/captures/network-observation",
         "snaplen": 65535,
         "max_file_bytes": 1048576,
         "max_files": 4,

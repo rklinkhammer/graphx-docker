@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Privileged Linux M4 OVS/container-veth lifecycle regression."""
+"""Privileged Linux container-veth OVS/container-veth lifecycle regression."""
 
 from __future__ import annotations
 
@@ -24,11 +24,11 @@ def run(*args: object, check: bool = True,
 
 def main() -> int:
     if len(sys.argv) != 2 or sys.platform != "linux" or os.geteuid() != 0:
-        raise SystemExit("M4 live test requires: test_container_veth_live.py GRAPHX as Linux root")
+        raise SystemExit("container-veth live test requires: test_container_veth_live.py GRAPHX as Linux root")
     graphx = Path(sys.argv[1]).resolve()
     project, service, container, bridge, host = (
-        "graphx-m4-live", "worker", "graphx-m4-live-worker", "br-gxm4live", "gxm4liveh0")
-    image = os.environ.get("GRAPHX_M4_TEST_IMAGE", "graphx-demo:latest")
+        "graphx-container-veth-live", "worker", "graphx-container-veth-live-worker", "br-gxcvlive", "gxcvliveh0")
+    image = os.environ.get("GRAPHX_CONTAINER_VETH_TEST_IMAGE", "graphx-demo:latest")
 
     def start() -> str:
         return run("docker", "run", "-d", "--name", container,
@@ -40,14 +40,14 @@ def main() -> int:
     run("ovs-vsctl", "--if-exists", "del-br", bridge, check=False)
     try:
         first = start()
-        with tempfile.TemporaryDirectory(prefix="graphx-m4-live-", dir="/var/tmp") as raw:
+        with tempfile.TemporaryDirectory(prefix="graphx-container-veth-live-", dir="/var/tmp") as raw:
             root = Path(raw)
             state = root / "state"
             config = root / "graphx.yaml"
             config.write_text(f"""\
 version: 2
 graph:
-  id: m4-live
+  id: container-veth-live
   nodes: [{{ id: worker, kind: source, runtime: docker, ports: [] }}]
   edges: []
 transport: {{}}
@@ -64,7 +64,7 @@ deployment:
     worker: {{ image: {image}, command: graphx-generator }}
 """, encoding="utf-8")
             run(graphx, "infra", "create", config, "--state-dir", state)
-            ledger = (state / "m4-live.yaml").read_text(encoding="utf-8")
+            ledger = (state / "container-veth-live.yaml").read_text(encoding="utf-8")
             if "version: 2" not in ledger or first not in ledger or "namespace_inode:" not in ledger:
                 raise AssertionError("ledger lacks container identity")
             run(graphx, "infra", "status", config, "--state-dir", state)
@@ -84,7 +84,7 @@ deployment:
             if first == second:
                 raise AssertionError("replacement did not change the full container identity")
 
-            state_file = state / "m4-live.yaml"
+            state_file = state / "container-veth-live.yaml"
 
             def marker(column: str) -> str:
                 return run("ovs-vsctl", "get", "Port", host,
@@ -95,7 +95,7 @@ deployment:
                     f"external_ids:graphx_owner={marker('graphx_owner')}",
                     "external_ids:graphx_attachment=worker-data",
                     f"external_ids:graphx_config_hash={marker('graphx_config_hash')}",
-                    "external_ids:graphx_graph=m4-live",
+                    "external_ids:graphx_graph=container-veth-live",
                 ]
 
             def discard_adversarial_run() -> None:
@@ -167,19 +167,19 @@ deployment:
             if (failed.returncode == 0 or state_file.exists() or
                     run("ovs-vsctl", "br-exists", bridge, check=False).returncode == 0 or
                     Path(f"/sys/class/net/{host}").exists()):
-                raise AssertionError("injected M4 failure did not roll back cleanly")
+                raise AssertionError("injected container-veth failure did not roll back cleanly")
 
             crashed = run(graphx, "infra", "create", config, "--state-dir", state,
                           check=False, extra_env={"GRAPHX_TEST_CRASH_AFTER_MUTATION": "2"})
             if (crashed.returncode != 99 or not state_file.exists() or
                     run("ovs-vsctl", "br-exists", bridge, check=False).returncode != 0 or
                     not Path(f"/sys/class/net/{host}").exists()):
-                raise AssertionError("injected M4 crash did not leave recoverable state")
+                raise AssertionError("injected container-veth crash did not leave recoverable state")
             run(graphx, "infra", "recover", config, "--state-dir", state)
             if (state_file.exists() or
                     run("ovs-vsctl", "br-exists", bridge, check=False).returncode == 0 or
                     Path(f"/sys/class/net/{host}").exists()):
-                raise AssertionError("M4 crash recovery did not remove owned resources")
+                raise AssertionError("container-veth crash recovery did not remove owned resources")
 
             run(graphx, "infra", "create", config, "--state-dir", state)
             run(graphx, "infra", "destroy", config, "--state-dir", state)
@@ -187,7 +187,7 @@ deployment:
         run("docker", "rm", "-f", container, check=False)
         run("ovs-vsctl", "--if-exists", "del-br", bridge, check=False)
         run("ip", "link", "delete", host, check=False)
-    print("GraphX M4 live container-veth regressions passed")
+    print("GraphX container-veth live container-veth regressions passed")
     return 0
 
 

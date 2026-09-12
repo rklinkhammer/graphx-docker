@@ -72,10 +72,8 @@ std::size_t checked_string_size(std::size_t total, std::size_t size) {
 std::size_t encoded_size(const Envelope& envelope) {
   if (envelope.attributes.size() > kMaxEnvelopeAttributes)
     throw std::length_error("envelope has more than 4096 attributes");
-  std::size_t total = envelope.wire_version == kEnvelopeWireVersion2 ? 72 : 24;
+  std::size_t total = 72;
   total = checked_string_size(total, envelope.type.size());
-  if (envelope.wire_version == kEnvelopeWireVersion1)
-    total = checked_string_size(total, envelope.trace_id.size());
   for (const auto& [key, value] : envelope.attributes) {
     total = checked_string_size(total, key.size());
     total = checked_string_size(total, value.size());
@@ -84,13 +82,9 @@ std::size_t encoded_size(const Envelope& envelope) {
 }
 
 void validate_serializable(const Envelope& envelope) {
-  if (envelope.wire_version != kEnvelopeWireVersion1 &&
-      envelope.wire_version != kEnvelopeWireVersion2)
+  if (envelope.wire_version != kEnvelopeWireVersion)
     throw std::invalid_argument("unsupported envelope wire version " +
                                 std::to_string(envelope.wire_version));
-  if (envelope.wire_version == kEnvelopeWireVersion1 &&
-      (!envelope.message_id.empty() || !envelope.parent_message_id.empty()))
-    throw std::invalid_argument("envelope wire version 1 cannot encode message lineage identities");
 }
 
 void put_string(std::vector<std::byte>& out, std::string_view value) {
@@ -188,7 +182,7 @@ Envelope Envelope::make(std::uint64_t sequence, std::string type, Bytes payload)
           .payload = std::move(payload),
           .message_id = generate_identity(),
           .parent_message_id = {},
-          .wire_version = kCurrentEnvelopeWireVersion};
+          .wire_version = kEnvelopeWireVersion};
 }
 
 Envelope Envelope::derive(const Envelope& parent, std::uint64_t sequence, std::string type,
@@ -214,13 +208,10 @@ std::vector<std::byte> serialize(const Envelope& envelope) {
   out.push_back(static_cast<std::byte>(envelope.wire_version));
   put(out, envelope.sequence);
   put(out, static_cast<std::uint64_t>(envelope.timestamp_ns));
-  if (envelope.wire_version == kEnvelopeWireVersion2) {
-    put_identity(out, envelope.message_id, "message_id");
-    put_identity(out, envelope.trace_id, "trace_id");
-    put_identity(out, envelope.parent_message_id, "parent_message_id", true);
-  }
+  put_identity(out, envelope.message_id, "message_id");
+  put_identity(out, envelope.trace_id, "trace_id");
+  put_identity(out, envelope.parent_message_id, "parent_message_id", true);
   put_string(out, envelope.type);
-  if (envelope.wire_version == kEnvelopeWireVersion1) put_string(out, envelope.trace_id);
 
   std::vector<std::pair<std::string, std::string>> attributes(envelope.attributes.begin(),
                                                               envelope.attributes.end());
@@ -242,20 +233,17 @@ Envelope deserialize(std::span<const std::byte> bytes) {
       reader.get<std::uint8_t>() != 'E')
     throw std::runtime_error("invalid envelope magic");
   const auto version = reader.get<std::uint8_t>();
-  if (version != kEnvelopeWireVersion1 && version != kEnvelopeWireVersion2)
+  if (version != kEnvelopeWireVersion)
     throw std::runtime_error("unsupported envelope wire version " + std::to_string(version));
 
   Envelope envelope;
   envelope.wire_version = version;
   envelope.sequence = reader.get<std::uint64_t>();
   envelope.timestamp_ns = static_cast<std::int64_t>(reader.get<std::uint64_t>());
-  if (version == kEnvelopeWireVersion2) {
-    envelope.message_id = reader.identity();
-    envelope.trace_id = reader.identity();
-    envelope.parent_message_id = reader.identity(true);
-  }
+  envelope.message_id = reader.identity();
+  envelope.trace_id = reader.identity();
+  envelope.parent_message_id = reader.identity(true);
   envelope.type = reader.string();
-  if (version == kEnvelopeWireVersion1) envelope.trace_id = reader.string();
   const auto attribute_count = reader.get<std::uint32_t>();
   if (attribute_count > kMaxEnvelopeAttributes)
     throw std::runtime_error("too many envelope attributes");

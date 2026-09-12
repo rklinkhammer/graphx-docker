@@ -1,6 +1,5 @@
 #include "graphx/config.hpp"
 #include "graphx/infra.hpp"
-#include "graphx/migration.hpp"
 #include "graphx/transport_factory.hpp"
 
 #include <algorithm>
@@ -47,7 +46,7 @@ class TemporaryConfig {
 };
 
 constexpr std::string_view valid_config = R"yaml(
-version: 1
+version: 2
 graph:
   id: test-graph
   nodes:
@@ -80,9 +79,8 @@ bool diagnostic_contains(const graphx::ConfigError& error, std::string_view text
   return false;
 }
 
-std::string valid_v2_config() {
+std::string current_network_config() {
   auto source = std::string(valid_config);
-  source.replace(source.find("version: 1"), std::string("version: 1").size(), "version: 2");
   source += R"yaml(
 network:
   networks:
@@ -98,18 +96,17 @@ network:
   return source;
 }
 
-void version_two_profiles_and_attachments_load() {
-  TemporaryConfig file(valid_v2_config());
+void current_profiles_and_attachments_load() {
+  TemporaryConfig file(current_network_config());
   const auto config = graphx::load_config(file.path());
-  expect(config.version == 2, "version 2 model");
+  expect(config.version == 2, "current configuration model");
   const auto& network = config.network_infrastructure.network("semantic-lan");
-  expect(network.profile == graphx::NetworkProfile::ethernet && network.parent.empty(),
+  expect(network.profile == graphx::NetworkProfile::ethernet && network.uplink.empty(),
          "semantic profile model");
-  expect(config.network_infrastructure.interfaces.empty() &&
-             config.network_infrastructure.attachments.size() == 2 &&
+  expect(config.network_infrastructure.attachments.size() == 2 &&
              config.network_infrastructure.attachments.front().kind ==
                  graphx::AttachmentKind::external,
-         "version 2 attachment model");
+         "current attachment model");
 
   const struct ProfileCase {
     graphx::NetworkProfile profile{graphx::NetworkProfile::ethernet};
@@ -149,7 +146,7 @@ void version_two_profiles_and_attachments_load() {
   }
 }
 
-void version_two_is_strict_and_not_realized_by_v1_planner() {
+void current_configuration_is_strict() {
   const std::pair<std::string, std::string> invalid[] = {
       {"version: 2", "version: \"2\""},
       {"profile: ethernet", "driver: bridge"},
@@ -159,104 +156,29 @@ void version_two_is_strict_and_not_realized_by_v1_planner() {
       {"subnets: [10.80.0.0/24]", "subnets: [10.80.0.0/24, 10.81.0.0/24]"},
   };
   for (const auto& [from, to] : invalid) {
-    auto source = valid_v2_config();
+    auto source = current_network_config();
     source.replace(source.find(from), from.size(), to);
     TemporaryConfig file(source);
     try {
       [[maybe_unused]] const auto ignored = graphx::load_config(file.path());
-      throw std::runtime_error("invalid version 2 configuration was accepted");
+      throw std::runtime_error("invalid current configuration was accepted");
     } catch (const graphx::ConfigError&) {
     }
   }
 }
 
-void version_one_migration_is_deterministic() {
-  const auto source =
-      std::filesystem::path(GRAPHX_SOURCE_DIR) / "examples/compatibility/v1/mixed-network.yaml";
-  const auto first = graphx::migrate_config_v1_to_v2(source);
-  const auto second = graphx::migrate_config_v1_to_v2(source);
-  expect(first == second, "migration byte determinism");
-  ::setenv("GRAPHX_OVERRIDES", "version=2", 1);
-  try {
-    const auto overridden_environment = graphx::migrate_config_v1_to_v2(source);
-    ::unsetenv("GRAPHX_OVERRIDES");
-    expect(overridden_environment == first, "migration ignores ambient overrides");
-  } catch (...) {
-    ::unsetenv("GRAPHX_OVERRIDES");
-    throw;
-  }
-  expect(first.find("version: 2") != std::string::npos &&
-             first.find("profile: macvlan") != std::string::npos &&
-             first.find("profile: ipvlan-l2") != std::string::npos &&
-             first.find("kind: container_veth") != std::string::npos &&
-             first.find("kind: namespace_veth") != std::string::npos &&
-             first.find("kind: mirror") != std::string::npos &&
-             first.find("driver:") == std::string::npos &&
-             first.find("\n  interfaces:") == std::string::npos,
-         "reviewable migration mapping");
-  TemporaryConfig migrated(first);
-  const auto config = graphx::load_config(migrated.path());
-  expect(config.version == 2 && config.network_infrastructure.attachments.size() == 7,
-         "migrated version 2 validates");
-
-  const auto expect_invalid_attachment = [&](std::string candidate, std::string_view marker,
-                                             std::string_view from, std::string_view to,
-                                             std::string_view diagnostic) {
-    const auto marker_position = candidate.find(marker);
-    expect(marker_position != std::string::npos, "attachment test marker");
-    const auto position = candidate.find(from, marker_position);
-    expect(position != std::string::npos, "attachment test field");
-    candidate.replace(position, from.size(), to);
-    TemporaryConfig invalid(candidate);
-    try {
-      [[maybe_unused]] const auto ignored = graphx::load_config(invalid.path());
-      throw std::runtime_error("contradictory attachment was accepted");
-    } catch (const graphx::ConfigError& error) {
-      expect(diagnostic_contains(error, diagnostic), "attachment mismatch diagnostic");
-    }
-  };
-  constexpr std::string_view namespace_marker = "kind: namespace_veth";
-  expect_invalid_attachment(first, namespace_marker, "network: gx-mac-domain",
-                            "network: gx-ipv-domain", "exactly match");
-  expect_invalid_attachment(first, namespace_marker, "address: 10.10.0.1/24",
-                            "address: 10.10.0.2/24", "exactly match");
-  expect_invalid_attachment(first, namespace_marker, "interface: r-mac", "interface: r-other",
-                            "exactly match");
-  expect_invalid_attachment(first, namespace_marker, "peer: ovs-r-mac", "peer: ovs-other",
-                            "exactly match");
-  expect_invalid_attachment(first, namespace_marker, "switch: br-gx-mac", "switch: br-gx-ipv",
-                            "exactly match");
-  expect_invalid_attachment(first, namespace_marker, "switch: br-gx-mac", "switch: nonexistent",
-                            "unknown switch");
-  constexpr std::string_view mirror_marker = "kind: mirror";
-  expect_invalid_attachment(first, mirror_marker, "interface: cap-mac-ovs", "interface: mv-ovs",
-                            "mirror output-port");
-  expect_invalid_attachment(first, "id: mirror-mac\n      kind: mirror", "id: mirror-mac",
-                            "id: mirror-other", "configured on its OVS switch");
-
-  const auto qemu_source =
-      std::filesystem::path(GRAPHX_SOURCE_DIR) / "examples/compatibility/v1/qemu-topology.yaml";
-  TemporaryConfig qemu(graphx::migrate_config_v1_to_v2(qemu_source));
-  const auto qemu_config = graphx::load_config(qemu.path());
-  expect(std::ranges::any_of(qemu_config.network_infrastructure.attachments,
-                             [](const auto& item) {
-                               return item.kind == graphx::AttachmentKind::qemu_tap &&
-                                      item.owner == "qemu-node";
-                             }),
-         "QEMU attachment migration");
-}
-
 void authoritative_config_loads() {
   const auto config = graphx::load_config(std::filesystem::path(GRAPHX_SOURCE_DIR) / "graphx.yaml");
-  expect(config.version == 1 && config.id == "sample-pipeline", "root model");
+  expect(config.version == 2 && config.id == "sample-pipeline", "root model");
   expect(config.nodes.size() == 3 && config.edges.size() == 2, "topology counts");
   expect(config.edge("samples").transport.host == "transform", "TCP settings");
   expect(config.node("transform").ports.size() == 2, "node lookup");
   expect(config.deployment.services.size() == 3, "deployment placements");
   expect(config.deployment.services.front().node_id == "generator", "deployment separation");
   expect(config.network_infrastructure.networks.size() == 1, "network layer");
-  expect(config.network_infrastructure.network("graphx").driver == graphx::NetworkDriver::bridge,
-         "bridge network model");
+  expect(
+      config.network_infrastructure.network("graphx").profile == graphx::NetworkProfile::ethernet,
+      "Ethernet network model");
   expect(config.network_infrastructure.edge_path("samples").hops.size() == 3,
          "simple network path");
   expect(config.observability.metrics.enabled && config.observability.metrics.exporters.size() == 2,
@@ -308,7 +230,7 @@ void invalid_tcp_policy_is_rejected() {
 
 void shared_memory_config_loads() {
   TemporaryConfig file(R"yaml(
-version: 1
+version: 2
 graph:
   id: shared-graph
   nodes:
@@ -536,7 +458,7 @@ observability:
 
 void invalid_shared_memory_config_is_rejected() {
   TemporaryConfig file(R"yaml(
-version: 1
+version: 2
 graph:
   id: shared-graph
   nodes:
@@ -613,7 +535,7 @@ void static_route_policy_model_and_plan_load() {
          "route lab router model");
   expect(!router.routes.front().install_on_create, "manual route model");
   expect(config.network_infrastructure.edge_paths.size() == 3, "route lab ordered edge paths");
-  expect(config.version == 2, "canonical route lab uses version 2");
+  expect(config.version == 2, "canonical route lab uses the current configuration");
   const auto apply = graphx::route_command(config, "route-router", "10.64.30.10/32", false);
   expect(graphx::format_command(apply) ==
              "ip netns exec gx-route-router ip route replace 10.64.30.10/32 via 10.64.3.10 dev "
@@ -710,10 +632,9 @@ void invalid_network_reference_is_rejected() {
   TemporaryConfig file(std::string(valid_config) + R"yaml(
 network:
   networks:
-    - { id: lab, driver: bridge, subnet: 10.0.0.0/24, gateway: 10.0.0.1 }
-  interfaces:
-    source:
-      - { id: data, network: missing, address: 10.0.0.10/24 }
+    - { id: lab, profile: ethernet, subnets: [10.0.0.0/24], gateway: 10.0.0.1 }
+  attachments:
+    - { id: source-data, kind: external, owner: source, network: missing, address: 10.0.0.10/24 }
   edge_paths:
     sample-edge: [source, missing, target]
 )yaml");
@@ -757,7 +678,7 @@ void invalid_override_is_rejected() {
 
 void semantic_errors_are_aggregated() {
   TemporaryConfig file(R"yaml(
-version: 1
+version: 2
 unexpected: true
 graph:
   id: bad graph
@@ -788,7 +709,7 @@ transport:
 
 void cycle_is_rejected() {
   TemporaryConfig file(R"yaml(
-version: 1
+version: 2
 graph:
   id: cyclic
   nodes:
@@ -816,7 +737,7 @@ transport:
 
 void external_control_cycle_is_accepted() {
   TemporaryConfig file(R"yaml(
-version: 1
+version: 2
 graph:
   id: external-control-cycle
   nodes:
@@ -853,7 +774,7 @@ deployment:
 
 void invalid_deployment_is_rejected() {
   TemporaryConfig file(R"yaml(
-version: 1
+version: 2
 graph:
   id: deployed
   nodes:
@@ -923,7 +844,7 @@ void in_process_factory_shares_named_channel() {
 
 void in_process_queue_config_loads_and_validates() {
   TemporaryConfig valid(R"yaml(
-version: 1
+version: 2
 graph:
   id: bounded-local
   nodes:
@@ -946,7 +867,7 @@ transport:
       "bounded in-process settings load");
 
   TemporaryConfig invalid(R"yaml(
-version: 1
+version: 2
 graph:
   id: invalid-local
   nodes:
@@ -975,7 +896,7 @@ transport:
 
 void unix_socket_deadline_config_loads_and_validates() {
   TemporaryConfig valid(R"yaml(
-version: 1
+version: 2
 graph:
   id: bounded-unix
   nodes:
@@ -997,7 +918,7 @@ transport:
          "Unix-domain deadlines load");
 
   TemporaryConfig invalid(R"yaml(
-version: 1
+version: 2
 graph:
   id: invalid-unix
   nodes:
@@ -1024,7 +945,7 @@ transport:
 
 void tcp_tls_config_loads_and_validates() {
   TemporaryConfig valid(R"yaml(
-version: 1
+version: 2
 graph:
   id: secure-tcp
   nodes:
@@ -1055,7 +976,7 @@ transport:
          "TLS settings load");
 
   TemporaryConfig invalid(R"yaml(
-version: 1
+version: 2
 graph:
   id: invalid-tls
   nodes:
@@ -1083,7 +1004,7 @@ transport:
 
 std::string udp_config(std::string_view mode, std::string_view destination,
                        std::string_view extra = {}) {
-  return "version: 1\n"
+  return "version: 2\n"
          "graph:\n"
          "  id: udp-test\n"
          "  nodes:\n"
@@ -1203,7 +1124,7 @@ void udp_configuration_loads_and_validates() {
 
 void external_data_plane_and_mixed_runtime_load() {
   TemporaryConfig valid(R"yaml(
-version: 1
+version: 2
 graph:
   id: external-runtime
   nodes:
@@ -1229,7 +1150,6 @@ transport:
   tcp:
     raw: { host: 127.0.0.1, bind: 0.0.0.0, port: 18001, framing: none }
 deployment:
-  network: qemu-demo
   services:
     origin: { image: qemu-origin:latest, command: origin }
 )yaml");
@@ -1415,9 +1335,8 @@ int main() {
   ::unsetenv("GRAPHX_OVERRIDES");
   const std::pair<const char*, std::function<void()>> tests[] = {
       {"authoritative config", authoritative_config_loads},
-      {"version 2 profiles and attachments", version_two_profiles_and_attachments_load},
-      {"strict version 2 planner boundary", version_two_is_strict_and_not_realized_by_v1_planner},
-      {"deterministic version 1 migration", version_one_migration_is_deterministic},
+      {"current profiles and attachments", current_profiles_and_attachments_load},
+      {"strict current configuration", current_configuration_is_strict},
       {"TCP policy", tcp_policy_loads},
       {"invalid TCP policy", invalid_tcp_policy_is_rejected},
       {"shared-memory config", shared_memory_config_loads},

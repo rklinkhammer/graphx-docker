@@ -25,7 +25,7 @@ test('loads normalized JSON and adapts its arrays without changing topology mean
   assert.equal(loaded.config.graph.id, fixture.graph.id)
   assert.deepEqual(loaded.config.graph.nodes, fixture.graph.nodes)
   assert.deepEqual(loaded.config.network.edge_paths, {})
-  assert.equal(loaded.config.network.networks[0].driver, 'ethernet')
+  assert.equal(loaded.config.network.networks[0].profile, 'ethernet')
   assert.deepEqual(loaded.config.deployment.services, {})
 })
 

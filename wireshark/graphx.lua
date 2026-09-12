@@ -1,5 +1,5 @@
 -- GraphX canonical framed-envelope dissector for LINKTYPE_USER0 captures.
--- Supports envelope wire versions 1 and 2 without changing the wire format.
+-- Supports the current GraphX envelope wire format.
 
 local graphx = Proto("graphx", "GraphX Framed Envelope")
 graphx.prefs.udp_ports = Pref.range(
@@ -17,8 +17,6 @@ local fields = {
     parent_message_id = ProtoField.bytes("graphx.parent_message_id", "Parent message ID"),
     type_length = ProtoField.uint32("graphx.type_length", "Type length", base.DEC),
     message_type = ProtoField.bytes("graphx.type", "Type"),
-    legacy_trace_length = ProtoField.uint32("graphx.legacy_trace_length", "Legacy trace length", base.DEC),
-    legacy_trace_id = ProtoField.bytes("graphx.legacy_trace_id", "Legacy trace ID"),
     attribute_count = ProtoField.uint32("graphx.attribute_count", "Attribute count", base.DEC),
     attribute_key_length = ProtoField.uint32("graphx.attribute_key_length", "Attribute key length", base.DEC),
     attribute_key = ProtoField.bytes("graphx.attribute_key", "Attribute key"),
@@ -88,24 +86,22 @@ function graphx.dissector(buffer, pinfo, tree)
     root:add(fields.magic, buffer(4, 3))
     local version = buffer(7, 1):uint()
     root:add(fields.version, buffer(7, 1))
-    if version ~= 1 and version ~= 2 then
+    if version ~= 2 then
         return fail(root, "unsupported envelope wire version " .. version, true)
     end
     root:add(fields.sequence, buffer(8, 8))
     root:add(fields.timestamp, buffer(16, 8))
     local offset = 24
-    if version == 2 then
-        if not require_bytes(root, offset, 48, limit, "version 2 identities") then return false end
-        if all_zero(buffer, offset, 16) then
-            return fail(root, "zero envelope message identity is invalid")
-        end
-        root:add(fields.message_id, buffer(offset, 16)); offset = offset + 16
-        if all_zero(buffer, offset, 16) then
-            return fail(root, "zero envelope trace identity is invalid")
-        end
-        root:add(fields.trace_id, buffer(offset, 16)); offset = offset + 16
-        root:add(fields.parent_message_id, buffer(offset, 16)); offset = offset + 16
+    if not require_bytes(root, offset, 48, limit, "envelope identities") then return false end
+    if all_zero(buffer, offset, 16) then
+        return fail(root, "zero envelope message identity is invalid")
     end
+    root:add(fields.message_id, buffer(offset, 16)); offset = offset + 16
+    if all_zero(buffer, offset, 16) then
+        return fail(root, "zero envelope trace identity is invalid")
+    end
+    root:add(fields.trace_id, buffer(offset, 16)); offset = offset + 16
+    root:add(fields.parent_message_id, buffer(offset, 16)); offset = offset + 16
 
     local type_length
     offset, type_length = add_byte_string(buffer, root, offset, limit,
@@ -114,11 +110,6 @@ function graphx.dissector(buffer, pinfo, tree)
     local type_text = ""
     if type_length > 0 and type_length <= 64 then
         type_text = buffer(offset - type_length, type_length):string():gsub("[^%g ]", ".")
-    end
-    if version == 1 then
-        offset = add_byte_string(buffer, root, offset, limit,
-            fields.legacy_trace_length, fields.legacy_trace_id, "legacy trace ID")
-        if not offset then return false end
     end
     if not require_bytes(root, offset, 4, limit, "attribute count") then return false end
     local attribute_count = buffer(offset, 4):uint()

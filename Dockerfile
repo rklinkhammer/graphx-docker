@@ -13,7 +13,7 @@ ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt \
     SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
 WORKDIR /src
 COPY CMakeLists.txt ./
-COPY VERSION LICENSE THIRD_PARTY.md README.md CHANGELOG.md SECURITY.md SUPPORT.md CONTRIBUTING.md ./
+COPY VERSION LICENSE THIRD_PARTY.md README.md SECURITY.md SUPPORT.md CONTRIBUTING.md ./
 COPY cmake cmake
 COPY include include
 COPY src src

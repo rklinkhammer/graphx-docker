@@ -31,7 +31,7 @@ def main() -> int:
         root / "examples/sdr-node/external/graphx.yaml",
     ]
     for config in labs:
-        require(config.is_file(), f"missing migrated lab: {config}")
+        require(config.is_file(), f"missing network lab: {config}")
         run(graphx, "validate", config)
         plan = run(graphx, "infra", "create", config, "--dry-run").stdout
         require("ovs-vsctl -- add-br" in plan, f"missing OVS realization: {config}")
@@ -43,7 +43,7 @@ def main() -> int:
                    "nft add rule", "ovs-ofctl add-flow"):
         require(marker in mixed_plan, f"mixed lab lacks {marker}")
     require("policy=established-return ct-state=established,related action=accept" in mixed_plan,
-            "M5 routed plans must permit return traffic for accepted connections")
+            "routed plans must permit return traffic for accepted connections")
 
     route_apply = run(graphx, "infra", "route", "apply", labs[4], "--router",
                       "route-router", "--destination", "10.64.30.10/32",
@@ -52,22 +52,9 @@ def main() -> int:
                       "route-router", "--destination", "10.64.30.10/32",
                       "--dry-run").stdout
     require("ip route replace 10.64.30.10/32 via 10.64.3.10 dev rt-right" in route_apply,
-            "M5 manual route apply is not realizable")
+            "manual route apply is not realizable")
     require("ip route delete 10.64.30.10/32" in route_clear,
-            "M5 manual route clear is not realizable")
-
-    compatibility = root / "examples/compatibility/v1"
-    for fixture in compatibility.glob("*.yaml"):
-        run(graphx, "validate", fixture)
-        run(graphx, "inspect", fixture)
-        first = run(graphx, "config", "migrate", fixture).stdout
-        second = run(graphx, "config", "migrate", fixture).stdout
-        require(first == second and first.startswith("# GraphX deterministic migration"),
-                f"legacy fixture is not deterministically migratable: {fixture}")
-        refused = run(graphx, "infra", "create", fixture, "--dry-run", check=False)
-        require(refused.returncode != 0 and "retired in M8" in refused.stderr and
-                "config migrate" in refused.stderr,
-                f"legacy infrastructure was not retired: {fixture}")
+            "manual route clear is not realizable")
 
     compose = (root / "examples/network-lab.compose.yaml").read_text()
     require("driver: macvlan" not in compose and "driver: ipvlan" not in compose and
@@ -82,20 +69,20 @@ def main() -> int:
         root / "examples/static-route-policy/scripts/demo.sh",
         root / "examples/sdr-node/external/scripts/demo.sh",
     ):
-        require(script.is_file(), f"missing external-boundary M5 launcher: {script}")
-        require(os.access(script, os.X_OK), f"M5 launcher is not executable: {script}")
+        require(script.is_file(), f"missing external-boundary launcher: {script}")
+        require(os.access(script, os.X_OK), f"launcher is not executable: {script}")
         subprocess.run(["bash", "-n", str(script)], check=True)
         launcher = script.read_text()
         require("graphx.yaml" in launcher and "external-ovs-boundary.sh" in launcher,
-                f"M5 launcher does not select the common realization and boundary helper: {script}")
+                f"launcher does not select the common realization and boundary helper: {script}")
         require("trap rollback_up ERR" in launcher,
-                f"M5 external-boundary launcher lacks ownership-safe rollback: {script}")
+                f"external-boundary launcher lacks ownership-safe rollback: {script}")
         if script.parent.parent.name == "static-route-policy":
             require("apply-route)" in launcher and "clear-route)" in launcher,
-                    "M5 route launcher omits the declared manual transition")
+                    "route launcher omits the declared manual transition")
     boundary = root / "examples/external-ovs-boundary.sh"
     require(boundary.is_file() and os.access(boundary, os.X_OK),
-            "missing executable M5 external-boundary helper")
+            "missing executable external-boundary helper")
     sdr_compose = (root / "examples/sdr-node/external/compose.yaml").read_text()
     require("driver: macvlan" not in sdr_compose and "driver: ipvlan" not in sdr_compose
             and "external: true" not in sdr_compose,
@@ -104,7 +91,7 @@ def main() -> int:
             in sdr_compose,
             "external SDR services must be able to read invoking-user TLS credentials")
 
-    print("GraphX M5 portable laboratory-migration contracts passed")
+    print("GraphX portable network laboratory contracts passed")
     return 0
 
 

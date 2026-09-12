@@ -1,19 +1,14 @@
 #include "graphx/config.hpp"
 #include "graphx/infra.hpp"
-#include "graphx/migration.hpp"
 #include "graphx/normalized_config.hpp"
 #include "graphx/ownership.hpp"
 #include "graphx/version.hpp"
 #include "projection.hpp"
 
 #include <cstdlib>
-#include <cerrno>
 #include <filesystem>
-#include <fcntl.h>
 #include <iostream>
 #include <string>
-#include <system_error>
-#include <unistd.h>
 #include <vector>
 
 namespace {
@@ -24,73 +19,13 @@ void usage(std::ostream& output) {
   output << "usage:\n"
          << "  graphx --version\n"
          << "  graphx <validate|inspect> [config.yaml] [--set path=value]\n"
-         << "  graphx config migrate [config.yaml] [--output FILE]\n"
          << "  graphx config normalize [config.yaml] [--format json] [--set path=value]\n"
          << "  graphx project [config.yaml] [--check] [--output-dir DIR]\n"
          << "  graphx infra <create|destroy|status|recover> [config.yaml] [--dry-run]\n"
-         << "               [--transactional] [--state-dir DIR]\n"
+         << "               [--state-dir DIR]\n"
          << "  graphx infra route <apply|clear> [config.yaml] --router ID --destination CIDR\n"
          << "  graphx infra capture export [config.yaml] --capture ID --output FILE\n"
          << "                    [--state-dir DIR]\n";
-}
-
-int migration_command(int argc, char** argv) {
-  auto source = default_config();
-  std::filesystem::path output;
-  bool source_set{};
-  for (int index = 3; index < argc; ++index) {
-    const std::string argument = argv[index];
-    if (argument == "--output") {
-      if (!output.empty()) throw std::invalid_argument("--output may be specified only once");
-      if (++index == argc) throw std::invalid_argument("--output requires a file");
-      output = argv[index];
-    } else if (argument.starts_with("--")) {
-      throw std::invalid_argument("unknown option '" + argument + "'");
-    } else if (!source_set) {
-      source = argument;
-      source_set = true;
-    } else {
-      throw std::invalid_argument("unexpected argument '" + argument + "'");
-    }
-  }
-  const auto migrated = graphx::migrate_config_v1_to_v2(source);
-  if (output.empty()) {
-    std::cout << migrated;
-    return 0;
-  }
-  if (std::filesystem::absolute(source).lexically_normal() ==
-      std::filesystem::absolute(output).lexically_normal())
-    throw std::invalid_argument("refusing to overwrite the migration source");
-  int descriptor = ::open(output.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600);
-  if (descriptor < 0) {
-    if (errno == EEXIST || errno == ELOOP)
-      throw std::invalid_argument("refusing to overwrite existing migration output '" +
-                                  output.string() + "'");
-    throw std::system_error(errno, std::generic_category(),
-                            "cannot create migration output '" + output.string() + "'");
-  }
-  std::size_t written{};
-  try {
-    while (written < migrated.size()) {
-      const auto count = ::write(descriptor, migrated.data() + written, migrated.size() - written);
-      if (count < 0 && errno == EINTR) continue;
-      if (count <= 0)
-        throw std::system_error(errno == 0 ? EIO : errno, std::generic_category(),
-                                "cannot write migration output '" + output.string() + "'");
-      written += static_cast<std::size_t>(count);
-    }
-    const auto close_result = ::close(descriptor);
-    descriptor = -1;
-    if (close_result != 0)
-      throw std::system_error(errno, std::generic_category(),
-                              "cannot close migration output '" + output.string() + "'");
-  } catch (...) {
-    if (descriptor >= 0) ::close(descriptor);
-    ::unlink(output.c_str());
-    throw;
-  }
-  std::cout << "Migrated configuration version 1 to version 2: " << output.string() << '\n';
-  return 0;
 }
 
 int normalization_command(int argc, char** argv) {
@@ -126,9 +61,8 @@ int normalization_command(int argc, char** argv) {
 }
 
 int config_command(int argc, char** argv) {
-  if (argc < 3) throw std::invalid_argument("config requires migrate or normalize");
+  if (argc < 3) throw std::invalid_argument("config requires normalize");
   const std::string_view action = argv[2];
-  if (action == "migrate") return migration_command(argc, argv);
   if (action == "normalize") return normalization_command(argc, argv);
   throw std::invalid_argument("unknown config action '" + std::string(action) + "'");
 }
@@ -221,24 +155,18 @@ int topology_command(const std::string& command, int argc, char** argv) {
   }
   for (const auto& network : config.network_infrastructure.networks) {
     std::cout << "network " << network.id;
-    if (config.version == 1) {
-      std::cout << " driver=" << to_string(network.driver);
-    } else {
-      const auto profile = *network.profile;
-      const auto& behavior = graphx::profile_semantics(profile);
-      std::cout << " backend=ovs profile=" << to_string(profile) << " mac=" << behavior.mac_identity
-                << " learning=" << behavior.learning << " filtering=" << behavior.filtering
-                << " arp=" << behavior.arp << " broadcast=" << behavior.broadcast
-                << " multicast=" << behavior.multicast << " routing=" << behavior.routing
-                << " isolation=" << behavior.isolation << " management=" << behavior.management;
-    }
+    const auto profile = *network.profile;
+    const auto& behavior = graphx::profile_semantics(profile);
+    std::cout << " backend=ovs profile=" << to_string(profile) << " mac=" << behavior.mac_identity
+              << " learning=" << behavior.learning << " filtering=" << behavior.filtering
+              << " arp=" << behavior.arp << " broadcast=" << behavior.broadcast
+              << " multicast=" << behavior.multicast << " routing=" << behavior.routing
+              << " isolation=" << behavior.isolation << " management=" << behavior.management;
     std::cout << " subnets=";
     for (std::size_t index = 0; index < network.subnets.size(); ++index)
       std::cout << (index == 0 ? "" : ",") << network.subnets[index];
     std::cout << (network.gateway.empty() ? "" : " gateway=" + network.gateway)
-              << (network.parent.empty() ? "" : " parent=" + network.parent)
-              << (network.uplink.empty() ? "" : " uplink=" + network.uplink)
-              << (network.mode.empty() ? "" : " mode=" + network.mode) << '\n';
+              << (network.uplink.empty() ? "" : " uplink=" + network.uplink) << '\n';
   }
   for (const auto& attachment : config.network_infrastructure.attachments)
     std::cout << "attachment " << attachment.id << " kind=" << to_string(attachment.kind)
@@ -343,10 +271,6 @@ int infrastructure_command(int argc, char** argv) {
     if (capture.empty() || destination.empty())
       throw std::invalid_argument("infra capture export requires --capture and --output");
     const auto config = graphx::load_config(path);
-    if (config.version != 2)
-      throw std::invalid_argument(
-          "configuration version 1 infrastructure execution was retired in M8; run 'graphx "
-          "config migrate' and review the version-2 output");
 #if !defined(__linux__)
     throw std::runtime_error("network capture export requires Linux VM-native storage");
 #else
@@ -383,10 +307,6 @@ int infrastructure_command(int argc, char** argv) {
     if (router.empty() || destination.empty())
       throw std::invalid_argument("infra route requires --router and --destination");
     const auto config = graphx::load_config(path);
-    if (config.version != 2)
-      throw std::invalid_argument(
-          "configuration version 1 infrastructure execution was retired in M8; run 'graphx "
-          "config migrate' and review the version-2 output");
 #if !defined(__linux__)
     if (!dry_run)
       throw std::runtime_error("native route changes require Linux; use --dry-run on this host");
@@ -396,8 +316,7 @@ int infrastructure_command(int argc, char** argv) {
   }
   if (action == "fault")
     throw std::invalid_argument(
-        "imperative infrastructure faults were retired in M8; declare a bounded version-2 "
-        "network.faults entry (migrate version-1 input with 'graphx config migrate' first)");
+        "network faults are declarative; add a bounded network.faults entry to the configuration");
   graphx::OvsLifecycleAction ovs_action;
   if (action == "create") {
     ovs_action = graphx::OvsLifecycleAction::create;
@@ -412,13 +331,11 @@ int infrastructure_command(int argc, char** argv) {
   }
   auto path = default_config();
   auto state_root = graphx::default_ownership_state_root();
-  bool path_set{}, dry_run{}, transactional{};
+  bool path_set{}, dry_run{};
   for (int index = 3; index < argc; ++index) {
     const std::string argument = argv[index];
     if (argument == "--dry-run")
       dry_run = true;
-    else if (argument == "--transactional")
-      transactional = true;
     else if (argument == "--state-dir") {
       if (++index == argc) throw std::invalid_argument("--state-dir requires a directory");
       state_root = argv[index];
@@ -428,20 +345,12 @@ int infrastructure_command(int argc, char** argv) {
     } else
       throw std::invalid_argument("unexpected argument '" + argument + "'");
   }
-  if (transactional && action != "create")
-    throw std::invalid_argument("--transactional is supported only for infra create");
   const auto config = graphx::load_config(path);
-  if (config.version != 2)
-    throw std::invalid_argument(
-        "configuration version 1 infrastructure execution was retired in M8; run 'graphx config "
-        "migrate' and review the version-2 output");
 #if !defined(__linux__)
   if (!dry_run)
     throw std::runtime_error(
         "native infrastructure changes require Linux; use --dry-run or the GraphX Lima VM");
 #endif
-  if (transactional)
-    throw std::invalid_argument("version 2 create is always transactional; omit --transactional");
   return graphx::execute_ovs_lifecycle(config, path, ovs_action, dry_run, state_root, std::cout,
                                        std::cerr);
 }

@@ -102,9 +102,9 @@ function loadPolicy(path, nodeIds) {
 }
 
 export class ControlAuthorizer {
-  constructor({ policyFile = '', legacyToken = '', nodeIds = new Set(), now = Date.now } = {}) {
+  constructor({ policyFile = '', staticToken = '', nodeIds = new Set(), now = Date.now } = {}) {
     this.policyFile = policyFile
-    this.legacyToken = legacyToken
+    this.staticToken = staticToken
     this.nodeIds = nodeIds
     this.now = now
     this.lastCheck = 0
@@ -117,7 +117,7 @@ export class ControlAuthorizer {
 
   reload(force = false) {
     if (!this.policyFile) {
-      this.principals = this.legacyToken ? [{ id: 'legacy-operator', token: this.legacyToken,
+      this.principals = this.staticToken ? [{ id: 'direct-operator', token: this.staticToken,
         permissions: new Set(CONTROL_PERMISSIONS), nodes: new Set(['*']) }] : []
       this.lastError = null
       return true

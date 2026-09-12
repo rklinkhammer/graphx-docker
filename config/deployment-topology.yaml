@@ -1,6 +1,5 @@
 # Generated from ../graphx.yaml by `graphx project`.
 # Non-authoritative view: edit graphx.yaml, then regenerate.
-network: graphx
 services:
   - node: generator
     image: graphx-demo:latest

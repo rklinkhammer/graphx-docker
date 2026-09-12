@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bounded one-way UDP probe used only by the disposable Phase 14 lab."""
+"""Bounded one-way UDP probe used only by the disposable route-policy lab."""
 
 from __future__ import annotations
 

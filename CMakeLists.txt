@@ -100,9 +100,7 @@ endif()
 add_library(graphx
   src/capture.cpp
   src/config.cpp
-  src/config_common.cpp
-  src/config_v1_compat.cpp
-  src/config_v2.cpp
+  src/config_network_profiles.cpp
   src/envelope.cpp
   src/framing.cpp
   src/in_process_transport.cpp
@@ -116,7 +114,6 @@ add_library(graphx
   src/infra/ownership_lock.cpp
   src/infra/ownership_state.cpp
   src/infra.cpp
-  src/migration.cpp
   src/network.cpp
   src/normalized_config.cpp
   src/observability.cpp
@@ -199,14 +196,14 @@ write_basic_package_version_file(
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/GraphXConfig.cmake"
   "${CMAKE_CURRENT_BINARY_DIR}/GraphXConfigVersion.cmake"
   DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/GraphX COMPONENT development)
-install(FILES config/schema/graphx.schema.json config/schema/normalized-graph-v1.schema.json
+install(FILES config/schema/graphx.schema.json config/schema/normalized-graph.schema.json
   DESTINATION ${CMAKE_INSTALL_DATADIR}/graphx/schema COMPONENT runtime)
 install(FILES graphx.yaml DESTINATION ${CMAKE_INSTALL_DATADIR}/graphx COMPONENT runtime)
 install(PROGRAMS tools/graphx-extcap
   DESTINATION ${CMAKE_INSTALL_LIBEXECDIR}/graphx COMPONENT tools)
 install(FILES wireshark/graphx.lua wireshark/README.md
   DESTINATION ${CMAKE_INSTALL_DATADIR}/graphx/wireshark COMPONENT tools)
-install(FILES LICENSE THIRD_PARTY.md README.md VERSION CHANGELOG.md SECURITY.md SUPPORT.md
+install(FILES LICENSE THIRD_PARTY.md README.md VERSION SECURITY.md SUPPORT.md
   CONTRIBUTING.md
   DESTINATION ${CMAKE_INSTALL_DATADIR}/doc/graphx COMPONENT documentation)
 install(DIRECTORY docs/ DESTINATION ${CMAKE_INSTALL_DATADIR}/doc/graphx/docs
@@ -311,23 +308,11 @@ if(GRAPHX_BUILD_TESTS)
   endif()
   add_test(NAME graphx-config-cli
     COMMAND graphx-cli validate ${CMAKE_SOURCE_DIR}/graphx.yaml)
-  add_test(NAME graphx-config-v2 COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_SOURCE_DIR}/tests/test_config_v2.py $<TARGET_FILE:graphx-cli>
-    ${CMAKE_SOURCE_DIR})
-  set_tests_properties(graphx-config-v2 PROPERTIES TIMEOUT 45 ENVIRONMENT "GRAPHX_OVERRIDES=")
   add_test(NAME graphx-normalized-config COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/test_normalized_config.py $<TARGET_FILE:graphx-cli>
     ${CMAKE_SOURCE_DIR})
   set_tests_properties(graphx-normalized-config PROPERTIES
     TIMEOUT 45 ENVIRONMENT "GRAPHX_OVERRIDES=")
-  add_test(NAME graphx-simplification-baseline COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_SOURCE_DIR}/tests/test_simplification_baseline.py $<TARGET_FILE:graphx-cli>
-    ${CMAKE_SOURCE_DIR})
-  set_tests_properties(graphx-simplification-baseline PROPERTIES
-    TIMEOUT 45 ENVIRONMENT "GRAPHX_OVERRIDES=")
-  add_test(NAME graphx-config-dialect-boundaries COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_SOURCE_DIR}/tests/test_config_dialect_boundaries.py ${CMAKE_SOURCE_DIR})
-  set_tests_properties(graphx-config-dialect-boundaries PROPERTIES TIMEOUT 15)
   add_test(NAME graphx-ovs-ownership-plan COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/test_ovs_ownership_plan.py $<TARGET_FILE:graphx-cli>
     ${CMAKE_SOURCE_DIR})
@@ -363,11 +348,6 @@ if(GRAPHX_BUILD_TESTS)
     add_test(NAME graphx-network-observability-live COMMAND ${Python3_EXECUTABLE}
       ${CMAKE_SOURCE_DIR}/tests/test_network_observability_live.py $<TARGET_FILE:graphx-cli>)
     set_tests_properties(graphx-network-observability-live PROPERTIES TIMEOUT 180
-      ENVIRONMENT "GRAPHX_OVERRIDES=")
-    add_test(NAME graphx-compatibility-closure-live COMMAND ${Python3_EXECUTABLE}
-      ${CMAKE_SOURCE_DIR}/tests/test_compatibility_closure_live.py
-      $<TARGET_FILE:graphx-cli> ${CMAKE_SOURCE_DIR})
-    set_tests_properties(graphx-compatibility-closure-live PROPERTIES TIMEOUT 240
       ENVIRONMENT "GRAPHX_OVERRIDES=")
   endif()
   add_test(NAME graphx-config-projections
@@ -436,22 +416,10 @@ if(GRAPHX_BUILD_TESTS)
       $<TARGET_FILE:graphx-cli> ${CMAKE_SOURCE_DIR})
   set_tests_properties(graphx-network-observability-plan PROPERTIES
     TIMEOUT 30 ENVIRONMENT "GRAPHX_OVERRIDES=")
-  add_test(NAME graphx-config-compatibility-closure
-    COMMAND ${Python3_EXECUTABLE}
-      ${CMAKE_SOURCE_DIR}/tests/test_config_compatibility_closure.py
-      $<TARGET_FILE:graphx-cli> ${CMAKE_SOURCE_DIR})
-  set_tests_properties(graphx-config-compatibility-closure PROPERTIES
-    TIMEOUT 90 ENVIRONMENT "GRAPHX_OVERRIDES=")
   add_test(NAME graphx-config-network-observability
     COMMAND graphx-cli validate ${CMAKE_SOURCE_DIR}/examples/network-observability/graphx.yaml)
   set_tests_properties(graphx-config-network-observability PROPERTIES
     ENVIRONMENT "GRAPHX_OVERRIDES=")
-  add_test(NAME graphx-config-qemu-external
-    COMMAND graphx-cli validate ${CMAKE_SOURCE_DIR}/examples/qemu-node/external/graphx.yaml)
-  add_test(NAME graphx-config-qemu-container
-    COMMAND graphx-cli validate ${CMAKE_SOURCE_DIR}/examples/qemu-node/container/graphx.yaml)
-  set_tests_properties(graphx-config-qemu-external graphx-config-qemu-container
-    PROPERTIES ENVIRONMENT "GRAPHX_OVERRIDES=")
   add_test(NAME graphx-sdr-node-portable
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_sdr_example.py
       ${CMAKE_SOURCE_DIR})

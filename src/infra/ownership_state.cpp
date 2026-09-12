@@ -380,15 +380,7 @@ OwnershipState load_state(const std::filesystem::path& path) {
   const auto root = YAML::Load(bytes);
   if (!root.IsMap()) throw std::runtime_error("unsupported ownership state format");
   const auto version = root["version"].as<int>(0);
-  if (version != 1 && version != 2) throw std::runtime_error("unsupported ownership state format");
-  // Version 1 ledgers recorded the implementation milestone that first owned
-  // each resource combination. Keep accepting those ledgers for safe cleanup,
-  // but do not carry that historical classification into new state.
-  if (version == 1) {
-    const auto phase = required_scalar(root, "phase");
-    if (phase != "M3" && phase != "M4" && phase != "M5" && phase != "M6" && phase != "M7")
-      throw std::runtime_error("unsupported ownership state format");
-  }
+  if (version != 2) throw std::runtime_error("unsupported ownership state format");
   OwnershipState state;
   state.graph_id = required_scalar(root, "graph_id");
   state.config_hash = required_scalar(root, "config_sha256");

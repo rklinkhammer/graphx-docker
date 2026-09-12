@@ -13,7 +13,7 @@ namespace graphx {
 
 enum class OvsLifecycleAction { create, destroy, status, recover };
 
-// Stable identity slots shared by later realization milestones. M3 populates
+// Stable identity slots shared by infrastructure resource types. Bridges populate
 // kind/name/stable_id for OVS bridges; later owners populate only the identity
 // fields for resources they actually create.
 struct OwnedResourceIdentity {

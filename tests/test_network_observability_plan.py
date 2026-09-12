@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Portable M7 declarative network capture/fault contracts."""
+"""Portable network observation declarative network capture/fault contracts."""
 
 from pathlib import Path
 import os
@@ -32,13 +32,13 @@ def main() -> int:
     for marker in ("format=ethernet-pcapng", "max-file-bytes=1048576", "max-files=4",
                    "retention-seconds=3600", "root netem", "duration-seconds=30",
                    "auto-clear=identity-checked"):
-        require(marker in plan, f"missing M7 dry-run marker: {marker}")
+        require(marker in plan, f"missing network observation dry-run marker: {marker}")
     require("LINKTYPE_USER0" not in plan and "docker network" not in plan,
-            "M7 Ethernet lifecycle must not merge USER0 or Docker data-plane ownership")
+            "network observation Ethernet lifecycle must not merge USER0 or Docker data-plane ownership")
 
     text = config.read_text(encoding="utf-8")
     invalid = (
-        (text.replace("/var/lib/graphx/captures/m7-demo", "captures/m7-demo"),
+        (text.replace("/var/lib/graphx/captures/network-observation", "captures/network-observation"),
          "must be beneath /var/lib/graphx/captures"),
         (text.replace("attachment: observed-span", "attachment: source-data", 1),
          "must reference a mirror attachment"),
@@ -56,15 +56,15 @@ def main() -> int:
         result = run(graphx, "validate", path, check=False)
         path.unlink()
         require(result.returncode != 0 and expected in result.stderr,
-                f"invalid M7 configuration was not rejected with {expected}: {result.stderr}")
+                f"invalid network observation configuration was not rejected with {expected}: {result.stderr}")
 
     schema = (root / "config/schema/graphx.schema.json").read_text(encoding="utf-8")
     require('"networkCapture"' in schema and '"networkFault"' in schema,
-            "M7 schema definitions are missing")
+            "network observation schema definitions are missing")
     readme = (root / "examples/network-observability/README.md").read_text(encoding="utf-8")
     require("LINKTYPE_USER0" in readme and "Ethernet PCAPNG" in readme,
             "capture trust domains are not documented")
-    print("GraphX M7 portable network observation contracts passed")
+    print("GraphX network observation portable network observation contracts passed")
     return 0
 
 

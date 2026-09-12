@@ -72,7 +72,7 @@ def main() -> int:
         deployment = output / "deployment-topology.yaml"
         assert_contains(graph, "graph_id: sample-pipeline", "runtime: process", "data_plane: graphx")
         assert_contains(transport, "type: tcp", "verify_peer: true", "max_attempts: 60")
-        assert_contains(network, "owner: generator", "edge: samples", "external: false")
+        assert_contains(network, "profile: ethernet", "edge: samples", "external: false")
         assert_contains(deployment, "node: generator", "service: telemetry", "port: 8080")
 
         transport.write_text(transport.read_text(encoding="utf-8") + "# stale\n", encoding="utf-8")
@@ -120,7 +120,7 @@ def main() -> int:
             "udp-unicast": ("type: udp", "mode: unicast", "max_datagram_bytes:"),
             "udp-broadcast": ("mode: broadcast", "loopback:"),
             "udp-multicast": ("mode: multicast", "ttl:"),
-            "qemu-node/external": ("runtime: qemu", "architecture: x86_64", "data_plane: external"),
+            "qemu-node/tap": ("runtime: qemu", "architecture: x86_64", "data_plane: external"),
             "mixed-network": ("kind: openvswitch", "mirror:", "policies:", "hops:"),
             "ipvlan-l3": ("subnets:", "10.42.1.0/24", "profile: ipvlan-l3"),
         }
@@ -137,10 +137,10 @@ def main() -> int:
             for value in expected_values:
                 if value not in combined:
                     raise AssertionError(f"{example} projections omit {value!r}")
-            if example == "qemu-node/external":
+            if example == "qemu-node/tap":
                 qemu_deployment = (case_output / "deployment-topology.yaml").read_text(encoding="utf-8")
                 if "node: qemu-node" in qemu_deployment:
-                    raise AssertionError("external QEMU node gained a fabricated managed service")
+                    raise AssertionError("QEMU node gained a fabricated managed service")
 
         network_source = temporary / "network-fixture.yaml"
         network_text = (source_root / "examples" / "mixed-network" / "graphx.yaml").read_text(

@@ -107,26 +107,15 @@ portable() {
 
   step "Validate and inspect every checked-in topology"
   for config in "$ROOT/graphx.yaml" "$ROOT"/examples/*/graphx.yaml; do
-    local example_name version
+    local example_name
     example_name=$(basename "$(dirname "$config")")
     test "$config" != "$ROOT/graphx.yaml" || example_name=root
-    version=$(configuration_version "$config")
+    test "$(configuration_version "$config")" = 2
     "$BUILD_DIR/graphx" validate "$config"
     "$BUILD_DIR/graphx" inspect "$config" >"$TMP_DIR/$example_name.inspect"
-    if test "$version" = 2; then
-      "$BUILD_DIR/graphx" infra create "$config" --dry-run >"$TMP_DIR/$example_name.plan"
-      "$BUILD_DIR/graphx" infra status "$config" --dry-run >/dev/null
-      "$BUILD_DIR/graphx" infra destroy "$config" --dry-run >/dev/null
-    else
-      test "$version" = 1 || {
-        echo "unsupported checked-in configuration version '$version': $config" >&2
-        return 1
-      }
-      if "$BUILD_DIR/graphx" infra create "$config" --dry-run >/dev/null 2>&1; then
-        echo "version-1 infrastructure execution unexpectedly succeeded: $config" >&2
-        return 1
-      fi
-    fi
+    "$BUILD_DIR/graphx" infra create "$config" --dry-run >"$TMP_DIR/$example_name.plan"
+    "$BUILD_DIR/graphx" infra status "$config" --dry-run >/dev/null
+    "$BUILD_DIR/graphx" infra destroy "$config" --dry-run >/dev/null
   done
   grep -q 'root netem' "$TMP_DIR/network-observability.plan"
   grep -q 'duration-seconds=30' "$TMP_DIR/network-observability.plan"

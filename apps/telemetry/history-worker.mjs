@@ -16,7 +16,7 @@ function databaseBytes() {
   return bytes
 }
 
-function migrate() {
+function initializeDatabase() {
   mkdirSync(dirname(workerData.databaseFile), { recursive: true, mode: 0o750 })
   database = new DatabaseSync(workerData.databaseFile)
   database.exec(`PRAGMA busy_timeout=${Math.min(2000, workerData.shutdownTimeoutMs)};
@@ -147,7 +147,7 @@ function runMaintenance() {
 }
 
 try {
-  migrate()
+  initializeDatabase()
   const pruned = maintain()
   parentPort.postMessage({ type: 'ready', schemaVersion: SCHEMA_VERSION, pruned,
     databaseBytes: databaseBytes() })

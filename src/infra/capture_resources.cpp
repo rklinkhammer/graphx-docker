@@ -96,7 +96,7 @@ bool process_owned(std::uint32_t pid, const std::string& start_time, std::string
 bool timer_owned(std::uint32_t pid, const std::string& start_time) {
   const auto name = process_name(pid);
   return pid != 0 && !start_time.empty() && process_start_time(pid) == start_time &&
-         (name == "graphx-fault" || name == "graphx-m7-timer");
+         name == "graphx-fault";
 }
 
 bool stop_owned_process(std::uint32_t pid, const std::string& start_time, std::string_view marker,

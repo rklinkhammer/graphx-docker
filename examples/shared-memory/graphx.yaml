@@ -1,4 +1,4 @@
-version: 1
+version: 2
 graph:
   id: shared-memory-pipeline
   nodes:

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Privileged Linux regressions for M3 filesystem and OVS identity boundaries."""
+"""Privileged Linux regressions for OVS filesystem and OVS identity boundaries."""
 
 from __future__ import annotations
 
@@ -39,19 +39,19 @@ def main() -> int:
     if len(sys.argv) != 3:
         raise SystemExit("usage: test_ovs_ownership_live.py GRAPHX SOURCE_ROOT")
     if sys.platform != "linux" or os.geteuid() != 0:
-        raise SystemExit("M3 live ownership tests require root on Linux")
+        raise SystemExit("OVS live ownership tests require root on Linux")
     graphx = Path(sys.argv[1]).resolve()
     root = Path(sys.argv[2]).resolve()
     require(run("ovs-vsctl", "show", check=False).returncode == 0,
             "system Open vSwitch is unavailable")
     require(not any(bridge_exists(name) for name in BRIDGES),
-            "M3 live bridge names must be absent before the test")
+            "OVS live bridge names must be absent before the test")
 
-    with tempfile.TemporaryDirectory(prefix="graphx-m3-live-", dir="/var/tmp") as raw:
+    with tempfile.TemporaryDirectory(prefix="graphx-ovs-live-", dir="/var/tmp") as raw:
         temporary = Path(raw)
         config = temporary / "mixed-v2.yaml"
-        # Keep this M3 regression bridge-only now that migrated container
-        # attachments are intentionally realized by M4.
+        # Keep this OVS regression bridge-only now that migrated container
+        # attachments are exercised by the dedicated container-veth lifecycle test.
         config.write_text("""\
 version: 2
 graph:
@@ -122,7 +122,7 @@ network:
         require(not any(bridge_exists(name) for name in BRIDGES),
                 "owned bridges must be removed after restoring identity")
 
-    print("GraphX M3 live ownership regressions passed")
+    print("GraphX OVS live ownership regressions passed")
     return 0
 
 

@@ -33,18 +33,6 @@ const EdgeNetworkPath& NetworkInfrastructureConfig::edge_path(std::string_view e
   return *found;
 }
 
-std::string_view to_string(NetworkDriver driver) noexcept {
-  switch (driver) {
-    case NetworkDriver::bridge:
-      return "bridge";
-    case NetworkDriver::macvlan:
-      return "macvlan";
-    case NetworkDriver::ipvlan:
-      return "ipvlan";
-  }
-  return "unknown";
-}
-
 std::string_view to_string(NetworkProfile profile) noexcept {
   switch (profile) {
     case NetworkProfile::ethernet:

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Portable M6 QEMU TAP, OVS profile, and compatibility contracts."""
+"""Portable QEMU TAP and OVS contracts."""
 
 from __future__ import annotations
 
@@ -32,15 +32,15 @@ def main() -> int:
     launcher = (profile / "scripts" / "ovs-lab.sh").read_text(encoding="utf-8")
 
     run(graphx, "validate", config)
-    with tempfile.TemporaryDirectory(prefix="graphx-m6-") as raw:
+    with tempfile.TemporaryDirectory(prefix="graphx-qemu-tap-") as raw:
         plan = run(graphx, "infra", "create", config, "--dry-run",
                    "--state-dir", Path(raw) / "state").stdout
     for marker in ("ip tuntap add dev gxqtap0 mode tap user 65532 group 65532",
                    "ovs-vsctl add-port br-qemu-tap gxqtap0", "mirror qemu-span",
                    "owner=qemu-peer", "address=10.0.2.2/24"):
-        require(marker in plan, f"missing M6 plan marker: {marker}")
+        require(marker in plan, f"missing QEMU TAP plan marker: {marker}")
     require("docker network" not in plan and "macvlan" not in plan and "ipvlan" not in plan,
-            "M6 must use only the OVS data-plane backend")
+            "QEMU TAP must use only the OVS data-plane backend")
 
     text = config.read_text(encoding="utf-8")
     invalid_configs = (
@@ -58,14 +58,14 @@ def main() -> int:
         rejected = run(graphx, "validate", path, check=False)
         path.unlink()
         require(rejected.returncode != 0 and expected in rejected.stderr,
-                f"M6 invalid attachment was not rejected with {expected}")
+                f"invalid QEMU attachment was not rejected with {expected}")
     with tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False) as candidate:
         candidate.write(text.replace("tap_uid: 65532", "tap_uid: 0", 1))
         path = Path(candidate.name)
     rejected = run(graphx, "validate", path, check=False)
     path.unlink()
     require(rejected.returncode != 0 and "non-root UID" in rejected.stderr,
-            "M6 must reject root TAP ownership")
+            "QEMU TAP must reject root ownership")
 
     for marker in ("-netdev tap,id=net0,ifname=gxqtap0,script=no,downscript=no",
                    "--reuid \"$qemu_uid\"", "mac=02:00:00:00:02:15",
@@ -74,17 +74,14 @@ def main() -> int:
                    "refusing to signal PID", "UID/GID 65532 must belong to graphx-qemu",
                    'runtime_images=$run_dir/images', 'python3 "$qmp"',
                    'trap - ERR', 'exit "$original"'):
-        require(marker in launcher, f"missing M6 launcher contract: {marker}")
+        require(marker in launcher, f"missing QEMU launcher contract: {marker}")
     require("-netdev user" not in launcher and "docker compose" not in launcher,
-            "the M6 launcher must not fall back to slirp or Docker networking")
+            "the QEMU launcher must not use slirp or Docker networking")
 
     qmp = (root / "examples" / "qemu-node" / "tools" / "qmp_control.py").read_text()
     require('commands.add_parser("vm-control")' in qmp and '"stop"' in qmp and '"cont"' in qmp,
-            "M6 needs bounded QMP pause/resume control")
-    for relative in ("external/graphx.yaml", "container/graphx.yaml"):
-        require("qemu-usernet" in (root / "examples" / "qemu-node" / relative).read_text(),
-                f"legacy slirp profile {relative} must remain available")
-    print("GraphX M6 portable QEMU TAP contracts passed")
+            "QEMU needs bounded QMP pause/resume control")
+    print("GraphX portable QEMU TAP contracts passed")
     return 0
 
 

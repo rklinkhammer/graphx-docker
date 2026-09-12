@@ -3,9 +3,9 @@ set -euo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 source "$ROOT/scripts/configure-build-trust.sh"
-PROJECT=${GRAPHX_PHASE7_TEST_PROJECT:-"graphx-phase7-test-$$"}
-OBSERVATION_TOKEN=${GRAPHX_PHASE7_OBSERVATION_TOKEN:-"phase7-observation-token-0123456789abcdef"}
-HTTP_PORT=${GRAPHX_PHASE7_HTTP_PORT:-38080}
+PROJECT=${GRAPHX_HISTORY_TEST_PROJECT:-"graphx-history-test-$$"}
+OBSERVATION_TOKEN=${GRAPHX_HISTORY_OBSERVATION_TOKEN:-"history-observation-token-0123456789abcdef"}
+HTTP_PORT=${GRAPHX_HISTORY_HTTP_PORT:-38080}
 BASE_URL="http://127.0.0.1:$HTTP_PORT"
 FILES=(-f "$ROOT/compose.yaml" -f "$ROOT/compose.history.yaml")
 
@@ -81,4 +81,4 @@ compose restart telemetry >/dev/null
 wait_for_history
 history_contains_sequence
 
-echo "Phase 7 durable history write, authenticated API path, restart persistence, and Compose volume checks passed"
+echo "History durable history write, authenticated API path, restart persistence, and Compose volume checks passed"

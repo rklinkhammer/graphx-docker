@@ -35,7 +35,7 @@ const controllableNodeIds = new Set(graph.nodes.filter(node =>
   ((node.control === 'graphx' || node.control == null) && node.kind === 'source')).map(node => node.id))
 const runtimeIdentities = new RuntimeIdentityStore({ manifestFile: runtimeIdentityFile, nodeIds })
 const controlAuthorizer = new ControlAuthorizer({ policyFile: controlPolicyFile,
-  legacyToken: controlToken, nodeIds })
+  staticToken: controlToken, nodeIds })
 const previousCredentials = new PreviousCredentialStore({ manifestFile: previousCredentialFile })
 const credentialRegistry = new CredentialRegistry({ observationToken, telemetrySecret,
   controlAuthorizer, runtimeIdentities, previousCredentials })

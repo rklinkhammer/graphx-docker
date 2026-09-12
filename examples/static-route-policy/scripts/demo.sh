@@ -7,17 +7,17 @@ repo_dir=$(cd "$example_dir/../.." && pwd)
 source "$repo_dir/examples/external-ovs-boundary.sh"
 graphx=${GRAPHX_BIN:-$repo_dir/build/dev/graphx}
 config=$example_dir/graphx.yaml
-state=$example_dir/.state/m5-external.env
+state=$example_dir/.state/external.env
 
-load_state() { test -r "$state"; source "$state"; test -n "${GRAPHX_M5_EXTERNAL_OWNER:-}"; }
+load_state() { test -r "$state"; source "$state"; test -n "${GRAPHX_EXTERNAL_OWNER:-}"; }
 save_state() {
   install -d -m 0700 "$(dirname "$state")"
-  GRAPHX_M5_EXTERNAL_OWNER=$(openssl rand -hex 16)
-  printf 'GRAPHX_M5_EXTERNAL_OWNER=%q\n' "$GRAPHX_M5_EXTERNAL_OWNER" >"$state.tmp.$$"
+  GRAPHX_EXTERNAL_OWNER=$(openssl rand -hex 16)
+  printf 'GRAPHX_EXTERNAL_OWNER=%q\n' "$GRAPHX_EXTERNAL_OWNER" >"$state.tmp.$$"
   chmod 0600 "$state.tmp.$$"; mv "$state.tmp.$$" "$state"
 }
 cleanup_external() {
-  sudo bash -c "set -e; source '$repo_dir/examples/external-ovs-boundary.sh'; graphx_external_namespace_delete '$GRAPHX_M5_EXTERNAL_OWNER' gx-route-left-end rtl-ovs br-route-left; graphx_external_namespace_delete '$GRAPHX_M5_EXTERNAL_OWNER' gx-route-middle-end rtm-ovs br-route-middle; graphx_external_namespace_delete '$GRAPHX_M5_EXTERNAL_OWNER' gx-route-right-end rtr-ovs br-route-right"
+  sudo bash -c "set -e; source '$repo_dir/examples/external-ovs-boundary.sh'; graphx_external_namespace_delete '$GRAPHX_EXTERNAL_OWNER' gx-route-left-end rtl-ovs br-route-left; graphx_external_namespace_delete '$GRAPHX_EXTERNAL_OWNER' gx-route-middle-end rtm-ovs br-route-middle; graphx_external_namespace_delete '$GRAPHX_EXTERNAL_OWNER' gx-route-right-end rtr-ovs br-route-right"
 }
 rollback_up() {
   local original=$? cleanup_status=0 core_status=0
@@ -27,7 +27,7 @@ rollback_up() {
   if test "$cleanup_status" -eq 0 && test "$core_status" -eq 0; then
     rm -f "$state"
   else
-    echo "Rollback retained M5 route-lab state for ownership-safe recovery" >&2
+    echo "Rollback retained network-lab route-lab state for ownership-safe recovery" >&2
   fi
   return "$original"
 }
@@ -35,13 +35,13 @@ rollback_up() {
 case ${1:-} in
   up)
     test "$(uname -s)" = Linux; test -x "$graphx"; sudo -v
-    test ! -e "$state" || { echo "M5 route lab is already owned" >&2; exit 2; }
+    test ! -e "$state" || { echo "network-lab route lab is already owned" >&2; exit 2; }
     save_state
     trap rollback_up ERR
     sudo "$graphx" infra create "$config"
-    sudo bash -c "source '$repo_dir/examples/external-ovs-boundary.sh'; graphx_external_namespace_create '$GRAPHX_M5_EXTERNAL_OWNER' gx-route-left-end rtl-ovs rtl-end br-route-left 10.64.1.10/24 02:64:00:00:01:10 10.64.2.0/24 10.64.1.1 10.64.30.10/32 10.64.1.1"
-    sudo bash -c "source '$repo_dir/examples/external-ovs-boundary.sh'; graphx_external_namespace_create '$GRAPHX_M5_EXTERNAL_OWNER' gx-route-middle-end rtm-ovs rtm-end br-route-middle 10.64.2.10/24 02:64:00:00:02:10 10.64.1.0/24 10.64.2.1"
-    sudo bash -c "source '$repo_dir/examples/external-ovs-boundary.sh'; graphx_external_namespace_create '$GRAPHX_M5_EXTERNAL_OWNER' gx-route-right-end rtr-ovs rtr-end br-route-right 10.64.3.10/24 02:64:00:00:03:10 10.64.1.0/24 10.64.3.1"
+    sudo bash -c "source '$repo_dir/examples/external-ovs-boundary.sh'; graphx_external_namespace_create '$GRAPHX_EXTERNAL_OWNER' gx-route-left-end rtl-ovs rtl-end br-route-left 10.64.1.10/24 02:64:00:00:01:10 10.64.2.0/24 10.64.1.1 10.64.30.10/32 10.64.1.1"
+    sudo bash -c "source '$repo_dir/examples/external-ovs-boundary.sh'; graphx_external_namespace_create '$GRAPHX_EXTERNAL_OWNER' gx-route-middle-end rtm-ovs rtm-end br-route-middle 10.64.2.10/24 02:64:00:00:02:10 10.64.1.0/24 10.64.2.1"
+    sudo bash -c "source '$repo_dir/examples/external-ovs-boundary.sh'; graphx_external_namespace_create '$GRAPHX_EXTERNAL_OWNER' gx-route-right-end rtr-ovs rtr-end br-route-right 10.64.3.10/24 02:64:00:00:03:10 10.64.1.0/24 10.64.3.1"
     sudo ip netns exec gx-route-right-end ip address replace 10.64.30.10/32 dev lo
     trap - ERR
     sudo "$graphx" infra status "$config"

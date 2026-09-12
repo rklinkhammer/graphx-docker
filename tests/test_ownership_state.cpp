@@ -79,19 +79,9 @@ std::filesystem::path secure_fixture_copy(const TemporaryDirectory& temporary,
   return destination;
 }
 
-void test_legacy_ledgers() {
-  const std::array fixtures{"m3", "m4", "m5", "m6", "m7", "m8"};
-  for (const auto* fixture : fixtures) {
-    TemporaryDirectory temporary;
-    const auto state = load_state(secure_fixture_copy(temporary, fixture));
-    require(state.graph_id == std::string("fixture-") + fixture, "legacy graph identity");
-    require(state.status == "ready", "legacy status");
-  }
-}
-
 void test_round_trip_and_publication() {
   TemporaryDirectory temporary;
-  const auto source = secure_fixture_copy(temporary, "m7");
+  const auto source = secure_fixture_copy(temporary, "current");
   const auto original = load_state(source);
   const auto published = temporary.path() / "published.yaml";
   save_state(published, original, false);
@@ -130,14 +120,15 @@ void test_rejected_state_files() {
   expect_failure([&] { static_cast<void>(load_state(malformed)); }, "malformed state was accepted");
 
   const auto truncated = temporary.path() / "truncated.yaml";
-  write_file(truncated, "version: 1\nphase: M7\n");
+  write_file(truncated, "version: 2\n");
   expect_failure([&] { static_cast<void>(load_state(truncated)); }, "truncated state was accepted");
 
-  const auto insecure = secure_fixture_copy(temporary, "m3");
+  const auto insecure = secure_fixture_copy(temporary, "current");
   require(::chmod(insecure.c_str(), 0644) == 0, "cannot make fixture insecure");
   expect_failure([&] { static_cast<void>(load_state(insecure)); }, "insecure state was accepted");
+  std::filesystem::remove(insecure);
 
-  const auto target = secure_fixture_copy(temporary, "m4");
+  const auto target = secure_fixture_copy(temporary, "current");
   const auto symlink = temporary.path() / "state-link.yaml";
   std::filesystem::create_symlink(target, symlink);
   expect_failure([&] { static_cast<void>(load_state(symlink)); }, "symlink state was accepted");
@@ -220,7 +211,6 @@ void test_identity_and_hash_helpers() {
 
 int main() {
   try {
-    test_legacy_ledgers();
     test_round_trip_and_publication();
     test_rejected_state_files();
     test_state_root_and_lock_security();

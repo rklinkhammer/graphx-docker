@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Phase 10 release identity, bounds, SBOM, workflow, and archive tests."""
+"""release release identity, bounds, SBOM, workflow, and archive tests."""
 
 from __future__ import annotations
 

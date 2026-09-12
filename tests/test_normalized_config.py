@@ -71,25 +71,11 @@ def main() -> int:
     require(first == (fixture_root / "network-observability.json").read_text(encoding="utf-8"),
             "representative normalized contract changed")
     require(document["contract_version"] == 1, "normalized contract version drifted")
-    require(document["source_version"] == 2 and document["infrastructure_mutable"] is True,
-            "version-2 mutability boundary drifted")
-    require(document["network"]["backend"] == "ovs", "version-2 backend is not OVS")
+    require(document["network"]["backend"] == "ovs", "normalized backend is not OVS")
     require(document["network"]["captures"][0]["id"] == "ethernet-span",
             "capture intent is absent from normalized output")
     require(document["network"]["faults"][0]["duration_seconds"] == 30,
             "bounded fault intent is absent from normalized output")
-
-    legacy_output, legacy = normalize(graphx, root / "graphx.yaml")
-    require(legacy["source_version"] == 1 and legacy["infrastructure_mutable"] is False,
-            "version-1 normalization incorrectly permits mutation")
-    require(legacy["network"]["backend"] == "compatibility-only",
-            "version-1 normalization advertises an active backend")
-    require(legacy["network"]["networks"][0]["legacy_driver"] == "bridge",
-            "version-1 compatibility semantics were discarded")
-    require("docker" not in legacy["network"]["backend"],
-            "legacy Docker networking was advertised as a backend")
-    require(legacy_output == normalize(graphx, root / "graphx.yaml")[0],
-            "version-1 normalization is not deterministic")
 
     override_environment = clean_environment(
         GRAPHX_OVERRIDES="observability.telemetry.port=9100",
@@ -106,18 +92,6 @@ def main() -> int:
     require("normalization-secret-must-not-appear" not in overridden_output and
             "second-secret-must-not-appear" not in overridden_output,
             "environment secret leaked into normalized JSON")
-
-    for options, environment in (
-        (("--set", "version=2"), clean_environment()),
-        ((), clean_environment(GRAPHX_OVERRIDES="version=2")),
-    ):
-        refused = run(
-            graphx, "config", "normalize", root / "examples" / "shared-memory" / "graphx.yaml",
-            *options, check=False, environment=environment,
-        )
-        require(refused.returncode == 2 and
-                "configuration version is immutable" in refused.stderr,
-                "version-1 source boundary was overrideable during normalization")
 
     with tempfile.TemporaryDirectory() as temporary:
         state = Path(temporary) / "state"
@@ -151,11 +125,12 @@ def main() -> int:
         require(candidate["observability"]["telemetry"]["port"] > 0,
                 f"resolved observability defaults absent: {config}")
 
-    invalid = run(
-        graphx, "config", "normalize",
-        root / "tests" / "fixtures" / "baseline" / "invalid-retired-profile.yaml",
-        check=False,
-    )
+    with tempfile.NamedTemporaryFile("w", suffix=".yaml") as invalid_source:
+        invalid_source.write(representative.read_text(encoding="utf-8").replace(
+            "profile: ethernet", "profile: mystery", 1
+        ))
+        invalid_source.flush()
+        invalid = run(graphx, "config", "normalize", invalid_source.name, check=False)
     require(invalid.returncode == 2 and "network.networks[0].profile" in invalid.stderr,
             "normalization did not preserve authoritative configuration diagnostics")
     for options, diagnostic in (

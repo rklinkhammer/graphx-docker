@@ -1,4 +1,4 @@
-version: 1
+version: 2
 graph:
   id: sdr-simulated-demo
   nodes:
@@ -45,17 +45,13 @@ transport:
     processed-results: { host: 172.30.13.30, bind: 0.0.0.0, port: 18402, framing: none }
 network:
   networks:
-    - { id: sdr-ethernet, driver: bridge, subnet: 172.30.13.0/24, gateway: 172.30.13.1, external: true }
-  interfaces:
-    sdr-node: [{ id: data, network: sdr-ethernet, address: 172.30.13.10/24, mac: "02:13:00:00:00:10" }]
-    processor: [{ id: data, network: sdr-ethernet, address: 172.30.13.20/24, mac: "02:13:00:00:00:20" }]
-    sink: [{ id: data, network: sdr-ethernet, address: 172.30.13.30/24, mac: "02:13:00:00:00:30" }]
+    - { id: sdr-ethernet, profile: ethernet, subnets: [172.30.13.0/24], gateway: 172.30.13.1, external: true }
   edge_paths:
     sdr-samples: [sdr-node, sdr-ethernet, processor]
     processor-control: [processor, sdr-ethernet, sdr-node]
     processed-results: [processor, sdr-ethernet, sink]
 deployment:
-  network: sdr-ethernet
+  project: sdr-simulated
   services:
     sdr-node: { image: graphx-sdr-services:latest, command: python3 common/sdr_simulator.py }
     processor: { image: graphx-sdr-services:latest, command: python3 common/processor.py }

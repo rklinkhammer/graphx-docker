@@ -113,9 +113,9 @@ void envelope_round_trip() {
   expect(output.timestamp_ns == input.timestamp_ns, "envelope timestamp");
   expect(output.type == input.type && output.payload == input.payload, "envelope body");
   expect(output.attributes == input.attributes, "envelope attributes");
-  expect(output.wire_version == graphx::kEnvelopeWireVersion2 &&
+  expect(output.wire_version == graphx::kEnvelopeWireVersion &&
              output.message_id == input.message_id && output.trace_id == input.trace_id,
-         "version-2 envelope identities");
+         "envelope identities");
 }
 
 std::vector<std::byte> golden_bytes(std::string_view filename) {
@@ -138,30 +138,21 @@ std::vector<std::byte> golden_bytes(std::string_view filename) {
 }
 
 void envelope_protocol_golden_vectors() {
-  const auto version1 = golden_bytes("envelope-v1.hex");
-  const auto legacy = graphx::deserialize(version1);
-  expect(legacy.wire_version == graphx::kEnvelopeWireVersion1 && legacy.sequence == 1 &&
-             legacy.timestamp_ns == 2 && legacy.type == "T" && legacy.trace_id == "legacy" &&
-             legacy.message_id.empty() && legacy.parent_message_id.empty() &&
-             legacy.attributes.at("a") == "b" && legacy.payload == "p",
-         "decode canonical version-1 golden vector");
-  expect(graphx::serialize(legacy) == version1, "version-1 golden vector is byte-stable");
-
-  const auto version2 = golden_bytes("envelope-v2.hex");
-  const auto current = graphx::deserialize(version2);
-  expect(current.wire_version == graphx::kEnvelopeWireVersion2 && current.sequence == 1 &&
+  const auto bytes = golden_bytes("envelope.hex");
+  const auto current = graphx::deserialize(bytes);
+  expect(current.wire_version == graphx::kEnvelopeWireVersion && current.sequence == 1 &&
              current.timestamp_ns == 2 && current.type == "T" &&
              current.message_id == "00112233445566778899aabbccddeeff" &&
              current.trace_id == "102132435465768798a9babcbddcedfe" &&
              current.parent_message_id.empty() && current.attributes.at("a") == "b" &&
              current.payload == "p",
-         "decode canonical version-2 golden vector");
-  expect(graphx::serialize(current) == version2, "version-2 golden vector is byte-stable");
+         "decode canonical golden vector");
+  expect(graphx::serialize(current) == bytes, "golden vector is byte-stable");
 }
 
 void envelope_identity_semantics() {
   auto root = graphx::Envelope::make(1, "Root", "value");
-  expect(root.wire_version == graphx::kCurrentEnvelopeWireVersion &&
+  expect(root.wire_version == graphx::kEnvelopeWireVersion &&
              graphx::is_canonical_identity(root.message_id) &&
              graphx::is_canonical_identity(root.trace_id) && root.parent_message_id.empty(),
          "new envelope has canonical root identities");
@@ -193,7 +184,7 @@ void envelope_identity_semantics() {
 }
 
 void envelope_protocol_rejects_invalid_input() {
-  const auto version2 = golden_bytes("envelope-v2.hex");
+  const auto version2 = golden_bytes("envelope.hex");
   const std::array<std::size_t, 6> truncated_lengths{0, 3, 4, 19, 35, version2.size() - 1};
   for (const std::size_t length : truncated_lengths) {
     expect_failure([&] { graphx::deserialize(std::span(version2).first(length)); }, "truncated");
@@ -216,8 +207,8 @@ void envelope_protocol_rejects_invalid_input() {
     append_u32(bytes, static_cast<std::uint32_t>(value.size()));
     for (const char character : value) bytes.push_back(static_cast<std::byte>(character));
   };
-  auto duplicate = golden_bytes("envelope-v1.hex");
-  duplicate.resize(35);
+  auto duplicate = version2;
+  duplicate.resize(73);
   append_u32(duplicate, 2);
   append_string(duplicate, "a");
   append_string(duplicate, "b");
@@ -227,7 +218,7 @@ void envelope_protocol_rejects_invalid_input() {
   expect_failure([&] { graphx::deserialize(duplicate); }, "duplicate envelope attribute key");
 
   auto excessive = duplicate;
-  excessive.resize(35);
+  excessive.resize(73);
   append_u32(excessive, graphx::kMaxEnvelopeAttributes + 1);
   expect_failure([&] { graphx::deserialize(excessive); }, "too many envelope attributes");
 
@@ -240,10 +231,6 @@ void envelope_protocol_rejects_invalid_input() {
   invalid_identity.wire_version = 3;
   expect_failure([&] { graphx::serialize(invalid_identity); },
                  "unsupported envelope wire version 3");
-
-  auto lossy_legacy = graphx::deserialize(golden_bytes("envelope-v1.hex"));
-  lossy_legacy.message_id = graphx::generate_identity();
-  expect_failure([&] { graphx::serialize(lossy_legacy); }, "version 1 cannot encode");
 
   auto oversized = graphx::Envelope::make(4, "Large", std::string(graphx::kMaxFrameBytes, 'x'));
   expect_failure([&] { graphx::serialize(oversized); }, "protocol maximum");
@@ -260,7 +247,7 @@ void envelope_protocol_exhaustive_boundaries() {
   expect(helper_rejected_normal_return,
          "failure assertion rejects a callable that returns successfully");
 
-  const auto version2 = golden_bytes("envelope-v2.hex");
+  const auto version2 = golden_bytes("envelope.hex");
   for (std::size_t length = 0; length < version2.size(); ++length) {
     expect_failure([&] { graphx::deserialize(std::span(version2).first(length)); }, "truncated");
   }
@@ -285,27 +272,6 @@ void envelope_protocol_exhaustive_boundaries() {
   auto oversized_frame = maximum_frame;
   oversized_frame.push_back(std::byte{});
   expect_failure([&] { graphx::frame(oversized_frame); }, "too large");
-}
-
-void legacy_transport_adapter() {
-  class LegacyTransport final : public graphx::Transport {
-   public:
-    void send(const graphx::Envelope&) override {}
-    std::optional<graphx::Envelope> receive(std::chrono::milliseconds) override {
-      if (delivered_) return std::nullopt;
-      delivered_ = true;
-      return graphx::Envelope::make(1, "Legacy", "compatible");
-    }
-    void close() override {}
-
-   private:
-    bool delivered_{};
-  } transport;
-
-  expect(transport.receive_result(1ms).status == graphx::ReceiveStatus::message,
-         "legacy transport message adapter");
-  expect(transport.receive_result(1ms).status == graphx::ReceiveStatus::timeout,
-         "legacy empty optional adapter");
 }
 
 std::uint16_t little_u16(std::span<const std::byte> bytes, std::size_t offset) {
@@ -614,10 +580,6 @@ void in_process_validation_is_atomic() {
   auto invalid_identity = graphx::Envelope::make(1, "Invalid", "identity");
   invalid_identity.message_id = std::string(graphx::kIdentityHexLength, '0');
   reject_without_publishing(invalid_identity, "message_id");
-
-  auto lossy_v1 = graphx::Envelope::make(2, "Invalid", "lineage");
-  lossy_v1.wire_version = graphx::kEnvelopeWireVersion1;
-  reject_without_publishing(lossy_v1, "cannot encode message lineage");
 
   auto oversized = graphx::Envelope::make(3, "Invalid", "oversized");
   oversized.payload.resize(graphx::kMaxFrameBytes, 'x');
@@ -1238,7 +1200,7 @@ void otlp_span_ids_are_fork_safe() {
                             .payload = "value",
                             .message_id = "00112233445566778899aabbccddeeff",
                             .parent_message_id = {},
-                            .wire_version = graphx::kEnvelopeWireVersion2};
+                            .wire_version = graphx::kEnvelopeWireVersion};
 
   // Reproduce a prefork runtime that has already initialized the message-ID
   // generator. Span identity must not depend on that inherited process state.
@@ -1697,35 +1659,6 @@ void tcp_end_to_end() {
   if (server_error) std::rethrow_exception(server_error);
 }
 
-void tcp_mixed_version_interoperability() {
-  std::uint16_t port;
-  {
-    RawListener reservation;
-    port = reservation.port;
-  }
-  auto legacy = graphx::deserialize(golden_bytes("envelope-v1.hex"));
-  auto current = graphx::deserialize(golden_bytes("envelope-v2.hex"));
-  auto receiver = graphx::TcpTransport::listen({"127.0.0.1", port}, "mixed-version");
-  auto received = std::async(std::launch::async, [&] {
-    return std::array{receiver.receive_result(2s), receiver.receive_result(2s)};
-  });
-  auto sender = graphx::TcpTransport::connect({"127.0.0.1", port}, "mixed-version");
-  sender.send(legacy);
-  sender.send(current);
-  const auto messages = received.get();
-  expect(messages[0].status == graphx::ReceiveStatus::message &&
-             messages[0].envelope->wire_version == graphx::kEnvelopeWireVersion1 &&
-             graphx::serialize(*messages[0].envelope) == golden_bytes("envelope-v1.hex"),
-         "TCP reader preserves exact version-1 envelope");
-  expect(messages[1].status == graphx::ReceiveStatus::message &&
-             messages[1].envelope->wire_version == graphx::kEnvelopeWireVersion2 &&
-             messages[1].envelope->message_id == current.message_id &&
-             messages[1].envelope->trace_id == current.trace_id,
-         "TCP reader accepts version 2 after version 1 on one connection");
-  sender.close();
-  receiver.close();
-}
-
 void unix_socket_end_to_end() {
   const auto path = "/tmp/graphx-test-" + std::to_string(::getpid()) + ".sock";
   std::exception_ptr server_error;
@@ -2056,7 +1989,6 @@ int main(int argc, char** argv) {
       {"envelope identity semantics", envelope_identity_semantics},
       {"envelope protocol invalid input", envelope_protocol_rejects_invalid_input},
       {"protocol exhaustive boundaries", envelope_protocol_exhaustive_boundaries},
-      {"legacy transport adapter", legacy_transport_adapter},
       {"PCAPNG capture", pcapng_capture},
       {"Ethernet PCAPNG capture", ethernet_pcapng_capture},
       {"in-process", in_process},
@@ -2086,7 +2018,6 @@ int main(int argc, char** argv) {
       {"TCP listener lifecycle", tcp_listener_reaccepts_and_close_cancels},
       {"TCP peer-close reconnect policy", tcp_peer_close_respects_reconnect_policy},
       {"tcp end-to-end", tcp_end_to_end},
-      {"TCP mixed-version interoperability", tcp_mixed_version_interoperability},
       {"Unix socket end-to-end", unix_socket_end_to_end},
       {"Unix socket cancellation", unix_socket_listener_is_interruptible_before_accept},
       {"Unix socket failed-frame invalidation", unix_socket_invalidates_failed_frames},

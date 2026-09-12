@@ -2,21 +2,11 @@
 # Non-authoritative view: edit graphx.yaml, then regenerate.
 networks:
   - id: graphx
-    driver: bridge
+    profile: ethernet
     subnets:
       - 172.30.0.0/24
     gateway: 172.30.0.1
     external: false
-interfaces:
-  - id: data
-    owner: generator
-    network: graphx
-  - id: data
-    owner: transform
-    network: graphx
-  - id: data
-    owner: sink
-    network: graphx
 edge_paths:
   - edge: samples
     hops:

@@ -34,7 +34,7 @@ export function createTopology(config, environment = process.env) {
   const network = config.network || {}
   const infrastructure = new Map(graphNodes.map(node => [node.id, node]))
   for (const item of network.networks || []) infrastructure.set(item.id, {
-    id: item.id, label: item.id, role: `${item.driver}${item.mode ? ` ${item.mode}` : ''}`,
+    id: item.id, label: item.id, role: item.profile,
     image: (item.subnets || [item.subnet]).join(', '), input: true, output: true,
   })
   for (const item of network.switches || []) infrastructure.set(item.id, {

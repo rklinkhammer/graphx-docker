@@ -1,6 +1,6 @@
 minimumLimaVersion: 2.2.0
 
-# M1 is intentionally an ARM64 Linux environment on Apple Silicon.  QEMU guests
+# Lima is intentionally an ARM64 Linux environment on Apple Silicon.  QEMU guests
 # with other architectures use TCG unless later runtime evidence proves KVM.
 vmType: vz
 arch: aarch64
@@ -38,21 +38,21 @@ provision:
       #!/bin/bash
       exec env \
         GRAPHX_LIMA_USER="{{.User}}" \
-        GRAPHX_M1_CONFIG_DIGEST="{{.Param.configDigest}}" \
+        GRAPHX_LIMA_CONFIG_DIGEST="{{.Param.configDigest}}" \
         /workspace/graphx-docker/infrastructure/lima/provision.sh
 
 probes:
   - script: |
       #!/bin/bash
       set -euo pipefail
-      test -f /var/lib/graphx/m1/provisioned
+      test -f /var/lib/graphx/runtime/provisioned
       systemctl is-active --quiet docker.service
       systemctl is-active --quiet openvswitch-switch.service
       docker buildx version >/dev/null
       node --version | grep -Eq '^v24\.'
       node -e 'import("node:sqlite")'
       id -nG "{{.User}}" | grep -qw docker
-      test "$(cat /etc/graphx-m1-config.sha256)" = "{{.Param.configDigest}}"
+      test "$(cat /etc/graphx-lima-config.sha256)" = "{{.Param.configDigest}}"
     hint: Inspect /var/log/cloud-init-output.log and run infrastructure/lima/provision.sh in the guest.
 
 # Only the telemetry demonstration port is forwarded, and only to macOS
@@ -74,5 +74,5 @@ param:
   configDigest: unset
 
 message: |
-  GraphX M1 is ready. Run infrastructure/lima/verify.sh on the macOS host.
+  GraphX Lima is ready. Run infrastructure/lima/verify.sh on the macOS host.
   Runtime state and retained evidence are under /var/lib/graphx in this VM.

@@ -1,4 +1,4 @@
-# Canonical M8 QEMU data-plane realization.
+# Canonical QEMU data-plane realization.
 version: 2
 graph:
   id: qemu-tap-ovs-demo
@@ -101,5 +101,5 @@ observability:
   metrics: {enabled: true, exporters: [console, udp-json]}
   tracing: {enabled: false, exporters: [console]}
   telemetry: {host: 127.0.0.1, port: 9000, websocket: /ws, heartbeat_interval_ms: 1000, heartbeat_timeout_ms: 10000}
-  capture: {enabled: true, provider: ovs-span, directory: /var/lib/graphx/qemu/m6, max_file_bytes: 67108864, max_packets: 100000}
-  history: {enabled: true, backend: sqlite, database_file: /var/lib/graphx/qemu/m6/packet-history.sqlite, retention_seconds: 86400, max_records: 50000, max_database_bytes: 67108864}
+  capture: {enabled: true, provider: ovs-span, directory: /var/lib/graphx/qemu/runtime, max_file_bytes: 67108864, max_packets: 100000}
+  history: {enabled: true, backend: sqlite, database_file: /var/lib/graphx/qemu/runtime/packet-history.sqlite, retention_seconds: 86400, max_records: 50000, max_database_bytes: 67108864}

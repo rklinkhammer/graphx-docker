@@ -314,18 +314,15 @@ Json semantics_json(NetworkProfile profile) {
   });
 }
 
-Json network_json(const NetworkDefinition& network, std::uint32_t source_version) {
-  const auto profile = network.profile;
+Json network_json(const NetworkDefinition& network) {
+  const auto profile = *network.profile;
   return Json::object({
       {"id", Json::text(network.id)},
-      {"profile", profile ? Json::text(to_string(*profile)) : Json::null()},
-      {"legacy_driver", source_version == 1 ? Json::text(to_string(network.driver)) : Json::null()},
-      {"semantics", profile ? semantics_json(*profile) : Json::null()},
+      {"profile", Json::text(to_string(profile))},
+      {"semantics", semantics_json(profile)},
       {"subnets", string_array(network.subnets)},
       {"gateway", network.gateway.empty() ? Json::null() : Json::text(network.gateway)},
-      {"parent", network.parent.empty() ? Json::null() : Json::text(network.parent)},
       {"uplink", network.uplink.empty() ? Json::null() : Json::text(network.uplink)},
-      {"mode", network.mode.empty() ? Json::null() : Json::text(network.mode)},
       {"external", Json::boolean(network.external)},
   });
 }
@@ -393,16 +390,6 @@ Json router_json(const RouterDefinition& router) {
       {"interfaces", converted_array(router.interfaces, router_interface_json)},
       {"routes", converted_array(router.routes, route_json)},
       {"policies", converted_array(router.policies, policy_json)},
-  });
-}
-
-Json network_interface_json(const NetworkInterfaceDefinition& interface) {
-  return Json::object({
-      {"id", Json::text(interface.id)},
-      {"owner", Json::text(interface.owner)},
-      {"network", Json::text(interface.network)},
-      {"address", Json::text(interface.address)},
-      {"mac", interface.mac.empty() ? Json::null() : Json::text(interface.mac)},
   });
 }
 
@@ -477,28 +464,21 @@ Json document_json(const GraphConfig& config) {
   const auto& observability = config.observability;
   return Json::object({
       {"contract_version", Json::number(kNormalizedConfigContractVersion)},
-      {"source_version", Json::number(config.version)},
-      {"infrastructure_mutable", Json::boolean(config.version == kConfigVersion)},
       {"graph", Json::object({
                     {"id", Json::text(config.id)},
                     {"nodes", converted_array(config.nodes, node_json)},
                     {"edges", converted_array(config.edges, edge_json)},
                 })},
-      {"network",
-       Json::object({
-           {"backend", Json::text(config.version == kConfigVersion ? "ovs" : "compatibility-only")},
-           {"networks", converted_array(network.networks,
-                                        [&config](const auto& value) {
-                                          return network_json(value, config.version);
-                                        })},
-           {"switches", converted_array(network.switches, switch_json)},
-           {"routers", converted_array(network.routers, router_json)},
-           {"interfaces", converted_array(network.interfaces, network_interface_json)},
-           {"attachments", converted_array(network.attachments, attachment_json)},
-           {"edge_paths", converted_array(network.edge_paths, edge_path_json)},
-           {"captures", converted_array(network.captures, network_capture_json)},
-           {"faults", converted_array(network.faults, network_fault_json)},
-       })},
+      {"network", Json::object({
+                      {"backend", Json::text("ovs")},
+                      {"networks", converted_array(network.networks, network_json)},
+                      {"switches", converted_array(network.switches, switch_json)},
+                      {"routers", converted_array(network.routers, router_json)},
+                      {"attachments", converted_array(network.attachments, attachment_json)},
+                      {"edge_paths", converted_array(network.edge_paths, edge_path_json)},
+                      {"captures", converted_array(network.captures, network_capture_json)},
+                      {"faults", converted_array(network.faults, network_fault_json)},
+                  })},
       {"deployment",
        Json::object({
            {"network", config.deployment.network.empty() ? Json::null()

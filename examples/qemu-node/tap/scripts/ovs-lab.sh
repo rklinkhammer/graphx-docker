@@ -8,7 +8,7 @@ repo_dir=$(cd "$example_dir/../.." && pwd)
 graphx=${GRAPHX_BIN:-$repo_dir/build/dev/graphx}
 config=$profile_dir/graphx.yaml
 images=$example_dir/output/images
-run_dir=${GRAPHX_QEMU_M6_RUN_DIR:-/var/lib/graphx/qemu/m6}
+run_dir=${GRAPHX_QEMU_RUN_DIR:-/var/lib/graphx/qemu/runtime}
 qemu_uid=65532
 qemu_gid=65532
 qmp_source=$example_dir/tools/qmp_control.py
@@ -77,19 +77,19 @@ prepare_run_dir() {
 start_peer() {
   # shellcheck disable=SC2024
   sudo sh -c 'echo $$ >"$1"; exec ip netns exec gx-qemu-peer python3 "$2" --receiver --bind 10.0.2.2' \
-    sh "$run_dir/peer.pid" "$peer" >"/tmp/graphx-m6-peer.$$.log" 2>&1 &
+    sh "$run_dir/peer.pid" "$peer" >"/tmp/graphx-qemu-tap-peer.$$.log" 2>&1 &
   for _ in {1..30}; do owned_pid peer.pid peer.py && break; sleep 0.1; done
   owned_pid peer.pid peer.py || { echo "host peer failed to start" >&2; return 1; }
-  sudo mv "/tmp/graphx-m6-peer.$$.log" "$run_dir/peer.log"
+  sudo mv "/tmp/graphx-qemu-tap-peer.$$.log" "$run_dir/peer.log"
 }
 start_capture() {
   # shellcheck disable=SC2024
   sudo sh -c 'echo $$ >"$1"; exec tcpdump -U -n -i gxqcap1 -s 65535 -w "$2"' \
     sh "$run_dir/tcpdump.pid" "$run_dir/qemu-span.pcap" \
-    >"/tmp/graphx-m6-tcpdump.$$.log" 2>&1 &
+    >"/tmp/graphx-qemu-tap-tcpdump.$$.log" 2>&1 &
   for _ in {1..30}; do owned_pid tcpdump.pid tcpdump && test -s "$run_dir/qemu-span.pcap" && break; sleep 0.1; done
   owned_pid tcpdump.pid tcpdump || { echo "SPAN capture failed to start" >&2; return 1; }
-  sudo mv "/tmp/graphx-m6-tcpdump.$$.log" "$run_dir/tcpdump.log"
+  sudo mv "/tmp/graphx-qemu-tap-tcpdump.$$.log" "$run_dir/tcpdump.log"
   sudo chmod 0644 "$run_dir/qemu-span.pcap"
   sudo setpriv --reuid "$qemu_uid" --regid "$qemu_gid" --clear-groups \
     env GRAPHX_QEMU_RUN_ID=m6-tap GRAPHX_PACKET_OBSERVATION_SOURCE=ovs-span \
@@ -136,7 +136,7 @@ rollback_up() {
   if test "$runtime_status" -eq 0; then
     sudo "$graphx" infra destroy "$config"
   else
-    echo "rollback preserved M6 infrastructure because a process identity changed" >&2
+    echo "rollback preserved QEMU TAP infrastructure because a process identity changed" >&2
   fi
   exit "$original"
 }
@@ -182,7 +182,7 @@ case ${1:-} in
     for command in qemu-system-x86_64 ovs-vsctl ovs-appctl ip tcpdump setpriv python3 curl; do require "$command"; done
     qemu_identity
     test -r "$images/bzImage" && test -r "$images/rootfs.cpio.gz"
-    ! owned_pid qemu.pid qemu-system-x86_64 || { echo "M6 QEMU is already running" >&2; exit 2; }
+    ! owned_pid qemu.pid qemu-system-x86_64 || { echo "QEMU TAP QEMU is already running" >&2; exit 2; }
     prepare_run_dir
     trap rollback_up ERR
     sudo "$graphx" infra create "$config"

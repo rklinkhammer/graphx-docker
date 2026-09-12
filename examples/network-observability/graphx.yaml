@@ -1,6 +1,6 @@
 version: 2
 graph:
-  id: m7-network-observability
+  id: network-observability
   nodes:
     - id: packet-source
       kind: virtual-machine
@@ -17,12 +17,12 @@ network:
   networks:
     - {id: observed-lan, profile: ethernet, subnets: [10.77.0.0/24], gateway: 10.77.0.1, external: false}
   switches:
-    - id: br-gxm7-demo
+    - id: br-gx-observe
       kind: openvswitch
       datapath: system
       ports:
-        - {id: source, interface: gxm7tap0}
-        - {id: capture, interface: gxm7cap0, peer: gxm7cap1}
+        - {id: source, interface: gxobstap0}
+        - {id: capture, interface: gxobscap0, peer: gxobscap1}
       mirror: {id: observed-span, output_port: capture, select_all: true}
   attachments:
     - id: source-data
@@ -30,19 +30,19 @@ network:
       owner: packet-source
       network: observed-lan
       address: 10.77.0.2/24
-      interface: gxm7tap0
-      switch: br-gxm7-demo
+      interface: gxobstap0
+      switch: br-gx-observe
       tap_uid: 65532
       tap_gid: 65532
     - id: observed-span
       kind: mirror
-      owner: br-gxm7-demo
-      interface: gxm7cap0
-      switch: br-gxm7-demo
+      owner: br-gx-observe
+      interface: gxobscap0
+      switch: br-gx-observe
   captures:
     - id: ethernet-span
       attachment: observed-span
-      directory: /var/lib/graphx/captures/m7-demo
+      directory: /var/lib/graphx/captures/network-observation
       snaplen: 65535
       max_file_bytes: 1048576
       max_files: 4

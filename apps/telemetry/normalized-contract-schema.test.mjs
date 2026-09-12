@@ -9,13 +9,13 @@ import Ajv2020 from 'ajv/dist/2020.js'
 const here = dirname(fileURLToPath(import.meta.url))
 const repository = resolve(here, '../..')
 const schema = JSON.parse(readFileSync(
-  resolve(repository, 'config/schema/normalized-graph-v1.schema.json'), 'utf8'))
+  resolve(repository, 'config/schema/normalized-graph.schema.json'), 'utf8'))
 const fixture = JSON.parse(readFileSync(
   resolve(repository, 'tests/fixtures/normalized/network-observability.json'), 'utf8'))
 const validate = new Ajv2020({ allErrors: true, strictRequired: false,
   strictTypes: false }).compile(schema)
 
-test('normalized configuration fixture satisfies its strict versioned schema', () => {
+test('normalized configuration fixture satisfies its strict schema', () => {
   assert.equal(validate(fixture), true, JSON.stringify(validate.errors))
 
   const extraTopLevel = structuredClone(fixture)
@@ -26,22 +26,10 @@ test('normalized configuration fixture satisfies its strict versioned schema', (
   extraNested.network.faults[0].unbounded = true
   assert.equal(validate(extraNested), false, 'unknown nested property was accepted')
 
-  const incompatible = structuredClone(fixture)
-  incompatible.source_version = 1
-  assert.equal(validate(incompatible), false,
-    'version-1 input was allowed to advertise mutable OVS infrastructure')
-
-  const versionOneWithVersionTwoNetwork = structuredClone(fixture)
-  versionOneWithVersionTwoNetwork.source_version = 1
-  versionOneWithVersionTwoNetwork.infrastructure_mutable = false
-  versionOneWithVersionTwoNetwork.network.backend = 'compatibility-only'
-  assert.equal(validate(versionOneWithVersionTwoNetwork), false,
-    'version-1 input was allowed to retain version-2 network semantics')
-
-  const versionTwoWithLegacyDriver = structuredClone(fixture)
-  versionTwoWithLegacyDriver.network.networks[0].legacy_driver = 'macvlan'
-  assert.equal(validate(versionTwoWithLegacyDriver), false,
-    'version-2 input was allowed to retain a legacy Docker network driver')
+  const unknownNetworkField = structuredClone(fixture)
+  unknownNetworkField.network.networks[0].driver = 'bridge'
+  assert.equal(validate(unknownNetworkField), false,
+    'unknown network field was accepted')
 })
 
 test('all checked-in configurations normalize to the schema', {

@@ -52,10 +52,6 @@ function text(value, path) {
 function validateNormalizedConfig(value) {
   const root = object(value, 'document')
   if (root.contract_version !== 1) fail('contract_version must be 1')
-  if (root.source_version !== 1 && root.source_version !== 2)
-    fail('source_version must be 1 or 2')
-  if (typeof root.infrastructure_mutable !== 'boolean')
-    fail('infrastructure_mutable must be boolean')
 
   const graph = object(root.graph, 'graph')
   text(graph.id, 'graph.id')
@@ -80,7 +76,7 @@ function validateNormalizedConfig(value) {
 
   const network = object(root.network, 'network')
   for (const [name, maximum] of Object.entries({ networks: 1024, switches: 1024,
-    routers: 1024, interfaces: 4096, attachments: 4096, edge_paths: 4096,
+    routers: 1024, attachments: 4096, edge_paths: 4096,
     captures: 1024, faults: 1024 })) array(network[name], `network.${name}`, maximum)
   const deployment = object(root.deployment, 'deployment')
   array(deployment.services, 'deployment.services', 1024)
@@ -101,10 +97,7 @@ export function loadNormalizedConfig(path) {
 function normalizedAsTelemetryConfig(document) {
   const deploymentServices = Object.fromEntries(document.deployment.services.map(service =>
     [service.node_id, { image: service.image, command: service.command }]))
-  const nodes = document.graph.nodes.map(node => document.source_version === 1 &&
-      deploymentServices[node.id] && node.runtime === 'process' && node.execution === 'local'
-    ? { ...node, runtime: 'docker', execution: 'container' }
-    : node)
+  const nodes = document.graph.nodes
   const edges = document.graph.edges.map(edge => ({
     id: edge.id,
     from: `${edge.from.node}.${edge.from.port}`,
@@ -117,17 +110,13 @@ function normalizedAsTelemetryConfig(document) {
     transports[edge.transport.kind] ||= {}
     transports[edge.transport.kind][edge.id] = edge.transport
   }
-  const networks = document.network.networks.map(network => ({
-    ...network,
-    driver: network.profile || network.legacy_driver || document.network.backend,
-  }))
   const edgePaths = Object.fromEntries(document.network.edge_paths.map(path =>
     [path.edge_id, path.hops]))
   return {
     graph: { ...document.graph, nodes, edges },
     deployment: { ...document.deployment, services: deploymentServices },
     transport: transports,
-    network: { ...document.network, networks, edge_paths: edgePaths },
+    network: { ...document.network, edge_paths: edgePaths },
     observability: document.observability,
   }
 }

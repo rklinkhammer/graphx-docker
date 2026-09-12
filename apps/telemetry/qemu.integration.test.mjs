@@ -51,7 +51,7 @@ test('QEMU packet observations remain raw and drive the shared topology', { time
     cwd: here,
     env: { ...process.env, PORT: String(port), GRAPHX_TELEMETRY_PORT: String(udpPort),
       GRAPHX_HTTP_BIND: '127.0.0.1', GRAPHX_TELEMETRY_BIND: '127.0.0.1',
-      ...normalizedConfigEnvironment(resolve(repository, 'examples/qemu-node/external/graphx.yaml')),
+      ...normalizedConfigEnvironment(resolve(repository, 'examples/qemu-node/tap/graphx.yaml')),
       GRAPHX_TELEMETRY_SHARED_SECRET: secret, GRAPHX_CONTROL_TOKEN: secret.split('').reverse().join(''),
       GRAPHX_CAPTURE_ENABLED: 'false', GRAPHX_HISTORY_ENABLED: 'false',
       GRAPHX_QEMU_ACCEL: 'tcg', GRAPHX_QEMU_REQUESTED_ACCEL: 'auto',
@@ -111,10 +111,10 @@ test('QEMU packet observations remain raw and drive the shared topology', { time
 
     const socket = dgram.createSocket('udp4')
     const definitions = [
-      ['origin-qemu-tcp', 'qemu-node', 'TCP'],
-      ['origin-qemu-udp', 'qemu-node', 'UDP'],
-      ['qemu-receiver-tcp', 'host-receiver', 'TCP'],
-      ['qemu-receiver-udp', 'host-receiver', 'UDP'],
+      ['peer-qemu-tcp', 'qemu-node', 'TCP'],
+      ['peer-qemu-udp', 'qemu-node', 'UDP'],
+      ['qemu-peer-tcp', 'host-peer', 'TCP'],
+      ['qemu-peer-udp', 'host-peer', 'UDP'],
     ]
     for (const [edgeId, nodeId, protocol] of definitions) {
       const event = { kind: 'network_packet', event: 'receive', nodeId, edgeId,

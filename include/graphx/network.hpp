@@ -9,7 +9,6 @@
 
 namespace graphx {
 
-enum class NetworkDriver { bridge, macvlan, ipvlan };
 enum class NetworkProfile { ethernet, macvlan, ipvlan_l2, ipvlan_l3, ipvlan_l3s };
 enum class AttachmentKind { container_veth, namespace_veth, qemu_tap, external, mirror };
 enum class SwitchKind { openvswitch };
@@ -34,13 +33,10 @@ struct VlanMetadata {
 
 struct NetworkDefinition {
   std::string id;
-  NetworkDriver driver{NetworkDriver::bridge};
   std::optional<NetworkProfile> profile;
   std::vector<std::string> subnets;
   std::string gateway;
-  std::string parent;
   std::string uplink;
-  std::string mode;
   bool external{true};
 };
 
@@ -65,14 +61,6 @@ struct AttachmentDefinition {
   std::uint32_t tap_uid{};
   std::uint32_t tap_gid{};
   std::vector<RouteDefinition> routes;
-};
-
-struct NetworkInterfaceDefinition {
-  std::string id;
-  std::string owner;
-  std::string network;
-  std::string address;
-  std::string mac;
 };
 
 struct SwitchPortDefinition {
@@ -127,7 +115,7 @@ struct EdgeNetworkPath {
   std::vector<std::string> hops;
 };
 
-// M7 network observation is deliberately separate from application USER0
+// network observation network observation is deliberately separate from application USER0
 // capture. These definitions describe Ethernet frames emitted by an owned OVS
 // mirror attachment and retained on the Linux host/VM native filesystem.
 struct NetworkCaptureDefinition {
@@ -155,7 +143,6 @@ struct NetworkInfrastructureConfig {
   std::vector<NetworkDefinition> networks;
   std::vector<SwitchDefinition> switches;
   std::vector<RouterDefinition> routers;
-  std::vector<NetworkInterfaceDefinition> interfaces;
   std::vector<AttachmentDefinition> attachments;
   std::vector<EdgeNetworkPath> edge_paths;
   std::vector<NetworkCaptureDefinition> captures;
@@ -167,7 +154,6 @@ struct NetworkInfrastructureConfig {
   [[nodiscard]] const EdgeNetworkPath& edge_path(std::string_view edge_id) const;
 };
 
-[[nodiscard]] std::string_view to_string(NetworkDriver driver) noexcept;
 [[nodiscard]] std::string_view to_string(NetworkProfile profile) noexcept;
 [[nodiscard]] std::string_view to_string(AttachmentKind kind) noexcept;
 [[nodiscard]] const NetworkProfileSemantics& profile_semantics(NetworkProfile profile) noexcept;

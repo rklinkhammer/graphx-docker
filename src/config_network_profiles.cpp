@@ -2,8 +2,8 @@
 
 namespace graphx::config_internal {
 
-std::optional<std::string> interpret_v2_network(std::string_view profile,
-                                                NetworkDefinition& network) {
+std::optional<std::string> interpret_network_profile(std::string_view profile,
+                                                     NetworkDefinition& network) {
   if (profile == "ethernet")
     network.profile = NetworkProfile::ethernet;
   else if (profile == "macvlan")
@@ -19,7 +19,7 @@ std::optional<std::string> interpret_v2_network(std::string_view profile,
   return std::nullopt;
 }
 
-std::optional<std::string> validate_v2_network(const NetworkDefinition& network) {
+std::optional<std::string> validate_network_profile(const NetworkDefinition& network) {
   if (network.profile != NetworkProfile::ethernet && network.uplink.empty())
     return "uplink is required for macvlan and ipvlan semantic profiles";
   return std::nullopt;

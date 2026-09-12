@@ -24,18 +24,18 @@ case $(uname -s) in
   Darwin)
     # shellcheck source=../../../infrastructure/lima/common.sh
     source "${repo_dir}/infrastructure/lima/common.sh"
-    graphx_m1_require_host
-    config_digest=$(graphx_m1_digest)
-    instance_status=$(graphx_m1_assert_identity "${config_digest}")
+    graphx_lima_require_host
+    config_digest=$(graphx_lima_digest)
+    instance_status=$(graphx_lima_assert_identity "${config_digest}")
     if [[ ${instance_status} != Running ]]; then
-      echo "GraphX Lima instance '${GRAPHX_M1_INSTANCE}' is ${instance_status}; run infrastructure/lima/start.sh." >&2
+      echo "GraphX Lima instance '${GRAPHX_LIMA_INSTANCE}' is ${instance_status}; run infrastructure/lima/start.sh." >&2
       exit 2
     fi
 
-    guest_graphx=${GRAPHX_LIMA_GRAPHX_BIN:-/var/lib/graphx/m1/build/dev/graphx}
+    guest_graphx=${GRAPHX_LIMA_GRAPHX_BIN:-/var/lib/graphx/runtime/build/dev/graphx}
     # shellcheck disable=SC2016
-    "${GRAPHX_M1_RUNNER}" 120 limactl shell --workdir "${GRAPHX_M1_GUEST_ROOT}" \
-      "${GRAPHX_M1_INSTANCE}" -- bash -c \
+    "${GRAPHX_LIMA_RUNNER}" 120 limactl shell --workdir "${GRAPHX_LIMA_GUEST_ROOT}" \
+      "${GRAPHX_LIMA_INSTANCE}" -- bash -c \
       'test -x "$1" && test -s examples/qemu-node/output/images/bzImage &&
        test -s examples/qemu-node/output/images/rootfs.cpio.gz &&
        command -v qemu-system-x86_64 >/dev/null &&
@@ -50,8 +50,8 @@ case $(uname -s) in
       up|down) deadline=1800 ;;
       *) deadline=180 ;;
     esac
-    exec "${GRAPHX_M1_RUNNER}" "${deadline}" \
-      limactl shell --workdir "${GRAPHX_M1_GUEST_ROOT}" "${GRAPHX_M1_INSTANCE}" -- \
+    exec "${GRAPHX_LIMA_RUNNER}" "${deadline}" \
+      limactl shell --workdir "${GRAPHX_LIMA_GUEST_ROOT}" "${GRAPHX_LIMA_INSTANCE}" -- \
       env GRAPHX_BIN="${guest_graphx}" examples/qemu-node/scripts/demo.sh "${action}" "$@"
     ;;
   *)

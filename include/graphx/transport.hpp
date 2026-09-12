@@ -48,15 +48,12 @@ class Transport {
   virtual ~Transport() = default;
   virtual void send(const Envelope& envelope) = 0;
   virtual std::optional<Envelope> receive(
-      std::chrono::milliseconds timeout = std::chrono::milliseconds{-1}) = 0;
-  virtual void close() = 0;
-  // Existing third-party transports inherit this adapter; their empty optional
-  // can only be classified as timeout. Built-in transports override it.
-  virtual ReceiveResult receive_result(
       std::chrono::milliseconds timeout = std::chrono::milliseconds{-1}) {
-    auto envelope = receive(timeout);
-    return {envelope ? ReceiveStatus::message : ReceiveStatus::timeout, std::move(envelope)};
+    return std::move(receive_result(timeout).envelope);
   }
+  virtual void close() = 0;
+  virtual ReceiveResult receive_result(
+      std::chrono::milliseconds timeout = std::chrono::milliseconds{-1}) = 0;
 };
 
 using TransportPtr = std::unique_ptr<Transport>;
