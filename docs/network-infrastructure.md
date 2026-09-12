@@ -5,10 +5,10 @@ deployment, observability, and GUI/control. The versioned `network` section of
 `graphx.yaml` owns these objects:
 
 - `networks`: semantic Ethernet, macvlan, or ipvlan address domains realized by OVS;
-- `interfaces`: node IP/MAC attachments, separate from GraphX ports;
 - `switches`: Open vSwitch bridges, ports, VLAN access/trunk metadata, and mirrors;
 - `routers`: Linux namespace or container router interfaces, routes, forwarding,
   and backend-neutral policies;
+- `attachments`: container veth, namespace veth, QEMU TAP, and mirror endpoints;
 - `edge_paths`: ordered infrastructure hops for each logical GraphX edge.
 - `captures`: bounded Ethernet PCAPNG observers attached to mirror endpoints;
 - `faults`: bounded, timed netem profiles attached to realized veth/TAP endpoints.
@@ -98,9 +98,8 @@ application/expiry deadline. Status reports `active` until automatic expiry and
 `expired` afterward. A missing timer/qdisc before the recorded deadline, a boot
 change, or an unrelated replacement qdisc fails closed.
 
-The imperative `graphx infra fault` command is retired. Faults
-must be declared under `network.faults` so duration, interface identity, qdisc
-state, timers, rollback, and recovery use the same fail-closed lifecycle.
+Faults are declared under `network.faults` so duration, interface identity,
+qdisc state, timers, rollback, and recovery use the same fail-closed lifecycle.
 
 Each OVS bridge may expose an owned SPAN output. Use the declarative capture
 configuration and `infra capture export` rather than attaching an untracked
@@ -111,11 +110,11 @@ See `examples/network-observability` for the declarative form.
 ## macOS execution model
 
 The privileged macOS execution environment is the dedicated ARM64 Linux Lima
-VM described in `infrastructure/lima/README.md`. Rootful Docker, system OVS,
-namespaces, veth/TAP, QEMU, ownership ledgers, captures, and faults stay inside
-that VM. The source checkout is the only writable host mount. No Docker or OVS
-socket is forwarded to macOS.
+VM. Rootful Docker, system OVS, namespaces, veth/TAP, QEMU, ownership ledgers,
+captures, and faults stay inside that VM. The source checkout is the only
+writable host mount, and no Docker or OVS socket is forwarded to macOS.
 
-The retired userspace-OVS simulation and its privileged container image are not
-supported. An approximate container bridge topology is not evidence for the
-system-OVS data plane. See `docs/project-decisions.md`.
+Follow the current
+[`macOS Docker and OVS with Lima`](../infrastructure/lima/README.md) guide for
+installation, verification, lab commands, direct guest access, storage, and
+troubleshooting.

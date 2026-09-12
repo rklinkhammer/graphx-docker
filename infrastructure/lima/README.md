@@ -1,85 +1,166 @@
-# GraphX Lima execution environment (Migration Lima)
+# macOS: Docker and Open vSwitch with Lima
 
-This directory defines the optional Linux execution environment used for
-privileged GraphX development on an Apple Silicon Mac. Lima creates one ARM64
-Ubuntu 24.04 VM named `graphx`; the VM, rather than a macOS container or Docker
-Desktop, owns rootful Docker, Open vSwitch, Linux namespaces, veth/TAP devices,
-nftables, netem, QEMU, and packet-capture tools.
+GraphX uses two Linux environments on Apple Silicon macOS, depending on the
+workload:
 
-Lima established and still verifies those prerequisites. GraphX uses this VM for
-the configuration-version-2 OVS-only backend, container veth attachments, QEMU
-TAP, capture, and bounded faults. MACVLAN/IPVLAN are semantic profiles only.
-QEMU user networking is retained solely in explicitly deprecated compatibility
-profiles.
+| Workload | Runtime | Why |
+|---|---|---|
+| Portable Compose demo | OrbStack | It needs Docker and Compose, but not Linux host networking. |
+| OVS network and QEMU/TAP labs | GraphX Lima VM | They need rootful Docker, system Open vSwitch, namespaces, veth/TAP devices, nftables, netem, QEMU, and packet capture. |
 
-## Prerequisites and boundary
+OrbStack does not provide the Linux host data plane required by the OVS labs.
+The macOS launchers therefore dispatch those labs to the fixed Lima instance
+named `graphx`; do not change the host Docker context to run them.
+
+## Prerequisites
 
 - Apple Silicon Mac with macOS 13 or newer and Virtualization.framework.
-- Lima 2.2.0 or newer (`brew install lima`) and Python 3.
-- At least 4 CPU cores, 8 GiB RAM, 80 GiB free disk, and internet access for the
-  pinned Ubuntu image and Ubuntu packages.
+- Lima 2.2.0 or newer and Python 3.
+- At least 4 CPU cores, 8 GiB RAM, 80 GiB free disk, and internet access for
+  the pinned Ubuntu image and packages.
 
-The repository is the only writable host mount and appears at
-`/workspace/graphx-docker` through virtiofs. Docker data, OVS databases, QEMU
-disks, active captures, run ownership, logs, package evidence, and verification
-evidence remain on the VM filesystem:
+Install Lima with Homebrew if needed:
+
+```sh
+brew install lima
+limactl --version
+```
+
+The separate portable demo requires OrbStack with its Docker context selected:
+
+```sh
+docker context use orbstack
+docker info
+docker compose version
+scripts/demo.sh start
+```
+
+OrbStack is not required by the OVS launchers once the Lima VM has been
+provisioned.
+
+## Create and verify the Linux environment
+
+Run from the repository root on macOS:
+
+```sh
+infrastructure/lima/start.sh
+infrastructure/lima/verify.sh
+```
+
+`start.sh` validates the checked-in Lima definition, then creates or starts the
+`graphx` ARM64 Ubuntu VM. It installs rootful Docker with Compose and Buildx,
+system Open vSwitch, QEMU, nftables, packet tools, and Node.js 24. It refuses to
+reuse a VM whose architecture, virtualization type, source checkout, or GraphX
+Lima configuration differs from the current definition.
+
+`verify.sh` checks Docker and OVS, builds GraphX in the VM, and exercises a
+disposable system-OVS topology containing a namespace, veth pair, TAP device,
+nftables policy, netem fault, and capture. Run it after creating the VM and
+after changing the Lima definition or provisioning scripts.
+
+## Run OVS network labs from macOS
+
+Use the same commands at the macOS prompt that you would use on Linux. The
+dispatcher detects macOS and runs the lab inside Lima:
+
+```sh
+scripts/network-lab.sh mixed-network plan
+scripts/network-lab.sh mixed-network up
+scripts/network-lab.sh mixed-network status
+scripts/network-lab.sh mixed-network down
+```
+
+Replace `mixed-network` with `macvlan`, `ipvlan-l2`, or `ipvlan-l3` to run a
+focused topology. `up` starts the lab containers with Docker inside the VM and
+then creates the OVS data plane. Always use the matching `down` command when
+finished; it verifies resource ownership before removing anything.
+
+The guest GraphX executable is
+`/var/lib/graphx/runtime/build/dev/graphx`. If it is missing or the dispatcher
+reports failed prerequisites, rerun `infrastructure/lima/verify.sh`.
+
+## Run the QEMU TAP/OVS lab
+
+Build the guest image with Docker inside Lima so the entire privileged workflow
+uses the documented VM environment:
+
+```sh
+limactl shell --workdir /workspace/graphx-docker graphx -- \
+  examples/qemu-node/scripts/build.sh
+```
+
+Then control the lab from the macOS prompt. Its launcher dispatches to Lima:
+
+```sh
+examples/qemu-node/scripts/demo.sh start --accel auto
+examples/qemu-node/scripts/demo.sh status
+examples/qemu-node/scripts/demo.sh verify
+examples/qemu-node/scripts/demo.sh stop
+```
+
+The VM is ARM64. The x86_64 QEMU guest normally uses TCG emulation; this setup
+does not claim KVM acceleration.
+
+## Work directly in the VM
+
+For diagnosis or development, open a shell in the mounted checkout:
+
+```sh
+limactl shell --workdir /workspace/graphx-docker graphx
+```
+
+Useful checks are:
+
+```sh
+docker info
+docker compose version
+sudo systemctl status docker openvswitch-switch
+sudo ovs-vsctl show
+/var/lib/graphx/runtime/build/dev/graphx inspect graphx.yaml
+```
+
+Docker in this VM is a rootful system service. The Lima login user belongs to
+the `docker` group so checked-in scripts can call Docker without `sudo`; that
+group is root-equivalent inside this dedicated development VM. Docker, OVS,
+and QMP sockets are not forwarded to macOS.
+
+## Files, ports, and evidence
+
+The repository is the only writable host mount and appears in the VM at
+`/workspace/graphx-docker`. Linux build state and privileged runtime data remain
+on the VM disk:
 
 ```text
 /var/lib/docker
 /var/lib/openvswitch
-/var/lib/graphx/{qemu,captures,runs,m1/evidence}
+/var/lib/graphx/qemu
+/var/lib/graphx/captures
+/var/lib/graphx/runs
+/var/lib/graphx/runtime/build
+/var/lib/graphx/runtime/evidence
 /var/log/graphx
 ```
 
-No Docker, OVS, QMP, or other privileged socket is forwarded to macOS. The only
-application forwarding rule is guest loopback port 8080 to macOS loopback port
-18080; an explicit match-any deny rule suppresses Lima's general loopback fallback. Lima's
-own SSH transport remains implementation-managed.
+The only application port forwarded to macOS is guest loopback port 8080 at
+`127.0.0.1:18080`. Lima's own SSH transport remains implementation-managed.
 
-## Lifecycle
+Verification evidence is retained under
+`/var/lib/graphx/runtime/evidence`, with at most ten runs and 256 MiB. The VM
+build directory is separate from macOS CMake output, so the two platforms do
+not share incompatible build caches.
 
-Run these commands from the repository on macOS:
+## Stop, restart, and troubleshoot
 
-```bash
-infrastructure/lima/start.sh
-infrastructure/lima/verify.sh
+Stopping preserves the VM disk and mounted source checkout:
+
+```sh
 infrastructure/lima/stop.sh
+infrastructure/lima/start.sh
 ```
 
-`start.sh` validates the template and creates or starts only the fixed `graphx`
-instance. It refuses an existing instance whose architecture, virtualization
-type, source path, or configuration digest differs. Provisioning is idempotent,
-bounded, records installed package versions, installs Docker Compose and
-Buildx for the repository's BuildKit Dockerfiles, and installs Node.js 24 from
-the same digest-pinned multi-architecture official image used by the Linux
-verifier. Docker and OVS remain systemd-managed rootful services. The Lima login user is added to the `docker`
-group because the checked-in build and example scripts invoke Docker directly;
-that group is root-equivalent inside this dedicated development VM. On initial
-creation, `start.sh` performs one bounded VM restart if needed to replace Lima's
-pre-provisioning SSH session and activate the new supplementary group.
+Inspect a failed environment with:
 
-`verify.sh` first requires Node.js 24 with `node:sqlite`, then rejects occupied
-fixed names and creates a disposable
-`gx-lima-*` OVS/namespace/veth/TAP topology. It verifies system-datapath packet
-exchange, nftables, netem, capture, Docker, the GraphX quick profile, and
-projection consistency. Each run exclusively owns `/run/graphx-lima`; any stale
-or foreign state is rejected without alteration. Resource creation records the
-exact OVS UUID, network-namespace inode, and internal/veth/TAP kernel interface
-indexes inside signal-deferred critical sections. Cleanup validates those
-identities and the complete link inventory inside its namespace, treats a
-mismatch or leftover as a verification failure, compares complete before/after
-guest snapshots, and preserves foreign replacements for inspection.
-Evidence rotation runs on success and failure, retaining at most ten run
-directories and 256 MiB under `/var/lib/graphx/runtime/evidence`.
-The guest quick build uses `/var/lib/graphx/runtime/build`, so macOS and Linux CMake
-caches never collide on the shared source mount.
-
-`stop.sh` stops only the matching instance. Source and VM-local evidence remain.
-It is safe to repeat start and stop.
-
-## Inspect and troubleshoot
-
-```bash
+```sh
 limactl list graphx
 limactl shell graphx -- systemctl status docker openvswitch-switch
 limactl shell graphx -- sudo cat /var/lib/graphx/runtime/provisioned
@@ -87,31 +168,35 @@ limactl shell graphx -- sudo ls -1 /var/lib/graphx/runtime/evidence
 limactl shell graphx -- sudo tail -n 200 /var/log/cloud-init-output.log
 ```
 
-An image/package download, service wait, test, packet operation, and lifecycle
-command has a deadline. A timeout is a failure, not permission to adopt or
-delete unknown state. Resolve occupied `gx-lima-*` objects manually only after
-inspecting their recorded kernel identity, OVS UUID/external IDs, aliases, or
-Docker label. A retained `/run/graphx-lima` is deliberately not repaired or
-overwritten automatically; inspect it together with the named resources before
-performing a deliberate recovery.
+If an image build reports a registry timeout, test both the guest network and
+the guest Docker engine:
 
-TAP creation requires `/dev/net/tun`; system OVS requires the guest kernel's
-Open vSwitch facilities. Packet capture runs as guest root and writes only to
-the bounded VM-local evidence directory. On Apple Silicon, QEMU's available
-accelerators are recorded, but x86_64 and PowerPC guests are expected to use TCG
-emulation. Lima does not require or claim KVM.
+```sh
+limactl shell graphx -- curl -fsSI --connect-timeout 10 https://registry-1.docker.io/v2/
+limactl shell graphx -- docker pull hello-world:linux
+```
 
-## Deliberate reset or removal
+An HTTP `401 Unauthorized` response from the first command is the expected
+anonymous registry challenge and proves the HTTPS path is working. If either
+command times out, retry after the network path recovers; restarting the OVS
+lab is unnecessary. Then rerun the failed build command. GraphX Dockerfiles use
+the Docker/BuildKit frontend bundled in the provisioned engine, so builds do
+not need a separate `docker/dockerfile` frontend image download.
 
-Stopping is the normal operation. To replace a stale definition or perform a
-clean recreation, first confirm the exact target and source path:
+Lifecycle commands have deadlines and fail closed. If a lab reports an
+ownership or identity mismatch, inspect the named resource and retained
+evidence before changing it manually. The scripts do not adopt, overwrite, or
+delete an object they cannot prove they own.
 
-```bash
+To replace the VM definition, first confirm that the fixed name refers to this
+checkout:
+
+```sh
 limactl list graphx --format '{{.Name}} {{.Status}} {{.Arch}} {{.VMType}} {{index .Param "repo"}}'
 limactl stop graphx
 limactl delete graphx
 ```
 
-`limactl delete graphx` permanently removes the VM disk, including retained
-evidence, Docker data, and QEMU disks. It does not delete the mounted source
-checkout. The lifecycle scripts deliberately never delete an instance.
+`limactl delete graphx` permanently removes the VM disk, including Docker data,
+QEMU disks, and retained evidence. It does not delete the mounted repository.
+The GraphX lifecycle scripts never delete the VM.

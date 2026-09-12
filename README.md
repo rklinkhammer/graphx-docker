@@ -64,7 +64,9 @@ sudo build/dev/graphx infra destroy graphx.yaml
 
 Cleanup verifies stable resource identities and fails closed when an object has been
 replaced or ownership cannot be proven. On macOS, ordinary Compose demos use
-OrbStack; privileged OVS/QEMU laboratories run in the dedicated Lima VM.
+OrbStack; privileged Docker/OVS and QEMU/TAP laboratories run in the dedicated
+Lima VM. Follow the complete [`macOS Lima/OVS guide`](infrastructure/lima/README.md)
+to install, verify, run, inspect, and stop that environment.
 
 ## Examples and documentation
 
@@ -76,6 +78,7 @@ shared OVS network labs, the [`QEMU TAP lab`](examples/qemu-node/README.md), the
 - [`Architecture`](docs/GraphX_Architecture.md)
 - [`Configuration`](docs/configuration.md)
 - [`Network infrastructure`](docs/network-infrastructure.md)
+- [`macOS Docker and OVS with Lima`](infrastructure/lima/README.md)
 - [`Runtime lifecycle`](docs/runtime-lifecycle.md)
 - [`Protocol and transports`](docs/protocol.md)
 - [`Observability and capture`](docs/observability.md)

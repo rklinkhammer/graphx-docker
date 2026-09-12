@@ -5,11 +5,12 @@ system Open vSwitch bridge, captures mirrored Ethernet traffic, records packet
 history, and collects QMP runtime evidence.
 
 ```sh
-scripts/build.sh
-scripts/demo.sh start --accel auto
-scripts/demo.sh status
-scripts/demo.sh stop
+examples/qemu-node/scripts/build.sh
+examples/qemu-node/scripts/demo.sh start --accel auto
+examples/qemu-node/scripts/demo.sh status
+examples/qemu-node/scripts/demo.sh stop
 ```
 
 Run it on native Linux or through the dispatcher into the GraphX Lima guest. Runtime
-artifacts stay under `/var/lib/graphx/qemu`.
+artifacts stay under `/var/lib/graphx/qemu`. On macOS, build and run it using the
+[`Docker and OVS with Lima`](../../infrastructure/lima/README.md) procedure.

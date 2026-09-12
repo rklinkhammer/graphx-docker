@@ -14,6 +14,11 @@ Use `status` while a scenario is running and its matching `down` or `stop` actio
 for cleanup. OVS scenarios require native Linux or the GraphX Lima guest. The
 portable pipeline runs with Docker Compose on Linux or OrbStack on macOS.
 
+On Apple Silicon macOS, follow the
+[`Docker and OVS with Lima`](../infrastructure/lima/README.md) guide. The network
+and QEMU launchers run at the macOS prompt and dispatch privileged work to the
+Lima VM automatically.
+
 For browser-oriented checks see [`graphical-examples-guide.md`](graphical-examples-guide.md).
 For exact prerequisites and non-interactive verification see
 [`test-procedure.md`](test-procedure.md).
