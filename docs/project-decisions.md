@@ -8,7 +8,8 @@ This page records the active design constraints for GraphX 1.1.0.
 - The [instance identity contract](instance-identity.md) distinguishes logical
   graph/node identity, deployment instances, execution freshness, and infrastructure
   ownership. The configuration model supports explicit instance selection and
-  typed SDR source settings; current runtimes do not yet provide concurrent-instance
+  typed SDR source settings. OVS resources, ledgers, and locks are instance-scoped;
+  application runtimes and example launchers do not yet provide concurrent-instance
   guarantees.
 - System Open vSwitch is the only managed data-plane backend.
 - Docker Compose owns processes and management connectivity only.

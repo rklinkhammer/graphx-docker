@@ -101,14 +101,16 @@ std::filesystem::path infra::detail::default_ownership_state_root_impl() {
   return "/var/lib/graphx/runs";
 }
 
-int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
+int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& logical_config,
                                               const std::filesystem::path& config_path,
                                               OvsLifecycleAction action, bool dry_run,
                                               const std::filesystem::path& state_root,
                                               std::ostream& output, std::ostream& errors) {
-  if (config.version != 2) throw std::invalid_argument("OVS lifecycle requires version 2");
-  const auto hash = configuration_hash(config_path);
-  const auto state_path = state_root / (config.id + ".yaml");
+  if (logical_config.version != 2) throw std::invalid_argument("OVS lifecycle requires version 2");
+  const auto resources = resolve_instance_resources(logical_config);
+  const auto& config = resources.config;
+  const auto hash = configuration_hash(config_path, &logical_config);
+  const auto state_path = state_root / (resources.state_key + ".yaml");
   if (dry_run) {
     if (action == OvsLifecycleAction::create) {
       output << "# ownership-state " << state_path << "\n";
@@ -206,7 +208,7 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
     return 0;
   }
 
-  const auto lock_path = state_root / (config.id + ".lock");
+  const auto lock_path = state_root / (resources.state_key + ".lock");
   if (action == OvsLifecycleAction::status) {
     if (!inspect_existing_state_root(state_root) || !path_entry_exists(state_path)) {
       output << "No OVS ownership state for graph " << config.id << '\n';
@@ -214,14 +216,16 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
     }
     auto lock = OwnershipLock::open_existing(lock_path, OwnershipLockMode::shared);
     const auto state = load_state(state_path);
-    if (state.graph_id != config.id) throw std::runtime_error("ownership state graph mismatch");
+    if ((state.graph_id != config.id || state.instance_id != config.deployment.instance_id))
+      throw std::runtime_error("ownership state graph mismatch");
     const bool config_matches = state.config_hash == hash;
     if (!config_matches)
       errors << "graphx: current configuration differs from the ownership ledger; resource "
                 "identity still controls cleanup\n";
     bool healthy = state.status == "ready" && config_matches;
-    output << "graph=" << state.graph_id << " status=" << state.status
-           << " config-sha256=" << state.config_hash
+    output << "graph=" << state.graph_id;
+    if (!state.instance_id.empty()) output << " instance=" << state.instance_id;
+    output << " status=" << state.status << " config-sha256=" << state.config_hash
            << " current-config=" << (config_matches ? "matched" : "drifted") << '\n';
     for (const auto& item : state.bridges) {
       const bool owned = bridge_owned(item, state);
@@ -282,6 +286,9 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
   }
 
   ensure_state_root(state_root);
+  // Serialize cross-instance preflight and mutation in this authority.
+  auto authority_lock =
+      OwnershipLock::open_or_create(state_root / ".authority.lock", OwnershipLockMode::exclusive);
   // Refuse even a dangling symlink before create mutates the per-graph state
   // directory by opening or creating its lock.
   if (action == OvsLifecycleAction::create && path_entry_exists(state_path))
@@ -296,6 +303,8 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
         throw std::runtime_error("refusing unowned OVS bridge collision: " + item.id);
     OwnershipState state;
     state.graph_id = config.id;
+    state.instance_id = config.deployment.instance_id;
+    state.resource_mappings = resources.mappings;
     state.config_hash = hash;
     state.owner_token = random_token();
     state.status = "creating";
@@ -551,7 +560,7 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
         discovered.secondary_id = ovs_get("Interface", expected.host_interface, "_uuid");
         if (expected.kind == AttachmentKind::mirror)
           discovered.route_identity =
-              ovs_find_uuid("Mirror", "external_ids:graphx_attachment", expected.id);
+              ovs_get("Mirror", owned_mirror_name(state, expected.id), "_uuid");
         state.endpoints.push_back(std::move(discovered));
       }
       // Include atomic mutations that happened before their ledger update.
@@ -611,7 +620,8 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
     throw std::runtime_error("no ownership state for graph " + config.id);
   }
   auto state = load_state(state_path);
-  if (state.graph_id != config.id) throw std::runtime_error("ownership state graph mismatch");
+  if ((state.graph_id != config.id || state.instance_id != config.deployment.instance_id))
+    throw std::runtime_error("ownership state graph mismatch");
   const bool config_matches = state.config_hash == hash;
   if (!config_matches)
     errors << "graphx: current configuration differs from the ownership ledger; resource identity "
@@ -681,8 +691,7 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
     discovered.stable_id = port_uuid;
     discovered.secondary_id = ovs_get("Interface", expected.host_interface, "_uuid");
     if (expected.kind == AttachmentKind::mirror)
-      discovered.route_identity =
-          ovs_find_uuid("Mirror", "external_ids:graphx_attachment", expected.id);
+      discovered.route_identity = ovs_get("Mirror", owned_mirror_name(state, expected.id), "_uuid");
     state.endpoints.push_back(std::move(discovered));
   }
   // Refuse the entire cleanup before the first mutation when any recorded
@@ -770,20 +779,23 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
   return 0;
 }
 
-int infra::detail::export_owned_network_capture_impl(const GraphConfig& config,
+int infra::detail::export_owned_network_capture_impl(const GraphConfig& logical_config,
                                                      const std::filesystem::path& config_path,
                                                      std::string_view capture_id,
                                                      const std::filesystem::path& state_root,
                                                      const std::filesystem::path& destination,
                                                      std::ostream& output) {
+  const auto resources = resolve_instance_resources(logical_config);
+  const auto& config = resources.config;
   if (config.version != 2) throw std::invalid_argument("network capture export requires version 2");
   if (!inspect_existing_state_root(state_root))
     throw std::runtime_error("network capture ownership state is unavailable");
-  const auto state_path = state_root / (config.id + ".yaml");
-  const auto lock_path = state_root / (config.id + ".lock");
+  const auto state_path = state_root / (resources.state_key + ".yaml");
+  const auto lock_path = state_root / (resources.state_key + ".lock");
   auto lock = OwnershipLock::open_existing(lock_path, OwnershipLockMode::shared);
   const auto state = load_state(state_path);
-  if (state.graph_id != config.id || state.config_hash != configuration_hash(config_path) ||
+  if ((state.graph_id != config.id || state.instance_id != config.deployment.instance_id) ||
+      state.config_hash != configuration_hash(config_path, &logical_config) ||
       state.status != "ready")
     throw std::runtime_error("network capture export requires matching ready ownership state");
   const auto capture = std::find_if(state.captures.begin(), state.captures.end(),

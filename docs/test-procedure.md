@@ -84,6 +84,10 @@ contract tests. `full` adds the standard Compose and UDP broadcast runs, plus
 quality/sanitizer/fuzz gates; it does not invoke Lima verification or boot QEMU.
 The privileged CTests exercise ownership, container veth, OVS network
 profile semantics, TAP lifecycle, capture/faults, external SDR, and static-route policy.
+The `graphx-instance-ownership-live` CTest checks two simultaneous instances with
+identical namespace addresses, isolated routes and shutdown, rollback/recovery,
+and collision/replacement refusal. It uses VM-native temporary state under
+`/var/lib/graphx` and requires the same explicit privileged authorization.
 The QEMU TAP CTest exercises infrastructure without booting a guest.
 
 Use the [complete example matrix](../examples/README.md) for launcher commands.

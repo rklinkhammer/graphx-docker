@@ -9,6 +9,8 @@
 
 namespace graphx::infra::detail {
 
+std::string owned_mirror_name(const OwnershipState& state, std::string_view attachment);
+
 struct ResolvedContainer {
   std::string id;
   std::uint32_t pid{};

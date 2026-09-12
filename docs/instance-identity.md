@@ -3,8 +3,9 @@
 This contract defines instance-aware configuration and the requirements for runtime
 isolation. The authoritative loader and normalized JSON support optional
 `deployment.instance_id` and typed SDR source settings. Configuration consumers
-can select a node against an explicit matching instance identity. Execution IDs,
-instance-scoped infrastructure, and runtime enforcement are not implemented yet.
+can select a node against an explicit matching instance identity. The OVS
+lifecycle resolves and owns resources by instance. Execution IDs and application
+runtime enforcement are not implemented yet.
 Configuration and envelope wire versions remain 2. See
 [configuration](configuration.md#instance-selection-and-sdr-source-settings) for
 supported fields and APIs.
@@ -64,9 +65,10 @@ freshness checks must not rely on retaining an unbounded list of previous IDs.
 Bound registration state and replay windows using the existing bounded control
 and runtime-state mechanisms.
 
-Ownership tokens retain the existing ledger representation and validation. This
-contract does not change the ownership-state format or equate ownership tokens
-with the canonical message-identity format. Tokens are not operator API credentials.
+Ownership tokens retain the existing ledger representation and validation.
+Instance-aware ownership uses ledger version 3; legacy unscoped ownership uses
+version 2. Neither format equates ownership tokens with message identities.
+Tokens are not operator API credentials.
 
 Validation belongs in the authoritative C++ model; normalized JSON carries the
 resolved non-secret identity to consumers, which enforce its schema at their
@@ -143,9 +145,10 @@ deleted merely because an instance references them.
 
 ## Implementation acceptance cases
 
-Configuration validation and selection cases have executable coverage. Runtime
-isolation, restart, authorization, and recovery cases below remain requirements
-for runtime implementation, not claims of current coverage. Extend the nearest configuration, ownership, control, and SDR tests.
+Configuration selection and infrastructure isolation have executable coverage,
+including interruption and recovery. Application restart, authorization, and live
+observation cases below remain runtime requirements. Extend the nearest
+configuration, ownership, control, and SDR tests.
 
 | Case | Expected result |
 |---|---|
@@ -168,16 +171,65 @@ a two-SDR graph, including restart, interrupted startup, recovery, and isolated
 shutdown. Native Linux, Lima, TCG guest boot, and KVM evidence must be reported
 separately. TAP lifecycle tests alone do not establish guest execution.
 
+## Infrastructure resource resolution
+
+`resolve_instance_resources(config)` resolves a logical configuration for the OVS
+lifecycle. `graphx config normalize FILE --resources` exposes that same resolved
+configuration to infrastructure consumers. Ordinary normalization retains logical
+names. Always pass the logical YAML to lifecycle commands; resolved JSON is an
+output for consumers, not a replacement input manifest.
+
+With an explicit `deployment.instance_id`:
+
+- State and lock filenames use a domain-separated SHA-256 of the structured
+  graph/instance tuple. The ledger records both original IDs and the typed
+  logical-to-physical name mappings.
+- OVS bridges and managed interface names use 15-byte names; namespaces, Compose
+  projects, and mirror names use 64-byte names. A collision is refused, not adopted.
+  Target interface references in router routes resolve together with attachments.
+- Capture directories gain the instance state key below the configured VM-native
+  directory. Capture export requires the matching ready ledger and retains its
+  exclusive destination creation and stable capture identity checks.
+- The configuration digest binds both source bytes and effective normalized
+  configuration, including environment overrides. Destroy/recover retain existing
+  identity-based cleanup on configuration drift; routes and exports require an
+  exact match.
+- A protected authority lock serializes infrastructure mutation and collision
+  preflight across instances sharing the state root. Each instance also has its
+  own lock. Use one state root per authority; separate state roots do not provide
+  shared reservation. Existing kernel/OVS collisions still fail closed.
+- Manual `infra route apply|clear` requires a ready matching ledger and verified
+  namespace inode/ownership marker. `--state-dir` selects the same authority used
+  at creation. Dry runs require neither Linux nor existing resources.
+
+Ledger version 3 rejects missing, duplicate, and incorrectly derived mappings.
+Resource cleanup continues to check UUIDs, ifindices, namespace inodes, container
+IDs, capture processes, and transaction ownership. Names alone grant no ownership.
+Legacy configurations retain graph-ID filenames and literal resource names in
+version 2 ledgers. Adding or changing an instance selects new resources; it never
+adopts a legacy deployment. Stop legacy resources deliberately before migration.
+
 ## Current implementation boundary
 
-The current infrastructure ledger and lock are keyed by graph ID; runtime policy
-identities are keyed by configured node ID. Existing examples also contain fixed
-resource names and paths. They do not yet satisfy the concurrent-instance contract.
-Configuration supports explicit instance selection through the existing dotted-path
-overrides; no new activation CLI, credential format, ledger layout, or wire format
-is introduced. Missing instance IDs remain absent for existing configurations;
-instance-aware node lookup and SDR source settings require an explicit ID. Current
-launchers do not consume the new SDR settings or isolate resources by instance.
-Do not use an instance override as a way to launch concurrent copies yet.
-Existing running resources must be deliberately stopped before a later
-identity-layout migration; migration must not silently adopt them.
+The infrastructure resolver applies to native Linux and to Linux inside the
+GraphX Lima VM. Native macOS can normalize and plan; OrbStack does not provide
+managed OVS. The privileged two-instance test checks simultaneous namespace
+traffic with identical addresses, isolated route changes and shutdown, interrupted
+create/rollback/recovery, duplicate starts, and unowned/replaced bridge refusal.
+TAP lifecycle tests still do not establish QEMU guest execution.
+
+Application runtime policy remains keyed by configured node ID. Current example
+launchers still contain fixed runtime directories, credentials, sockets,
+shared-memory names, QMP paths, and published ports. Their migration and execution
+identity enforcement remain separate from the OVS ownership implementation.
+The resolved Compose project must be used when starting containers for an explicit
+instance: infrastructure lookup refuses containers from a different project.
+Changing only an instance ID does not make the existing full demo launchers safe
+to run concurrently.
+
+External attachments and physical devices are references, not managed resources;
+they are neither renamed nor claimed nor removed by the OVS lifecycle. Published
+ports and application credentials are also outside that lifecycle. Their owning
+runtime must reserve shared resources and reject conflicts before starting them.
+Isolated namespace routes and addresses may be repeated in different instances;
+this does not authorize overlapping routes or addresses in a shared host namespace.

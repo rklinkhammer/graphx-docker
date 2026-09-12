@@ -141,5 +141,8 @@ normalized node-selection boundary.
 
 The [two-source example](../examples/sdr-node/two-source/README.md) exercises this
 configuration contract. The current SDR launchers still use their existing
-environment settings. Instance-scoped resource ownership and application adoption
-are separate work: these fields do not make simultaneous example launches safe.
+environment settings. The OVS lifecycle resolves instance-scoped infrastructure;
+`graphx config normalize FILE --resources` exposes its resolved names and Compose
+project. Application adoption remains separate: these fields do not make
+simultaneous full example launches safe. See the
+[resource resolution contract](instance-identity.md#infrastructure-resource-resolution).

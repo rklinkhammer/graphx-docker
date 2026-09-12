@@ -52,6 +52,12 @@ int export_owned_network_capture(const GraphConfig& config,
                                  const std::filesystem::path& state_root,
                                  const std::filesystem::path& destination, std::ostream& output);
 
+// Mutates declared routes only in a matching, identity-checked owned namespace.
+int execute_owned_route(const GraphConfig& config, const std::filesystem::path& config_path,
+                        std::string_view router_id, std::string_view destination, bool clear,
+                        bool dry_run, const std::filesystem::path& state_root, std::ostream& output,
+                        std::ostream& errors);
+
 [[nodiscard]] std::filesystem::path default_ownership_state_root();
 
 }  // namespace graphx

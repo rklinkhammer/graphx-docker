@@ -1,6 +1,7 @@
 #include "graphx/config.hpp"
 #include "graphx/infra.hpp"
 #include "graphx/normalized_config.hpp"
+#include "graphx/instance_resources.hpp"
 #include "graphx/ownership.hpp"
 #include "graphx/version.hpp"
 
@@ -19,7 +20,8 @@ void usage(std::ostream& output) {
   output << "usage:\n"
          << "  graphx --version\n"
          << "  graphx <validate|inspect> [config.yaml] [--set path=value]\n"
-         << "  graphx config normalize [config.yaml] [--format json] [--set path=value]\n"
+         << "  graphx config normalize [config.yaml] [--format json] [--resources] [--set "
+            "path=value]\n"
          << "  graphx infra <create|destroy|status|recover> [config.yaml] [--dry-run]\n"
          << "               [--state-dir DIR]\n"
          << "  graphx infra route <apply|clear> [config.yaml] --router ID --destination CIDR\n"
@@ -30,10 +32,12 @@ void usage(std::ostream& output) {
 int normalization_command(int argc, char** argv) {
   auto source = default_config();
   std::vector<graphx::ConfigOverride> overrides;
-  bool source_set{}, format_set{};
+  bool source_set{}, format_set{}, resources{};
   for (int index = 3; index < argc; ++index) {
     const std::string argument = argv[index];
-    if (argument == "--format") {
+    if (argument == "--resources") {
+      resources = true;
+    } else if (argument == "--format") {
       if (format_set) throw std::invalid_argument("--format may be specified only once");
       if (++index == argc) throw std::invalid_argument("--format requires json");
       if (std::string_view(argv[index]) != "json")
@@ -55,7 +59,9 @@ int normalization_command(int argc, char** argv) {
       throw std::invalid_argument("unexpected argument '" + argument + "'");
     }
   }
-  std::cout << graphx::normalize_config_json(graphx::load_config(source, overrides));
+  const auto config = graphx::load_config(source, overrides);
+  std::cout << graphx::normalize_config_json(
+      resources ? graphx::resolve_instance_resources(config).config : config);
   return 0;
 }
 
@@ -272,6 +278,7 @@ int infrastructure_command(int argc, char** argv) {
       throw std::invalid_argument("infra route action must be apply or clear");
     auto path = default_config();
     std::string router, destination;
+    auto state_root = graphx::default_ownership_state_root();
     bool path_set{}, dry_run{};
     for (int index = 4; index < argc; ++index) {
       const std::string argument = argv[index];
@@ -281,7 +288,10 @@ int infrastructure_command(int argc, char** argv) {
       };
       if (argument == "--router")
         value(router);
-      else if (argument == "--destination")
+      else if (argument == "--state-dir") {
+        if (++index == argc) throw std::invalid_argument("--state-dir requires a directory");
+        state_root = argv[index];
+      } else if (argument == "--destination")
         value(destination);
       else if (argument == "--dry-run")
         dry_run = true;
@@ -298,8 +308,8 @@ int infrastructure_command(int argc, char** argv) {
     if (!dry_run)
       throw std::runtime_error("native route changes require Linux; use --dry-run on this host");
 #endif
-    return graphx::execute_infrastructure_plan(
-        {graphx::route_command(config, router, destination, clear)}, dry_run, std::cout, std::cerr);
+    return graphx::execute_owned_route(config, path, router, destination, clear, dry_run,
+                                       state_root, std::cout, std::cerr);
   }
   if (action == "fault")
     throw std::invalid_argument(

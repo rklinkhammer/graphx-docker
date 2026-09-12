@@ -1,6 +1,7 @@
 #pragma once
 
 #include "graphx/ownership.hpp"
+#include "graphx/instance_resources.hpp"
 
 #include <cstdint>
 #include <filesystem>
@@ -69,6 +70,8 @@ struct OwnedFault {
 
 struct OwnershipState {
   std::string graph_id;
+  std::string instance_id;
+  std::vector<InstanceResourceMapping> resource_mappings;
   std::string config_hash;
   std::string owner_token;
   std::string status;
@@ -89,7 +92,8 @@ OwnedResourceIdentity bridge_identity(std::string name, std::string uuid,
 bool stable_identity_matches(const OwnedResourceIdentity& expected,
                              const OwnedResourceIdentity& observed);
 
-std::string configuration_hash(const std::filesystem::path& path);
+std::string configuration_hash(const std::filesystem::path& path,
+                               const GraphConfig* config = nullptr);
 std::string random_token();
 
 void ensure_state_root(const std::filesystem::path& root);

@@ -1,4 +1,5 @@
 #include "infra/ownership_state.hpp"
+#include "graphx/normalized_config.hpp"
 
 #include <yaml-cpp/yaml.h>
 
@@ -55,7 +56,18 @@ std::string required_scalar(const YAML::Node& root, std::string_view key) {
 
 YAML::Node state_node(const OwnershipState& state) {
   YAML::Node root;
-  root["version"] = 2;
+  root["version"] = state.instance_id.empty() ? 2 : 3;
+  if (!state.instance_id.empty()) {
+    root["instance_id"] = state.instance_id;
+    root["resource_mappings"] = YAML::Node(YAML::NodeType::Sequence);
+    for (const auto& mapping : state.resource_mappings) {
+      YAML::Node entry;
+      entry["kind"] = mapping.kind;
+      entry["logical"] = mapping.logical;
+      entry["physical"] = mapping.physical;
+      root["resource_mappings"].push_back(entry);
+    }
+  }
   root["graph_id"] = state.graph_id;
   root["config_sha256"] = state.config_hash;
   root["owner_token"] = state.owner_token;
@@ -216,7 +228,7 @@ bool stable_identity_matches(const OwnedResourceIdentity& expected,
          expected.process_identity == observed.process_identity;
 }
 
-std::string configuration_hash(const std::filesystem::path& path) {
+std::string configuration_hash(const std::filesystem::path& path, const GraphConfig* config) {
   std::ifstream input(path, std::ios::binary);
   if (!input) throw std::runtime_error("cannot open configuration for hashing: " + path.string());
   EVP_MD_CTX* context = EVP_MD_CTX_new();
@@ -238,6 +250,13 @@ std::string configuration_hash(const std::filesystem::path& path) {
   if (!input.eof()) {
     cleanup();
     throw std::runtime_error("cannot read configuration for hashing");
+  }
+  if (config != nullptr && !config->deployment.instance_id.empty()) {
+    const auto normalized = normalize_config_json(*config);
+    if (EVP_DigestUpdate(context, normalized.data(), normalized.size()) != 1) {
+      cleanup();
+      throw std::runtime_error("cannot hash effective instance configuration");
+    }
   }
   std::array<unsigned char, EVP_MAX_MD_SIZE> digest{};
   unsigned int digest_size{};
@@ -380,9 +399,31 @@ OwnershipState load_state(const std::filesystem::path& path) {
   const auto root = YAML::Load(bytes);
   if (!root.IsMap()) throw std::runtime_error("unsupported ownership state format");
   const auto version = root["version"].as<int>(0);
-  if (version != 2) throw std::runtime_error("unsupported ownership state format");
+  if (version != 2 && version != 3) throw std::runtime_error("unsupported ownership state format");
   OwnershipState state;
   state.graph_id = required_scalar(root, "graph_id");
+  if (version == 3) {
+    state.instance_id = required_scalar(root, "instance_id");
+    const auto mappings = root["resource_mappings"];
+    if (!mappings || !mappings.IsSequence() || mappings.size() == 0)
+      throw std::runtime_error("invalid instance resource mappings");
+    std::unordered_set<std::string> physical;
+    for (const auto& entry : mappings) {
+      InstanceResourceMapping mapping{required_scalar(entry, "kind"),
+                                      required_scalar(entry, "logical"),
+                                      required_scalar(entry, "physical")};
+      if (mapping.physical != instance_resource_name(state.graph_id, state.instance_id,
+                                                     mapping.kind, mapping.logical) ||
+          !physical.insert(mapping.physical).second)
+        throw std::runtime_error("invalid or duplicate instance resource mapping");
+      state.resource_mappings.push_back(std::move(mapping));
+    }
+    if (!physical.contains(
+            instance_resource_name(state.graph_id, state.instance_id, "state", state.graph_id)))
+      throw std::runtime_error("missing instance state mapping");
+  } else if (root["instance_id"] || root["resource_mappings"]) {
+    throw std::runtime_error("legacy ledger cannot contain instance identity");
+  }
   state.config_hash = required_scalar(root, "config_sha256");
   state.owner_token = required_scalar(root, "owner_token");
   state.status = required_scalar(root, "status");

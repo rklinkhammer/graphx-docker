@@ -120,6 +120,7 @@ add_library(graphx
   src/network.cpp
   src/normalized_config.cpp
   src/observability.cpp
+  src/instance_resources.cpp
   src/ownership.cpp
   src/shared_memory_transport.cpp
   src/tcp_transport.cpp
@@ -314,6 +315,10 @@ if(GRAPHX_BUILD_TESTS)
   graphx_add_python_test(graphx-network-lab-plans tests/test_network_lab_plans.py 60
     $<TARGET_FILE:graphx-cli> ${CMAKE_SOURCE_DIR})
   if(GRAPHX_ENABLE_LINUX_OVS_TESTS AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    add_test(NAME graphx-instance-ownership-live COMMAND sudo -n ${Python3_EXECUTABLE}
+      ${CMAKE_SOURCE_DIR}/tests/test_instance_ownership_live.py $<TARGET_FILE:graphx-cli>)
+    set_tests_properties(graphx-instance-ownership-live PROPERTIES TIMEOUT 180
+      ENVIRONMENT "GRAPHX_OVERRIDES=")
     add_test(NAME graphx-ovs-ownership-live COMMAND sudo -n ${Python3_EXECUTABLE}
       ${CMAKE_SOURCE_DIR}/tests/test_ovs_ownership_live.py $<TARGET_FILE:graphx-cli>
       ${CMAKE_SOURCE_DIR})

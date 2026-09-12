@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 import re
@@ -64,6 +65,26 @@ def main() -> int:
             )
             require(marker in result.stdout and not state.exists(),
                     f"{action} dry-run boundary")
+
+        plans = []
+        resolved = []
+        for instance in ("lab-a", "lab-b"):
+            selected = temporary / f"{instance}.yaml"
+            selected.write_text(config.read_text().replace(
+                "deployment:", f"deployment:\n  instance_id: {instance}"))
+            plans.append(run(graphx, "infra", "create", selected, "--dry-run",
+                             "--state-dir", state).stdout)
+            resolved.append(json.loads(run(graphx, "config", "normalize", selected,
+                                           "--resources").stdout))
+        names = [set(re.findall(r"add-br (gx[0-9a-f]+)", plan)) for plan in plans]
+        require(len(names[0]) == 2 and names[0].isdisjoint(names[1]),
+                "instances must have disjoint bridge names")
+        require(all(len(name) <= 15 for group in names for name in group),
+                "generated interface length")
+        require(resolved[0]["deployment"]["project"] != resolved[1]["deployment"]["project"],
+                "resolved Compose project isolation")
+        require("br-gx-mac" not in names[0], "logical bridge name leaked")
+        require(not state.exists(), "instance plans mutated state")
 
     print("GraphX portable OVS ownership contracts passed")
     return 0

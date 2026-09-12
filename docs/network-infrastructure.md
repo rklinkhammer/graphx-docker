@@ -46,6 +46,13 @@ OrbStack is never selected for system-OVS laboratories.
 The lifecycle persists an owner-token ledger beneath its state directory and
 rolls back partial creates. It intentionally does not reconcile replacement
 resources: identity drift fails closed and requires explicit recovery.
+When `deployment.instance_id` is present, the common resolver scopes managed
+names, Compose project lookup, locks, and ledgers by graph and instance. Inspect
+the resolved configuration with `graphx config normalize FILE --resources`.
+Use its Compose project when starting the containers; the OVS lifecycle does not
+adopt containers from the logical project name. See
+[instance resource resolution](instance-identity.md#infrastructure-resource-resolution)
+for legacy behavior and the remaining application runtime boundaries.
 
 Focused examples are available for a single MACVLAN-semantic domain, three
 independently routed IPvlan-L2 domains, and three IPvlan-L3 subnet domains. See
@@ -65,7 +72,10 @@ sudo ./build/dev/graphx infra route clear examples/static-route-policy/graphx.ya
   --router route-router --destination 10.64.30.10/32
 ```
 
-Use `--dry-run` without sudo on any platform for inspection. Runtime route,
+Route mutation requires the ready ownership ledger from `infra create` and a
+matching namespace inode/ownership marker. If creation used `--state-dir`, pass
+the same directory to route commands. Use `--dry-run` without sudo on any
+platform for inspection. Runtime route,
 policy, OVS, and packet claims require the privileged Linux lab procedure, on native Linux or inside Lima.
 
 ## Declarative capture and faults

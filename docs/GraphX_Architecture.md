@@ -30,7 +30,9 @@ OVS resources; OrbStack runs portable Compose workloads on macOS.
 The [instance identity contract](instance-identity.md) specifies the design for
 deployment and execution identity, including authorization and recovery boundaries.
 It explicitly identifies the current implementation limits; it does not imply
-that examples can already run concurrently without collisions.
+that full example launchers can already run concurrently without collisions.
+The common infrastructure resolver scopes managed names, Compose project lookup,
+ledgers, locks, and capture storage to an explicitly configured instance.
 
 Configuration and state files are bounded, regular, non-symlink inputs. Network
 resources carry a graph ID, configuration hash, owner token, and stable platform

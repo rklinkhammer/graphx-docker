@@ -188,6 +188,57 @@ void test_state_root_and_lock_security() {
       "symlink lock was accepted");
 }
 
+void test_instance_resources() {
+  using graphx::instance_resource_name;
+  using graphx::resolve_instance_resources;
+  const auto root = std::filesystem::path(GRAPHX_SOURCE_DIR);
+  auto config = graphx::load_config_literal(root / "examples/mixed-network/graphx.yaml");
+  require(resolve_instance_resources(config).state_key == config.id, "legacy state key");
+  config.deployment.instance_id = "Lab-a";
+  const auto first = resolve_instance_resources(config);
+  config.deployment.instance_id = "lab-a";
+  const auto second = resolve_instance_resources(config);
+  require(first.state_key != second.state_key, "instance case folding");
+  require(first.config.id == config.id && first.config.nodes.front().id == config.nodes.front().id,
+          "logical identities changed");
+  require(first.config.deployment.project != second.config.deployment.project,
+          "Compose project collision");
+  for (std::size_t index = 0; index < first.mappings.size(); ++index) {
+    const auto& mapping = first.mappings[index];
+    require(mapping.physical != second.mappings[index].physical, "instance resource collision");
+    if (mapping.kind == "interface" || mapping.kind == "bridge")
+      require(mapping.physical.size() <= 15, "Linux interface length");
+  }
+  require(instance_resource_name("ab", "c", "state", "x") !=
+              instance_resource_name("a", "bc", "state", "x"),
+          "ambiguous identity tuple");
+  expect_failure([&] { static_cast<void>(instance_resource_name("g", "../bad", "state", "x")); },
+                 "malformed instance accepted");
+  TemporaryDirectory temporary;
+  auto state = load_state(secure_fixture_copy(temporary, "current"));
+  state.instance_id = "Lab-a";
+  state.graph_id = config.id;
+  state.resource_mappings = first.mappings;
+  const auto path = temporary.path() / "instance.yaml";
+  save_state(path, state, false);
+  require(load_state(path).instance_id == "Lab-a", "instance ledger round trip");
+  state.resource_mappings.front().physical = second.state_key;
+  save_state(path, state);
+  expect_failure([&] { static_cast<void>(load_state(path)); }, "cross-instance mapping accepted");
+  state.resource_mappings = first.mappings;
+  state.resource_mappings.erase(state.resource_mappings.begin());
+  save_state(path, state);
+  expect_failure([&] { static_cast<void>(load_state(path)); }, "missing state mapping accepted");
+  state.resource_mappings = first.mappings;
+  state.resource_mappings.push_back(first.mappings.front());
+  save_state(path, state);
+  expect_failure([&] { static_cast<void>(load_state(path)); }, "duplicate mapping accepted");
+  const auto source = root / "examples/mixed-network/graphx.yaml";
+  const auto hash = configuration_hash(source, &config);
+  config.deployment.project = "other-project";
+  require(configuration_hash(source, &config) != hash, "effective override missing from hash");
+}
+
 void test_identity_and_hash_helpers() {
   OwnedResourceIdentity expected;
   expected.kind = "ovs_bridge";
@@ -215,6 +266,7 @@ int main() {
     test_rejected_state_files();
     test_state_root_and_lock_security();
     test_identity_and_hash_helpers();
+    test_instance_resources();
     std::cout << "GraphX ownership state tests passed\n";
     return 0;
   } catch (const std::exception& error) {

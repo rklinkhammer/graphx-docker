@@ -548,6 +548,12 @@ OwnedResourceIdentity create_tap_endpoint(const ExpectedEndpoint& endpoint,
   return identity;
 }
 
+std::string owned_mirror_name(const OwnershipState& state, std::string_view attachment) {
+  return state.instance_id.empty()
+             ? std::string(attachment)
+             : instance_resource_name(state.graph_id, state.instance_id, "mirror", attachment);
+}
+
 OwnedResourceIdentity create_mirror_endpoint(const ExpectedEndpoint& endpoint,
                                              const OwnershipState& state) {
   if (run({"ip", "link", "add", endpoint.host_interface, "type", "veth", "peer", "name",
@@ -590,15 +596,15 @@ OwnedResourceIdentity create_mirror_endpoint(const ExpectedEndpoint& endpoint,
     throw std::runtime_error("cannot attach mirror veth " + endpoint.id);
   const auto port_uuid = ovs_get("Port", endpoint.host_interface, "_uuid");
   const auto interface_uuid = ovs_get("Interface", endpoint.host_interface, "_uuid");
-  if (run({"ovs-vsctl", "--", "--id=@m", "create", "Mirror", "name=" + endpoint.id,
-           "select_all=true", "output-port=" + port_uuid,
-           "external_ids:graphx_owner=" + state.owner_token,
+  if (run({"ovs-vsctl", "--", "--id=@m", "create", "Mirror",
+           "name=" + owned_mirror_name(state, endpoint.id), "select_all=true",
+           "output-port=" + port_uuid, "external_ids:graphx_owner=" + state.owner_token,
            "external_ids:graphx_attachment=" + endpoint.id,
            "external_ids:graphx_graph=" + state.graph_id,
            "external_ids:graphx_config_hash=" + state.config_hash, "--", "add", "Bridge",
            endpoint.network_switch, "mirrors", "@m"}) != 0)
     throw std::runtime_error("cannot create OVS mirror " + endpoint.id);
-  const auto mirror_uuid = ovs_get("Mirror", endpoint.id, "_uuid");
+  const auto mirror_uuid = ovs_get("Mirror", owned_mirror_name(state, endpoint.id), "_uuid");
   if (mirror_uuid.empty()) throw std::runtime_error("cannot capture OVS mirror identity");
   if (run({"ip", "link", "set", "dev", endpoint.host_interface, "up"}) != 0 ||
       run({"ip", "link", "set", "dev", endpoint.target_interface, "up"}) != 0)
