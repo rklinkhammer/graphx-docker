@@ -5,7 +5,7 @@ Run commands from the repository root. Build local binaries with
 
 | Example | Linux | macOS | Run / verification |
 |---|---|---|---|
-| [Portable TCP pipeline and console](../docs/complete-system-demo.md) | Docker Compose | OrbStack Compose | `scripts/demo.sh start`, `status`, `verify`, `stop` |
+| [Sample pipeline and console](sample-pipeline/README.md) | Docker Compose | OrbStack Compose | `examples/sample-pipeline/scripts/demo.sh start`, `status`, `verify`, `stop` |
 | [Shared memory](shared-memory/README.md) | Local processes | Native processes | `examples/shared-memory/run.sh` |
 | [UDP unicast](udp-unicast/README.md) | Local processes | Native processes | `examples/udp-unicast/run.sh` |
 | [UDP multicast](udp-multicast/README.md) | Local processes | Native processes | `examples/udp-multicast/run.sh` |

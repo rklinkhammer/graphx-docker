@@ -201,7 +201,7 @@ install(FILES "${CMAKE_CURRENT_BINARY_DIR}/GraphXConfig.cmake"
   DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/GraphX COMPONENT development)
 install(FILES config/schema/graphx.schema.json config/schema/normalized-graph.schema.json
   DESTINATION ${CMAKE_INSTALL_DATADIR}/graphx/schema COMPONENT runtime)
-install(FILES graphx.yaml DESTINATION ${CMAKE_INSTALL_DATADIR}/graphx COMPONENT runtime)
+install(FILES examples/sample-pipeline/graphx.yaml DESTINATION ${CMAKE_INSTALL_DATADIR}/graphx COMPONENT runtime)
 install(PROGRAMS tools/graphx-extcap
   DESTINATION ${CMAKE_INSTALL_LIBEXECDIR}/graphx COMPONENT tools)
 install(FILES wireshark/graphx.lua wireshark/README.md

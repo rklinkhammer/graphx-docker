@@ -27,7 +27,8 @@ void current_configuration_is_strict() {
 }
 
 void authoritative_config_loads() {
-  const auto config = graphx::load_config(std::filesystem::path(GRAPHX_SOURCE_DIR) / "graphx.yaml");
+  const auto config = graphx::load_config(std::filesystem::path(GRAPHX_SOURCE_DIR) /
+                                          "examples/sample-pipeline/graphx.yaml");
   expect(config.version == 2 && config.id == "sample-pipeline", "root model");
   expect(config.nodes.size() == 3 && config.edges.size() == 2, "topology counts");
   expect(std::get<graphx::TcpTransportConfig>(config.edge("samples").transport).host == "transform",

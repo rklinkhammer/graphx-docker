@@ -11,7 +11,7 @@ Choose a current scenario by the behavior you want to observe:
 
 | Scenario | What it demonstrates | Launcher |
 |---|---|---|
-| Portable pipeline | Graph transports, telemetry, history, and UI | `scripts/demo.sh` |
+| Portable pipeline | Graph transports, telemetry, history, and UI | `examples/sample-pipeline/scripts/demo.sh` |
 | OVS profiles | Ethernet, MACVLAN, and IPVLAN semantics | `scripts/network-lab.sh <lab> up` |
 | Route and policy | Namespaces, routes, nftables, SPAN | `examples/static-route-policy/scripts/demo.sh` |
 | SDR | Simulated or external-device processing | `examples/sdr-node/*/scripts/demo.sh` |

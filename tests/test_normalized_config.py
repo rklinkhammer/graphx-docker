@@ -83,7 +83,7 @@ def main() -> int:
         GRAPHX_TELEMETRY_SHARED_SECRET="second-secret-must-not-appear",
     )
     overridden_output, overridden = normalize(
-        graphx, root / "graphx.yaml",
+        graphx, root / "examples/sample-pipeline/graphx.yaml",
         "--set", "observability.telemetry.port=9200",
         environment=override_environment,
     )
@@ -109,13 +109,13 @@ def main() -> int:
 
     escaped_value = 'captures/quote"-backslash\\-unicode-λ'
     _, escaped = normalize(
-        graphx, root / "graphx.yaml",
+        graphx, root / "examples/sample-pipeline/graphx.yaml",
         "--set", f"observability.capture.directory={escaped_value}",
     )
     require(escaped["observability"]["capture"]["directory"] == escaped_value,
             "normalized JSON did not safely preserve escaped UTF-8 configuration text")
 
-    checked_configs = [root / "graphx.yaml", *sorted((root / "examples").rglob("graphx.yaml"))]
+    checked_configs = sorted((root / "examples").rglob("graphx.yaml"))
     for config in checked_configs:
         output, candidate = normalize(graphx, config)
         require(output.endswith("\n") and not output.endswith("\n\n"),

@@ -6,10 +6,10 @@ commands and terminology these manual observations use.
 
 ## Portable system
 
-1. Start `scripts/demo.sh start`.
+1. Start `examples/sample-pipeline/scripts/demo.sh start`.
 2. Open the printed UI URL and confirm topology, live metrics, SLO, and history.
 3. Send a permitted pause/resume command and confirm the audit record.
-4. Run `scripts/demo.sh stop` and confirm the Compose project is gone.
+4. Run `examples/sample-pipeline/scripts/demo.sh stop` and confirm the Compose project is gone.
 
 ## Privileged network labs
 

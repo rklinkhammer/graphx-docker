@@ -57,7 +57,7 @@ test set and runs it after portable acceptance.
 
 Before Docker tests, check `docker info` and `docker compose version`; on macOS
 also check `docker context show` returns `orbstack`. The Docker suite manages the
-root Compose project: stop an existing demo deliberately before running it, or
+sample pipeline Compose project (`graphx`): stop an existing demo deliberately before running it, or
 use a separate Compose project and free ports. Before native Linux privileged
 CTests, build `graphx-demo:latest` in that engine with `docker build -t graphx-demo:latest .`; allow the network test to
 pull `debian:bookworm-slim` and external SDR to build its service image.

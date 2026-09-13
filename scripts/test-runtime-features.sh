@@ -30,8 +30,8 @@ runtime_features() {
 
   step "Verify guided demo credential bootstrap"
   local first_demo_token second_demo_token stored_runtime
-  first_demo_token=$(GRAPHX_DEMO_STATE_DIR="$TMP_DIR/demo-state" "$ROOT/scripts/demo.sh" token)
-  second_demo_token=$(GRAPHX_DEMO_STATE_DIR="$TMP_DIR/demo-state" "$ROOT/scripts/demo.sh" token)
+  first_demo_token=$(GRAPHX_DEMO_STATE_DIR="$TMP_DIR/demo-state" "$ROOT/examples/sample-pipeline/scripts/demo.sh" token)
+  second_demo_token=$(GRAPHX_DEMO_STATE_DIR="$TMP_DIR/demo-state" "$ROOT/examples/sample-pipeline/scripts/demo.sh" token)
   stored_runtime=$(sed -n 's/^GRAPHX_TELEMETRY_SHARED_SECRET=//p' "$TMP_DIR/demo-state/demo.env")
   [[ "$first_demo_token" =~ ^[0-9a-f]{64}$ ]]
   test "$second_demo_token" = "$first_demo_token"
@@ -40,8 +40,8 @@ runtime_features() {
   ls -l "$TMP_DIR/demo-state/demo.env" | grep -q '^-rw-------'
   first_demo_token=$(GRAPHX_CONTROL_TOKEN=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
     GRAPHX_TELEMETRY_SHARED_SECRET=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb \
-    GRAPHX_DEMO_STATE_DIR="$TMP_DIR/demo-state" "$ROOT/scripts/demo.sh" token)
-  second_demo_token=$(GRAPHX_DEMO_STATE_DIR="$TMP_DIR/demo-state" "$ROOT/scripts/demo.sh" token)
+    GRAPHX_DEMO_STATE_DIR="$TMP_DIR/demo-state" "$ROOT/examples/sample-pipeline/scripts/demo.sh" token)
+  second_demo_token=$(GRAPHX_DEMO_STATE_DIR="$TMP_DIR/demo-state" "$ROOT/examples/sample-pipeline/scripts/demo.sh" token)
   test "$first_demo_token" = aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
   test "$second_demo_token" = "$first_demo_token"
 
@@ -56,10 +56,9 @@ runtime_features() {
   ctest --test-dir "$BUILD_DIR" --output-on-failure -L quick
 
   step "Validate and inspect every checked-in topology"
-  for config in "$ROOT/graphx.yaml" "$ROOT"/examples/*/graphx.yaml; do
+  for config in "$ROOT"/examples/*/graphx.yaml; do
     local example_name
     example_name=$(basename "$(dirname "$config")")
-    test "$config" != "$ROOT/graphx.yaml" || example_name=root
     test "$(configuration_version "$config")" = 2
     "$BUILD_DIR/graphx" inspect "$config" >"$TMP_DIR/$example_name.inspect"
     "$BUILD_DIR/graphx" infra create "$config" --dry-run >"$TMP_DIR/$example_name.plan"
@@ -71,7 +70,7 @@ runtime_features() {
   grep -q 'auto-clear=identity-checked' "$TMP_DIR/network-observability.plan"
 
   step "Run the finite local TCP pipeline"
-  export GRAPHX_CONFIG="$ROOT/graphx.yaml"
+  export GRAPHX_CONFIG="$ROOT/examples/sample-pipeline/graphx.yaml"
   export GRAPHX_OVERRIDES='transport.tcp.samples.host=127.0.0.1;transport.tcp.transformed.host=127.0.0.1;observability.capture.enabled=true'
   export GRAPHX_CAPTURE_DIR="$TMP_DIR/captures"
   export GRAPHX_MAX_MESSAGES=8 GRAPHX_INTERVAL_MS=5

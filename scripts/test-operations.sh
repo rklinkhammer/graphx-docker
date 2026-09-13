@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 source "$ROOT/scripts/configure-build-trust.sh"
 PROJECT=${GRAPHX_OPERATIONS_TEST_PROJECT:-"graphx-operations-test-$$"}
-FILES=(-f "$ROOT/compose.yaml" -f "$ROOT/compose.observability.yaml")
+FILES=(-f "$ROOT/examples/sample-pipeline/compose.yaml" -f "$ROOT/examples/sample-pipeline/compose.observability.yaml")
 
 cleanup() {
   docker compose -p "$PROJECT" "${FILES[@]}" down --timeout 6 -v >/dev/null 2>&1 || true

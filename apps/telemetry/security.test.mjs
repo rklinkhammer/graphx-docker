@@ -190,7 +190,7 @@ test('telemetry survives malformed HTTP and WebSocket request targets', { timeou
     cwd: directory,
     env: { ...process.env, PORT: String(port), GRAPHX_TELEMETRY_PORT: String(udpPort),
       GRAPHX_HTTP_BIND: '127.0.0.1', GRAPHX_TELEMETRY_BIND: '127.0.0.1',
-      ...normalizedConfigEnvironment(resolve(directory, '../../graphx.yaml')),
+      ...normalizedConfigEnvironment(resolve(directory, '../../examples/sample-pipeline/graphx.yaml')),
       GRAPHX_OBSERVATION_TOKEN: secret },
     stdio: ['ignore', 'pipe', 'pipe'],
   })

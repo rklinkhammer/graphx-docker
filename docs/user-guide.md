@@ -374,9 +374,9 @@ Docker Engine on Linux and OrbStack on macOS; Docker Desktop is not a supported
 macOS runtime. For the ordinary Compose demo:
 
 ```sh
-scripts/demo.sh start
-scripts/demo.sh verify
-scripts/demo.sh stop
+examples/sample-pipeline/scripts/demo.sh start
+examples/sample-pipeline/scripts/demo.sh verify
+examples/sample-pipeline/scripts/demo.sh stop
 ```
 
 System OVS, veth/TAP, namespaces, nftables, netem, network capture, and QEMU require
@@ -418,7 +418,7 @@ configuration, provide its path before starting Compose:
 
 ```sh
 GRAPHX_CONFIG_FILE="$PWD/my-graphx.yaml" docker compose \
-  -f compose.yaml -f compose.history.yaml up --build
+  -f examples/sample-pipeline/compose.yaml -f examples/sample-pipeline/compose.history.yaml up --build
 ```
 
 `GRAPHX_CONFIG_FILE` mounts the same YAML read-only into all three C++ node
@@ -475,15 +475,15 @@ observability:
     max_p95_latency_us: 10000
 ```
 
-Use `compose.history.yaml` for persistent SQLite storage,
-`compose.observability.yaml` for Prometheus and Grafana, and the
-`compose.otlp-secure.yaml` plus `compose.otlp-mtls.yaml` overlays for authenticated
+Use `examples/sample-pipeline/compose.history.yaml` for persistent SQLite storage,
+`examples/sample-pipeline/compose.observability.yaml` for Prometheus and Grafana, and the
+`examples/sample-pipeline/compose.otlp-secure.yaml` plus `examples/sample-pipeline/compose.otlp-mtls.yaml` overlays for authenticated
 TLS export. OTLP credentials and private keys belong in secret files, never in
 `graphx.yaml`; normalized configuration intentionally contains no credentials.
 
 Observation access, control access, and runtime event authentication are separate
 credential domains. The simple demo generates local credentials in `.graphx`, while
-`compose.control.yaml` demonstrates file-backed scoped control policy and per-node
+`examples/sample-pipeline/compose.control.yaml` demonstrates file-backed scoped control policy and per-node
 runtime identities. Remote plaintext binding is rejected unless explicitly enabled.
 
 Useful service endpoints include:

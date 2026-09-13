@@ -32,7 +32,7 @@ The separate portable demo requires OrbStack with its Docker context selected:
 docker context use orbstack
 docker info
 docker compose version
-scripts/demo.sh start
+examples/sample-pipeline/scripts/demo.sh start
 ```
 
 OrbStack is not required by the OVS launchers once the Lima VM has been

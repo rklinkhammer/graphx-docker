@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)
 source "$ROOT/scripts/configure-build-trust.sh"
-# shellcheck source=lib/demo-runtime.sh
+# shellcheck source=scripts/lib/demo-runtime.sh
 source "$ROOT/scripts/lib/demo-runtime.sh"
-COMPOSE=(docker compose -f "$ROOT/compose.yaml" -f "$ROOT/compose.history.yaml")
+COMPOSE=(docker compose -f "$ROOT/examples/sample-pipeline/compose.yaml" -f "$ROOT/examples/sample-pipeline/compose.history.yaml")
 PUBLISHED_HTTP_PORT=$(graphx_demo_port GRAPHX_PUBLISHED_HTTP_PORT "${GRAPHX_PUBLISHED_HTTP_PORT:-8080}")
 LOCAL_URL="http://127.0.0.1:$PUBLISHED_HTTP_PORT"
 URL=${GRAPHX_DEMO_URL:-$LOCAL_URL}
@@ -14,7 +14,7 @@ DEMO_ENV_FILE="$DEMO_STATE_DIR/demo.env"
 
 usage() {
   cat <<'EOF'
-Usage: scripts/demo.sh <start|verify|status|logs|token|stop> [options]
+Usage: examples/sample-pipeline/scripts/demo.sh <start|verify|status|logs|token|stop> [options]
 
   start   Start with bounded capture/history and generated local credentials
   verify  Prove that services, TCP edges, samples, and telemetry are live
@@ -44,7 +44,7 @@ preflight_http_endpoint() {
   if test "$probe_status" -ne 7; then
     echo "Cannot start GraphX: $LOCAL_URL is already served by another HTTP process." >&2
     echo "Stop that process or choose another port, for example:" >&2
-    echo "  GRAPHX_PUBLISHED_HTTP_PORT=28080 scripts/demo.sh start" >&2
+    echo "  GRAPHX_PUBLISHED_HTTP_PORT=28080 examples/sample-pipeline/scripts/demo.sh start" >&2
     return 2
   fi
 }
@@ -199,8 +199,8 @@ verify() {
   echo "PASS: telemetry API and Prometheus metrics are live"
   echo
   echo "Console: $URL"
-  echo "Follow output: scripts/demo.sh logs"
-  echo "Stop cleanly: scripts/demo.sh stop"
+  echo "Follow output: examples/sample-pipeline/scripts/demo.sh logs"
+  echo "Stop cleanly: examples/sample-pipeline/scripts/demo.sh stop"
 }
 
 demo_command=${1:-}

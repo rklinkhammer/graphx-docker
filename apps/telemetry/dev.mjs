@@ -5,7 +5,7 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
-const source = resolve(process.argv[2] || join(repository, 'graphx.yaml'))
+const source = resolve(process.argv[2] || join(repository, 'examples/sample-pipeline/graphx.yaml'))
 const graphx = process.env.GRAPHX_BIN || join(repository, 'build/dev/graphx')
 const temporary = mkdtempSync(join(tmpdir(), 'graphx-telemetry-dev-'))
 const normalized = join(temporary, 'normalized.json')

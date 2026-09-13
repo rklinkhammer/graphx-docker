@@ -173,7 +173,7 @@ telemetry_features() {
   grep -q '"accepted":true' "$TMP_DIR/resume.json"
 
   step "Verify authenticated pause and resume against the real TCP runtime"
-  export GRAPHX_CONFIG="$ROOT/graphx.yaml"
+  export GRAPHX_CONFIG="$ROOT/examples/sample-pipeline/graphx.yaml"
   export GRAPHX_OVERRIDES="transport.tcp.samples.host=127.0.0.1;transport.tcp.transformed.host=127.0.0.1;observability.telemetry.host=127.0.0.1;observability.telemetry.port=${GRAPHX_TEST_UDP_PORT:-19000}"
   export GRAPHX_MAX_MESSAGES=0 GRAPHX_INTERVAL_MS=25
   "$BUILD_DIR/graphx-sink" >"$TMP_DIR/control-sink.log" 2>&1 & PIDS+=("$!")

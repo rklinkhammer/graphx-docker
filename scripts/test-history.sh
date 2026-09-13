@@ -7,7 +7,7 @@ PROJECT=${GRAPHX_HISTORY_TEST_PROJECT:-"graphx-history-test-$$"}
 OBSERVATION_TOKEN=${GRAPHX_HISTORY_OBSERVATION_TOKEN:-"history-observation-token-0123456789abcdef"}
 HTTP_PORT=${GRAPHX_HISTORY_HTTP_PORT:-38080}
 BASE_URL="http://127.0.0.1:$HTTP_PORT"
-FILES=(-f "$ROOT/compose.yaml" -f "$ROOT/compose.history.yaml")
+FILES=(-f "$ROOT/examples/sample-pipeline/compose.yaml" -f "$ROOT/examples/sample-pipeline/compose.history.yaml")
 
 compose() {
   GRAPHX_OBSERVATION_TOKEN="$OBSERVATION_TOKEN" GRAPHX_PUBLISHED_HTTP_PORT="$HTTP_PORT" \

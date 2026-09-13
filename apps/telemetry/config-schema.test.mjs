@@ -9,7 +9,7 @@ import { parse as parseYaml } from 'yaml'
 const here = dirname(fileURLToPath(import.meta.url))
 const repository = resolve(here, '../..')
 const schema = JSON.parse(readFileSync(resolve(repository, 'config/schema/graphx.schema.json'), 'utf8'))
-const base = parseYaml(readFileSync(resolve(repository, 'graphx.yaml'), 'utf8'))
+const base = parseYaml(readFileSync(resolve(repository, 'examples/sample-pipeline/graphx.yaml'), 'utf8'))
 // Existing schema composition uses inherited types and `required` properties
 // through allOf. Ajv's optional strictTypes/strictRequired lints reject those
 // valid Draft 2020-12 forms, so disable only the two non-semantic lints.

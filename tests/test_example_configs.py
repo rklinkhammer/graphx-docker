@@ -14,7 +14,7 @@ def main() -> int:
         raise SystemExit("usage: test_example_configs.py GRAPHX SOURCE_ROOT")
     graphx = Path(sys.argv[1]).resolve()
     root = Path(sys.argv[2]).resolve()
-    configs = [root / "graphx.yaml", *sorted((root / "examples").glob("**/graphx.yaml"))]
+    configs = sorted((root / "examples").glob("**/graphx.yaml"))
     environment = {**os.environ, "GRAPHX_OVERRIDES": ""}
     for config in configs:
         result = subprocess.run(

@@ -19,11 +19,11 @@ connectivity, not the GraphX data plane.
 The portable demo needs Docker Engine with Compose on Linux, or OrbStack on macOS.
 
 ```sh
-scripts/demo.sh start
+examples/sample-pipeline/scripts/demo.sh start
 ```
 
-Open the URL printed by the command. Use `scripts/demo.sh logs`,
-`scripts/demo.sh token`, and `scripts/demo.sh stop` to inspect or stop it. See
+Open the URL printed by the command. Use `examples/sample-pipeline/scripts/demo.sh logs`,
+`examples/sample-pipeline/scripts/demo.sh token`, and `examples/sample-pipeline/scripts/demo.sh stop` to inspect or stop it. See
 [`docs/complete-system-demo.md`](docs/complete-system-demo.md) for the walkthrough.
 
 ## Build and test
@@ -43,12 +43,12 @@ The direct CMake workflow and exact prerequisites are maintained in the
 
 ## Configuration and infrastructure
 
-`graphx.yaml` is authoritative. Validate it or produce the normalized JSON consumed
-by telemetry and other downstream tools:
+Each example owns its `graphx.yaml`. Validate the sample pipeline or produce the
+normalized JSON consumed by telemetry and other downstream tools:
 
 ```sh
-build/dev/graphx validate graphx.yaml
-build/dev/graphx config normalize graphx.yaml > normalized.json
+build/dev/graphx validate examples/sample-pipeline/graphx.yaml
+build/dev/graphx config normalize examples/sample-pipeline/graphx.yaml > normalized.json
 ```
 
 Cleanup verifies stable resource identities and fails closed when an object has been

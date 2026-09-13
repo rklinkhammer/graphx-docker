@@ -16,17 +16,17 @@ The top-level sections are:
 - `deployment`: descriptive project, service, and telemetry placement metadata.
 - `observability`: metrics, tracing, capture, OTLP, history, SLO, and control limits.
 
-Validate and inspect a file with:
+For example, validate and inspect the sample pipeline from the repository root:
 
 ```sh
-graphx validate graphx.yaml
-graphx inspect graphx.yaml
+graphx validate examples/sample-pipeline/graphx.yaml
+graphx inspect examples/sample-pipeline/graphx.yaml
 ```
 
 Overrides use dotted paths and are applied before semantic validation:
 
 ```sh
-graphx validate graphx.yaml --set observability.telemetry.port=9100
+graphx validate examples/sample-pipeline/graphx.yaml --set observability.telemetry.port=9100
 ```
 
 `GRAPHX_OVERRIDES` accepts semicolon-separated assignments. Explicit `--set` values
@@ -55,15 +55,15 @@ edges contain their endpoint and transport objects, while services and edge path
 remain ordered arrays. It never contains credentials.
 
 ```sh
-graphx config normalize graphx.yaml > normalized.json
+graphx config normalize examples/sample-pipeline/graphx.yaml > normalized.json
 ```
 
-The repository Compose stack uses `graphx.yaml` by default. Set
+The sample pipeline Compose stack uses `examples/sample-pipeline/graphx.yaml` by default. Set
 `GRAPHX_CONFIG_FILE` to mount another compatible source file into the example
 nodes and the one-shot normalization service:
 
 ```sh
-GRAPHX_CONFIG_FILE="$PWD/my-graphx.yaml" docker compose up --build
+GRAPHX_CONFIG_FILE="$PWD/my-graphx.yaml" docker compose -f examples/sample-pipeline/compose.yaml up --build
 ```
 
 This changes configuration input; it does not generate, create, or start services

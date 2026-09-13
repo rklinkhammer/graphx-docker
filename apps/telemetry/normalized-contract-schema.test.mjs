@@ -35,7 +35,7 @@ test('normalized configuration fixture satisfies its strict schema', () => {
 test('all checked-in configurations normalize to the schema', {
   skip: !process.env.NORMALIZED_CONFIG_CLI,
 }, () => {
-  const configurations = [resolve(repository, 'graphx.yaml')]
+  const configurations = []
   const visit = directory => {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
       const path = resolve(directory, entry.name)

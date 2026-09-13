@@ -152,9 +152,9 @@ jobs:
         with:
           persist-credentials: false
       - name: Validate Compose model
-        run: docker compose -f compose.yaml config --quiet
+        run: docker compose -f examples/sample-pipeline/compose.yaml config --quiet
       - name: Build affected images
-        run: docker compose -f compose.yaml build
+        run: docker compose -f examples/sample-pipeline/compose.yaml build
       - name: Verify capture-volume identity and collector read-only access
         run: bash scripts/test-container-hardening.sh
 

@@ -4,8 +4,8 @@ services:
     image: prom/prometheus:v3.13.0@sha256:c6b27ea434f8389bfe233fbc7be381cf50587c286e871bc842008f5a1b1908a7
     command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.path=/prometheus/data", "--storage.tsdb.retention.time=24h"]
     volumes:
-      - ./deploy/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - ./deploy/observability/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - ../../deploy/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../../deploy/observability/alerts.yml:/etc/prometheus/alerts.yml:ro
     ports: ["127.0.0.1:9090:9090"]
     networks: [graphx]
     read_only: true
@@ -25,8 +25,8 @@ services:
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_AUTH_ANONYMOUS_ENABLED: "false"
     volumes:
-      - ./deploy/observability/grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./deploy/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ../../deploy/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../../deploy/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
     ports: ["127.0.0.1:3000:3000"]
     networks: [graphx]
     read_only: true

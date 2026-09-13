@@ -15,7 +15,7 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 mkdir -p "$CAPTURE_DIR"
-export GRAPHX_CONFIG="$ROOT/graphx.yaml"
+export GRAPHX_CONFIG="$ROOT/examples/sample-pipeline/graphx.yaml"
 export GRAPHX_OVERRIDES='transport.tcp.samples.host=127.0.0.1;transport.tcp.transformed.host=127.0.0.1'
 export GRAPHX_CAPTURE_ENABLED=true GRAPHX_CAPTURE_DIR="$CAPTURE_DIR"
 export GRAPHX_MAX_MESSAGES=${GRAPHX_MAX_MESSAGES:-10}

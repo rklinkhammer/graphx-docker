@@ -6,8 +6,8 @@ services:
       GRAPHX_TELEMETRY_SHARED_SECRET: ""
       GRAPHX_RUNTIME_IDENTITY_FILE: /run/graphx-control/runtime-identities.json
     volumes:
-      - ./config/control-policy.example.json:/run/graphx-control/policy.json:ro
-      - ./config/runtime-identities.example.json:/run/graphx-control/runtime-identities.json:ro
+      - ../../config/control-policy.example.json:/run/graphx-control/policy.json:ro
+      - ../../config/runtime-identities.example.json:/run/graphx-control/runtime-identities.json:ro
     secrets:
       - graphx-control-source-token
       - graphx-control-admin-token

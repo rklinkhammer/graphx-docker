@@ -7,7 +7,7 @@ PROJECT=${GRAPHX_OTLP_TEST_PROJECT:-"graphx-operations-otlp-$$"}
 PORT=${GRAPHX_OTLP_TEST_PORT:-18438}
 HTTP_PORT=${GRAPHX_OTLP_TEST_HTTP_PORT:-18439}
 TEMP=$(mktemp -d "${TMPDIR:-/tmp}/graphx-operations-otlp.XXXXXX")
-FILES=(-f "$ROOT/compose.yaml" -f "$ROOT/compose.otlp-secure.yaml" -f "$ROOT/compose.otlp-mtls.yaml")
+FILES=(-f "$ROOT/examples/sample-pipeline/compose.yaml" -f "$ROOT/examples/sample-pipeline/compose.otlp-secure.yaml" -f "$ROOT/examples/sample-pipeline/compose.otlp-mtls.yaml")
 receiver_pid=
 
 cleanup() {

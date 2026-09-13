@@ -21,17 +21,17 @@ docker_suite() {
   "$ROOT/scripts/test-features.sh" portable
   step "Validate and smoke-test the standard Compose deployment"
   export GRAPHX_PUBLISHED_HTTP_PORT=$docker_http_port
-  docker compose -f "$ROOT/compose.yaml" config >/dev/null
-  docker compose -f "$ROOT/compose.yaml" up --build --force-recreate normalize-config
-  docker compose -f "$ROOT/compose.yaml" up -d --build
-  trap 'docker compose -f "$ROOT/compose.yaml" down --remove-orphans; cleanup' EXIT INT TERM
+  docker compose -f "$ROOT/examples/sample-pipeline/compose.yaml" config >/dev/null
+  docker compose -f "$ROOT/examples/sample-pipeline/compose.yaml" up --build --force-recreate normalize-config
+  docker compose -f "$ROOT/examples/sample-pipeline/compose.yaml" up -d --build
+  trap 'docker compose -f "$ROOT/examples/sample-pipeline/compose.yaml" down --remove-orphans; cleanup' EXIT INT TERM
   for _ in {1..60}; do
     curl -fsS "http://127.0.0.1:$docker_http_port/api/health" >/dev/null && break
     sleep 1
   done
-  "$ROOT/scripts/demo.sh" verify
-  docker compose -f "$ROOT/compose.yaml" ps
-  docker compose -f "$ROOT/compose.yaml" down --remove-orphans
+  "$ROOT/examples/sample-pipeline/scripts/demo.sh" verify
+  docker compose -f "$ROOT/examples/sample-pipeline/compose.yaml" ps
+  docker compose -f "$ROOT/examples/sample-pipeline/compose.yaml" down --remove-orphans
   step "Run isolated UDP broadcast example"
   "$ROOT/examples/udp-broadcast/run.sh"
   trap cleanup EXIT INT TERM
