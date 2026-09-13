@@ -1,11 +1,11 @@
 # SDR node examples
 
-The simulated profile runs without hardware. The external profile models a raw
-device data plane, origin-owned control, mutual TLS, and OVS attachment.
-The simulated profile also runs packet capture, history, and the telemetry UI. GraphX does not configure physical radio hardware; the operator owns
-device setup and safety.
+The [simulated](simulated/README.md) and [external](external/README.md) profiles
+are authored v3 graphs. Their catalogs describe raw samples, control, mutual TLS
+credential references and observation. Validation and normalization are implemented;
+launchers return `E_PHASE_UNAVAILABLE` until the execution adapters are available.
 
-Use [simulated SDR](simulated/README.md) with Docker Engine on Linux or OrbStack
-on macOS. Use [external SDR](external/README.md) with sudo and system OVS on
-native Linux or from an explicit shell in the GraphX Lima guest. The external
-example uses a simulated device in a namespace; it does not require radio hardware.
+The simulated graph supports Linux, OrbStack and Lima target validation. The
+external graph requires Linux or Lima for its logical OVS attachments. Physical
+radio ownership stays external. Optional laboratory simulation is an explicit
+scenario action and never starts during normalization.

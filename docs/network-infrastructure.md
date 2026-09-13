@@ -5,17 +5,17 @@ supported operational workflow. This page is the detailed ownership and lifecycl
 reference.
 
 GraphX treats network infrastructure as a peer of logical topology, transport,
-deployment, observability, and GUI/control. The versioned `network` section of
-`graphx.yaml` owns these objects:
+platform policy and GUI/control. The versioned `network` section of
+`graphx.yml` owns these objects:
 
 - `networks`: semantic Ethernet, macvlan, or ipvlan address domains realized by OVS;
 - `switches`: Open vSwitch bridges, ports, VLAN access/trunk metadata, and mirrors;
-- `routers`: Linux namespace or container router interfaces, routes, forwarding,
+- `routers`: Linux namespace router interfaces, routes, forwarding,
   and backend-neutral policies;
 - `attachments`: container veth, namespace veth, QEMU TAP, and mirror endpoints;
 - `edge_paths`: ordered infrastructure hops for each logical GraphX edge.
 - `captures`: bounded Ethernet PCAPNG observers attached to mirror endpoints;
-- `faults`: bounded, timed netem profiles attached to realized veth/TAP endpoints.
+- `scenario.actions` outside `network`: bounded fault and route action declarations.
 
 The C++ loader validates references, IPv4 subnet membership, MAC syntax, VLAN
 ranges, mirror output ports, router interfaces, and graph-edge path hops. The
@@ -23,103 +23,21 @@ ranges, mirror output ports, router interfaces, and graph-edge path hops. The
 
 ## Infrastructure lifecycle
 
-On native Linux or inside the GraphX Lima guest, the version-2 `graphx infra create` lifecycle creates and
-identity-records OVS bridges/ports, veth or TAP endpoints, router namespaces,
-addresses, forwarding, nftables policy, mirrors, bounded capture processes, and
-timed qdiscs. The descriptive `deployment` section does not create containers;
-Docker Compose or another process manager owns them. `destroy` verifies exact
-kernel, OVS, process, directory, and qdisc identities before changing anything.
-`status` reports drift, active capture, and active or expired faults.
+P1 resolves logical resources into bounded deterministic names and validates
+references, addresses, VLANs and routes. Router interfaces produce one attachment
+per interface; an explicit `port` binds to a switch port and its VLAN. Runtime
+ownership identities are not generated during normalization.
 
-Commands are executed without a shell. Review the exact plan through the
-cross-platform dispatcher:
-
-```sh
-scripts/network-lab.sh mixed-network plan
-```
-
-On Linux the dispatcher runs locally. On Apple Silicon macOS it requires the
-identity-checked `graphx` Lima instance to be running and invokes the same
-dispatcher inside the guest with `/var/lib/graphx/runtime/build/dev/graphx`.
-OrbStack is never selected for system-OVS laboratories.
-
-The lifecycle persists an owner-token ledger beneath its state directory and
-rolls back partial creates. It intentionally does not reconcile replacement
-resources: identity drift fails closed and requires explicit recovery.
-
-Focused examples are available for a single MACVLAN-semantic domain, three
-independently routed IPvlan-L2 domains, and three IPvlan-L3 subnet domains. See
-`examples/macvlan`, `examples/ipvlan-l2`, and `examples/ipvlan-l3`. These profile
-names select validated OVS flow and routing semantics; they do not select Docker
-network drivers. Compose is a management plane and GraphX owns each data-plane
-veth attachment.
-
-The `examples/static-route-policy` laboratory adds three OVS domains around one
-namespace router. A route declared with `install: manual` is validated but
-omitted from `infra create`; only that exact declared destination can be changed:
+`infra` and network launchers return `E_PHASE_UNAVAILABLE`, including dry runs.
+V3 resource realization is P7 and owned guest realization is P8. The existing
+resource modules and ownership store remain covered by isolated, unprivileged
+identity and rollback tests. They are not currently wired to authored v3 graphs.
 
 ```sh
-sudo ./build/dev/graphx infra route apply examples/static-route-policy/graphx.yaml \
-  --router route-router --destination 10.64.30.10/32
-sudo ./build/dev/graphx infra route clear examples/static-route-policy/graphx.yaml \
-  --router route-router --destination 10.64.30.10/32
+build/dev/graphx config normalize examples/mixed-network/graphx.yml --target lima
 ```
 
-Use `--dry-run` without sudo on any platform for inspection. Runtime route,
-policy, OVS, and packet claims require the privileged Linux lab procedure, on native Linux or inside Lima.
-
-## Declarative capture and faults
-
-Version-2 captures name a `mirror` attachment and a directory beneath
-`/var/lib/graphx/captures`, whose root-owned boundary and contents are VM-local
-storage in Lima. Size, file-count,
-rotation-time, retention, and snap-length bounds are mandatory and strictly
-validated. Each run uses a root-owned mode-0700 owner-specific directory whose
-device, inode, UID, GID, and mode are recorded and rechecked. Capture files must
-remain root-owned and non-writable by group or other. Destroy stops only the
-recorded dumpcap process, removes every write bit from the identity-checked
-root-owned capture files, and then seals that session mode 0550; the bounded
-evidence is intentionally retained. Expired, unmodified owner-shaped sessions
-are pruned on the next create only when every approved file remains root-owned,
-single-link, and read-only; unexpected files or identity changes are never
-removed as retention cleanup.
-
-Export one complete PCAPNG snapshot without exposing the live directory:
-
-```sh
-sudo ./build/dev/graphx infra capture export \
-  examples/network-observability/graphx.yaml --capture ethernet-span \
-  --output /tmp/ethernet-span.pcapng
-```
-
-Export refuses an existing or symlink destination and rejects incomplete,
-oversized, replaced, or unhealthy capture state. Ethernet PCAPNG remains a
-separate trust domain from application-level GraphX LINKTYPE_USER0 capture.
-
-Declarative faults target a realized `container_veth`, `namespace_veth`, or
-`qemu_tap`. The lifecycle records the interface ifindex, exact netem text, and
-an identity-checked timer plus the current boot identity and monotonic
-application/expiry deadline. Status reports `active` until automatic expiry and
-`expired` afterward. A missing timer/qdisc before the recorded deadline, a boot
-change, or an unrelated replacement qdisc fails closed.
-
-Faults are declared under `network.faults` so duration, interface identity,
-qdisc state, timers, rollback, and recovery use the same fail-closed lifecycle.
-
-Each OVS bridge may expose an owned SPAN output. Use the declarative capture
-configuration and `infra capture export` rather than attaching an untracked
-capture process to the live interface.
-
-See `examples/network-observability` for the declarative form.
-
-## macOS execution model
-
-The privileged macOS execution environment is the dedicated ARM64 Linux Lima
-VM. Rootful Docker, system OVS, namespaces, veth/TAP, QEMU, ownership ledgers,
-captures, and faults stay inside that VM. The source checkout is the only
-writable host mount, and no Docker or OVS socket is forwarded to macOS.
-
-Follow the current
-[`macOS Docker and OVS with Lima`](../infrastructure/lima/README.md) guide for
-installation, verification, lab commands, direct guest access, storage, and
-troubleshooting.
+Capture declarations name logical mirror attachments with bounded retention,
+rotation and file size. Their directory is derived beneath `/var/lib/graphx`.
+Faults and manual route actions live under `scenario.actions`; they never run at
+baseline or during normalization. Ordered router policy declarations are retained.

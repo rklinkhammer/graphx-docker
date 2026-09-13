@@ -6,7 +6,7 @@ Input: [graphx.yml](graphx.yml). Shared types: [catalog](../../catalog/README.md
 
 Preserved intent and proposed acceptance: x86_64 TCG boot; guest 10.0.2.15 and peer 10.0.2.2 on VLAN 42; isolated 10.0.2.99 on VLAN 43; TCP/UDP 18001 and 19001; bounded SPAN; QMP evidence distinct from TAP lifecycle.
 
-Current source evidence: [source](../../../../examples/qemu-node/tap/graphx.yaml). Source inspection establishes the current contract, not that v3 generation works. All expected artifacts have status `static-design`; proposed execution has not run. Native platform packaging and generic bindings are proposed in every set.
+Current source evidence: [source](../../../../examples/qemu-node/tap/graphx.yml). Source inspection establishes the current contract, not that v3 generation works. All expected artifacts have status `static-design`; proposed execution has not run. Native platform packaging and generic bindings are proposed in every set.
 
 | Target | Capability cell | Rule and placement/reason | Evidence |
 |---|---|---|---|

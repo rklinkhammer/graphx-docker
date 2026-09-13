@@ -1,5 +1,8 @@
 # Verification definition and results
 
+P1 implementation evidence is recorded separately in [P1 verification](p1-verification.md).
+The checks below concern illustrative design artifacts; they are not runtime acceptance.
+
 **DESIGN ONLY.** Static validation does not demonstrate runtime support.
 
 | Status | Meaning |
@@ -21,15 +24,14 @@ production compiler or fixture generator.
 Environment: native macOS ARM64; Python 3.13 isolated environment at
 `/tmp/graphx-design-validation-venv`, PyYAML 6.0.3 and jsonschema 4.26.0.
 Docker Compose v5.1.2 performs configuration checks only, with no engine connection.
-The current built GraphX CLI is used only for validation of current v2 examples.
-Host Node is v26.8.1, so it does not meet the repository's Node 24 portable-suite
-prerequisite. No Node version substitution was treated as equivalent.
+The C++ CLI validates authored v3 inputs. P1 portable checks select Node 24
+explicitly; current command output is linked below.
 
 | Status | Command / check | Environment and result | Evidence |
 |---|---|---|---|
 | `static-design` | `/tmp/graphx-design-validation-venv/bin/python design/graph-generation/check_package.py --compose` | macOS ARM64; final result recorded in JSON | [static results](evidence/static-results.json) |
-| `run-current` | `python3 tests/test_example_configs.py build/dev/graphx .` | current C++ CLI validates the 14 authoritative v2 example configurations | [current results](evidence/current-results.txt) |
-| `run-current` | `docker compose version`; `node --version`; `build/dev/graphx validate examples/sample-pipeline/graphx.yaml` | Compose v5.1.2; Node v26.8.1; sample accepted as version 2 | [current results](evidence/current-results.txt) |
+| `run-current` | `python3 tests/test_example_configs.py build/dev/graphx .` | current C++ CLI validates all 24 authoritative v3 example configurations | [P1 results](p1-verification.md) |
+| `run-current` | Node 24 `node --version`; `build/dev/graphx validate examples/sample-pipeline/graphx.yml` | Node v24.20.0; sample accepted as version 3 | [current results](evidence/current-results.txt) |
 
 Static scope: strict duplicate-key YAML and JSON parsing (fixtures use the common
 YAML 1.1/1.2 subset; general YAML 1.2 parser conformance is pending); all 39 case IDs; graph/type
@@ -43,43 +45,29 @@ traceability matrices. Each Compose file is substituted into a temporary file
 and passed to `docker compose -f <temporary-file> config --quiet`. This does not
 pull images, contact an engine, create secrets, or start containers.
 
-Initial host Python lacked PyYAML/jsonschema. Installed isolated validation
-dependencies under /tmp; no repository dependency was changed. System Ruby's
-older YAML parser rejected a current unquoted flow-scalar image tag; PyYAML was
-used for repository inspection and static fixture checks instead. This was a
-tool limitation, not a new architectural issue or an edit to current examples.
-
 ## Pending and limitations
 
-- `static-design`: the normalized JSON schema is outer-shape only. Full nested
-  production schema validation is pending P1. The normative architecture and
-  concrete node/resource/plan objects are reviewable; Python checks only selected
-  cross-field invariants, not all semantic requirements.
-- `planned-portable`: exact negative diagnostic emission, SCC feedback checks,
-  endpoint collision algorithms, CIDR reachability, path/race/ownership checks and
-  actual compiler determinism remain pending. Negative fixtures are parsed and
-  indexed, not presented as rejected by a compiler that does not exist.
-- `planned-portable`: `quick`, `quality` and `portable` were not run for this
-  design-only package. Production source was not changed; Node 24 is also a
-  prerequisite before future portable acceptance. No shell script was touched,
-  so ShellCheck is not applicable to this change.
-- `planned-docker`: engine readiness/live applications, image availability and
-  real credential mounts were not checked. Configuration-only Compose validation
-  proves syntax/model validity, not that illustrative images or commands exist.
-- `planned-privileged`: no OVS, veth/TAP, namespace, nftables, netem, capture or
-  Lima operation was executed. No privileged authorization is inferred.
-- `planned-guest-boot`: no guest built or booted. Current TCG selection was
-  inspected in source; no TCG execution evidence is claimed. KVM remains outside
-  the baseline, with an explicit negative fixture and no execution evidence.
-- Browser/UI verification was not performed; API or config checks do not prove
-  visual acceptance. Deterministic guest builds, reproducible images, history
-  stress bounds and credential security are future behavior checks.
+- `static-design`: the illustrative normalized schema checks outer shape and
+  selected cross-field invariants. Production P1 has a fully closed nested schema
+  validated by C++ and telemetry; its evidence is separate.
+- `planned-portable`: artifact compilation, output publication/ownership,
+  orchestrated startup and generic application execution require later phases.
+  P1 executes N01–N15 against C++; this static checker only indexes those fixtures.
+- `planned-docker`: image availability, real credential staging and orchestrated
+  graph workloads have not run. Compose configuration validation contacts no engine.
+- `planned-privileged`: no OVS, veth/TAP, namespace, nftables, netem, capture or Lima
+  operation was executed. No privileged authorization is inferred.
+- `planned-guest-boot`: no guest was built or booted. TCG/KVM guest execution is not
+  claimed. KVM remains outside baseline support.
+- Browser visual acceptance is not established by API tests or a web build.
+  P1 standalone security/history/capture integration results do not establish
+  graph-driven credential provisioning, platform deployment or guest behavior.
 
 ## Planned acceptance definitions
 
 | Check | Status and targets | Acceptance |
 |---|---|---|
-| Version and schema cutover | `planned-portable`; Linux/macOS | v3 accepted, v2 rejected, all unknown/duplicate keys rejected; normalized contract 2 accepted by every consumer; complete nested schema |
+| Version and schema cutover | P1 verified on native macOS; see [evidence](p1-verification.md) | v3 accepted, v2 rejected, all unknown/duplicate keys rejected; normalized contract 2 accepted by every consumer; complete nested schema |
 | Deterministic compilation | `planned-portable`; Linux/macOS | same fixed inputs produce byte-identical trees twice; shuffled mapping insertion order does not change output; relocating roots changes only declared execution paths; no clock/random/ambient environment reads |
 | Catalog and build pinning | `planned-portable`; Linux/macOS build tooling | changed catalog bytes without matching lock rejected; no `latest`, missing digest, secret build layer or source escape; topology edits generate zero Dockerfiles |
 | Output ownership | `planned-portable`; Linux/macOS | empty output exclusive publish; same-owner explicit replacement; reject symlink, foreign/edited file, stale manifest, active consumer and interrupted staging; no unrelated file deletion |

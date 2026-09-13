@@ -6,7 +6,7 @@ Input: [graphx.yml](graphx.yml). Shared types: [catalog](../../catalog/README.md
 
 Preserved intent and proposed acceptance: Three 10.41.x.0/24 domains; shared MAC 02:41:00:00:00:01; namespace forwarding, allow generator-to-transform and transform-to-sink; established returns; default drop; three mirrors.
 
-Current source evidence: [source](../../../../examples/ipvlan-l2/graphx.yaml). Source inspection establishes the current contract, not that v3 generation works. All expected artifacts have status `static-design`; proposed execution has not run. Native platform packaging and generic bindings are proposed in every set.
+Current source evidence: [source](../../../../examples/ipvlan-l2/graphx.yml). Source inspection establishes the current contract, not that v3 generation works. All expected artifacts have status `static-design`; proposed execution has not run. Native platform packaging and generic bindings are proposed in every set.
 
 | Target | Capability cell | Rule and placement/reason | Evidence |
 |---|---|---|---|

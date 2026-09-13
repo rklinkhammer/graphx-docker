@@ -1,5 +1,14 @@
 # Test procedure
 
+The current P1 cutover supports authored v3 validation and normalized v2 consumers.
+`quick` covers the accepted input/target matrix and reusable module contracts;
+`portable` adds execution-gate checks, telemetry HTTP integration and web tests/build.
+Example launches and infrastructure plans return `E_PHASE_UNAVAILABLE`. Privileged
+and Docker orchestration gates below cannot establish v3 acceptance until the
+corresponding execution phases are implemented. See the
+[P1 evidence](../design/graph-generation/p1-verification.md).
+
+
 Use the smallest profile that covers the change:
 
 ```sh

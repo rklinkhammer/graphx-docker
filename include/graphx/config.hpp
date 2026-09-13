@@ -1,6 +1,7 @@
 #pragma once
 
 #include "graphx/types.hpp"
+#include "graphx/config_value.hpp"
 #include "graphx/network.hpp"
 
 #include <cstddef>
@@ -14,7 +15,7 @@
 
 namespace graphx {
 
-inline constexpr std::uint32_t kConfigVersion = 2;
+inline constexpr std::uint32_t kConfigVersion = 3;
 inline constexpr std::size_t kMaxConfigBytes = 1024 * 1024;
 inline constexpr std::size_t kMaxNodes = 1024;
 inline constexpr std::size_t kMaxEdges = 4096;
@@ -211,6 +212,28 @@ struct ObservabilityConfig {
   ControlConfig control;
 };
 
+struct ConfigLoadOptions {
+  std::filesystem::path catalog_root;
+  std::string target{"native-linux"};
+};
+
+struct TypePortCapability {
+  Port port;
+  std::vector<std::string> transports;
+  std::string encoding;
+  std::size_t minimum_connections{};
+  std::size_t maximum_connections{};
+  bool feedback{};
+};
+
+struct NodeTypeDefinition {
+  std::string id;
+  std::uint32_t revision{};
+  std::string image;
+  std::string executable;
+  std::vector<TypePortCapability> ports;
+};
+
 struct GraphConfig {
   std::uint32_t version{};
   std::string id;
@@ -219,6 +242,12 @@ struct GraphConfig {
   NetworkInfrastructureConfig network_infrastructure;
   DeploymentConfig deployment;
   ObservabilityConfig observability;
+  // Authoritative v3 value and its schema-checked normalized model. Nodes/edges
+  // above are typed transport projections. Resource and observability structs are
+  // used only by isolated module callers; v3 graph execution is explicitly gated.
+  ConfigValue authored;
+  ConfigValue resolved;
+  std::vector<NodeTypeDefinition> node_types;
 
   [[nodiscard]] const NodeConfig& node(std::string_view id) const;
   [[nodiscard]] const EdgeConfig& edge(std::string_view id) const;
@@ -232,6 +261,7 @@ struct ConfigOverride {
 struct ConfigDiagnostic {
   std::string path;
   std::string message;
+  std::string code{"E_CONFIG"};
 };
 
 class ConfigError final : public std::runtime_error {
@@ -245,13 +275,14 @@ class ConfigError final : public std::runtime_error {
   std::vector<ConfigDiagnostic> diagnostics_;
 };
 
-// Precedence is file < GRAPHX_OVERRIDES < explicit overrides. Overrides use
-// dotted paths, for example transport.tcp.samples.host=127.0.0.1.
+// No ambient configuration interpreter. This function returns an empty list;
+// explicit nonempty overrides passed to load_config are rejected.
 [[nodiscard]] std::vector<ConfigOverride> environment_overrides();
 [[nodiscard]] GraphConfig load_config(const std::filesystem::path& path,
                                       const std::vector<ConfigOverride>& overrides = {});
-// Loads only the document on disk. Runtime environment overrides are
-// intentionally excluded when callers need the literal checked-in document.
+// Load and resolve one authored v3 document against an explicit catalog root.
+[[nodiscard]] GraphConfig load_graph(const std::filesystem::path& path,
+                                     const ConfigLoadOptions& options = {});
 [[nodiscard]] GraphConfig load_config_literal(const std::filesystem::path& path);
 
 [[nodiscard]] std::string_view to_string(TransportKind kind) noexcept;

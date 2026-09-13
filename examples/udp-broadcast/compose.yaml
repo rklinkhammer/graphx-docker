@@ -3,8 +3,8 @@ services:
   listener:
     image: ${GRAPHX_BROADCAST_IMAGE:-graphx-demo:latest}
     entrypoint: [/usr/local/bin/graphx-udp-subscriber]
-    environment: { GRAPHX_CONFIG: /example/graphx.yaml, GRAPHX_MAX_MESSAGES: "5" }
-    volumes: [./graphx.yaml:/example/graphx.yaml:ro]
+    environment: { GRAPHX_CONFIG: /example/graphx.yml, GRAPHX_MAX_MESSAGES: "5" }
+    volumes: [./graphx.yml:/example/graphx.yml:ro]
     networks: [isolated]
     read_only: true
     tmpfs: [/tmp]
@@ -14,11 +14,11 @@ services:
     image: ${GRAPHX_BROADCAST_IMAGE:-graphx-demo:latest}
     entrypoint: [/usr/local/bin/graphx-udp-publisher]
     environment:
-      GRAPHX_CONFIG: /example/graphx.yaml
+      GRAPHX_CONFIG: /example/graphx.yml
       GRAPHX_MAX_MESSAGES: "5"
       GRAPHX_MESSAGE_PREFIX: discovery
       GRAPHX_START_DELAY_MS: "500"
-    volumes: [./graphx.yaml:/example/graphx.yaml:ro]
+    volumes: [./graphx.yml:/example/graphx.yml:ro]
     depends_on: [listener]
     networks: [isolated]
     read_only: true

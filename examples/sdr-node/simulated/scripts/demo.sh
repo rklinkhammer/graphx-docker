@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
+
+# Authored v3 execution is not yet implemented. Sourced library functions remain available.
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  echo "E_PHASE_UNAVAILABLE: GraphX v3 execution adapters are not implemented; no action was performed" >&2
+  exit 2
+fi
 set -euo pipefail
 umask 077
 
@@ -6,6 +12,7 @@ profile_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 example_dir=$(cd "$profile_dir/.." && pwd)
 repo_dir=$(cd "$example_dir/../.." && pwd)
 source "$repo_dir/scripts/configure-build-trust.sh"
+# shellcheck source=../../common/lifecycle.sh
 source "$example_dir/common/lifecycle.sh"
 state_dir="$example_dir/.state"
 state_file="$state_dir/simulated.env"
@@ -48,7 +55,8 @@ load_state() {
   GRAPHX_HOST_UID=$(id -u); GRAPHX_HOST_GID=$(id -g)
   export GRAPHX_HOST_UID GRAPHX_HOST_GID
   export GRAPHX_SDR_GUI_PORT
-  export GRAPHX_SDR_PACKET_RULES="$(packet_rules)"
+  GRAPHX_SDR_PACKET_RULES="$(packet_rules)"
+  export GRAPHX_SDR_PACKET_RULES
 }
 create_state() {
   require openssl

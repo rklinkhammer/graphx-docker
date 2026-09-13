@@ -31,8 +31,7 @@ const { nodes, edges } = metricStore
 const nodeIds = new Set(Object.keys(nodes))
 const edgeIds = new Set(Object.keys(edges))
 const controllableNodeIds = new Set(graph.nodes.filter(node =>
-  node.control === 'origin' ||
-  ((node.control === 'graphx' || node.control == null) && node.kind === 'source')).map(node => node.id))
+  node.control === 'origin' || node.control === 'graphx').map(node => node.id))
 const runtimeIdentities = new RuntimeIdentityStore({ manifestFile: runtimeIdentityFile, nodeIds })
 const controlAuthorizer = new ControlAuthorizer({ policyFile: controlPolicyFile,
   staticToken: controlToken, nodeIds })

@@ -6,7 +6,7 @@ Input: [graphx.yml](graphx.yml). Shared types: [catalog](../../catalog/README.md
 
 Preserved intent and proposed acceptance: Native POSIX shared memory; segment names gx-shm-samples and gx-shm-transformed, capacity 8, maximum message 4096, blocking backpressure, send timeout 2000 ms.
 
-Current source evidence: [source](../../../../examples/shared-memory/graphx.yaml). Source inspection establishes the current contract, not that v3 generation works. All expected artifacts have status `static-design`; proposed execution has not run. Native platform packaging and generic bindings are proposed in every set.
+Current source evidence: [source](../../../../examples/shared-memory/graphx.yml). Source inspection establishes the current contract, not that v3 generation works. All expected artifacts have status `static-design`; proposed execution has not run. Native platform packaging and generic bindings are proposed in every set.
 
 | Target | Capability cell | Rule and placement/reason | Evidence |
 |---|---|---|---|

@@ -39,6 +39,7 @@
         "network": "qemu-lan",
         "owner": "qemu-peer",
         "peer": "gxp1a63919aa9a2",
+        "port": "peer",
         "switch": "br-qemu-tap",
         "vlan": {
           "access_tag": 42
@@ -138,6 +139,7 @@
             "id": "data",
             "network": "qemu-lan",
             "peer": "gxp1a63919aa9a2",
+            "port": "peer",
             "switch": "br-qemu-tap"
           },
           {
@@ -147,6 +149,7 @@
             "id": "isolated",
             "network": "qemu-lan",
             "peer": "gxpc7681ae553ac",
+            "port": "isolated",
             "switch": "br-qemu-tap"
           }
         ],

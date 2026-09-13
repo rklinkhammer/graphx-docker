@@ -1,8 +1,9 @@
 # Phased implementation plan
 
-**DESIGN ONLY.** These are dependency-ordered future changes. This review does not
-authorize implementation, guest builds, infrastructure mutation or privileged
-tests. I-01–I-11 are accepted; no compatibility parser, second source manifest,
+**Phase status:** P1 is complete as the authorized model cutover; see
+[P1 verification](p1-verification.md). P2–P10 remain future changes. The original
+design review did not authorize implementation, guest builds, infrastructure
+mutation or privileged tests. I-01–I-11 are accepted; no compatibility parser, second source manifest,
 deployment daemon, generic plugin system or per-topology image build is planned.
 
 | Phase | Concrete outcome and affected components | Smallest abstraction | Removal / atomic contract boundary | Verification and completion gate |

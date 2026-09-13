@@ -5,7 +5,7 @@ import { createServer as createSecureServer } from 'node:https'
 import { join, normalize, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { WebSocketServer } from 'ws'
-import { loadTelemetryConfiguration } from './normalized-config.mjs'
+import { loadTelemetryConfiguration, applicationGraph } from './normalized-config.mjs'
 import { isLoopback, readSecret } from './security.mjs'
 import { OtlpHttpExporter, SloEvaluator, graphReadiness, otlpConfig } from './operations.mjs'
 import { HistoryStore, historyConfig } from './history.mjs'
@@ -22,13 +22,13 @@ const httpBind = process.env.GRAPHX_HTTP_BIND || '127.0.0.1'
 const udpBind = process.env.GRAPHX_TELEMETRY_BIND || '127.0.0.1'
 const loadedConfiguration = loadTelemetryConfiguration()
 const config = loadedConfiguration.config
-const graph = config.graph || { id: 'graphx', nodes: [], edges: [] }
+const graph = applicationGraph(config)
 const packetHistoryUrl = process.env.GRAPHX_PACKET_HISTORY_URL || ''
 const qemuEvidenceFile = process.env.GRAPHX_QEMU_EVIDENCE_FILE || ''
 const networkDiagnosticFile = process.env.GRAPHX_NETWORK_DIAGNOSTIC_FILE || ''
-const heartbeatTimeout = config.observability.telemetry.heartbeat_timeout_ms
-const websocketPath = config.observability?.telemetry?.websocket || '/ws'
-const configuredCapture = config.observability?.capture || { enabled: false, provider: '' }
+const heartbeatTimeout = config.platform.telemetry.heartbeat_timeout_ms
+const websocketPath = config.platform?.telemetry?.websocket || '/ws'
+const configuredCapture = { ...config.platform.capture, provider: config.platform.capture.provider === 'application' ? 'pcapng' : config.platform.capture.provider }
 function captureInteger(name, configured, fallback, minimum, maximum) {
   const fromEnvironment = process.env[name]
   const candidate = fromEnvironment ?? configured ?? fallback
@@ -49,13 +49,15 @@ function deploymentBoolean(name, configured) {
   if (['0', 'false', 'no', 'off'].includes(value)) return false
   throw new Error(`${name} must be one of true, false, 1, 0, yes, no, on, or off`)
 }
-const sloEvaluator = new SloEvaluator(config.observability?.slos)
-const configuredOtlp = otlpConfig(config.observability?.otlp)
+const sloEvaluator = new SloEvaluator(config.platform?.slos)
+const configuredOtlp = otlpConfig(config.platform?.otlp)
 const otlpExporter = new OtlpHttpExporter(configuredOtlp)
-const configuredHistory = historyConfig(config.observability?.history, process.env,
+const configuredHistory = historyConfig(config.platform?.history, process.env,
   loadedConfiguration.baseDirectory)
 const historyStore = new HistoryStore(configuredHistory, graph.id)
-const configuredControl = controlConfig(config.observability?.control)
+const { enabled: graphControlEnabled, grants, allowed_origins: graphOrigins, ...controlLimits } = config.platform.control
+if (graphControlEnabled || grants.length) throw new Error('E_PHASE_UNAVAILABLE: graph credential and control grant staging requires P5')
+const configuredControl = controlConfig(controlLimits)
 const captureConfig = { ...configuredCapture,
   enabled: deploymentBoolean('GRAPHX_CAPTURE_ENABLED', configuredCapture.enabled),
   maxFileBytes: configuredCapture.max_file_bytes,

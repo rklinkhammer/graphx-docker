@@ -1,0 +1,34 @@
+# GraphX version 3. Validate/normalize only; execution adapters are unavailable.
+catalog: ../../config/catalog/lock.json
+connections:
+  messages:
+    from: publisher.out
+    settings:
+      bind: 0.0.0.0
+      destination: 172.31.91.255
+      framing: u32be
+      interface: 172.31.91.10
+      max_datagram_bytes: 1400
+      mode: broadcast
+      port: 47102
+      receive_buffer_bytes: 65536
+      send_buffer_bytes: 65536
+    to: subscriber.in
+    transport: udp
+graph:
+  id: udp-broadcast
+nodes:
+  publisher:
+    execution:
+      kind: container
+    type: discovery.publisher
+  subscriber:
+    execution:
+      kind: container
+    type: discovery.subscriber
+portable_network:
+  addresses:
+    publisher: 172.31.91.10
+    subscriber: 172.31.91.20
+  subnet: 172.31.91.0/24
+version: 3

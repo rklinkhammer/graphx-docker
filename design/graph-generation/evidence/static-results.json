@@ -3,7 +3,7 @@
   "compose_config_checks": 51,
   "environment": {
     "architecture": "arm64",
-    "compose": "v5.1.2",
+    "compose": "5.1.2",
     "engine_access": false,
     "python": "3.13.5",
     "system": "Darwin"
@@ -16,9 +16,8 @@
   "negative_inputs": 15,
   "parsed_yaml_json": 865,
   "positive_cases": 24,
-  "relative_links": 485,
+  "relative_links": 494,
   "result": "pass",
-  "result_scope": "Static proposed package checks only; no production generation, deployment or privileged execution.",
   "status": "static-design",
   "target_sets": 63,
   "unsupported_target_diagnostics": 33

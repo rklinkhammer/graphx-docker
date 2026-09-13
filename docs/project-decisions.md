@@ -2,7 +2,8 @@
 
 This page records the active design constraints for GraphX 1.1.0.
 
-- `graphx.yaml` with `version: 2` is the only configuration format.
+- `graphx.yml` with `version: 3` is the only authored configuration format; normalized JSON uses contract version 2.
+- P1 implements validation and normalization. Compilation and graph execution remain gated with `E_PHASE_UNAVAILABLE`; see `design/graph-generation/implementation-plan.md`.
 - The C++ loader is authoritative; normalized JSON is the only configuration input
   accepted by telemetry.
 - System Open vSwitch is the only managed data-plane backend.

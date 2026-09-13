@@ -1,68 +1,20 @@
 # UDP broadcast example
 
-This example confines directed broadcast traffic to an internal Docker network
-at `172.31.91.0/24`; it never chooses or transmits through a physical host
-interface. Docker Engine with Compose on Linux, or OrbStack on macOS, and a locally available GraphX runtime image are
-required. Prepare the image while dependencies are available, or load the same
-image from an offline artifact:
+This authored v3 example is supported for validation and normalization. Graph
+execution is unavailable in P1; its launcher returns `E_PHASE_UNAVAILABLE` before
+performing actions. The retained launch recipes require the later adapters.
+
+Run from the repository root:
 
 ```sh
-docker build -t graphx-demo:latest .
-# Alternatively: docker load -i graphx-demo.tar
+build/dev/graphx validate examples/udp-broadcast/graphx.yml
+build/dev/graphx config normalize examples/udp-broadcast/graphx.yml > resolved.json
 ```
 
-The example run itself never builds or pulls an image. To use a differently
-tagged preloaded image, export `GRAPHX_BROADCAST_IMAGE` before both validation
-and execution.
+Select `--target native-linux`, `native-macos`, `orbstack`, or `lima` to check
+placement capabilities. Managed OVS and QEMU require Linux or Lima; this command
+does not run a laboratory. The graph declares its catalog, typed node instances,
+connections, bounded platform policy and any explicit scenario actions.
 
-```sh
-examples/udp-broadcast/run.sh
-```
-
-The run succeeds when the listener receives five discovery announcements. The
-cleanup trap removes the isolated network after success, failure, or interruption.
-Routers normally do not forward broadcast traffic, and host/container firewall
-rules can still reject it.
-
-## Native Linux acceptance
-
-The privileged acceptance runner creates two network namespaces and connects
-them only to a temporary Linux bridge. The bridge has no physical interface or
-default route, so the directed broadcast cannot leave the disposable lab:
-
-```sh
-GRAPHX_BUILD_DIR="$PWD/build/dev" examples/udp-broadcast/run-native-linux.sh
-examples/udp-broadcast/down-native-linux.sh
-examples/udp-broadcast/down-native-linux.sh
-```
-
-Both scripts require `sudo` and `iproute2`. The runner refuses pre-existing
-resources with its reserved names, cleans up after normal completion or a
-signal, and expects `PASS received=5`. The cleanup command is idempotent and is
-shown twice deliberately. OrbStack does not substitute for this native
-Linux acceptance test.
-
-When `dumpcap` and `tshark` are installed, the same isolated run can also prove
-that live datagrams decode as GraphX sequences 1 through 5:
-
-```sh
-GRAPHX_BUILD_DIR="$PWD/build/dev" GRAPHX_VERIFY_LIVE_CAPTURE=1 \
-  examples/udp-broadcast/run-native-linux.sh
-```
-
-Capture is limited to the disposable publisher veth and UDP destination port
-47102. No physical interface is opened. `scripts/test-features.sh
-linux-network` enables this check automatically when both tools are available
-and reports an explicit skip otherwise.
-
-On macOS, the namespace runner must be invoked inside the verified Lima guest;
-it does not dispatch automatically:
-
-```sh
-limactl shell --workdir /workspace/graphx-docker graphx
-export GRAPHX_BUILD_DIR=/var/lib/graphx/runtime/build/dev
-GRAPHX_VERIFY_LIVE_CAPTURE=1 examples/udp-broadcast/run-native-linux.sh
-examples/udp-broadcast/down-native-linux.sh
-```
-
-Report this as Linux ARM64 guest evidence under Lima, separately from native Linux.
+See the [example matrix](../README.md) for all supported inputs and
+[configuration contract](../../docs/configuration.md) for diagnostics and limits.

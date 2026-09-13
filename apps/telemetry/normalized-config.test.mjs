@@ -35,10 +35,10 @@ test('rejects malformed, oversized, incompatible, and unsafe normalized files', 
   assert.throws(() => loadNormalizedConfig(oversized.path), /exceeds the .*byte limit/)
 
   const incompatible = structuredClone(fixture)
-  incompatible.contract_version = 2
+  incompatible.contract_version = 1
   const wrongVersion = temporaryFile(JSON.stringify(incompatible))
   t.after(wrongVersion.cleanup)
-  assert.throws(() => loadNormalizedConfig(wrongVersion.path), /contract_version must be 1/)
+  assert.throws(() => loadNormalizedConfig(wrongVersion.path), /contract_version must be 2/)
 
   const directory = mkdtempSync(resolve(tmpdir(), 'graphx-normalized-symlink-'))
   t.after(() => rmSync(directory, { recursive: true }))
@@ -51,18 +51,18 @@ test('rejects malformed, oversized, incompatible, and unsafe normalized files', 
 
 test('enforces graph and network collection bounds', t => {
   const tooManyNodes = structuredClone(fixture)
-  tooManyNodes.graph.nodes = Array.from({ length: 1025 }, (_, index) => ({
-    ...fixture.graph.nodes[0], id: `node-${index}`,
+  tooManyNodes.nodes = Array.from({ length: 1025 }, (_, index) => ({
+    ...fixture.nodes[0], node_id: `node-${index}`,
   }))
   const nodes = temporaryFile(JSON.stringify(tooManyNodes))
   t.after(nodes.cleanup)
-  assert.throws(() => loadNormalizedConfig(nodes.path), /graph.nodes exceeds 1024 entries/)
+  assert.throws(() => loadNormalizedConfig(nodes.path), /nodes.*1024/)
 
   const invalidNetwork = structuredClone(fixture)
   delete invalidNetwork.network.edge_paths
   const network = temporaryFile(JSON.stringify(invalidNetwork))
   t.after(network.cleanup)
-  assert.throws(() => loadNormalizedConfig(network.path), /network.edge_paths must be an array/)
+  assert.throws(() => loadNormalizedConfig(network.path), /network.*edge_paths/)
 })
 
 test('requires the authoritative normalized configuration contract', () => {

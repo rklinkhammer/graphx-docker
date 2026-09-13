@@ -1,47 +1,44 @@
 # GraphX examples
 
-Run commands from the repository root. Build local binaries with
-`cmake --preset dev` and `cmake --build --preset dev`.
+All 24 authored v3 examples support validation and normalization. Execution
+launchers return `E_PHASE_UNAVAILABLE` in P1. Run from the repository root:
 
-| Example | Linux | macOS | Run / verification |
-|---|---|---|---|
-| [Sample pipeline and console](sample-pipeline/README.md) | Docker Compose | OrbStack Compose | `examples/sample-pipeline/scripts/demo.sh start`, `status`, `verify`, `stop` |
-| [Shared memory](shared-memory/README.md) | Local processes | Native processes | `examples/shared-memory/run.sh` |
-| [UDP unicast](udp-unicast/README.md) | Local processes | Native processes | `examples/udp-unicast/run.sh` |
-| [UDP multicast](udp-multicast/README.md) | Local processes | Native processes | `examples/udp-multicast/run.sh` |
-| [Application capture](capture/README.md) | Local processes | Native processes | `examples/capture/run.sh` |
-| [UDP broadcast](udp-broadcast/README.md) | Docker Compose; optional namespace acceptance | OrbStack Compose; namespace acceptance inside Lima | `examples/udp-broadcast/run.sh` |
-| [MACVLAN](macvlan/README.md) | System OVS | Automatic Lima dispatch | `scripts/network-lab.sh macvlan up` |
-| [IPVLAN L2](ipvlan-l2/README.md) | System OVS | Automatic Lima dispatch | `scripts/network-lab.sh ipvlan-l2 up` |
-| [IPVLAN L3](ipvlan-l3/README.md) | System OVS | Automatic Lima dispatch | `scripts/network-lab.sh ipvlan-l3 up` |
-| [Mixed network](mixed-network/README.md) | System OVS | Automatic Lima dispatch | `scripts/network-lab.sh mixed-network up` |
-| [Network observation](network-observability/README.md) | Privileged CLI | Explicit Lima guest shell | Owned capture and timed fault lifecycle |
-| [Static routes and policy](static-route-policy/README.md) | Privileged launcher | Explicit Lima guest shell | `examples/static-route-policy/scripts/demo.sh up` |
-| [Simulated SDR](sdr-node/simulated/README.md) | Docker Compose | OrbStack Compose | `examples/sdr-node/simulated/scripts/demo.sh start` |
-| [External SDR](sdr-node/external/README.md) | System OVS and Docker | Explicit Lima guest shell | `examples/sdr-node/external/scripts/demo.sh up` |
-| [QEMU TAP](qemu-node/README.md) | System OVS, x86_64 guest with TCG | Build inside Lima; automatic runtime dispatch, TCG | `examples/qemu-node/scripts/demo.sh start` |
+```sh
+build/dev/graphx config normalize examples/sample-pipeline/graphx.yml --target orbstack
+```
 
-MACVLAN and IPVLAN are semantic profiles implemented by system Open vSwitch;
-they are not Docker network drivers. Compose owns processes and management
-connectivity. Privileged examples require root/sudo on Linux or inside the
-[dedicated GraphX Lima VM](../infrastructure/lima/README.md).
-Lima support requires Apple Silicon; no privileged data plane runs natively on
-macOS, and OrbStack results do not establish OVS or native Linux acceptance.
-Docker Desktop is not a supported macOS runtime. Native process examples do not
-need OrbStack or Lima. The QEMU launcher always uses an x86_64 guest with TCG;
-it does not select KVM on Linux or HVF on macOS.
+| Input | Supported validation targets |
+|---|---|
+| [capture/graphx.yml](capture/graphx.yml) | `native-linux`, `native-macos`, `lima` |
+| [ipvlan-l2/graphx.yml](ipvlan-l2/graphx.yml) | `native-linux`, `lima` |
+| [ipvlan-l3/graphx.yml](ipvlan-l3/graphx.yml) | `native-linux`, `lima` |
+| [macvlan/graphx.yml](macvlan/graphx.yml) | `native-linux`, `lima` |
+| [mixed-network/graphx.yml](mixed-network/graphx.yml) | `native-linux`, `lima` |
+| [network-observability/graphx.yml](network-observability/graphx.yml) | `native-linux`, `lima` |
+| [qemu-node/tap/graphx.yml](qemu-node/tap/graphx.yml) | `native-linux`, `lima` |
+| [sample-pipeline/graphx.yml](sample-pipeline/graphx.yml) | `native-linux`, `orbstack`, `lima` |
+| [sdr-node/external/graphx.yml](sdr-node/external/graphx.yml) | `native-linux`, `lima` |
+| [sdr-node/simulated/graphx.yml](sdr-node/simulated/graphx.yml) | `native-linux`, `orbstack`, `lima` |
+| [shared-memory/graphx.yml](shared-memory/graphx.yml) | `native-linux`, `native-macos`, `lima` |
+| [static-route-policy/graphx.yml](static-route-policy/graphx.yml) | `native-linux`, `lima` |
+| [udp-broadcast/graphx.yml](udp-broadcast/graphx.yml) | `native-linux`, `orbstack`, `lima` |
+| [udp-multicast/graphx.yml](udp-multicast/graphx.yml) | `native-linux`, `native-macos`, `lima` |
+| [udp-unicast/graphx.yml](udp-unicast/graphx.yml) | `native-linux`, `native-macos`, `lima` |
+| [variants/control/graphx.yml](variants/control/graphx.yml) | `native-linux`, `orbstack`, `lima` |
+| [variants/credential-rotation/graphx.yml](variants/credential-rotation/graphx.yml) | `native-linux`, `orbstack`, `lima` |
+| [variants/history/graphx.yml](variants/history/graphx.yml) | `native-linux`, `orbstack`, `lima` |
+| [variants/mixed-container-qemu-sdr/graphx.yml](variants/mixed-container-qemu-sdr/graphx.yml) | `native-linux`, `lima` |
+| [variants/multi-radio/graphx.yml](variants/multi-radio/graphx.yml) | `native-linux`, `orbstack`, `lima` |
+| [variants/observability/graphx.yml](variants/observability/graphx.yml) | `native-linux`, `orbstack`, `lima` |
+| [variants/otlp-mtls/graphx.yml](variants/otlp-mtls/graphx.yml) | `native-linux`, `orbstack`, `lima` |
+| [variants/renamed-multi-source/graphx.yml](variants/renamed-multi-source/graphx.yml) | `native-linux`, `orbstack`, `lima` |
+| [variants/secure-otlp/graphx.yml](variants/secure-otlp/graphx.yml) | `native-linux`, `orbstack`, `lima` |
 
-For the four network profiles, use `plan`, `status`, and `down` with the same
-lab name. Run these profiles one at a time on a Linux host or Lima guest:
-their checked-in configurations reuse host veth names. A different Compose
-project alone does not isolate those interfaces. Stop an existing profile only
-with its owner's agreement and its matching `down` command before starting
-another; identity checks reject overlapping resources.
-The external SDR profile also reuses the sink veth name, so run it separately
-from these four profiles.
-For other examples, follow the linked README for verification and
-cleanup. The network-observability configuration creates infrastructure only;
-it does not boot the declared external QEMU packet source.
+Linux and Lima are validation target names, not execution claims. OVS uses owned
+veth/TAP resources; MACVLAN/IPVLAN are semantic profiles. Compose owns processes
+and management connectivity. No Docker engine or VM is needed for normalization.
 
-See [test procedure](../docs/test-procedure.md) for acceptance coverage and the
-separate macOS, Lima, native Linux, TCG, and KVM evidence requirements.
+Catalog images and guest artifacts remain illustrative until release packaging.
+Retained Compose recipes and launcher bodies are not a supported v3 launch path.
+See [configuration](../docs/configuration.md), [phase status](../design/graph-generation/p1-verification.md),
+and [test procedure](../docs/test-procedure.md).

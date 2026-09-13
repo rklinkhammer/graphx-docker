@@ -1,0 +1,9 @@
+#pragma once
+#include <string_view>
+namespace graphx::config_internal {
+inline constexpr std::string_view authored_schema = R"gx_schema(@GRAPHX_AUTHORED_SCHEMA@)gx_schema";
+inline constexpr std::string_view node_type_schema = R"gx_schema(@GRAPHX_TYPE_SCHEMA@)gx_schema";
+inline constexpr std::string_view normalized_schema = R"gx_schema(@GRAPHX_NORMALIZED_SCHEMA@)gx_schema";
+inline constexpr std::string_view guest_schema = R"gx_schema(@GRAPHX_GUEST_SCHEMA@)gx_schema";
+inline constexpr std::string_view lock_schema = R"gx_schema(@GRAPHX_LOCK_SCHEMA@)gx_schema";
+}

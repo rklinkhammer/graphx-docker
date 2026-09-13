@@ -1,0 +1,68 @@
+# GraphX version 3. Validate/normalize only; execution adapters are unavailable.
+catalog: ../../config/catalog/lock.json
+connections: {}
+graph:
+  id: network-observation
+network:
+  attachments:
+  - address: 10.77.0.2/24
+    id: source-data
+    kind: qemu_tap
+    network: observed-lan
+    owner: packet-source
+    port: source
+    switch: br-gx-observe
+    tap_gid: 65532
+    tap_uid: 65532
+  - id: observed-span
+    kind: mirror
+    owner: br-gx-observe
+    port: capture
+    switch: br-gx-observe
+  captures:
+  - attachment: observed-span
+    id: ethernet-span
+    max_file_bytes: 1048576
+    max_files: 4
+    retention_seconds: 3600
+    rotation_seconds: 60
+    snaplen: 65535
+  networks:
+  - gateway: 10.77.0.1
+    id: observed-lan
+    profile: ethernet
+    realization: ovs
+    subnets:
+    - 10.77.0.0/24
+  switches:
+  - datapath: system
+    id: br-gx-observe
+    kind: openvswitch
+    mirror:
+      id: observed-span
+      output_port: capture
+      select_all: true
+    ports:
+    - id: source
+    - id: capture
+nodes:
+  packet-source:
+    execution:
+      accelerator: tcg
+      architecture: x86_64
+      attachment_only: true
+      kind: external
+    observation:
+    - packet
+    - external-status
+    type: external.packet-source
+scenario:
+  actions:
+  - action: fault
+    attachment: source-data
+    delay_ms: 20
+    duration_seconds: 30
+    id: source-delay
+    jitter_ms: 3
+    loss_percent: 1
+version: 3

@@ -4,7 +4,7 @@
   "files": [
     {
       "path": "graph.schema.json",
-      "sha256": "d75e2a898775a4b615a3e250910b7d118445a87f3f2007a5c87b7a9cf12df0a5"
+      "sha256": "09fb2f222f9a847ec2db5d9bfa51c7eb3023c131174481381a18d8805ff32c16"
     },
     {
       "path": "guests/echo-x86.json",

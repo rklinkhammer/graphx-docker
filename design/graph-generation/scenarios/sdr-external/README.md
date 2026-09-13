@@ -6,7 +6,7 @@ Input: [graphx.yml](graphx.yml). Shared types: [catalog](../../catalog/README.md
 
 Preserved intent and proposed acceptance: Physical radio lifecycle is external regardless of raw encoding; processor .20 and sink .30; no radio heartbeat assumed; separately invoked simulator substitutes only after physical absence is verified.
 
-Current source evidence: [source](../../../../examples/sdr-node/external/graphx.yaml). Source inspection establishes the current contract, not that v3 generation works. All expected artifacts have status `static-design`; proposed execution has not run. Native platform packaging and generic bindings are proposed in every set.
+Current source evidence: [source](../../../../examples/sdr-node/external/graphx.yml). Source inspection establishes the current contract, not that v3 generation works. All expected artifacts have status `static-design`; proposed execution has not run. Native platform packaging and generic bindings are proposed in every set.
 
 | Target | Capability cell | Rule and placement/reason | Evidence |
 |---|---|---|---|

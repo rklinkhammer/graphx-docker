@@ -1,0 +1,32 @@
+# GraphX version 3. Validate/normalize only; execution adapters are unavailable.
+catalog: ../../../config/catalog/lock.json
+connections:
+  samples:
+    from: generator.samples
+    to: transform.samples
+    transport: tcp
+  transformed:
+    from: transform.transformed
+    to: sink.transformed
+    transport: tcp
+graph:
+  id: variant-history
+nodes:
+  generator:
+    execution:
+      kind: container
+    type: sample.source
+  sink:
+    execution:
+      kind: container
+    type: sample.sink
+  transform:
+    execution:
+      kind: container
+    type: sample.transform
+platform:
+  history:
+    max_database_bytes: 67108864
+    max_records: 10000
+    retention_seconds: 3600
+version: 3

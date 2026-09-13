@@ -37,7 +37,7 @@ test ! -e "$test_dir/exporter/exporter.pid"
 rmdir "$test_dir/exporter"
 
 if [[ -n "$graphx_cli" ]]; then
-  GRAPHX_OVERRIDES= "$graphx_cli" validate "$example_dir/tap/graphx.yaml"
+  "$graphx_cli" validate "$example_dir/tap/graphx.yml"
 fi
 
 echo "GraphX QEMU TAP checks passed"

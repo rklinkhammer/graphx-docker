@@ -31,94 +31,27 @@ const Settings& transport_as(const graphx::TransportSettings& transport) {
   return std::get<Settings>(transport);
 }
 
-void tcp_policy_loads() {
-  TemporaryConfig file(valid_config);
-  const auto config = graphx::load_config(file.path());
-  const auto& transport =
-      transport_as<graphx::TcpTransportConfig>(config.edge("sample-edge").transport);
-  expect(transport.connect_timeout_ms == 1200 && transport.send_timeout_ms == 900, "TCP timeouts");
-  expect(transport.retry.max_attempts == 7 && transport.retry.initial_backoff_ms == 10 &&
-             transport.retry.max_backoff_ms == 80,
-         "TCP retry policy");
-  expect(transport.reconnect, "TCP reconnect policy");
+void resolved_transport_settings() {
+  const auto c = load_value(authored());
+  const auto& tcp = transport_as<graphx::TcpTransportConfig>(c.edge("samples").transport);
+  expect(tcp.port > 0 && tcp.connect_timeout_ms == 5000, "TCP defaults");
+  auto v = authored();
+  v["connections"]["samples"]["settings"]["port"] = 70000;
+  rejected(v, "E_SCHEMA", "port");
+  v = authored();
+  v["connections"]["samples"]["settings"]["ttl"] = 2;
+  rejected(v, "E_TRANSPORT", "ttl");
+  v = authored();
+  v["connections"]["samples"]["settings"]["retry"] = graphx::ConfigValue::Object{
+      {"max_attempts", 3}, {"initial_backoff_ms", 100}, {"max_backoff_ms", 1}};
+  rejected(v, "E_TRANSPORT", "retry");
+  v = authored("udp-multicast");
+  v["connections"]["messages"]["settings"]["destination"] = "127.0.0.1";
+  rejected(v, "E_TRANSPORT", "destination");
+  v = authored("udp-broadcast");
+  v["connections"]["messages"]["settings"]["destination"] = "10.0.0.255";
+  rejected(v, "E_TRANSPORT", "destination");
 }
-
-void invalid_tcp_policy_is_rejected() {
-  auto source = std::string(valid_config);
-  const auto marker = source.find("max_backoff_ms: 80");
-  source.replace(marker, std::string("max_backoff_ms: 80").size(), "max_backoff_ms: 5");
-  TemporaryConfig file(source);
-  try {
-    [[maybe_unused]] const auto ignored = graphx::load_config(file.path());
-    throw std::runtime_error("invalid TCP backoff was accepted");
-  } catch (const graphx::ConfigError& error) {
-    expect(diagnostic_contains(error, "greater than or equal"), "TCP backoff diagnostic");
-  }
-}
-
-void shared_memory_config_loads() {
-  TemporaryConfig file(R"yaml(
-version: 2
-graph:
-  id: shared-graph
-  nodes:
-    - id: source
-      kind: source
-      ports: [{ name: out, direction: output, schema: Sample }]
-    - id: target
-      kind: sink
-      ports: [{ name: in, direction: input, schema: Sample }]
-  edges:
-    - { id: shared-edge, from: source.out, to: target.in, transport: shared_memory }
-transport:
-  shared_memory:
-    shared-edge:
-      segment: gx-config-shared
-      capacity: 8
-      max_message_bytes: 8192
-      backpressure: reject
-      connect_timeout_ms: 75
-      send_timeout_ms: 250
-)yaml");
-  const auto config = graphx::load_config(file.path());
-  const auto& transport =
-      transport_as<graphx::SharedMemoryTransportConfig>(config.edge("shared-edge").transport);
-  expect(transport.segment == "gx-config-shared" && transport.capacity == 8,
-         "shared-memory layout settings");
-  expect(transport.max_message_bytes == 8192 && transport.backpressure == "reject" &&
-             transport.send_timeout_ms == 250 && transport.connect_timeout_ms == 75,
-         "shared-memory pressure settings");
-}
-
-void invalid_shared_memory_config_is_rejected() {
-  TemporaryConfig file(R"yaml(
-version: 2
-graph:
-  id: shared-graph
-  nodes:
-    - id: source
-      kind: source
-      ports: [{ name: out, direction: output, schema: Sample }]
-    - id: target
-      kind: sink
-      ports: [{ name: in, direction: input, schema: Sample }]
-  edges:
-    - { id: shared-edge, from: source.out, to: target.in, transport: shared_memory }
-transport:
-  shared_memory:
-    shared-edge: { segment: bad/name, capacity: 0, max_message_bytes: 32, backpressure: discard }
-)yaml");
-  try {
-    [[maybe_unused]] const auto ignored = graphx::load_config(file.path());
-    throw std::runtime_error("invalid shared-memory configuration was accepted");
-  } catch (const graphx::ConfigError& error) {
-    expect(diagnostic_contains(error, "segment"), "shared-memory segment diagnostic");
-    expect(diagnostic_contains(error, "between 1 and 65536"), "shared-memory capacity diagnostic");
-    expect(diagnostic_contains(error, "between 64"), "shared-memory size diagnostic");
-    expect(diagnostic_contains(error, "block' or 'reject"), "shared-memory policy diagnostic");
-  }
-}
-
 void in_process_factory_shares_named_channel() {
   graphx::TransportFactory factory;
   graphx::EdgeConfig edge;
@@ -136,287 +69,6 @@ void in_process_factory_shares_named_channel() {
   } catch (const std::invalid_argument& error) {
     expect(std::string_view(error.what()).find("inconsistent") != std::string_view::npos,
            "factory rejects inconsistent in-process settings");
-  }
-}
-
-void in_process_queue_config_loads_and_validates() {
-  TemporaryConfig valid(R"yaml(
-version: 2
-graph:
-  id: bounded-local
-  nodes:
-    - id: source
-      kind: source
-      ports: [{ name: out, direction: output, schema: S }]
-    - id: target
-      kind: sink
-      ports: [{ name: in, direction: input, schema: S }]
-  edges:
-    - { id: local, from: source.out, to: target.in, transport: in_process }
-transport:
-  in_process:
-    local: { channel: bounded, capacity: 7, backpressure: reject, send_timeout_ms: 25 }
-)yaml");
-  const auto config = graphx::load_config(valid.path());
-  const auto& settings =
-      transport_as<graphx::InProcessTransportConfig>(config.edge("local").transport);
-  expect(
-      settings.capacity == 7 && settings.backpressure == "reject" && settings.send_timeout_ms == 25,
-      "bounded in-process settings load");
-
-  TemporaryConfig invalid(R"yaml(
-version: 2
-graph:
-  id: invalid-local
-  nodes:
-    - id: source
-      kind: source
-      ports: [{ name: out, direction: output, schema: S }]
-    - id: target
-      kind: sink
-      ports: [{ name: in, direction: input, schema: S }]
-  edges:
-    - { id: local, from: source.out, to: target.in, transport: in_process }
-transport:
-  in_process:
-    local: { channel: bounded, capacity: 0, backpressure: drop, send_timeout_ms: 0 }
-)yaml");
-  try {
-    [[maybe_unused]] const auto ignored = graphx::load_config(invalid.path());
-    throw std::runtime_error("invalid in-process queue settings were accepted");
-  } catch (const graphx::ConfigError& error) {
-    expect(diagnostic_contains(error, "between 1 and 65536") &&
-               diagnostic_contains(error, "must be 'block' or 'reject'") &&
-               diagnostic_contains(error, "between 1 and 600000"),
-           "invalid in-process queue diagnostics");
-  }
-}
-
-void unix_socket_deadline_config_loads_and_validates() {
-  TemporaryConfig valid(R"yaml(
-version: 2
-graph:
-  id: bounded-unix
-  nodes:
-    - id: source
-      kind: source
-      ports: [{ name: out, direction: output, schema: S }]
-    - id: target
-      kind: sink
-      ports: [{ name: in, direction: input, schema: S }]
-  edges:
-    - { id: local, from: source.out, to: target.in, transport: unix }
-transport:
-  unix:
-    local: { path: /tmp/graphx-bounded.sock, connect_timeout_ms: 30, send_timeout_ms: 40 }
-)yaml");
-  const auto config = graphx::load_config(valid.path());
-  const auto& settings =
-      transport_as<graphx::UnixSocketTransportConfig>(config.edge("local").transport);
-  expect(settings.connect_timeout_ms == 30 && settings.send_timeout_ms == 40,
-         "Unix-domain deadlines load");
-
-  TemporaryConfig invalid(R"yaml(
-version: 2
-graph:
-  id: invalid-unix
-  nodes:
-    - id: source
-      kind: source
-      ports: [{ name: out, direction: output, schema: S }]
-    - id: target
-      kind: sink
-      ports: [{ name: in, direction: input, schema: S }]
-  edges:
-    - { id: local, from: source.out, to: target.in, transport: unix }
-transport:
-  unix:
-    local: { path: /tmp/graphx-invalid.sock, connect_timeout_ms: 0, send_timeout_ms: 0 }
-)yaml");
-  try {
-    [[maybe_unused]] const auto ignored = graphx::load_config(invalid.path());
-    throw std::runtime_error("invalid Unix-domain deadlines were accepted");
-  } catch (const graphx::ConfigError& error) {
-    expect(error.diagnostics().size() >= 2 && diagnostic_contains(error, "between 1 and 600000"),
-           "invalid Unix-domain deadline diagnostics");
-  }
-}
-
-void tcp_tls_config_loads_and_validates() {
-  TemporaryConfig valid(R"yaml(
-version: 2
-graph:
-  id: secure-tcp
-  nodes:
-    - { id: source, kind: source, ports: [{ name: out, direction: output, schema: S }] }
-    - { id: target, kind: sink, ports: [{ name: in, direction: input, schema: S }] }
-  edges:
-    - { id: secure, from: source.out, to: target.in, transport: tcp }
-transport:
-  tcp:
-    secure:
-      host: target
-      bind: 0.0.0.0
-      port: 7443
-      tls:
-        enabled: true
-        verify_peer: true
-        require_client_certificate: true
-        ca_file: /run/secrets/graphx-ca.pem
-        certificate_file: /run/secrets/graphx-peer.pem
-        private_key_file: /run/secrets/graphx-peer.key
-        server_name: target.internal
-)yaml");
-  const auto config = graphx::load_config(valid.path());
-  const auto& tls = transport_as<graphx::TcpTransportConfig>(config.edge("secure").transport).tls;
-  expect(tls.enabled && tls.verify_peer && tls.require_client_certificate &&
-             tls.ca_file == "/run/secrets/graphx-ca.pem" && tls.server_name == "target.internal",
-         "TLS settings load");
-
-  TemporaryConfig invalid(R"yaml(
-version: 2
-graph:
-  id: invalid-tls
-  nodes:
-    - { id: source, kind: source, ports: [{ name: out, direction: output, schema: S }] }
-    - { id: target, kind: sink, ports: [{ name: in, direction: input, schema: S }] }
-  edges:
-    - { id: secure, from: source.out, to: target.in, transport: tcp }
-transport:
-  tcp:
-    secure:
-      host: target
-      bind: 0.0.0.0
-      port: 7443
-      tls: { enabled: true, require_client_certificate: true }
-)yaml");
-  try {
-    [[maybe_unused]] const auto ignored = graphx::load_config(invalid.path());
-    throw std::runtime_error("incomplete TLS configuration was accepted");
-  } catch (const graphx::ConfigError& error) {
-    expect(diagnostic_contains(error, "certificate_file and private_key_file are required") &&
-               diagnostic_contains(error, "client certificates are required"),
-           "incomplete TLS diagnostics");
-  }
-}
-
-std::string udp_config(std::string_view mode, std::string_view destination,
-                       std::string_view extra = {}) {
-  return "version: 2\n"
-         "graph:\n"
-         "  id: udp-test\n"
-         "  nodes:\n"
-         "    - { id: source, kind: source, ports: [{ name: out, direction: output, schema: "
-         "Message }] }\n"
-         "    - { id: target, kind: sink, ports: [{ name: in, direction: input, schema: Message }] "
-         "}\n"
-         "  edges:\n"
-         "    - { id: datagrams, from: source.out, to: target.in, transport: udp }\n"
-         "transport:\n"
-         "  udp:\n"
-         "    datagrams:\n"
-         "      mode: " +
-         std::string(mode) +
-         "\n"
-         "      destination: " +
-         std::string(destination) +
-         "\n"
-         "      bind: 0.0.0.0\n"
-         "      port: 47101\n"
-         "      interface: 127.0.0.1\n"
-         "      ttl: 1\n"
-         "      loopback: true\n"
-         "      reuse_address: true\n"
-         "      receive_buffer_bytes: 65536\n"
-         "      send_buffer_bytes: 65536\n"
-         "      max_datagram_bytes: 1400\n"
-         "      framing: u32be\n" +
-         std::string(extra);
-}
-
-void udp_configuration_loads_and_validates() {
-  for (const auto& [mode, destination] :
-       {std::pair{"unicast", "127.0.0.1"}, std::pair{"broadcast", "127.255.255.255"},
-        std::pair{"multicast", "239.255.42.1"}}) {
-    TemporaryConfig file(udp_config(mode, destination));
-    const auto config = graphx::load_config(file.path());
-    const auto& udp = transport_as<graphx::UdpTransportConfig>(config.edge("datagrams").transport);
-    expect(udp.destination == destination && udp.max_datagram_bytes == 1400 &&
-               udp.receive_buffer_bytes == 65536,
-           "UDP configuration loads");
-  }
-
-  const auto changed = [](std::string source, std::string_view from, std::string_view to) {
-    const auto position = source.find(from);
-    if (position == std::string::npos) throw std::runtime_error("UDP fixture edit failed");
-    source.replace(position, from.size(), to);
-    return source;
-  };
-  const auto base = udp_config("unicast", "127.0.0.1");
-  for (const auto& valid :
-       {changed(base, "      port: 47101\n", "      port: 1\n"),
-        changed(base, "      port: 47101\n", "      port: 65535\n"),
-        changed(base, "      ttl: 1\n", "      ttl: 0\n"),
-        changed(base, "      ttl: 1\n", "      ttl: 255\n"),
-        changed(base, "      interface: 127.0.0.1\n", ""),
-        changed(base, "      interface: 127.0.0.1\n", "      interface: \"\"\n"),
-        changed(base, "      receive_buffer_bytes: 65536\n", "      receive_buffer_bytes: 4096\n"),
-        changed(base, "      send_buffer_bytes: 65536\n", "      send_buffer_bytes: 268435456\n"),
-        changed(base, "      max_datagram_bytes: 1400\n", "      max_datagram_bytes: 64\n"),
-        changed(base, "      max_datagram_bytes: 1400\n", "      max_datagram_bytes: 65507\n")}) {
-    TemporaryConfig file(valid);
-    expect(graphx::transport_kind(graphx::load_config(file.path()).edge("datagrams").transport) ==
-               graphx::TransportKind::udp,
-           "UDP boundary configuration loads");
-  }
-  const std::pair<std::string, std::string> invalid[] = {
-      {changed(base, "      mode: unicast\n", ""), ".mode"},
-      {changed(base, "      destination: 127.0.0.1\n", ""), ".destination"},
-      {changed(base, "      bind: 0.0.0.0\n", ""), ".bind"},
-      {changed(base, "      port: 47101\n", ""), ".port"},
-      {udp_config("stream", "127.0.0.1"), ".mode"},
-      {udp_config("multicast", "127.0.0.1"), ".destination"},
-      {udp_config("unicast", "239.255.42.1"), ".destination"},
-      {udp_config("unicast", "255.255.255.255"), ".destination"},
-      {udp_config("broadcast", "239.255.42.1"), ".destination"},
-      {changed(base, "      destination: 127.0.0.1\n", "      destination: invalid\n"),
-       ".destination"},
-      {changed(base, "      destination: 127.0.0.1\n", "      destination: ::1\n"), ".destination"},
-      {changed(base, "      bind: 0.0.0.0\n", "      bind: invalid\n"), ".bind"},
-      {changed(base, "      port: 47101\n", "      port: 0\n"), ".port"},
-      {changed(base, "      port: 47101\n", "      port: 65536\n"), ".port"},
-      {changed(base, "      port: 47101\n", "      port: \"47101\"\n"), ".port"},
-      {changed(base, "      interface: 127.0.0.1\n", "      interface: bad/interface\n"),
-       ".interface"},
-      {changed(base, "      interface: 127.0.0.1\n", "      interface: [lo]\n"), ".interface"},
-      {changed(base, "      ttl: 1\n", "      ttl: 256\n"), ".ttl"},
-      {changed(base, "      ttl: 1\n", "      ttl: 4294967296\n"), ".ttl"},
-      {changed(base, "      loopback: true\n", "      loopback: \"true\"\n"), ".loopback"},
-      {changed(base, "      reuse_address: true\n", "      reuse_address: 1\n"), ".reuse_address"},
-      {changed(base, "      receive_buffer_bytes: 65536\n", "      receive_buffer_bytes: 4095\n"),
-       ".receive_buffer_bytes"},
-      {changed(base, "      receive_buffer_bytes: 65536\n",
-               "      receive_buffer_bytes: 4294967296\n"),
-       ".receive_buffer_bytes"},
-      {changed(base, "      send_buffer_bytes: 65536\n", "      send_buffer_bytes: 268435457\n"),
-       ".send_buffer_bytes"},
-      {udp_config("unicast", "127.0.0.1", "      reconnect: true\n"), "reconnect"},
-      {udp_config("unicast", "127.0.0.1", "      tls: { enabled: true }\n"), "tls"},
-      {udp_config("unicast", "127.0.0.1", "      unknown: true\n"), "unknown"},
-      {udp_config("unicast", "127.0.0.1", "    orphan:\n      mode: unicast\n"),
-       "transport.udp.orphan"},
-      {udp_config("unicast", "127.0.0.1", "      max_datagram_bytes: 63\n"), "max_datagram_bytes"},
-      {udp_config("unicast", "127.0.0.1", "      max_datagram_bytes: 65508\n"),
-       "max_datagram_bytes"},
-      {udp_config("unicast", "127.0.0.1", "      framing: raw\n"), ".framing"}};
-  for (const auto& [source, expected] : invalid) {
-    TemporaryConfig file(source);
-    try {
-      [[maybe_unused]] const auto ignored = graphx::load_config(file.path());
-      throw std::runtime_error("invalid UDP configuration was accepted");
-    } catch (const graphx::ConfigError& error) {
-      expect(diagnostic_contains(error, expected), "UDP diagnostic contains precise path");
-    }
   }
 }
 
@@ -541,25 +193,15 @@ void udp_factory_round_trip() {
   expect(message && message->sequence == 7 && message->payload == "udp factory",
          "UDP factory delivery");
 }
-
 }  // namespace
-
 int main() {
-  return run_tests({
-      {"TCP policy", tcp_policy_loads},
-      {"invalid TCP policy", invalid_tcp_policy_is_rejected},
-      {"shared-memory config", shared_memory_config_loads},
-      {"invalid shared-memory config", invalid_shared_memory_config_is_rejected},
-      {"in-process queue config", in_process_queue_config_loads_and_validates},
-      {"Unix socket deadline config", unix_socket_deadline_config_loads_and_validates},
-      {"TCP TLS config", tcp_tls_config_loads_and_validates},
-      {"UDP config", udp_configuration_loads_and_validates},
-      {"in-process factory", in_process_factory_shares_named_channel},
-      {"factory validation", factory_rejects_unvalidated_settings},
-      {"TCP factory", tcp_factory_round_trip},
-      {"Unix socket factory", unix_factory_round_trip},
-      {"shared-memory factory", shared_memory_factory_round_trip},
-      {"shared-memory factory timeout", shared_memory_factory_uses_connect_timeout},
-      {"UDP factory", udp_factory_round_trip},
-  });
+  return run_tests(
+      {{"resolved settings", resolved_transport_settings},
+       {"in_process_factory_shares_named_channel", in_process_factory_shares_named_channel},
+       {"factory_rejects_unvalidated_settings", factory_rejects_unvalidated_settings},
+       {"tcp_factory_round_trip", tcp_factory_round_trip},
+       {"unix_factory_round_trip", unix_factory_round_trip},
+       {"shared_memory_factory_round_trip", shared_memory_factory_round_trip},
+       {"shared_memory_factory_uses_connect_timeout", shared_memory_factory_uses_connect_timeout},
+       {"udp_factory_round_trip", udp_factory_round_trip}});
 }

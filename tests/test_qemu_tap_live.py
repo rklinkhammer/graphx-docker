@@ -31,7 +31,7 @@ def main() -> int:
     try:
         with tempfile.TemporaryDirectory(prefix="graphx-qemu-tap-live-", dir="/var/tmp") as raw:
             root = Path(raw)
-            state, config = root / "state", root / "graphx.yaml"
+            state, config = root / "state", root / "graphx.yml"
             config.write_text(f"""\
 version: 2
 graph:

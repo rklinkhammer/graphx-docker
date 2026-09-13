@@ -1,7 +1,20 @@
 # UDP multicast
 
-Platform: native Linux and macOS; no Docker or privileged networking required.
+This authored v3 example is supported for validation and normalization. Graph
+execution is unavailable in P1; its launcher returns `E_PHASE_UNAVAILABLE` before
+performing actions. The retained launch recipes require the later adapters.
 
-This example sends five bounded GraphX envelopes to a local IPv4 multicast group and
-verifies that two subscribers receive it. Run `examples/udp-multicast/run.sh` from the repository root after building GraphX.
-Success prints `PASS received=5` for each subscriber.
+Run from the repository root:
+
+```sh
+build/dev/graphx validate examples/udp-multicast/graphx.yml
+build/dev/graphx config normalize examples/udp-multicast/graphx.yml > resolved.json
+```
+
+Select `--target native-linux`, `native-macos`, `orbstack`, or `lima` to check
+placement capabilities. Managed OVS and QEMU require Linux or Lima; this command
+does not run a laboratory. The graph declares its catalog, typed node instances,
+connections, bounded platform policy and any explicit scenario actions.
+
+See the [example matrix](../README.md) for all supported inputs and
+[configuration contract](../../docs/configuration.md) for diagnostics and limits.

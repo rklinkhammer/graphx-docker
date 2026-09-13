@@ -6,7 +6,7 @@ Input: [graphx.yml](graphx.yml). Shared types: [catalog](../../catalog/README.md
 
 Preserved intent and proposed acceptance: 127.0.0.1:47101; u32be; datagrams 1400; buffers 65536.
 
-Current source evidence: [source](../../../../examples/udp-unicast/graphx.yaml). Source inspection establishes the current contract, not that v3 generation works. All expected artifacts have status `static-design`; proposed execution has not run. Native platform packaging and generic bindings are proposed in every set.
+Current source evidence: [source](../../../../examples/udp-unicast/graphx.yml). Source inspection establishes the current contract, not that v3 generation works. All expected artifacts have status `static-design`; proposed execution has not run. Native platform packaging and generic bindings are proposed in every set.
 
 | Target | Capability cell | Rule and placement/reason | Evidence |
 |---|---|---|---|

@@ -47,7 +47,7 @@ test('route-policy evidence drives bounded topology diagnostics', { timeout: 100
   const child = spawn(process.execPath, ['server.mjs'], { cwd: here,
     env: { ...process.env, PORT: String(port), GRAPHX_TELEMETRY_PORT: String(udpPort),
       GRAPHX_HTTP_BIND: '127.0.0.1', GRAPHX_TELEMETRY_BIND: '127.0.0.1',
-      ...normalizedConfigEnvironment(resolve(repository, 'examples/static-route-policy/graphx.yaml')),
+      ...normalizedConfigEnvironment(resolve(repository, 'examples/static-route-policy/graphx.yml')),
       GRAPHX_NETWORK_DIAGNOSTIC_FILE: evidence, GRAPHX_CAPTURE_ENABLED: 'false',
       GRAPHX_HISTORY_ENABLED: 'false', GRAPHX_TELEMETRY_SHARED_SECRET: '',
       GRAPHX_CONTROL_TOKEN: '' }, stdio: ['ignore', 'pipe', 'pipe'] })

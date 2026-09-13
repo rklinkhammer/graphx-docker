@@ -1,0 +1,429 @@
+{
+  "catalog_digest": "c7173c98503b8f49c5997c6d3429f239b39d502b66b1eb0e7ffb252671788fe1",
+  "connections": [
+    {
+      "attachments": {},
+      "destination_address": "172.28.73.12",
+      "encoding": "graphx",
+      "from": {
+        "node": "generator",
+        "port": "samples"
+      },
+      "id": "samples",
+      "listener": "transform.samples",
+      "schema": "Sample",
+      "security": {
+        "profile": "none"
+      },
+      "settings": {
+        "bind": "172.28.73.12",
+        "connect_timeout_ms": 5000,
+        "framing": "u32be",
+        "host": "172.28.73.12",
+        "port": 20000,
+        "reconnect": true,
+        "retry": {
+          "initial_backoff_ms": 100,
+          "max_attempts": 60,
+          "max_backoff_ms": 2000
+        },
+        "send_timeout_ms": 5000
+      },
+      "source_address": "172.28.73.10",
+      "to": {
+        "node": "transform",
+        "port": "samples"
+      },
+      "transport": "tcp"
+    },
+    {
+      "attachments": {},
+      "destination_address": "172.28.73.11",
+      "encoding": "graphx",
+      "from": {
+        "node": "transform",
+        "port": "transformed"
+      },
+      "id": "transformed",
+      "listener": "sink.transformed",
+      "schema": "TransformedSample",
+      "security": {
+        "profile": "none"
+      },
+      "settings": {
+        "bind": "172.28.73.11",
+        "connect_timeout_ms": 5000,
+        "framing": "u32be",
+        "host": "172.28.73.11",
+        "port": 20001,
+        "reconnect": true,
+        "retry": {
+          "initial_backoff_ms": 100,
+          "max_attempts": 60,
+          "max_backoff_ms": 2000
+        },
+        "send_timeout_ms": 5000
+      },
+      "source_address": "172.28.73.12",
+      "to": {
+        "node": "sink",
+        "port": "transformed"
+      },
+      "transport": "tcp"
+    }
+  ],
+  "contract_version": 2,
+  "credential_references": [
+    "observer",
+    "runtime-generator",
+    "runtime-sink",
+    "runtime-transform"
+  ],
+  "execution_values": [
+    "GX_STATE",
+    "GX_CREDENTIALS",
+    "GX_OUTPUT",
+    "GX_RELEASE",
+    "GX_OWNER"
+  ],
+  "graph_id": "sample-pipeline",
+  "graph_version": 3,
+  "input_digest": "def601bb3287c206e2760b8ad8db4613770a58bb816dceed1d90226fece3a6d8",
+  "network": {
+    "attachments": [],
+    "captures": [],
+    "edge_paths": {},
+    "management_isolation": {
+      "application_bind": "selected-data-address",
+      "ip_forward": false,
+      "ovs_management_acl": "only platform TCP 8080 and UDP 9000; deny node-to-node and forwarding; enforced before release barrier",
+      "per_node_network": true,
+      "platform_routes_data": false
+    },
+    "networks": [],
+    "routers": [],
+    "switches": []
+  },
+  "nodes": [
+    {
+      "bindings": {
+        "samples": [
+          {
+            "attachments": {},
+            "connection": "samples",
+            "destination_address": "172.28.73.12",
+            "encoding": "graphx",
+            "role": "connect",
+            "schema": "Sample",
+            "security": {
+              "profile": "none"
+            },
+            "settings": {
+              "bind": "172.28.73.12",
+              "connect_timeout_ms": 5000,
+              "framing": "u32be",
+              "host": "172.28.73.12",
+              "port": 20000,
+              "reconnect": true,
+              "retry": {
+                "initial_backoff_ms": 100,
+                "max_attempts": 60,
+                "max_backoff_ms": 2000
+              },
+              "send_timeout_ms": 5000
+            },
+            "source_address": "172.28.73.10",
+            "transport": "tcp"
+          }
+        ]
+      },
+      "capture": {
+        "directory": "/captures",
+        "enabled": false,
+        "max_file_bytes": 67108864,
+        "max_files": 2,
+        "max_packets": 100000,
+        "provider": "application",
+        "retention_seconds": 86400,
+        "snaplen": 65535
+      },
+      "contract_version": 2,
+      "control": "graphx",
+      "credentials": {},
+      "execution": {
+        "kind": "container"
+      },
+      "graph_id": "sample-pipeline",
+      "graph_version": 3,
+      "node_id": "generator",
+      "observation": [
+        "graphx"
+      ],
+      "parameters": {
+        "interval_ms": 500,
+        "max_messages": 20
+      },
+      "readiness": {
+        "kind": "local-bound",
+        "timeout_ms": 30000
+      },
+      "startup": {
+        "bind_before_connect": true,
+        "max_wait_ms": 30000,
+        "release_barrier": true
+      },
+      "telemetry": {
+        "credential": "runtime-generator",
+        "host": "platform",
+        "port": 9000
+      },
+      "type": "sample.source",
+      "type_revision": 1
+    },
+    {
+      "bindings": {
+        "transformed": [
+          {
+            "attachments": {},
+            "connection": "transformed",
+            "destination_address": "172.28.73.11",
+            "encoding": "graphx",
+            "role": "listen",
+            "schema": "TransformedSample",
+            "security": {
+              "profile": "none"
+            },
+            "settings": {
+              "bind": "172.28.73.11",
+              "connect_timeout_ms": 5000,
+              "framing": "u32be",
+              "host": "172.28.73.11",
+              "port": 20001,
+              "reconnect": true,
+              "retry": {
+                "initial_backoff_ms": 100,
+                "max_attempts": 60,
+                "max_backoff_ms": 2000
+              },
+              "send_timeout_ms": 5000
+            },
+            "source_address": "172.28.73.12",
+            "transport": "tcp"
+          }
+        ]
+      },
+      "capture": {
+        "directory": "/captures",
+        "enabled": false,
+        "max_file_bytes": 67108864,
+        "max_files": 2,
+        "max_packets": 100000,
+        "provider": "application",
+        "retention_seconds": 86400,
+        "snaplen": 65535
+      },
+      "contract_version": 2,
+      "control": "none",
+      "credentials": {},
+      "execution": {
+        "kind": "container"
+      },
+      "graph_id": "sample-pipeline",
+      "graph_version": 3,
+      "node_id": "sink",
+      "observation": [
+        "graphx"
+      ],
+      "parameters": {
+        "max_messages": 20
+      },
+      "readiness": {
+        "kind": "local-bound",
+        "timeout_ms": 30000
+      },
+      "startup": {
+        "bind_before_connect": true,
+        "max_wait_ms": 30000,
+        "release_barrier": true
+      },
+      "telemetry": {
+        "credential": "runtime-sink",
+        "host": "platform",
+        "port": 9000
+      },
+      "type": "sample.sink",
+      "type_revision": 1
+    },
+    {
+      "bindings": {
+        "samples": [
+          {
+            "attachments": {},
+            "connection": "samples",
+            "destination_address": "172.28.73.12",
+            "encoding": "graphx",
+            "role": "listen",
+            "schema": "Sample",
+            "security": {
+              "profile": "none"
+            },
+            "settings": {
+              "bind": "172.28.73.12",
+              "connect_timeout_ms": 5000,
+              "framing": "u32be",
+              "host": "172.28.73.12",
+              "port": 20000,
+              "reconnect": true,
+              "retry": {
+                "initial_backoff_ms": 100,
+                "max_attempts": 60,
+                "max_backoff_ms": 2000
+              },
+              "send_timeout_ms": 5000
+            },
+            "source_address": "172.28.73.10",
+            "transport": "tcp"
+          }
+        ],
+        "transformed": [
+          {
+            "attachments": {},
+            "connection": "transformed",
+            "destination_address": "172.28.73.11",
+            "encoding": "graphx",
+            "role": "connect",
+            "schema": "TransformedSample",
+            "security": {
+              "profile": "none"
+            },
+            "settings": {
+              "bind": "172.28.73.11",
+              "connect_timeout_ms": 5000,
+              "framing": "u32be",
+              "host": "172.28.73.11",
+              "port": 20001,
+              "reconnect": true,
+              "retry": {
+                "initial_backoff_ms": 100,
+                "max_attempts": 60,
+                "max_backoff_ms": 2000
+              },
+              "send_timeout_ms": 5000
+            },
+            "source_address": "172.28.73.12",
+            "transport": "tcp"
+          }
+        ]
+      },
+      "capture": {
+        "directory": "/captures",
+        "enabled": false,
+        "max_file_bytes": 67108864,
+        "max_files": 2,
+        "max_packets": 100000,
+        "provider": "application",
+        "retention_seconds": 86400,
+        "snaplen": 65535
+      },
+      "contract_version": 2,
+      "control": "none",
+      "credentials": {},
+      "execution": {
+        "kind": "container"
+      },
+      "graph_id": "sample-pipeline",
+      "graph_version": 3,
+      "node_id": "transform",
+      "observation": [
+        "graphx"
+      ],
+      "parameters": {
+        "factor": 2,
+        "max_messages": 20
+      },
+      "readiness": {
+        "kind": "local-bound",
+        "timeout_ms": 30000
+      },
+      "startup": {
+        "bind_before_connect": true,
+        "max_wait_ms": 30000,
+        "release_barrier": true
+      },
+      "telemetry": {
+        "credential": "runtime-transform",
+        "host": "platform",
+        "port": 9000
+      },
+      "type": "sample.transform",
+      "type_revision": 1
+    }
+  ],
+  "ordering": "lexicographic-ascii",
+  "platform": {
+    "capture": {
+      "directory": "/captures",
+      "enabled": false,
+      "max_file_bytes": 67108864,
+      "max_files": 2,
+      "max_packets": 100000,
+      "provider": "application",
+      "retention_seconds": 86400,
+      "snaplen": 65535
+    },
+    "console": {
+      "bind": "127.0.0.1",
+      "port": 8080
+    },
+    "control": {
+      "allowed_origins": [
+        "http://127.0.0.1:8080"
+      ],
+      "enabled": false,
+      "grants": [],
+      "idempotency_ttl_seconds": 3600,
+      "max_audit_records": 4096,
+      "max_request_bytes": 4096
+    },
+    "credential_manifest": "credentials.json",
+    "extensions": [],
+    "history": {
+      "backend": "sqlite",
+      "batch_size": 100,
+      "database_file": "/var/lib/graphx/history/history.sqlite",
+      "enabled": true,
+      "flush_interval_ms": 250,
+      "max_database_bytes": 268435456,
+      "max_pending_queries": 16,
+      "max_queue_bytes": 8388608,
+      "max_records": 100000,
+      "query_limit": 200,
+      "query_timeout_ms": 2000,
+      "queue_capacity": 4096,
+      "retention_seconds": 604800,
+      "shutdown_timeout_ms": 2000
+    },
+    "image": "graphx-design/platform@sha256:41b3db89b6ec78cab84b29c12a1af5024ba670b44463edc40d887cad8b952ba4",
+    "normalization": "resolved.json",
+    "otlp": {
+      "enabled": false
+    },
+    "telemetry": {
+      "authentication": "per-node-hmac",
+      "heartbeat_interval_ms": 1000,
+      "heartbeat_timeout_ms": 5000,
+      "host": "platform",
+      "port": 9000
+    },
+    "template": "platform-v1"
+  },
+  "portable_network": {
+    "addresses": {
+      "generator": "172.28.73.10",
+      "sink": "172.28.73.11",
+      "transform": "172.28.73.12"
+    },
+    "subnet": "172.28.73.0/24"
+  },
+  "target": "native-linux"
+}

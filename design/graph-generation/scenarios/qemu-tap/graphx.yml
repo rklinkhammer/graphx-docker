@@ -1,4 +1,4 @@
-# DESIGN ONLY — not accepted by current GraphX.
+# DESIGN ONLY — explicit router interface to switch port binding.
 catalog: ../../catalog/lock.json
 connections:
   peer-qemu-tcp:
@@ -116,11 +116,13 @@ network:
       attachment_id: peer-data
       id: data
       network: qemu-lan
+      port: peer
       switch: br-qemu-tap
     - address: 10.0.2.99/24
       attachment_id: isolated-data
       id: isolated
       network: qemu-lan
+      port: isolated
       switch: br-qemu-tap
     kind: linux_namespace
   switches:

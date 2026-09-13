@@ -43,7 +43,7 @@ def main() -> int:
         with tempfile.TemporaryDirectory(prefix="graphx-container-veth-live-", dir="/var/tmp") as raw:
             root = Path(raw)
             state = root / "state"
-            config = root / "graphx.yaml"
+            config = root / "graphx.yml"
             config.write_text(f"""\
 version: 2
 graph:

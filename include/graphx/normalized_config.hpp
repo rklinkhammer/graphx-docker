@@ -7,7 +7,7 @@
 
 namespace graphx {
 
-inline constexpr std::uint32_t kNormalizedConfigContractVersion = 1;
+inline constexpr std::uint32_t kNormalizedConfigContractVersion = 2;
 
 // Returns a deterministic, UTF-8 JSON document describing the fully resolved
 // configuration. Credential file contents and environment secrets are never

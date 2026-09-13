@@ -74,6 +74,8 @@ graphx_demo_dispatch_lima() {
     return 2
   fi
   guest_graphx=${GRAPHX_LIMA_GRAPHX_BIN:-/var/lib/graphx/runtime/build/dev/graphx}
+  # Expand $1 inside the guest shell.
+  # shellcheck disable=SC2016
   "${GRAPHX_LIMA_RUNNER}" 120 limactl shell --workdir "${GRAPHX_LIMA_GUEST_ROOT}" \
     "${GRAPHX_LIMA_INSTANCE}" -- bash -c \
     'test -x "$1" && docker info >/dev/null && systemctl is-active --quiet openvswitch-switch.service' \
@@ -91,7 +93,7 @@ graphx_demo_dispatch_lima() {
 graphx_demo_ovs_lab_local() {
   local action=$1 example_dir=$2 project=$3 repo_root=$4 graphx=$5
   local compose_path="$repo_root/examples/network-lab.compose.yaml"
-  local config="$example_dir/graphx.yaml"
+  local config="$example_dir/graphx.yml"
   local -a compose=(sudo env GRAPHX_REPO_ROOT="$repo_root" GRAPHX_LAB_CONFIG="$config"
     docker compose -p "$project" -f "$compose_path")
   case "$action" in
@@ -152,7 +154,7 @@ graphx_demo_network_lab() {
       local graphx
       graphx=$(graphx_demo_ensure_dev_build "$repo_root") || return
       if [[ $action == plan ]]; then
-        "$graphx" infra create "$repo_root/examples/$lab/graphx.yaml" --dry-run
+        "$graphx" infra create "$repo_root/examples/$lab/graphx.yml" --dry-run
       else
         "$repo_root/examples/$lab/scripts/$action.sh"
       fi

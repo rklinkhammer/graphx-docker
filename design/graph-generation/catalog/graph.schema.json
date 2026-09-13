@@ -875,6 +875,10 @@
                 "pattern": "^[a-z][a-z0-9_-]{0,63}$",
                 "type": "string"
               },
+              "port": {
+                "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+                "type": "string"
+              },
               "switch": {
                 "pattern": "^[a-z][a-z0-9_-]{0,63}$",
                 "type": "string"

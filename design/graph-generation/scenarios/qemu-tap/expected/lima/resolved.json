@@ -1,5 +1,5 @@
 {
-  "catalog_digest": "d984d3c04c8ac657407f9c704a3f3a3760a352e348fb0a32616077b2caba5cff",
+  "catalog_digest": "3589ffafcc9bccc4fbf453cf9dc3d43e5a82be956c8be4aff113c64c6e78c7ed",
   "connections": [
     {
       "attachments": {
@@ -165,7 +165,7 @@
   ],
   "graph_id": "qemu-tap",
   "graph_version": 3,
-  "input_digest": "7e7480994de3bee91be68e3e0eb6de16ec104f629a877a75bf78d603fd1908ea",
+  "input_digest": "3b050e24ee84a36a6687a644e1a4e8a62156f7a2696050f600ab7fadede34a80",
   "network": {
     "attachments": [
       {
@@ -189,6 +189,7 @@
         "network": "qemu-lan",
         "owner": "qemu-peer",
         "peer": "gxp1a63919aa9a2",
+        "port": "peer",
         "switch": "br-qemu-tap",
         "vlan": {
           "access_tag": 42
@@ -288,6 +289,7 @@
             "id": "data",
             "network": "qemu-lan",
             "peer": "gxp1a63919aa9a2",
+            "port": "peer",
             "switch": "br-qemu-tap"
           },
           {
@@ -297,6 +299,7 @@
             "id": "isolated",
             "network": "qemu-lan",
             "peer": "gxpc7681ae553ac",
+            "port": "isolated",
             "switch": "br-qemu-tap"
           }
         ],

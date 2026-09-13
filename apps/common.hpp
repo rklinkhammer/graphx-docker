@@ -284,6 +284,9 @@ class RuntimeTraceSink final : public graphx::TraceSink {
   graphx::CompositeTraceSink composite_;
 };
 
-inline std::filesystem::path config_path() { return env("GRAPHX_CONFIG", "graphx.yaml"); }
+inline std::filesystem::path config_path() {
+  throw std::runtime_error(
+      "E_PHASE_UNAVAILABLE: v3 application bindings require Phase P2; no action was performed");
+}
 
 }  // namespace demo

@@ -1,28 +1,20 @@
 # Standalone PCAPNG capture demo
 
-Platform: native Linux and macOS; no Docker or privileged networking required.
+This authored v3 example is supported for validation and normalization. Graph
+execution is unavailable in P1; its launcher returns `E_PHASE_UNAVAILABLE` before
+performing actions. The retained launch recipes require the later adapters.
 
-This portable demo runs the local three-process TCP graph for ten messages and
-records one PCAPNG file per node without changing application code.
+Run from the repository root:
 
 ```sh
-cmake --preset dev
-cmake --build --preset dev
-examples/capture/run.sh
+build/dev/graphx validate examples/capture/graphx.yml
+build/dev/graphx config normalize examples/capture/graphx.yml > resolved.json
 ```
 
-The script prints its timestamped output directory under `captures/`. Open
-`generator.pcapng`, `transform.pcapng`, or `sink.pcapng` in Wireshark. Each
-Enhanced Packet Block contains the exact GraphX `u32be + GXE envelope` frame.
-The packet comment is JSON containing edge, direction, sequence, trace ID, and
-type. The interface uses `LINKTYPE_USER0` (147), so Wireshark does not mistake
-the application bytes for Ethernet or IP packets.
+Select `--target native-linux`, `native-macos`, `orbstack`, or `lima` to check
+placement capabilities. Managed OVS and QEMU require Linux or Lima; this command
+does not run a laboratory. The graph declares its catalog, typed node instances,
+connections, bounded platform policy and any explicit scenario actions.
 
-Override `GRAPHX_CAPTURE_DIR`, `GRAPHX_MAX_MESSAGES`, or `GRAPHX_INTERVAL_MS` when needed.
-Set capture limits in `graphx.yaml` or with `GRAPHX_OVERRIDES`.
-Capture files are truncated when a node starts again with the same output path;
-capture disables itself at a limit without stopping message processing.
-
-Install `wireshark/graphx.lua`, open a file, and filter with `graphx.version == 2`
-or `graphx.sequence == 42`. Alternatively install `tools/graphx-extcap`, choose
-**GraphX framed envelopes**, select the file, and follow it while the demo runs.
+See the [example matrix](../README.md) for all supported inputs and
+[configuration contract](../../docs/configuration.md) for diagnostics and limits.

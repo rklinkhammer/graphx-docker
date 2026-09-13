@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
+
+# Authored v3 execution is not yet implemented. Sourced library functions remain available.
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  echo "E_PHASE_UNAVAILABLE: GraphX v3 execution adapters are not implemented; no action was performed" >&2
+  exit 2
+fi
 set -Eeuo pipefail
 umask 077
 
@@ -6,7 +12,7 @@ profile_dir=$(cd "$(dirname "$0")/.." && pwd)
 example_dir=$(cd "$profile_dir/.." && pwd)
 repo_dir=$(cd "$example_dir/../.." && pwd)
 graphx=${GRAPHX_BIN:-$repo_dir/build/dev/graphx}
-config=$profile_dir/graphx.yaml
+config=$profile_dir/graphx.yml
 images=$example_dir/output/images
 run_dir=${GRAPHX_QEMU_RUN_DIR:-/var/lib/graphx/qemu/runtime}
 qemu_uid=65532

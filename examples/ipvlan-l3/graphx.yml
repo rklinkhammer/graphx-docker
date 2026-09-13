@@ -1,0 +1,109 @@
+# GraphX version 3. Validate/normalize only; execution adapters are unavailable.
+catalog: ../../config/catalog/lock.json
+connections:
+  samples:
+    attachments:
+      from: generator-data
+      to: transform-data
+    from: generator.samples
+    settings:
+      bind: 0.0.0.0
+      connect_timeout_ms: 1000
+      host: 10.42.2.20
+      port: 7001
+      reconnect: true
+      retry:
+        initial_backoff_ms: 100
+        max_attempts: 60
+        max_backoff_ms: 2000
+      send_timeout_ms: 5000
+    to: transform.samples
+    transport: tcp
+  transformed:
+    attachments:
+      from: transform-data
+      to: sink-data
+    from: transform.transformed
+    settings:
+      bind: 0.0.0.0
+      connect_timeout_ms: 1000
+      host: 10.42.3.30
+      port: 7002
+      reconnect: true
+      retry:
+        initial_backoff_ms: 100
+        max_attempts: 60
+        max_backoff_ms: 2000
+      send_timeout_ms: 5000
+    to: sink.transformed
+    transport: tcp
+graph:
+  id: ipvlan-l3
+network:
+  attachments:
+  - address: 10.42.1.10/24
+    id: generator-data
+    kind: container_veth
+    mac: 02:42:00:00:00:01
+    network: gx-ipvl3-domains
+    owner: generator
+    routes:
+    - destination: 10.42.2.0/24
+    - destination: 10.42.3.0/24
+    switch: gxbc96833c8a7d9
+  - address: 10.42.2.20/24
+    id: transform-data
+    kind: container_veth
+    mac: 02:42:00:00:00:01
+    network: gx-ipvl3-domains
+    owner: transform
+    routes:
+    - destination: 10.42.1.0/24
+    - destination: 10.42.3.0/24
+    switch: gxbc96833c8a7d9
+  - address: 10.42.3.30/24
+    id: sink-data
+    kind: container_veth
+    mac: 02:42:00:00:00:01
+    network: gx-ipvl3-domains
+    owner: sink
+    routes:
+    - destination: 10.42.1.0/24
+    - destination: 10.42.2.0/24
+    switch: gxbc96833c8a7d9
+  edge_paths:
+    samples:
+    - generator
+    - gx-ipvl3-domains
+    - transform
+    transformed:
+    - transform
+    - gx-ipvl3-domains
+    - sink
+  networks:
+  - id: gx-ipvl3-domains
+    profile: ipvlan-l3
+    realization: ovs
+    subnets:
+    - 10.42.1.0/24
+    - 10.42.2.0/24
+    - 10.42.3.0/24
+  switches:
+  - datapath: system
+    id: gxbc96833c8a7d9
+    kind: openvswitch
+    ports: []
+nodes:
+  generator:
+    execution:
+      kind: container
+    type: sample.source
+  sink:
+    execution:
+      kind: container
+    type: sample.sink
+  transform:
+    execution:
+      kind: container
+    type: sample.transform
+version: 3

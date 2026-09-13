@@ -1,6 +1,8 @@
 # Proposed graph generation architecture
 
-**DESIGN ONLY — accepted future-state I-01 through I-11; no production behavior.**
+**Architecture design — I-01 through I-11 accepted.** P1 implements the model
+cutover; see [P1 verification](p1-verification.md). Later compiler and execution
+artifacts remain design contracts, not implemented runtime behavior.
 
 ## Verdict and evidence
 
@@ -16,16 +18,16 @@ Current evidence, inspected during this review:
 
 | Finding | Source evidence | Consequence |
 |---|---|---|
-| C++ parser accepts only version 2 and validates strict keys | [config.hpp](../../include/graphx/config.hpp), [config_parser.cpp](../../src/config_parser.cpp), [authored schema](../../config/schema/graphx.schema.json) | A renderer alone cannot introduce this contract; replace model/schema/normalizer atomically |
+| C++ parser accepts only version 3 and validates strict keys | [config.hpp](../../include/graphx/config.hpp), [config_v3.cpp](../../src/config_v3.cpp), [authored schema](../../config/schema/graphx.schema.json) | A renderer alone cannot introduce this contract; replace model/schema/normalizer atomically |
 | Samples assume generator/samples, transform/transformed and sink | [generator](../../apps/generator/main.cpp), [transform](../../apps/transform/main.cpp), [sink](../../apps/sink/main.cpp) | Binding must enter reusable application logic, including trace attributes |
 | UDP entrypoints already accept node/edge environment bindings but retain example defaults | [publisher](../../apps/udp_publisher/main.cpp), [subscriber](../../apps/udp_subscriber/main.cpp), [common](../../apps/common.hpp) | Reuse transport behavior; replace defaults with required resolved bindings |
 | Runtime image bakes a sample graph and generator entrypoint | [Dockerfile](../../Dockerfile) | Remove graph COPY and default sample execution; reuse one release image |
 | Sample Compose normalizes at startup and overlays repeat platform secrets/settings | [Compose](../../examples/sample-pipeline/compose.yaml), [six overlays](../../examples/sample-pipeline), [telemetry Dockerfile](../../docker/telemetry.Dockerfile) | Compile once; one platform config replaces normalization service and overlays |
-| Network profiles repeat service names, fixed host endpoints and wrappers | [network Compose](../../examples/network-lab.compose.yaml), [network launcher](../../scripts/network-lab.sh), [OVS launcher](../../examples/network-lab-ovs.sh), [IPVLAN L2](../../examples/ipvlan-l2/graphx.yaml) | Derived names and declarative resource references replace per-topology wiring |
+| Network profiles repeat service names, fixed host endpoints and wrappers | [network Compose](../../examples/network-lab.compose.yaml), [network launcher](../../scripts/network-lab.sh), [OVS launcher](../../examples/network-lab-ovs.sh), [IPVLAN L2](../../examples/ipvlan-l2/graphx.yml) | Derived names and declarative resource references replace per-topology wiring |
 | SDR listeners use environment addresses and fixed default ports; sink accepts one result stream contract | [processor](../../examples/sdr-node/common/processor.py), [protocol](../../examples/sdr-node/common/protocol.py), [sink](../../examples/sdr-node/common/sink.py), [SDR Dockerfile](../../examples/sdr-node/Dockerfile.services) | Keep wire format and ports; add generic node configuration and explicit cardinality |
 | External namespace ownership and guest startup live outside the core graph | [boundary helper](../../examples/external-ovs-boundary.sh), [route launcher](../../examples/static-route-policy/scripts/demo.sh), [QEMU launcher](../../examples/qemu-node/tap/scripts/ovs-lab.sh) | Fold only these resource kinds into the common identity store; no second ledger |
 | Ownership coordinator already supplies locks, rollback, identity-aware capture and endpoints | [ownership API](../../include/graphx/ownership.hpp), [coordinator](../../src/infra/lifecycle_coordinator.cpp), [endpoint module](../../src/infra/endpoint_resources.cpp) | Extend existing owner instead of replaying unchecked shell commands |
-| Communication DAG validation currently excludes external edges | [validation](../../src/config_validation.cpp), [graph tests](../../tests/test_config_graph.cpp) | Replace encoding-based cycle handling with type feedback declarations and separate readiness |
+| Communication cycles require type feedback support | [validation](../../src/config_v3.cpp), [graph tests](../../tests/test_config_graph.cpp) | P1 checks type feedback declarations; readiness remains separate |
 | QEMU launcher explicitly boots x86_64 TCG; TAP CTest does not boot | [QEMU README](../../examples/qemu-node/README.md), [TAP live test](../../tests/test_qemu_tap_live.py), [test procedure](../../docs/test-procedure.md) | Record infrastructure and actual guest boot evidence separately |
 
 ## Boundaries and proposed layout
@@ -40,7 +42,7 @@ Proposed source layout after authorization:
 
 | Component | Files | Smallest new abstraction and why needed |
 |---|---|---|
-| Authoritative graph model | `include/graphx/config.hpp`, `src/config_*.cpp` | Type/instance/connection structures; current model combines authored endpoints and sample deployment metadata |
+| Authoritative graph model | `include/graphx/config.hpp`, `src/config_*.cpp` | Type/instance/connection structures; P1 resolves catalog types and shared endpoints; execution projections remain gated |
 | Pure compilation | `include/graphx/compile.hpp`, `src/compile.cpp`, `src/compile/{bindings,artifacts}.cpp` | A resolved value plus serializers; current normalizer cannot emit execution artifacts or consume catalog capabilities |
 | Node bindings | `include/graphx/node_settings.hpp`, `src/node_settings.cpp`, reusable application code under `src/`; thin `apps/*` | Typed per-port bindings and local-ready/release protocol; current sample bodies choose edges directly |
 | Catalog assets | `config/catalog/{types,templates,guests}`, `config/schema/` | Fixed data contracts; no plugins or programmable renderer |
@@ -241,7 +243,7 @@ IPVLAN L2 shares the declared MAC and uses attachment/IP-aware OVS forwarding an
 ARP handling rather than naive MAC learning, including router interfaces.
 IPVLAN L3 uses destination-IP forwarding and on-link routes across its subnet
 domains; unknown/non-unicast traffic is dropped across domains. Preserve current
-flow semantics from `src/config_network_profiles.cpp` and network/infra modules.
+flow semantics from `src/network.cpp` and network/infra modules.
 Router policies preserve authored order, established/related return acceptance
 first, explicit policies next, default drop last. S12's independent denied flow
 is not mistaken for an established response. A manual route is declared but not

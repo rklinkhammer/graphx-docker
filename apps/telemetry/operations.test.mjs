@@ -370,8 +370,8 @@ test('telemetry service converts validated UDP events to authenticated OTLP', { 
   const child = spawn(process.execPath, ['server.mjs'], { cwd: directory, stdio: 'ignore', env: {
     ...process.env, PORT: `${apiPort}`, GRAPHX_TELEMETRY_PORT: `${udpPort}`,
     GRAPHX_HTTP_BIND: '127.0.0.1', GRAPHX_TELEMETRY_BIND: '127.0.0.1',
-    ...normalizedConfigEnvironment(resolve(directory, '../../examples/sample-pipeline/graphx.yaml'),
-      'observability.otlp.export_interval_ms=600000'),
+    ...normalizedConfigEnvironment(resolve(directory, '../../examples/sample-pipeline/graphx.yml'),
+      'platform.otlp.export_interval_ms=600000'),
     GRAPHX_OTLP_ENDPOINT: `http://127.0.0.1:${collector.address().port}`,
     GRAPHX_OTLP_AUTH_TOKEN: token,
   } })

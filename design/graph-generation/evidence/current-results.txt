@@ -1,22 +1,13 @@
-DESIGN REVIEW EVIDENCE — current implemented behavior only.
-Environment: native macOS ARM64, existing build/dev/graphx, repository root.
-No build, runtime deployment or privileged operation was performed.
+P1 CURRENT MODEL EVIDENCE
+Environment: native macOS ARM64. No deployment or privileged operation performed.
 
 Status: run-current
-Command: docker compose version
-Result (exit 0): Docker Compose version v5.1.2
-Meaning: CLI availability only; no engine readiness check.
+Command: /opt/homebrew/opt/node@24/bin/node --version
+Result (exit 0): v24.20.0
 
 Status: run-current
-Command: node --version
-Result (exit 0): v26.8.1
-Meaning: does not satisfy the required Node 24 portable-test prerequisite.
+Command: build/dev/graphx validate examples/sample-pipeline/graphx.yml
+Result (exit 0): examples/sample-pipeline/graphx.yml: valid GraphX configuration version 3 (3 nodes, 2 connections; target native-linux)
 
-Status: run-current
-Command: build/dev/graphx validate examples/sample-pipeline/graphx.yaml
-Result (exit 0): examples/sample-pipeline/graphx.yaml: valid GraphX configuration version 2 (3 nodes, 2 edges, 1 networks)
-
-Status: run-current
-Command: python3 tests/test_example_configs.py build/dev/graphx .
-Result (exit 0): validated 14 authoritative configurations
-Meaning: the existing C++ CLI accepts all current v2 examples. No v3 execution evidence.
+Full P1 results: ../p1-verification.md.
+Static Compose checks use docker compose config only; they do not contact an engine.

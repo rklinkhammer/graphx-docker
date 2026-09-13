@@ -476,6 +476,10 @@
     },
     {
       "format": "md",
+      "path": "p1-verification.md"
+    },
+    {
+      "format": "md",
       "path": "verification.md"
     }
   ],

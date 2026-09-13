@@ -20,7 +20,7 @@ designing, implementing, reviewing, or testing a change.
 
 ## Architecture invariants
 
-- Configuration `version: 2` is the only accepted GraphX format.
+- Authored configuration `version: 3` is the only accepted GraphX format; normalized JSON uses contract version 2.
 - System Open vSwitch on Linux is the only managed network backend. MACVLAN and
   IPVLAN names are semantic profiles, not Docker network drivers.
 - Managed containers attach with identity-owned veth pairs. QEMU uses an

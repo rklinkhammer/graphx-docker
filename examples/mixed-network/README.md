@@ -1,20 +1,20 @@
 # Mixed semantic network lab
 
-This lab realizes MACVLAN and IPVLAN-L2 semantics on two system OVS bridges with a
-namespace router, policy rules, mirrors, container veth attachments, and declared
-edge paths. Use `scripts/up.sh`, `status.sh`, and `down.sh`.
+This authored v3 example is supported for validation and normalization. Graph
+execution is unavailable in P1; its launcher returns `E_PHASE_UNAVAILABLE` before
+performing actions. The retained launch recipes require the later adapters.
 
-Run from the repository root on native Linux or Apple Silicon macOS:
+Run from the repository root:
 
 ```sh
-scripts/network-lab.sh mixed-network plan
-scripts/network-lab.sh mixed-network up
-scripts/network-lab.sh mixed-network status
-scripts/network-lab.sh mixed-network down
+build/dev/graphx validate examples/mixed-network/graphx.yml
+build/dev/graphx config normalize examples/mixed-network/graphx.yml > resolved.json
 ```
 
-On macOS these commands dispatch into the identity-checked
-[GraphX Lima guest](../../infrastructure/lima/README.md). On Linux they run
-locally with sudo and system OVS. Compose supplies management connectivity;
-GraphX attaches the data-plane veth pairs. These are OVS semantic profiles,
-not Docker MACVLAN/IPVLAN drivers.
+Select `--target native-linux`, `native-macos`, `orbstack`, or `lima` to check
+placement capabilities. Managed OVS and QEMU require Linux or Lima; this command
+does not run a laboratory. The graph declares its catalog, typed node instances,
+connections, bounded platform policy and any explicit scenario actions.
+
+See the [example matrix](../README.md) for all supported inputs and
+[configuration contract](../../docs/configuration.md) for diagnostics and limits.

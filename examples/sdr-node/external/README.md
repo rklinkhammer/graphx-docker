@@ -1,32 +1,20 @@
 # External SDR profile
 
-This profile uses a Linux namespace as the bounded external-device endpoint and
-keeps the raw SDR edge outside the GraphX envelope transport factory. The demo
-generates short-lived TLS material, realizes the OVS boundary, runs the services,
-and removes only identity-owned resources during cleanup.
+This authored v3 example is supported for validation and normalization. Graph
+execution is unavailable in P1; its launcher returns `E_PHASE_UNAVAILABLE` before
+performing actions. The retained launch recipes require the later adapters.
 
-Platform: native Linux with sudo and system OVS, or the dedicated
-[GraphX Lima guest](../../../infrastructure/lima/README.md) on Apple Silicon macOS.
-This launcher does not dispatch from macOS automatically. After provisioning
-and verifying Lima, enter the guest:
+Run from the repository root:
 
 ```sh
-limactl shell --workdir /workspace/graphx-docker graphx
-export GRAPHX_BIN=/var/lib/graphx/runtime/build/dev/graphx
+build/dev/graphx validate examples/sdr-node/external/graphx.yml
+build/dev/graphx config normalize examples/sdr-node/external/graphx.yml > resolved.json
 ```
 
-Then run the following from the repository root inside that guest, or directly
-on native Linux after building `build/dev/graphx`:
+Select `--target native-linux`, `native-macos`, `orbstack`, or `lima` to check
+placement capabilities. Managed OVS and QEMU require Linux or Lima; this command
+does not run a laboratory. The graph declares its catalog, typed node instances,
+connections, bounded platform policy and any explicit scenario actions.
 
-```sh
-examples/sdr-node/external/scripts/demo.sh up
-examples/sdr-node/external/scripts/demo.sh status
-examples/sdr-node/external/scripts/demo.sh verify
-examples/sdr-node/external/scripts/demo.sh down
-```
-
-The launcher starts only processor and sink containers plus the namespace SDR
-simulator. It realizes the OVS mirror endpoint, but does not start a capture
-observer, history database, telemetry service, or browser UI. Their configuration
-metadata alone does not launch those services; use the simulated profile to
-exercise that complete observation stack.
+See the [example matrix](../../README.md) for all supported inputs and
+[configuration contract](../../../docs/configuration.md) for diagnostics and limits.

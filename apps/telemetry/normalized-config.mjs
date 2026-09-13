@@ -1,4 +1,5 @@
-import { closeSync, constants, fstatSync, openSync, readSync } from 'node:fs'
+import Ajv2020 from 'ajv/dist/2020.js'
+import { closeSync, constants, fstatSync, openSync, readSync, readFileSync } from 'node:fs'
 import { dirname, normalize } from 'node:path'
 
 export const MAX_NORMALIZED_CONFIG_BYTES = 4 * 1024 * 1024
@@ -10,7 +11,7 @@ function fail(message) {
 function readBoundedRegularFile(path, maximum) {
   let descriptor
   try {
-    descriptor = openSync(path, constants.O_RDONLY | (constants.O_NOFOLLOW || 0))
+    descriptor = openSync(path, constants.O_RDONLY | constants.O_NONBLOCK | (constants.O_NOFOLLOW || 0))
     const metadata = fstatSync(descriptor)
     if (!metadata.isFile()) fail(`${path} is not a regular file`)
     if (metadata.size > maximum) fail(`${path} exceeds the ${maximum}-byte limit`)
@@ -31,60 +32,40 @@ function readBoundedRegularFile(path, maximum) {
   }
 }
 
-function object(value, path) {
-  if (value == null || typeof value !== 'object' || Array.isArray(value))
-    fail(`${path} must be an object`)
-  return value
-}
+const schema = JSON.parse(readFileSync(new URL('../../config/schema/normalized-graph.schema.json', import.meta.url), 'utf8'))
+const validate = new Ajv2020({ allErrors: false, strictRequired: false, strictTypes: false }).compile(schema)
 
-function array(value, path, maximum) {
-  if (!Array.isArray(value)) fail(`${path} must be an array`)
-  if (value.length > maximum) fail(`${path} exceeds ${maximum} entries`)
-  return value
-}
-
-function text(value, path) {
-  if (typeof value !== 'string' || value.length === 0 || value.length > 4096)
-    fail(`${path} must be a non-empty bounded string`)
-  return value
-}
-
-function validateNormalizedConfig(value) {
-  const root = object(value, 'document')
-  if (root.contract_version !== 1) fail('contract_version must be 1')
-
-  const graph = object(root.graph, 'graph')
-  text(graph.id, 'graph.id')
-  for (const [index, node] of array(graph.nodes, 'graph.nodes', 1024).entries()) {
-    object(node, `graph.nodes[${index}]`)
-    text(node.id, `graph.nodes[${index}].id`)
-    text(node.kind, `graph.nodes[${index}].kind`)
-    array(node.ports, `graph.nodes[${index}].ports`, 256)
-  }
-  for (const [index, edge] of array(graph.edges, 'graph.edges', 4096).entries()) {
-    object(edge, `graph.edges[${index}]`)
-    text(edge.id, `graph.edges[${index}].id`)
-    text(object(edge.from, `graph.edges[${index}].from`).node,
-      `graph.edges[${index}].from.node`)
-    text(edge.from.port, `graph.edges[${index}].from.port`)
-    text(object(edge.to, `graph.edges[${index}].to`).node,
-      `graph.edges[${index}].to.node`)
-    text(edge.to.port, `graph.edges[${index}].to.port`)
-    object(edge.transport, `graph.edges[${index}].transport`)
-    text(edge.transport.kind, `graph.edges[${index}].transport.kind`)
-  }
-
-  const network = object(root.network, 'network')
-  for (const [name, maximum] of Object.entries({ networks: 1024, switches: 1024,
-    routers: 1024, attachments: 4096, edge_paths: 4096,
-    captures: 1024, faults: 1024 })) array(network[name], `network.${name}`, maximum)
-  const deployment = object(root.deployment, 'deployment')
-  array(deployment.services, 'deployment.services', 1024)
-  object(deployment.telemetry, 'deployment.telemetry')
-  const observability = object(root.observability, 'observability')
-  object(observability.telemetry, 'observability.telemetry')
-  object(observability.capture, 'observability.capture')
+function validateNormalizedConfig(root) {
+  if (root?.contract_version !== 2) fail('contract_version must be 2')
+  if (!validate(root)) fail(`invalid normalized contract: ${validate.errors[0].instancePath} ${validate.errors[0].message}`)
   return root
+}
+
+// Presentation/runtime DTO derived only from the validated normalized contract.
+// This does not accept authored YAML or a previous normalized version.
+export function applicationGraph(config) {
+  return {
+    id: config.graph_id,
+    nodes: config.nodes.map(node => ({
+      id: node.node_id, kind: node.type,
+      runtime: node.execution.kind === 'container' ? 'docker'
+        : ['native', 'namespace'].includes(node.execution.kind) ? 'process' : node.execution.kind,
+      execution: node.execution.kind,
+      lifecycle: node.execution.kind === 'external' ? 'external' : 'managed',
+      control: node.control, accelerator: node.execution.accelerator || null,
+      architecture: node.execution.architecture || null,
+      observation: node.observation,
+      ports: Object.entries(node.bindings).map(([name, bindings]) => ({
+        name, direction: bindings[0]?.role === 'listen' ? 'input' : 'output',
+        schema: bindings[0]?.schema || 'unknown',
+      })),
+    })),
+    edges: config.connections.map(connection => ({
+      id: connection.id, from: connection.from, to: connection.to,
+      transport: { kind: connection.transport, ...connection.settings },
+      data_plane: connection.encoding === 'raw' ? 'external' : 'graphx',
+    })),
+  }
 }
 
 export function loadNormalizedConfig(path) {

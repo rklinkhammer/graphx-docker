@@ -90,8 +90,8 @@ test('authorized control API enforces scope, correlation, idempotency, timeout, 
     const child = spawn(process.execPath, ['server.mjs'], { cwd: moduleDirectory,
       env: { ...process.env, PORT: String(httpPort), GRAPHX_TELEMETRY_PORT: String(udpPort),
         GRAPHX_HTTP_BIND: '127.0.0.1', GRAPHX_TELEMETRY_BIND: '127.0.0.1',
-        ...normalizedConfigEnvironment(resolve(moduleDirectory, '../../examples/sample-pipeline/graphx.yaml'),
-          'observability.history.batch_size=1;observability.history.flush_interval_ms=10'),
+        ...normalizedConfigEnvironment(resolve(moduleDirectory, '../../examples/sample-pipeline/graphx.yml'),
+          'platform.history.batch_size=1;platform.history.flush_interval_ms=10'),
         GRAPHX_CONTROL_POLICY_FILE: policyPath, GRAPHX_RUNTIME_IDENTITY_FILE: identitiesPath,
         GRAPHX_OBSERVATION_TOKEN: observationToken, GRAPHX_HISTORY_ENABLED: 'true',
         GRAPHX_HISTORY_DATABASE_FILE: join(directory, 'history.sqlite') },
@@ -223,8 +223,8 @@ test('runtime rejection cannot expose configured credentials in commands, audit,
     const environment = { ...process.env, PORT: String(httpPort),
       GRAPHX_TELEMETRY_PORT: String(udpPort), GRAPHX_HTTP_BIND: '127.0.0.1',
       GRAPHX_TELEMETRY_BIND: '127.0.0.1',
-      ...normalizedConfigEnvironment(resolve(moduleDirectory, '../../examples/sample-pipeline/graphx.yaml'),
-        'observability.history.batch_size=1;observability.history.flush_interval_ms=10'),
+      ...normalizedConfigEnvironment(resolve(moduleDirectory, '../../examples/sample-pipeline/graphx.yml'),
+        'platform.history.batch_size=1;platform.history.flush_interval_ms=10'),
       GRAPHX_CONTROL_POLICY_FILE: policyPath, GRAPHX_RUNTIME_IDENTITY_FILE: identityPath,
       GRAPHX_OBSERVATION_TOKEN: observationToken, GRAPHX_HISTORY_ENABLED: 'true',
       GRAPHX_HISTORY_DATABASE_FILE: historyPath }
@@ -380,8 +380,8 @@ test('file-only rotation filters candidate and retired credentials before fan-ou
     const environment = { ...process.env, PORT: String(httpPort),
       GRAPHX_TELEMETRY_PORT: String(udpPort), GRAPHX_HTTP_BIND: '127.0.0.1',
       GRAPHX_TELEMETRY_BIND: '127.0.0.1',
-      ...normalizedConfigEnvironment(resolve(moduleDirectory, '../../examples/sample-pipeline/graphx.yaml'),
-        'observability.history.batch_size=1;observability.history.flush_interval_ms=10'),
+      ...normalizedConfigEnvironment(resolve(moduleDirectory, '../../examples/sample-pipeline/graphx.yml'),
+        'platform.history.batch_size=1;platform.history.flush_interval_ms=10'),
       GRAPHX_CONTROL_POLICY_FILE: policyPath, GRAPHX_RUNTIME_IDENTITY_FILE: identityPath,
       GRAPHX_PREVIOUS_CREDENTIALS_FILE: previousCredentialPath,
       GRAPHX_OBSERVATION_TOKEN: observationToken, GRAPHX_HISTORY_ENABLED: 'true',
@@ -594,7 +594,7 @@ test('collector rejects ambiguous direct-token and policy credential models', as
   const policyPath = join(directory, 'policy.json')
   await writeFile(policyPath, JSON.stringify({ version: 1, principals: [] }))
   const child = spawn(process.execPath, ['server.mjs'], { cwd: moduleDirectory,
-    env: { ...process.env, ...normalizedConfigEnvironment(resolve(moduleDirectory, '../../examples/sample-pipeline/graphx.yaml')),
+    env: { ...process.env, ...normalizedConfigEnvironment(resolve(moduleDirectory, '../../examples/sample-pipeline/graphx.yml')),
       GRAPHX_CONTROL_POLICY_FILE: policyPath, GRAPHX_CONTROL_TOKEN: sourceToken,
       GRAPHX_RUNTIME_IDENTITY_FILE: policyPath }, stdio: ['ignore', 'ignore', 'pipe'] })
   let error = ''
@@ -631,7 +631,7 @@ test('collector fails readiness and control closed on cross-domain credential re
     const child = spawn(process.execPath, ['server.mjs'], { cwd: moduleDirectory,
       env: { ...process.env, PORT: String(httpPort), GRAPHX_TELEMETRY_PORT: String(udpPort),
         GRAPHX_HTTP_BIND: '127.0.0.1', GRAPHX_TELEMETRY_BIND: '127.0.0.1',
-        ...normalizedConfigEnvironment(resolve(moduleDirectory, '../../examples/sample-pipeline/graphx.yaml')),
+        ...normalizedConfigEnvironment(resolve(moduleDirectory, '../../examples/sample-pipeline/graphx.yml')),
         GRAPHX_CONTROL_POLICY_FILE: policyPath, GRAPHX_RUNTIME_IDENTITY_FILE: identityPath,
         GRAPHX_OBSERVATION_TOKEN: reused }, stdio: ['ignore', 'pipe', 'pipe'] })
     child.stdout.on('data', data => logs.push(data.toString()))

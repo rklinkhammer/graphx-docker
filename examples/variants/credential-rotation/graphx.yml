@@ -1,0 +1,71 @@
+# GraphX version 3. Validate/normalize only; execution adapters are unavailable.
+catalog: ../../../config/catalog/lock.json
+connections:
+  samples:
+    from: generator.samples
+    to: transform.samples
+    transport: tcp
+  transformed:
+    from: transform.transformed
+    to: sink.transformed
+    transport: tcp
+credentials:
+  operator:
+    identity: operator
+    members:
+    - token
+    provider: external
+  operator-next:
+    identity: operator
+    members:
+    - token
+    provider: external
+  runtime-generator-next:
+    identity: generator
+    members:
+    - hmac
+    provider: runtime-generated
+graph:
+  id: variant-credential-rotation
+nodes:
+  generator:
+    execution:
+      kind: container
+    type: sample.source
+  sink:
+    execution:
+      kind: container
+    type: sample.sink
+  transform:
+    execution:
+      kind: container
+    type: sample.transform
+platform:
+  control:
+    enabled: true
+    grants:
+    - actions:
+      - pause
+      - resume
+      credential: operator
+      nodes:
+      - generator
+scenario:
+  actions:
+  - action: credential-rotate
+    credential: operator
+    grace_seconds: 60
+    id: rollover
+    next: operator-next
+    verify:
+    - old-and-new-during-grace
+    - old-rejected-after-grace
+  - action: credential-rotate
+    credential: runtime-generator
+    grace_seconds: 60
+    id: runtime-rollover
+    next: runtime-generator-next
+    verify:
+    - per-node-identity-bound
+    - old-rejected-after-grace
+version: 3

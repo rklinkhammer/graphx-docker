@@ -1,5 +1,5 @@
 {
-  "catalog_digest": "d984d3c04c8ac657407f9c704a3f3a3760a352e348fb0a32616077b2caba5cff",
+  "catalog_digest": "3589ffafcc9bccc4fbf453cf9dc3d43e5a82be956c8be4aff113c64c6e78c7ed",
   "compiler": "proposed-graphx-v3-design-1",
   "files": [
     {
@@ -40,7 +40,7 @@
     },
     {
       "path": "ovs-plan.json",
-      "sha256": "f54c5fdc44e57f7368a9321e7ad8dfabcc9585f0fc652c0804c96b9c7c866627"
+      "sha256": "3b724741d31ef79f81fbba1f8cf3980d67eaf09b824ab9ed4483b9743d495637"
     },
     {
       "path": "platform.json",
@@ -52,7 +52,7 @@
     },
     {
       "path": "resolved.json",
-      "sha256": "cd8cfa2274ac1afa74dd2e8acaa9e019d865359d2e7e3c9d71aeef090347d939"
+      "sha256": "72b8232e6c89611e964971911fc442ffd387014c18e4a55cdde9f586fdb1ba80"
     },
     {
       "path": "scenario-plan.json",
@@ -64,7 +64,7 @@
     }
   ],
   "graph_id": "qemu-tap",
-  "input_digest": "7e7480994de3bee91be68e3e0eb6de16ec104f629a877a75bf78d603fd1908ea",
+  "input_digest": "3b050e24ee84a36a6687a644e1a4e8a62156f7a2696050f600ab7fadede34a80",
   "ownership": "invoking UID and graph ID; checked replacement only; no runtime lifecycle records",
   "version": 1
 }

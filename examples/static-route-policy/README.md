@@ -1,26 +1,20 @@
 # Static route and policy lab
 
-This scenario combines three OVS domains, a forwarding namespace, nftables policy,
-mirrors, and a route that is activated explicitly through `graphx infra route`.
-Use `scripts/demo.sh up`, `status`, `apply-route`, `clear-route`, and `down`.
+This authored v3 example is supported for validation and normalization. Graph
+execution is unavailable in P1; its launcher returns `E_PHASE_UNAVAILABLE` before
+performing actions. The retained launch recipes require the later adapters.
 
-Platform: native Linux with sudo and system OVS, or the dedicated
-[GraphX Lima guest](../../infrastructure/lima/README.md) on Apple Silicon macOS.
-This launcher does not dispatch from macOS automatically. After provisioning
-and verifying Lima, enter the guest:
+Run from the repository root:
 
 ```sh
-limactl shell --workdir /workspace/graphx-docker graphx
-export GRAPHX_BIN=/var/lib/graphx/runtime/build/dev/graphx
+build/dev/graphx validate examples/static-route-policy/graphx.yml
+build/dev/graphx config normalize examples/static-route-policy/graphx.yml > resolved.json
 ```
 
-Then run the following from the repository root inside that guest, or directly
-on native Linux after building `build/dev/graphx`:
+Select `--target native-linux`, `native-macos`, `orbstack`, or `lima` to check
+placement capabilities. Managed OVS and QEMU require Linux or Lima; this command
+does not run a laboratory. The graph declares its catalog, typed node instances,
+connections, bounded platform policy and any explicit scenario actions.
 
-```sh
-examples/static-route-policy/scripts/demo.sh up
-examples/static-route-policy/scripts/demo.sh status
-examples/static-route-policy/scripts/demo.sh apply-route
-examples/static-route-policy/scripts/demo.sh clear-route
-examples/static-route-policy/scripts/demo.sh down
-```
+See the [example matrix](../README.md) for all supported inputs and
+[configuration contract](../../docs/configuration.md) for diagnostics and limits.

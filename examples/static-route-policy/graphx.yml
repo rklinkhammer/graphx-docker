@@ -1,0 +1,264 @@
+# GraphX version 3. Validate/normalize only; execution adapters are unavailable.
+catalog: ../../config/catalog/lock.json
+connections:
+  allowed-flow:
+    attachments:
+      from: left-data
+      to: middle-data
+    from: left.allowed
+    settings:
+      bind: 0.0.0.0
+      destination: 10.64.2.10
+      framing: none
+      max_datagram_bytes: 512
+      mode: unicast
+      port: 18601
+    to: middle.allowed
+    transport: udp
+  denied-flow:
+    attachments:
+      from: middle-data
+      to: left-data
+    from: middle.denied
+    settings:
+      bind: 0.0.0.0
+      destination: 10.64.1.10
+      framing: none
+      max_datagram_bytes: 512
+      mode: unicast
+      port: 18602
+    to: left.denied
+    transport: udp
+  routed-flow:
+    attachments:
+      from: left-data
+      to: right-data
+    from: left.routed
+    settings:
+      bind: 0.0.0.0
+      destination: 10.64.30.10
+      framing: none
+      max_datagram_bytes: 512
+      mode: unicast
+      port: 18603
+    to: right.routed
+    transport: udp
+graph:
+  id: static-route-policy
+network:
+  attachments:
+  - address: 10.64.1.10/24
+    id: left-data
+    kind: namespace_veth
+    mac: 02:64:00:00:01:10
+    network: gx-route-left
+    owner: left
+    routes:
+    - destination: 10.64.2.0/24
+      via: 10.64.1.1
+    - destination: 10.64.30.10/32
+      via: 10.64.1.1
+    switch: br-route-left
+  - address: 10.64.2.10/24
+    id: middle-data
+    kind: namespace_veth
+    mac: 02:64:00:00:02:10
+    network: gx-route-middle
+    owner: middle
+    routes:
+    - destination: 10.64.1.0/24
+      via: 10.64.2.1
+    switch: br-route-middle
+  - address: 10.64.3.10/24
+    aliases:
+    - 10.64.30.10/32
+    id: right-data
+    kind: namespace_veth
+    mac: 02:64:00:00:03:10
+    network: gx-route-right
+    owner: right
+    routes:
+    - destination: 10.64.1.0/24
+      via: 10.64.3.1
+    switch: br-route-right
+  - id: mirror-route-left
+    kind: mirror
+    owner: br-route-left
+    port: capture
+    switch: br-route-left
+  - id: mirror-route-middle
+    kind: mirror
+    owner: br-route-middle
+    port: capture
+    switch: br-route-middle
+  - id: mirror-route-right
+    kind: mirror
+    owner: br-route-right
+    port: capture
+    switch: br-route-right
+  captures:
+  - attachment: mirror-route-left
+    id: mirror-route-left
+    max_file_bytes: 67108864
+    max_files: 2
+    retention_seconds: 86400
+    rotation_seconds: 300
+    snaplen: 65535
+  - attachment: mirror-route-middle
+    id: mirror-route-middle
+    max_file_bytes: 67108864
+    max_files: 2
+    retention_seconds: 86400
+    rotation_seconds: 300
+    snaplen: 65535
+  - attachment: mirror-route-right
+    id: mirror-route-right
+    max_file_bytes: 67108864
+    max_files: 2
+    retention_seconds: 86400
+    rotation_seconds: 300
+    snaplen: 65535
+  edge_paths:
+    allowed-flow:
+    - left
+    - gx-route-left
+    - br-route-left
+    - route-router
+    - br-route-middle
+    - gx-route-middle
+    - middle
+    denied-flow:
+    - middle
+    - gx-route-middle
+    - br-route-middle
+    - route-router
+    - br-route-left
+    - gx-route-left
+    - left
+    routed-flow:
+    - left
+    - gx-route-left
+    - br-route-left
+    - route-router
+    - br-route-right
+    - gx-route-right
+    - right
+  networks:
+  - gateway: 10.64.1.1
+    id: gx-route-left
+    profile: ethernet
+    realization: ovs
+    subnets:
+    - 10.64.1.0/24
+  - gateway: 10.64.2.1
+    id: gx-route-middle
+    profile: ethernet
+    realization: ovs
+    subnets:
+    - 10.64.2.0/24
+  - gateway: 10.64.3.1
+    id: gx-route-right
+    profile: ethernet
+    realization: ovs
+    subnets:
+    - 10.64.3.0/24
+  routers:
+  - forwarding: true
+    id: route-router
+    interfaces:
+    - address: 10.64.1.1/24
+      id: left
+      network: gx-route-left
+      switch: br-route-left
+    - address: 10.64.2.1/24
+      id: middle
+      network: gx-route-middle
+      switch: br-route-middle
+    - address: 10.64.3.1/24
+      id: right
+      network: gx-route-right
+      switch: br-route-right
+    kind: linux_namespace
+    policies:
+    - action: accept
+      destination: 10.64.2.0/24
+      id: allow-left-middle
+      source: 10.64.1.0/24
+    - action: drop
+      destination: 10.64.1.0/24
+      id: deny-middle-left
+      source: 10.64.2.0/24
+    - action: accept
+      destination: 10.64.30.10/32
+      id: allow-left-right
+      source: 10.64.1.0/24
+    routes:
+    - destination: 10.64.30.10/32
+      install: manual
+      interface: right
+      via: 10.64.3.10
+  switches:
+  - datapath: system
+    id: br-route-left
+    kind: openvswitch
+    mirror:
+      id: mirror-route-left
+      output_port: capture
+      select_all: true
+    ports:
+    - id: endpoint
+    - id: capture
+  - datapath: system
+    id: br-route-middle
+    kind: openvswitch
+    mirror:
+      id: mirror-route-middle
+      output_port: capture
+      select_all: true
+    ports:
+    - id: endpoint
+    - id: capture
+  - datapath: system
+    id: br-route-right
+    kind: openvswitch
+    mirror:
+      id: mirror-route-right
+      output_port: capture
+      select_all: true
+    ports:
+    - id: endpoint
+    - id: capture
+nodes:
+  left:
+    execution:
+      kind: namespace
+    type: diagnostic.left
+  middle:
+    execution:
+      kind: namespace
+    type: diagnostic.middle
+  right:
+    execution:
+      kind: namespace
+    type: diagnostic.right
+scenario:
+  actions:
+  - action: route-apply
+    destination: 10.64.30.10/32
+    id: apply-deferred
+    router: route-router
+  - action: route-clear
+    destination: 10.64.30.10/32
+    id: clear-deferred
+    router: route-router
+  - action: traffic
+    connections:
+    - allowed-flow
+    - denied-flow
+    - routed-flow
+    expect:
+    - pass
+    - drop
+    - pass-only-after-apply-deferred
+    id: verify-flows
+version: 3

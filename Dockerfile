@@ -20,7 +20,7 @@ COPY config config
 COPY docs docs
 COPY tools tools
 COPY wireshark wireshark
-COPY examples/sample-pipeline/graphx.yaml ./examples/sample-pipeline/graphx.yaml
+COPY examples/sample-pipeline/graphx.yml ./examples/sample-pipeline/graphx.yml
 RUN cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DGRAPHX_BUILD_TESTS=OFF \
  && cmake --build build
 
@@ -42,8 +42,8 @@ COPY --from=build /src/build/graphx-sink /usr/local/bin/
 COPY --from=build /src/build/graphx-udp-publisher /usr/local/bin/
 COPY --from=build /src/build/graphx-udp-subscriber /usr/local/bin/
 COPY --from=build /src/build/graphx /usr/local/bin/
-COPY --from=build /src/examples/sample-pipeline/graphx.yaml /etc/graphx/graphx.yaml
-ENV GRAPHX_CONFIG=/etc/graphx/graphx.yaml GRAPHX_VERSION=${GRAPHX_VERSION} \
+COPY --from=build /src/examples/sample-pipeline/graphx.yml /etc/graphx/graphx.yml
+ENV GRAPHX_CONFIG=/etc/graphx/graphx.yml GRAPHX_VERSION=${GRAPHX_VERSION} \
     SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
 USER 65532:65532
 ENTRYPOINT ["/usr/local/bin/graphx-generator"]

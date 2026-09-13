@@ -1,16 +1,20 @@
 # UDP unicast example
 
-Platform: native Linux and macOS; no Docker or privileged networking required.
+This authored v3 example is supported for validation and normalization. Graph
+execution is unavailable in P1; its launcher returns `E_PHASE_UNAVAILABLE` before
+performing actions. The retained launch recipes require the later adapters.
 
-This bounded example sends five GraphX framed envelopes over IPv4 UDP loopback.
-It requires no privileges and does not contact an external network.
+Run from the repository root:
 
 ```sh
-cmake --preset dev
-cmake --build --preset dev
-examples/udp-unicast/run.sh
+build/dev/graphx validate examples/udp-unicast/graphx.yml
+build/dev/graphx config normalize examples/udp-unicast/graphx.yml > resolved.json
 ```
 
-Success ends with `PASS received=5`. UDP has no acknowledgement, retransmission,
-ordering, peer authentication, or encryption. TCP with TLS remains the preferred
-control transport.
+Select `--target native-linux`, `native-macos`, `orbstack`, or `lima` to check
+placement capabilities. Managed OVS and QEMU require Linux or Lima; this command
+does not run a laboratory. The graph declares its catalog, typed node instances,
+connections, bounded platform policy and any explicit scenario actions.
+
+See the [example matrix](../README.md) for all supported inputs and
+[configuration contract](../../docs/configuration.md) for diagnostics and limits.

@@ -1,5 +1,11 @@
 # macOS: Docker and Open vSwitch with Lima
 
+P1 implements v3 validation and normalization. The environment lifecycle described
+here is independent of graph launch. Network/QEMU example launchers and `infra`
+currently return `E_PHASE_UNAVAILABLE`; live acceptance requires the subsequent
+execution adapters. See [P1 status](../../design/graph-generation/p1-verification.md).
+
+
 GraphX uses two Linux environments on Apple Silicon macOS, depending on the
 workload:
 

@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
+
+# Authored v3 execution is not yet implemented. Sourced library functions remain available.
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  echo "E_PHASE_UNAVAILABLE: GraphX v3 execution adapters are not implemented; no action was performed" >&2
+  exit 2
+fi
 set -euo pipefail
 example_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_dir="$(cd "$example_dir/../.." && pwd)"
@@ -18,7 +24,7 @@ trap cleanup EXIT INT TERM
   echo "Build graphx-udp-publisher and graphx-udp-subscriber first" >&2
   exit 2
 }
-export GRAPHX_CONFIG="$example_dir/graphx.yaml" GRAPHX_MAX_MESSAGES="${GRAPHX_MAX_MESSAGES:-5}"
+export GRAPHX_CONFIG="$example_dir/graphx.yml" GRAPHX_MAX_MESSAGES="${GRAPHX_MAX_MESSAGES:-5}"
 # Give an instrumented or freshly loaded subscriber time to bind before the
 # publisher sends its finite, intentionally unretried datagram sequence.
 export GRAPHX_START_DELAY_MS="${GRAPHX_START_DELAY_MS:-1000}"

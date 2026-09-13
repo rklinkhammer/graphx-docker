@@ -1,220 +1,207 @@
 {
-  "contract_version": 1,
-  "graph": {
-    "id": "network-observability",
-    "nodes": [
+  "catalog_digest": "c7173c98503b8f49c5997c6d3429f239b39d502b66b1eb0e7ffb252671788fe1",
+  "connections": [],
+  "contract_version": 2,
+  "credential_references": [
+    "observer"
+  ],
+  "execution_values": [
+    "GX_STATE",
+    "GX_CREDENTIALS",
+    "GX_OUTPUT",
+    "GX_RELEASE",
+    "GX_OWNER"
+  ],
+  "graph_id": "network-observation",
+  "graph_version": 3,
+  "input_digest": "4e86d447c71fb31ff64a118ebf839291ce8fd655383ef852aa87833f17564089",
+  "network": {
+    "attachments": [
       {
-        "id": "packet-source",
-        "kind": "virtual-machine",
-        "runtime": "qemu",
-        "execution": "host",
-        "lifecycle": "external",
-        "control": "none",
-        "accelerator": "tcg",
-        "architecture": "x86_64",
-        "ports": []
+        "id": "observed-span",
+        "interface": "gxid84e76591114",
+        "kind": "mirror",
+        "owner": "br-gx-observe",
+        "peer": "gxp7d44c4d27fc7",
+        "port": "capture",
+        "switch": "br-gx-observe"
+      },
+      {
+        "address": "10.77.0.2/24",
+        "id": "source-data",
+        "interface": "gxtbbc5ec8e6b98",
+        "kind": "qemu_tap",
+        "network": "observed-lan",
+        "owner": "packet-source",
+        "port": "source",
+        "switch": "br-gx-observe",
+        "tap_gid": 65532,
+        "tap_uid": 65532
       }
     ],
-    "edges": []
-  },
-  "network": {
-    "backend": "ovs",
+    "captures": [
+      {
+        "attachment": "observed-span",
+        "directory": "/var/lib/graphx/captures/network-observation/ethernet-span",
+        "id": "ethernet-span",
+        "max_file_bytes": 1048576,
+        "max_files": 4,
+        "retention_seconds": 3600,
+        "rotation_seconds": 60,
+        "snaplen": 65535
+      }
+    ],
+    "edge_paths": {},
+    "management_isolation": {
+      "application_bind": "selected-data-address",
+      "ip_forward": false,
+      "ovs_management_acl": "only platform TCP 8080 and UDP 9000; deny node-to-node and forwarding; enforced before release barrier",
+      "per_node_network": true,
+      "platform_routes_data": false
+    },
     "networks": [
       {
+        "gateway": "10.77.0.1",
         "id": "observed-lan",
         "profile": "ethernet",
-        "semantics": {
-          "mac_identity": "endpoint",
-          "learning": "dynamic",
-          "filtering": "ovs",
-          "arp": "endpoint",
-          "broadcast": "flood",
-          "multicast": "flood",
-          "routing": "l2",
-          "isolation": "none",
-          "management": "separate"
-        },
+        "realization": "ovs",
         "subnets": [
           "10.77.0.0/24"
-        ],
-        "gateway": "10.77.0.1",
-        "uplink": null,
-        "external": false
+        ]
       }
     ],
+    "routers": [],
     "switches": [
       {
+        "datapath": "system",
         "id": "br-gx-observe",
         "kind": "openvswitch",
-        "datapath": "system",
-        "ports": [
-          {
-            "id": "source",
-            "interface": "gxobstap0",
-            "peer": null,
-            "vlan": {
-              "access_tag": null,
-              "trunks": []
-            }
-          },
-          {
-            "id": "capture",
-            "interface": "gxobscap0",
-            "peer": "gxobscap1",
-            "vlan": {
-              "access_tag": null,
-              "trunks": []
-            }
-          }
-        ],
         "mirror": {
           "id": "observed-span",
           "output_port": "capture",
           "select_all": true
-        }
-      }
-    ],
-    "routers": [],
-    "attachments": [
-      {
-        "id": "source-data",
-        "kind": "qemu_tap",
-        "owner": "packet-source",
-        "network": "observed-lan",
-        "address": "10.77.0.2/24",
-        "mac": null,
-        "interface": "gxobstap0",
-        "peer": null,
-        "switch": "br-gx-observe",
-        "mtu": 1500,
-        "tap_uid": 65532,
-        "tap_gid": 65532,
-        "routes": []
-      },
-      {
-        "id": "observed-span",
-        "kind": "mirror",
-        "owner": "br-gx-observe",
-        "network": null,
-        "address": null,
-        "mac": null,
-        "interface": "gxobscap0",
-        "peer": null,
-        "switch": "br-gx-observe",
-        "mtu": 1500,
-        "tap_uid": 0,
-        "tap_gid": 0,
-        "routes": []
-      }
-    ],
-    "edge_paths": [],
-    "captures": [
-      {
-        "id": "ethernet-span",
-        "attachment": "observed-span",
-        "directory": "/var/lib/graphx/captures/network-observation",
-        "snaplen": 65535,
-        "max_file_bytes": 1048576,
-        "max_files": 4,
-        "rotation_seconds": 60,
-        "retention_seconds": 3600
-      }
-    ],
-    "faults": [
-      {
-        "id": "source-delay",
-        "attachment": "source-data",
-        "delay_ms": 20,
-        "jitter_ms": 3,
-        "loss_percent": 1,
-        "rate_kbit": 0,
-        "duration_seconds": 30
+        },
+        "name": "gxb7d367259e7c5",
+        "ports": [
+          {
+            "id": "source",
+            "interface": "gxtbbc5ec8e6b98"
+          },
+          {
+            "id": "capture",
+            "interface": "gxid84e76591114",
+            "peer": "gxp7d44c4d27fc7"
+          }
+        ]
       }
     ]
   },
-  "deployment": {
-    "project": null,
-    "services": [],
-    "telemetry": {
-      "service": null,
-      "port": 0
+  "nodes": [
+    {
+      "bindings": {},
+      "capture": {
+        "directory": "/captures",
+        "enabled": true,
+        "max_file_bytes": 67108864,
+        "max_files": 2,
+        "max_packets": 100000,
+        "provider": "ovs-span",
+        "retention_seconds": 86400,
+        "snaplen": 65535
+      },
+      "contract_version": 2,
+      "control": "none",
+      "credentials": {},
+      "execution": {
+        "accelerator": "tcg",
+        "architecture": "x86_64",
+        "attachment_only": true,
+        "kind": "external"
+      },
+      "graph_id": "network-observation",
+      "graph_version": 3,
+      "node_id": "packet-source",
+      "observation": [
+        "packet",
+        "external-status"
+      ],
+      "parameters": {},
+      "readiness": {
+        "kind": "local-bound",
+        "timeout_ms": 30000
+      },
+      "startup": {
+        "bind_before_connect": true,
+        "max_wait_ms": 30000,
+        "release_barrier": false
+      },
+      "telemetry": {
+        "credential": null,
+        "host": "platform",
+        "port": 9000
+      },
+      "type": "external.packet-source",
+      "type_revision": 1
     }
-  },
-  "observability": {
-    "metrics": {
-      "enabled": true,
-      "exporters": [
-        "console",
-        "udp-json"
-      ]
-    },
-    "tracing": {
-      "enabled": true,
-      "exporters": [
-        "console",
-        "udp-json"
-      ]
-    },
-    "telemetry": {
-      "host": "127.0.0.1",
-      "port": 9000,
-      "websocket": "/ws",
-      "heartbeat_interval_ms": 1000,
-      "heartbeat_timeout_ms": 5000
-    },
+  ],
+  "ordering": "lexicographic-ascii",
+  "platform": {
     "capture": {
-      "enabled": false,
-      "provider": null,
-      "directory": "captures",
-      "snaplen": 16777220,
-      "max_file_bytes": 268435456,
-      "max_packets": 1000000
+      "directory": "/captures",
+      "enabled": true,
+      "max_file_bytes": 67108864,
+      "max_files": 2,
+      "max_packets": 100000,
+      "provider": "ovs-span",
+      "retention_seconds": 86400,
+      "snaplen": 65535
     },
-    "otlp": {
-      "enabled": false,
-      "endpoint": "http://127.0.0.1:4318",
-      "traces_path": "/v1/traces",
-      "metrics_path": "/v1/metrics",
-      "export_interval_ms": 5000,
-      "timeout_ms": 2000,
-      "queue_capacity": 1024,
-      "max_queue_bytes": 8388608,
-      "max_response_bytes": 65536,
-      "retry_max_attempts": 3,
-      "retry_initial_backoff_ms": 200,
-      "retry_max_backoff_ms": 5000
-    },
-    "slos": {
-      "window_seconds": 300,
-      "minimum_window_seconds": 10,
-      "availability_target": 0.99,
-      "max_error_ratio": 0.01,
-      "max_drop_ratio": 0.01,
-      "max_p95_latency_us": 10000
-    },
-    "history": {
-      "enabled": false,
-      "backend": "sqlite",
-      "database_file": ".graphx/history.sqlite",
-      "retention_seconds": 604800,
-      "max_records": 100000,
-      "max_database_bytes": 268435456,
-      "queue_capacity": 4096,
-      "max_queue_bytes": 8388608,
-      "batch_size": 100,
-      "flush_interval_ms": 250,
-      "query_limit": 200,
-      "query_timeout_ms": 2000,
-      "max_pending_queries": 16,
-      "shutdown_timeout_ms": 2000
+    "console": {
+      "bind": "127.0.0.1",
+      "port": 8080
     },
     "control": {
-      "command_timeout_ms": 2000,
-      "command_retention_seconds": 3600,
-      "max_commands": 1024,
-      "max_audit_records": 4096,
+      "allowed_origins": [
+        "http://127.0.0.1:8080"
+      ],
+      "enabled": false,
+      "grants": [],
       "idempotency_ttl_seconds": 3600,
+      "max_audit_records": 4096,
       "max_request_bytes": 4096
-    }
-  }
+    },
+    "credential_manifest": "credentials.json",
+    "extensions": [],
+    "history": {
+      "backend": "sqlite",
+      "batch_size": 100,
+      "database_file": "/var/lib/graphx/history/history.sqlite",
+      "enabled": true,
+      "flush_interval_ms": 250,
+      "max_database_bytes": 268435456,
+      "max_pending_queries": 16,
+      "max_queue_bytes": 8388608,
+      "max_records": 100000,
+      "query_limit": 200,
+      "query_timeout_ms": 2000,
+      "queue_capacity": 4096,
+      "retention_seconds": 604800,
+      "shutdown_timeout_ms": 2000
+    },
+    "image": "graphx-design/platform@sha256:41b3db89b6ec78cab84b29c12a1af5024ba670b44463edc40d887cad8b952ba4",
+    "normalization": "resolved.json",
+    "otlp": {
+      "enabled": false
+    },
+    "telemetry": {
+      "authentication": "per-node-hmac",
+      "heartbeat_interval_ms": 1000,
+      "heartbeat_timeout_ms": 5000,
+      "host": "platform",
+      "port": 9000
+    },
+    "template": "platform-v1"
+  },
+  "portable_network": null,
+  "target": "native-linux"
 }

@@ -95,15 +95,9 @@ endif()
 
 add_library(graphx
   src/capture.cpp
+  src/config_document.cpp
+  src/config_v3.cpp
   src/config.cpp
-  src/config_deployment.cpp
-  src/config_graph.cpp
-  src/config_network.cpp
-  src/config_network_profiles.cpp
-  src/config_observability.cpp
-  src/config_parser.cpp
-  src/config_transport.cpp
-  src/config_validation.cpp
   src/envelope.cpp
   src/framing.cpp
   src/in_process_transport.cpp
@@ -127,6 +121,18 @@ add_library(graphx
   src/unix_domain_socket_transport.cpp
   src/transport_factory.cpp
 )
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/config/schema/graphx.schema.json" GRAPHX_AUTHORED_SCHEMA)
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/config/schema/node-type.schema.json" GRAPHX_TYPE_SCHEMA)
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/config/schema/normalized-graph.schema.json" GRAPHX_NORMALIZED_SCHEMA)
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/config/schema/guest-artifact.schema.json" GRAPHX_GUEST_SCHEMA)
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/config/schema/catalog-lock.schema.json" GRAPHX_LOCK_SCHEMA)
+# Remove indentation before embedding to stay within portable C++ literal limits.
+foreach(schema_variable GRAPHX_AUTHORED_SCHEMA GRAPHX_TYPE_SCHEMA GRAPHX_NORMALIZED_SCHEMA GRAPHX_GUEST_SCHEMA GRAPHX_LOCK_SCHEMA)
+  string(REGEX REPLACE "\n[ \t]+" "\n" ${schema_variable} "${${schema_variable}}")
+endforeach()
+configure_file(cmake/config_schemas.hpp.in generated/graphx/config_schemas.hpp @ONLY)
+target_compile_definitions(graphx PRIVATE GRAPHX_CATALOG_ROOT="${CMAKE_CURRENT_SOURCE_DIR}/config/catalog")
+install(DIRECTORY config/catalog DESTINATION ${CMAKE_INSTALL_DATADIR}/graphx)
 configure_file(include/graphx/version.hpp.in generated/graphx/version.hpp @ONLY)
 configure_file(cmake/GraphXBuildDependencies.json.in
   generated/graphx-build-dependencies.json @ONLY)
@@ -200,8 +206,13 @@ install(FILES "${CMAKE_CURRENT_BINARY_DIR}/GraphXConfig.cmake"
   "${CMAKE_CURRENT_BINARY_DIR}/GraphXConfigVersion.cmake"
   DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/GraphX COMPONENT development)
 install(FILES config/schema/graphx.schema.json config/schema/normalized-graph.schema.json
+  config/schema/node-type.schema.json config/schema/guest-artifact.schema.json config/schema/catalog-lock.schema.json
   DESTINATION ${CMAKE_INSTALL_DATADIR}/graphx/schema COMPONENT runtime)
-install(FILES examples/sample-pipeline/graphx.yaml DESTINATION ${CMAKE_INSTALL_DATADIR}/graphx COMPONENT runtime)
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/examples/sample-pipeline/graphx.yml" GRAPHX_INSTALLED_GRAPH)
+string(REPLACE "../../config/catalog/lock.json" "catalog/lock.json" GRAPHX_INSTALLED_GRAPH "${GRAPHX_INSTALLED_GRAPH}")
+file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/installed-graphx.yml" CONTENT "${GRAPHX_INSTALLED_GRAPH}")
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/installed-graphx.yml" RENAME graphx.yml
+  DESTINATION ${CMAKE_INSTALL_DATADIR}/graphx COMPONENT runtime)
 install(PROGRAMS tools/graphx-extcap
   DESTINATION ${CMAKE_INSTALL_LIBEXECDIR}/graphx COMPONENT tools)
 install(FILES wireshark/graphx.lua wireshark/README.md
@@ -305,6 +316,8 @@ if(GRAPHX_BUILD_TESTS)
   endif()
   graphx_add_python_test(graphx-config-cli tests/test_example_configs.py 45
     $<TARGET_FILE:graphx-cli> ${CMAKE_SOURCE_DIR})
+  graphx_add_python_test(graphx-config-v3-matrix tests/test_config_v3_matrix.py 120
+    $<TARGET_FILE:graphx-cli> ${CMAKE_SOURCE_DIR})
   graphx_add_python_test(graphx-normalized-config tests/test_normalized_config.py 45
     $<TARGET_FILE:graphx-cli> ${CMAKE_SOURCE_DIR})
   graphx_add_python_test(graphx-ovs-ownership-plan tests/test_ovs_ownership_plan.py 30
@@ -398,12 +411,8 @@ if(GRAPHX_BUILD_TESTS)
   add_test(NAME graphx-udp-transport
     COMMAND graphx-tests --filter "UDP" --repeat 3)
   set_tests_properties(graphx-udp-transport PROPERTIES TIMEOUT 30)
-  add_test(NAME graphx-udp-unicast-example
-    COMMAND ${CMAKE_SOURCE_DIR}/examples/udp-unicast/run.sh)
-  add_test(NAME graphx-udp-multicast-example
-    COMMAND ${CMAKE_SOURCE_DIR}/examples/udp-multicast/run.sh)
-  set_tests_properties(graphx-udp-unicast-example graphx-udp-multicast-example
-    PROPERTIES TIMEOUT 15 ENVIRONMENT "GRAPHX_BUILD_DIR=${CMAKE_BINARY_DIR}")
+  graphx_add_python_test(graphx-execution-gate tests/test_execution_gate.py 30
+    ${CMAKE_BINARY_DIR} ${CMAKE_SOURCE_DIR})
   add_test(NAME graphx-qemu-node-static
     COMMAND ${CMAKE_SOURCE_DIR}/examples/qemu-node/scripts/test.sh $<TARGET_FILE:graphx-cli>)
   set_tests_properties(graphx-qemu-node-static PROPERTIES TIMEOUT 30)

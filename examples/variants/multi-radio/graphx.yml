@@ -1,0 +1,98 @@
+# GraphX version 3. Validate/normalize only; execution adapters are unavailable.
+catalog: ../../../config/catalog/lock.json
+connections:
+  control:
+    from: processor-west.control
+    security:
+      profile: mtls
+      server_name: radio-west
+    to: radio-west.control
+    transport: tcp
+  control-east:
+    from: processor-east.control
+    security:
+      profile: mtls
+      server_name: radio-east
+    to: radio-east.control
+    transport: tcp
+  iq:
+    from: radio-west.samples
+    to: processor-west.samples
+    transport: udp
+  iq-east:
+    from: radio-east.samples
+    to: processor-east.samples
+    transport: udp
+  results:
+    from: processor-west.results
+    to: sink-west.results
+    transport: tcp
+  results-east:
+    from: processor-east.results
+    to: sink-east.results
+    transport: tcp
+credentials:
+  processor-east:
+    identity: processor-east
+    members:
+    - ca.pem
+    - cert.pem
+    - key.pem
+    provider: lab-generated
+  processor-west:
+    identity: processor-west
+    members:
+    - ca.pem
+    - cert.pem
+    - key.pem
+    provider: lab-generated
+  radio-east:
+    identity: radio-east
+    members:
+    - ca.pem
+    - cert.pem
+    - key.pem
+    provider: lab-generated
+  radio-west:
+    identity: radio-west
+    members:
+    - ca.pem
+    - cert.pem
+    - key.pem
+    provider: lab-generated
+graph:
+  id: multi-radio
+nodes:
+  processor-east:
+    credentials:
+      control: processor-east
+    execution:
+      kind: container
+    type: sdr.processor
+  processor-west:
+    credentials:
+      control: processor-west
+    execution:
+      kind: container
+    type: sdr.processor
+  radio-east:
+    credentials:
+      control: radio-east
+    execution:
+      kind: container
+    type: sdr.simulator
+  radio-west:
+    credentials:
+      control: radio-west
+    execution:
+      kind: container
+    type: sdr.simulator
+  sink-east:
+    execution:
+      kind: container
+    type: sdr.result-sink
+  sink-west:
+    execution:
+      kind: container
+    type: sdr.result-sink
+version: 3

@@ -43,31 +43,30 @@ class TemporaryConfig {
   inline static unsigned counter_{};
 };
 
-inline constexpr std::string_view valid_config = R"yaml(
-version: 2
-graph:
-  id: test-graph
-  nodes:
-    - id: source
-      kind: source
-      ports: [{ name: out, direction: output, schema: Sample }]
-    - id: target
-      kind: sink
-      ports: [{ name: in, direction: input, schema: Sample }]
-  edges:
-    - { id: sample-edge, from: source.out, to: target.in, transport: tcp }
-transport:
-  tcp:
-    sample-edge:
-      host: target
-      bind: 0.0.0.0
-      port: 7001
-      framing: u32be
-      connect_timeout_ms: 1200
-      send_timeout_ms: 900
-      reconnect: true
-      retry: { max_attempts: 7, initial_backoff_ms: 10, max_backoff_ms: 80 }
-)yaml";
+inline graphx::ConfigValue authored(std::string_view example = "sample-pipeline") {
+  const auto path = std::filesystem::path(GRAPHX_SOURCE_DIR) / "examples" / example / "graphx.yml";
+  auto value = graphx::load_config(path).authored;
+  value["catalog"] = std::filesystem::relative(
+                         std::filesystem::path(GRAPHX_SOURCE_DIR) / "config/catalog/lock.json",
+                         std::filesystem::temp_directory_path())
+                         .string();
+  return value;
+}
+inline graphx::GraphConfig load_value(const graphx::ConfigValue& value) {
+  TemporaryConfig file(graphx::config_value_json(value));
+  return graphx::load_config(file.path());
+}
+inline void rejected(const graphx::ConfigValue& value, std::string_view code,
+                     std::string_view path) {
+  try {
+    (void)load_value(value);
+  } catch (const graphx::ConfigError& error) {
+    for (const auto& d : error.diagnostics())
+      if (d.code == code && d.path.find(path) != std::string::npos) return;
+    throw std::runtime_error(std::string("unexpected diagnostic: ") + error.what());
+  }
+  throw std::runtime_error("invalid configuration accepted");
+}
 
 inline bool diagnostic_contains(const graphx::ConfigError& error, std::string_view text) {
   for (const auto& diagnostic : error.diagnostics())
@@ -75,23 +74,6 @@ inline bool diagnostic_contains(const graphx::ConfigError& error, std::string_vi
         diagnostic.message.find(text) != std::string::npos)
       return true;
   return false;
-}
-
-inline std::string current_network_config() {
-  auto source = std::string(valid_config);
-  source += R"yaml(
-network:
-  networks:
-    - id: semantic-lan
-      profile: ethernet
-      subnets: [10.80.0.0/24]
-      gateway: 10.80.0.1
-      external: false
-  attachments:
-    - { id: source-data, kind: external, owner: source, network: semantic-lan, address: 10.80.0.10/24, mac: "02:80:00:00:00:10" }
-    - { id: target-data, kind: external, owner: target, network: semantic-lan, address: 10.80.0.20/24 }
-)yaml";
-  return source;
 }
 
 inline int run_tests(std::initializer_list<std::pair<const char*, std::function<void()>>> tests) {

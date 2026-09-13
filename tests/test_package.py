@@ -58,7 +58,7 @@ def rewrite_archive(source: Path, destination: Path, *, omitted: str | None = No
 
 
 with tempfile.TemporaryDirectory(prefix="graphx-package-test-") as temporary:
-    root = Path(temporary)
+    root = Path(temporary).resolve()
     prefix = root / "prefix"
     run(["cmake", "--install", str(BUILD), "--prefix", str(prefix)])
     executable = prefix / "bin" / "graphx"
@@ -78,6 +78,9 @@ with tempfile.TemporaryDirectory(prefix="graphx-package-test-") as temporary:
     ]
     assert all(path.is_file() for path in required), [str(path) for path in required if not path.is_file()]
     assert subprocess.check_output([executable, "--version"], text=True) == f"graphx {VERSION}\n"
+
+    installed_graph = prefix / "share/graphx/graphx.yml"
+    run([str(executable), "validate", str(installed_graph), "--catalog-root", str(prefix / "share/graphx/catalog")])
 
     contract = archive_file_contract(VERSION, current_platform())
     if IS_RELEASE:

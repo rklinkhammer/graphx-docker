@@ -6,7 +6,7 @@ Input: [graphx.yml](graphx.yml). Shared types: [catalog](../../catalog/README.md
 
 Preserved intent and proposed acceptance: Raw SDR1 UDP 18400, maximum datagram 1400, 256 sample limit; TLS 1.3 mutual control 18401; LF JSON results 18402; explicit source IP allowlist; bounded raw application capture replaces optional privileged sniffer.
 
-Current source evidence: [source](../../../../examples/sdr-node/simulated/graphx.yaml). Source inspection establishes the current contract, not that v3 generation works. All expected artifacts have status `static-design`; proposed execution has not run. Native platform packaging and generic bindings are proposed in every set.
+Current source evidence: [source](../../../../examples/sdr-node/simulated/graphx.yml). Source inspection establishes the current contract, not that v3 generation works. All expected artifacts have status `static-design`; proposed execution has not run. Native platform packaging and generic bindings are proposed in every set.
 
 | Target | Capability cell | Rule and placement/reason | Evidence |
 |---|---|---|---|

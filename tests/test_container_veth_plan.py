@@ -1,84 +1,8 @@
 #!/usr/bin/env python3
-"""Portable container-veth configuration, planning, and ownership contracts."""
-
-from __future__ import annotations
-
-import os
-from pathlib import Path
-import subprocess
+"""Validate resolved resources and the explicit P1 realization gate."""
 import sys
-import tempfile
+from config_plan_support import check
 
-
-CONFIG = """\
-version: 2
-graph:
-  id: m4-portable
-  nodes:
-    - { id: worker, kind: source, runtime: docker, ports: [] }
-  edges: []
-transport: {}
-network:
-  networks:
-    - { id: data, profile: ethernet, subnets: [10.77.0.0/24], gateway: 10.77.0.1, external: true }
-  switches:
-    - { id: br-m4-port, kind: openvswitch, datapath: system, ports: [] }
-  attachments:
-    - id: worker-data
-      kind: container_veth
-      owner: worker
-      network: data
-      address: 10.77.0.2/24
-      mac: "02:77:00:00:00:02"
-      interface: gxdata0
-      peer: gxcvhost0
-      switch: br-m4-port
-      mtu: 1400
-      routes: [{ destination: 10.78.0.0/24, via: 10.77.0.1 }]
-deployment:
-  project: graphx-container-veth
-  services:
-    worker: { image: graphx-demo:latest, command: graphx-generator }
-"""
-
-
-def run(*args: object, check: bool = True) -> subprocess.CompletedProcess[str]:
-    result = subprocess.run([str(v) for v in args], text=True, capture_output=True,
-                            timeout=20, env={**os.environ, "GRAPHX_OVERRIDES": ""})
-    if check and result.returncode != 0:
-        raise AssertionError(result.stderr)
-    return result
-
-
-def require(value: bool, message: str) -> None:
-    if not value:
-        raise AssertionError(message)
-
-
-def main() -> int:
-    if len(sys.argv) != 3:
-        raise SystemExit("usage: test_container_veth_plan.py GRAPHX SOURCE_ROOT")
-    graphx = Path(sys.argv[1])
-    with tempfile.TemporaryDirectory(prefix="graphx-container-veth-") as raw:
-        config = Path(raw) / "graphx.yaml"
-        config.write_text(CONFIG, encoding="utf-8")
-        run(graphx, "validate", config)
-        plan = run(graphx, "infra", "create", config, "--dry-run",
-                   "--state-dir", Path(raw) / "state").stdout
-        for marker in ("project=graphx-container-veth", "service=worker", "ip link add gxcvhost0",
-                       "ovs-vsctl add-port br-m4-port", "address=10.77.0.2/24", "mtu=1400"):
-            require(marker in plan, f"missing container-veth plan marker: {marker}")
-        require("docker network" not in plan and "macvlan" not in plan and "ipvlan" not in plan,
-                "container-veth must not create a Docker data-plane network")
-        missing_project = config.read_text().replace("  project: graphx-container-veth\n", "")
-        config.write_text(missing_project, encoding="utf-8")
-        rejected = run(graphx, "validate", config, check=False)
-        require(rejected.returncode != 0 and "deployment.project" in rejected.stderr,
-                "container attachments require explicit deployment identity")
-
-    print("GraphX container-veth portable container-veth contracts passed")
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
+for example in ['macvlan', 'ipvlan-l2', 'ipvlan-l3']:
+    check(sys.argv[1], sys.argv[2], example)
+print("resolved resources and execution gate passed")

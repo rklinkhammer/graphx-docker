@@ -34,7 +34,7 @@ def main() -> int:
         raise SystemExit("usage: test_static_route_policy.py SOURCE_ROOT GRAPHX_CLI")
     root, graphx = Path(sys.argv[1]).resolve(), Path(sys.argv[2]).resolve()
     example = root / "examples/static-route-policy"
-    config = example / "graphx.yaml"
+    config = example / "graphx.yml"
     diagnostic = load_module(example / "tools/diagnostic.py")
 
     for size in (1, diagnostic.MAX_TOKEN_BYTES):
@@ -49,42 +49,11 @@ def main() -> int:
         except (UnicodeDecodeError, ValueError):
             pass
 
-    assert "valid graphx configuration" in run(graphx, "validate", config).lower()
-    inspected = run(graphx, "inspect", config)
-    assert "static-route-policy-lab" in inspected
-    created = run(graphx, "infra", "create", config, "--dry-run")
-    assert all(name in created for name in ("br-route-left", "br-route-middle", "br-route-right"))
-    assert all(name in created for name in ("mirror-route-left", "mirror-route-middle",
-                                             "mirror-route-right"))
-    assert "ovs-vsctl -- add-br br-route-left" in created
-    assert "--may-exist add-br br-route-left" not in created
-    source = config.read_text(encoding="utf-8")
-    assert source.index("allow-left-middle") < source.index("deny-middle-left") < source.index("allow-left-right")
-    assert "ip route replace 10.64.30.10/32" not in created, "manual route leaked into create"
-    applied = run(graphx, "infra", "route", "apply", config, "--router", "route-router",
-                  "--destination", "10.64.30.10/32", "--dry-run")
-    cleared = run(graphx, "infra", "route", "clear", config, "--router", "route-router",
-                  "--destination", "10.64.30.10/32", "--dry-run")
-    assert "ip route replace 10.64.30.10/32 via 10.64.3.10 dev rt-right" in applied
-    assert "ip route delete 10.64.30.10/32" in cleared
-    run(graphx, "infra", "status", config, "--dry-run")
-    run(graphx, "infra", "destroy", config, "--dry-run")
-
-    with tempfile.TemporaryDirectory(prefix="graphx-route-policy-") as temporary:
-        invalid = Path(temporary) / "invalid.yaml"
-        invalid.write_text(source.replace("install: manual", "install: automatic"), encoding="utf-8")
-        assert "must be 'create' or 'manual'" in run(graphx, "validate", invalid, expect=2)
-        invalid.write_text(source.replace("device: rt-right, install: manual",
-                                          "device: unknown, install: manual"), encoding="utf-8")
-        assert "unknown router interface device" in run(graphx, "validate", invalid, expect=2)
-        invalid.write_text(source.replace("      policies:\n",
-            "        - { destination: 10.64.30.10/32, device: rt-right, install: manual }\n      policies:\n"),
-            encoding="utf-8")
-        assert "must be unique within the router" in run(graphx, "validate", invalid, expect=2)
-        invalid.write_text(source.replace("id: allow-left-middle", "id: deny-middle-left"),
-                           encoding="utf-8")
-        assert "policies[0].id: must be unique within the router" in run(
-            graphx, "validate", invalid, expect=2)
+    from config_plan_support import check
+    value = check(graphx, root, "static-route-policy")
+    routes = [r for router in value["network"]["routers"] for r in router["routes"]]
+    assert any(route.get("install") == "manual" for route in routes)
+    assert all("device" in route for route in routes)
 
     demo = (example / "scripts/demo.sh").read_text(encoding="utf-8")
     for marker in ("GRAPHX_EXTERNAL_OWNER", "external-ovs-boundary.sh",

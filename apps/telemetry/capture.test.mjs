@@ -60,8 +60,8 @@ test('capture downloads are bounded and reject symlink traversal', async t => {
   const port = await availablePort()
   const udpPort = await availablePort()
   const environment = { ...process.env, PORT: String(port), GRAPHX_TELEMETRY_PORT: String(udpPort),
-    ...normalizedConfigEnvironment(join(repository, 'examples/sample-pipeline/graphx.yaml'),
-      'observability.capture.snaplen=4096;observability.capture.max_file_bytes=65536;observability.capture.max_packets=2'),
+    ...normalizedConfigEnvironment(join(repository, 'examples/sample-pipeline/graphx.yml'),
+      'platform.capture.max_file_bytes=65536;platform.capture.max_packets=2'),
     GRAPHX_CAPTURE_ENABLED: 'true', GRAPHX_CAPTURE_DIR: captures }
   for (const key of Object.keys(environment))
     if (key.startsWith('GRAPHX_CONTROL_') || key.startsWith('GRAPHX_RUNTIME_') ||
@@ -85,7 +85,7 @@ test('capture downloads are bounded and reject symlink traversal', async t => {
   }
   assert.equal(ready, true, 'telemetry server did not become ready')
   const listing = await (await fetch(`${base}/api/captures`)).json()
-  assert.deepEqual(listing.limits, { snaplen: 4096, maxFileBytes: 65536, maxPackets: 2,
+  assert.deepEqual(listing.limits, { snaplen: 65535, maxFileBytes: 65536, maxPackets: 2,
     catalogMaxFiles: 128, catalogMaxEntries: 512 })
   assert.equal(listing.files.some(file => file.name === 'valid.pcapng'), true)
   assert.equal(listing.files.some(file => file.name === 'leak.pcapng'), false)
@@ -110,8 +110,8 @@ test('capture catalog bounds filesystem work and snapshot payloads without gatin
   const port = await availablePort()
   const udpPort = await availablePort()
   const environment = { ...process.env, PORT: String(port), GRAPHX_TELEMETRY_PORT: String(udpPort),
-    ...normalizedConfigEnvironment(join(repository, 'examples/sample-pipeline/graphx.yaml'),
-      'observability.capture.max_file_bytes=65536'), GRAPHX_CAPTURE_ENABLED: 'true',
+    ...normalizedConfigEnvironment(join(repository, 'examples/sample-pipeline/graphx.yml'),
+      'platform.capture.max_file_bytes=65536'), GRAPHX_CAPTURE_ENABLED: 'true',
     GRAPHX_CAPTURE_DIR: captures,
     GRAPHX_CAPTURE_CATALOG_MAX_FILES: '4', GRAPHX_CAPTURE_CATALOG_MAX_ENTRIES: '10' }
   for (const key of Object.keys(environment))
@@ -240,7 +240,7 @@ test('capture catalog bounds directory work and returns sorted truncation metada
   assert.deepEqual(names, [...names].sort((left, right) => left < right ? -1 : left > right ? 1 : 0))
 })
 
-async function rejectedCaptureStartup(overrides, configPath = join(repository, 'examples/sample-pipeline/graphx.yaml')) {
+async function rejectedCaptureStartup(overrides, configPath = join(repository, 'examples/sample-pipeline/graphx.yml')) {
   const environment = { ...process.env, PORT: String(await availablePort()),
     GRAPHX_TELEMETRY_PORT: String(await availablePort()), ...normalizedConfigEnvironment(configPath) }
   delete environment.GRAPHX_CAPTURE_ENABLED
@@ -267,31 +267,12 @@ test('capture deployment toggle fails closed', async () => {
   assert.match(await rejectedCaptureStartup({ GRAPHX_CAPTURE_ENABLED: 'maybe' }), /must be one of/)
 })
 
-test('native normalization rejects incomplete capture configuration', async t => {
-  const directory = await mkdtemp(join(tmpdir(), 'graphx-capture-required-path-'))
-  t.after(() => rm(directory, { recursive: true, force: true }))
-  const source = await readFile(join(repository, 'examples/sample-pipeline/graphx.yaml'), 'utf8')
-  const config = join(directory, 'missing-directory.yaml')
-  await writeFile(config, source
-    .replace('    enabled: false', '    enabled: true')
-    .replace('    directory: captures\n', ''))
-  assert.match(rejectedNormalization(config), /observability\.capture\.directory: is required/)
-})
-
-test('native normalization rejects quoted capture types', async t => {
+test('native normalization rejects unsafe capture types and explicit runtime paths', async t => {
   const directory = await mkdtemp(join(tmpdir(), 'graphx-capture-config-'))
-  t.after(() => rm(directory, { recursive: true, force: true }))
-  const source = await readFile(join(repository, 'examples/sample-pipeline/graphx.yaml'), 'utf8')
-  const variants = [
-    source.replace('    enabled: false\n    provider: pcapng',
-      '    enabled: "false"\n    provider: pcapng'),
-    source.replace('    snaplen: 16777220', '    snaplen: "16777220"'),
-    source.replace('    max_file_bytes: 268435456', '    max_file_bytes: "268435456"'),
-    source.replace('    max_packets: 1000000', '    max_packets: "1000000"'),
-  ]
-  for (const [index, contents] of variants.entries()) {
-    const config = join(directory, `quoted-${index}.yaml`)
-    await writeFile(config, contents)
-    assert.match(rejectedNormalization(config), /must be (a boolean|an unsigned integer), not a string/)
+  t.after(() => rm(directory, {recursive: true, force: true}))
+  for (const [key, value] of [['enabled', 'true'], ['max_files', '2'], ['max_packets', '10'], ['directory', '/tmp/escape']]) {
+    const config = join(directory, `${key}.json`)
+    await writeFile(config, JSON.stringify({version: 3, catalog: 'unused', graph: {id: 'test'}, nodes: {}, connections: {}, platform: {capture: {[key]: value}}}))
+    assert.match(rejectedNormalization(config), /E_SCHEMA.*platform\.capture/)
   }
 })

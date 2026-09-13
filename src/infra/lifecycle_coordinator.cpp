@@ -106,7 +106,9 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
                                               OvsLifecycleAction action, bool dry_run,
                                               const std::filesystem::path& state_root,
                                               std::ostream& output, std::ostream& errors) {
-  if (config.version != 2) throw std::invalid_argument("OVS lifecycle requires version 2");
+  if (config.version == 3)
+    throw std::logic_error("E_PHASE_UNAVAILABLE: v3 resource realization requires P7/P8");
+  if (config.version != 3) throw std::invalid_argument("OVS lifecycle requires authored version 3");
   const auto hash = configuration_hash(config_path);
   const auto state_path = state_root / (config.id + ".yaml");
   if (dry_run) {
@@ -776,7 +778,10 @@ int infra::detail::export_owned_network_capture_impl(const GraphConfig& config,
                                                      const std::filesystem::path& state_root,
                                                      const std::filesystem::path& destination,
                                                      std::ostream& output) {
-  if (config.version != 2) throw std::invalid_argument("network capture export requires version 2");
+  if (config.version == 3)
+    throw std::logic_error("E_PHASE_UNAVAILABLE: v3 resource realization requires P7/P8");
+  if (config.version != 3)
+    throw std::invalid_argument("network capture export requires authored version 3");
   if (!inspect_existing_state_root(state_root))
     throw std::runtime_error("network capture ownership state is unavailable");
   const auto state_path = state_root / (config.id + ".yaml");

@@ -23,7 +23,7 @@ test('normalized configuration fixture satisfies its strict schema', () => {
   assert.equal(validate(extraTopLevel), false, 'unknown top-level property was accepted')
 
   const extraNested = structuredClone(fixture)
-  extraNested.network.faults[0].unbounded = true
+  extraNested.network.captures[0].unbounded = true
   assert.equal(validate(extraNested), false, 'unknown nested property was accepted')
 
   const unknownNetworkField = structuredClone(fixture)
@@ -39,8 +39,8 @@ test('all checked-in configurations normalize to the schema', {
   const visit = directory => {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
       const path = resolve(directory, entry.name)
-      if (entry.isDirectory()) visit(path)
-      else if (entry.isFile() && entry.name === 'graphx.yaml') configurations.push(path)
+      if (entry.isDirectory() && !['output', 'dl', 'node_modules'].includes(entry.name)) visit(path)
+      else if (entry.isFile() && entry.name === 'graphx.yml') configurations.push(path)
     }
   }
   visit(resolve(repository, 'examples'))

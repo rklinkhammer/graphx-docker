@@ -1,7 +1,13 @@
 #!/usr/bin/env bash
+
+# Authored v3 execution is not yet implemented. Sourced library functions remain available.
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  echo "E_PHASE_UNAVAILABLE: GraphX v3 execution adapters are not implemented; no action was performed" >&2
+  exit 2
+fi
 set -euo pipefail
 
-ROOT=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)
+ROOT=$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)
 # shellcheck source=lib/demo-runtime.sh
 source "${ROOT}/scripts/lib/demo-runtime.sh"
 

@@ -1,5 +1,5 @@
 {
-  "catalog_digest": "d984d3c04c8ac657407f9c704a3f3a3760a352e348fb0a32616077b2caba5cff",
+  "catalog_digest": "3589ffafcc9bccc4fbf453cf9dc3d43e5a82be956c8be4aff113c64c6e78c7ed",
   "compiler": "proposed-graphx-v3-design-1",
   "files": [
     {
@@ -44,7 +44,7 @@
     },
     {
       "path": "resolved.json",
-      "sha256": "2ef12ebd938d166aad18167d4ecb270215fbfca86aa1bec334baf28fe80bc7bd"
+      "sha256": "84360afefbfeeb4abecc21372d93dd3ad61cc5c31a55644f42284b1eb550a144"
     },
     {
       "path": "scenario-plan.json",

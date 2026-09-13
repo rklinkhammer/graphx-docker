@@ -315,9 +315,10 @@ async function availablePort() {
 function rejectedConfiguration(history, expected) {
   const temporary = temporaryHistory()
   const directory = dirname(fileURLToPath(import.meta.url))
-  const configFile = join(temporary.directory, 'graphx.yaml')
-  const source = parseYaml(readFileSync(resolve(directory, '../../examples/sample-pipeline/graphx.yaml'), 'utf8'))
-  source.observability.history = history
+  const configFile = join(temporary.directory, 'graphx.yml')
+  const source = parseYaml(readFileSync(resolve(directory, '../../examples/sample-pipeline/graphx.yml'), 'utf8'))
+  source.platform ||= {}
+  source.platform.history = history
   writeFileSync(configFile, stringifyYaml(source))
   const graphx = process.env.NORMALIZED_CONFIG_CLI || resolve(directory, '../../build/dev/graphx')
   try {
@@ -332,14 +333,10 @@ function rejectedConfiguration(history, expected) {
 }
 
 test('native normalization rejects invalid history configuration', () => {
-    rejectedConfiguration({ enabled: true, backend: '',
-      database_file: 'history.sqlite' }, /observability\.history\.backend: must/)
-    rejectedConfiguration({ enabled: true, backend: 'sqlite',
-      database_file: '' }, /observability\.history\.database_file: must/)
-    rejectedConfiguration({ enabled: true, backend: 'sqlite',
-      database_file: 'history.sqlite', typo_retention_seconds: 60 },
-    /observability\.history\.typo_retention_seconds: unknown property/)
-  })
+  rejectedConfiguration({backend: ''}, /platform\.history\.backend/)
+  rejectedConfiguration({database_file: ''}, /platform\.history\.database_file/)
+  rejectedConfiguration({typo_retention_seconds: 60}, /platform\.history\.typo_retention_seconds/)
+})
 
 async function startTelemetry(databaseFile) {
   const directory = dirname(fileURLToPath(import.meta.url))
@@ -348,8 +345,8 @@ async function startTelemetry(databaseFile) {
   const child = spawn(process.execPath, ['server.mjs'], { cwd: directory,
     env: { ...process.env, PORT: String(port), GRAPHX_TELEMETRY_PORT: String(udpPort),
       GRAPHX_HTTP_BIND: '127.0.0.1', GRAPHX_TELEMETRY_BIND: '127.0.0.1',
-      ...normalizedConfigEnvironment(resolve(directory, '../../examples/sample-pipeline/graphx.yaml'),
-        'observability.history.flush_interval_ms=10;observability.history.batch_size=1'),
+      ...normalizedConfigEnvironment(resolve(directory, '../../examples/sample-pipeline/graphx.yml'),
+        'platform.history.flush_interval_ms=10;platform.history.batch_size=1'),
       GRAPHX_HISTORY_ENABLED: 'true', GRAPHX_HISTORY_DATABASE_FILE: databaseFile,
       GRAPHX_OBSERVATION_TOKEN: secret },
     stdio: ['ignore', 'pipe', 'pipe'] })

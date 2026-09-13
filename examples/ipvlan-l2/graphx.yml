@@ -1,0 +1,216 @@
+# GraphX version 3. Validate/normalize only; execution adapters are unavailable.
+catalog: ../../config/catalog/lock.json
+connections:
+  samples:
+    attachments:
+      from: generator-data
+      to: transform-data
+    from: generator.samples
+    settings:
+      bind: 0.0.0.0
+      connect_timeout_ms: 1000
+      host: 10.41.2.20
+      port: 7001
+      reconnect: true
+      retry:
+        initial_backoff_ms: 100
+        max_attempts: 60
+        max_backoff_ms: 2000
+      send_timeout_ms: 5000
+    to: transform.samples
+    transport: tcp
+  transformed:
+    attachments:
+      from: transform-data
+      to: sink-data
+    from: transform.transformed
+    settings:
+      bind: 0.0.0.0
+      connect_timeout_ms: 1000
+      host: 10.41.3.30
+      port: 7002
+      reconnect: true
+      retry:
+        initial_backoff_ms: 100
+        max_attempts: 60
+        max_backoff_ms: 2000
+      send_timeout_ms: 5000
+    to: sink.transformed
+    transport: tcp
+graph:
+  id: ipvlan-l2
+network:
+  attachments:
+  - address: 10.41.1.10/24
+    id: generator-data
+    kind: container_veth
+    mac: 02:41:00:00:00:01
+    network: gx-ipvl2-generator
+    owner: generator
+    routes:
+    - destination: 10.41.2.0/24
+      via: 10.41.1.1
+    switch: br-l2-gen
+  - address: 10.41.2.20/24
+    id: transform-data
+    kind: container_veth
+    mac: 02:41:00:00:00:01
+    network: gx-ipvl2-transform
+    owner: transform
+    routes:
+    - destination: 10.41.1.0/24
+      via: 10.41.2.1
+    - destination: 10.41.3.0/24
+      via: 10.41.2.1
+    switch: br-l2-xform
+  - address: 10.41.3.30/24
+    id: sink-data
+    kind: container_veth
+    mac: 02:41:00:00:00:01
+    network: gx-ipvl2-sink
+    owner: sink
+    routes:
+    - destination: 10.41.2.0/24
+      via: 10.41.3.1
+    switch: br-l2-sink
+  - id: mirror-l2-gen
+    kind: mirror
+    owner: br-l2-gen
+    port: capture
+    switch: br-l2-gen
+  - id: mirror-l2-xform
+    kind: mirror
+    owner: br-l2-xform
+    port: capture
+    switch: br-l2-xform
+  - id: mirror-l2-sink
+    kind: mirror
+    owner: br-l2-sink
+    port: capture
+    switch: br-l2-sink
+  captures:
+  - attachment: mirror-l2-gen
+    id: mirror-l2-gen
+    max_file_bytes: 67108864
+    max_files: 2
+    retention_seconds: 86400
+    rotation_seconds: 300
+    snaplen: 65535
+  - attachment: mirror-l2-xform
+    id: mirror-l2-xform
+    max_file_bytes: 67108864
+    max_files: 2
+    retention_seconds: 86400
+    rotation_seconds: 300
+    snaplen: 65535
+  - attachment: mirror-l2-sink
+    id: mirror-l2-sink
+    max_file_bytes: 67108864
+    max_files: 2
+    retention_seconds: 86400
+    rotation_seconds: 300
+    snaplen: 65535
+  edge_paths:
+    samples:
+    - generator
+    - gx-ipvl2-generator
+    - br-l2-gen
+    - ipvlan-l2-router
+    - br-l2-xform
+    - gx-ipvl2-transform
+    - transform
+    transformed:
+    - transform
+    - gx-ipvl2-transform
+    - br-l2-xform
+    - ipvlan-l2-router
+    - br-l2-sink
+    - gx-ipvl2-sink
+    - sink
+  networks:
+  - gateway: 10.41.1.1
+    id: gx-ipvl2-generator
+    profile: ipvlan-l2
+    realization: ovs
+    subnets:
+    - 10.41.1.0/24
+  - gateway: 10.41.2.1
+    id: gx-ipvl2-transform
+    profile: ipvlan-l2
+    realization: ovs
+    subnets:
+    - 10.41.2.0/24
+  - gateway: 10.41.3.1
+    id: gx-ipvl2-sink
+    profile: ipvlan-l2
+    realization: ovs
+    subnets:
+    - 10.41.3.0/24
+  routers:
+  - forwarding: true
+    id: ipvlan-l2-router
+    interfaces:
+    - address: 10.41.1.1/24
+      id: generator
+      network: gx-ipvl2-generator
+      switch: br-l2-gen
+    - address: 10.41.2.1/24
+      id: transform
+      network: gx-ipvl2-transform
+      switch: br-l2-xform
+    - address: 10.41.3.1/24
+      id: sink
+      network: gx-ipvl2-sink
+      switch: br-l2-sink
+    kind: linux_namespace
+    policies:
+    - action: accept
+      destination: 10.41.2.0/24
+      id: generator-to-transform
+      source: 10.41.1.0/24
+    - action: accept
+      destination: 10.41.3.0/24
+      id: transform-to-sink
+      source: 10.41.2.0/24
+  switches:
+  - datapath: system
+    id: br-l2-gen
+    kind: openvswitch
+    mirror:
+      id: mirror-l2-gen
+      output_port: capture
+      select_all: true
+    ports:
+    - id: capture
+  - datapath: system
+    id: br-l2-xform
+    kind: openvswitch
+    mirror:
+      id: mirror-l2-xform
+      output_port: capture
+      select_all: true
+    ports:
+    - id: capture
+  - datapath: system
+    id: br-l2-sink
+    kind: openvswitch
+    mirror:
+      id: mirror-l2-sink
+      output_port: capture
+      select_all: true
+    ports:
+    - id: capture
+nodes:
+  generator:
+    execution:
+      kind: container
+    type: sample.source
+  sink:
+    execution:
+      kind: container
+    type: sample.sink
+  transform:
+    execution:
+      kind: container
+    type: sample.transform
+version: 3

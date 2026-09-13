@@ -61,31 +61,10 @@ def main() -> int:
         'scripts/network-lab.sh "${lab}" "${action}"',
     ):
         require(token in launcher_text, f"network-lab runtime omits {token}")
-    rejected = subprocess.run(
-        [str(dispatcher), "not-a-lab", "up"], text=True, capture_output=True
-    )
-    require(rejected.returncode == 64 and "unsupported network laboratory" in rejected.stderr,
-            "network-lab dispatcher does not reject an unknown lab before execution")
-
-    with tempfile.TemporaryDirectory(prefix="graphx-network-lab-test-") as temporary:
-        temporary_path = Path(temporary)
-        invocation_log = temporary_path / "invocations"
-        fake_uname = temporary_path / "uname"
-        fake_graphx = temporary_path / "graphx"
-        fake_uname.write_text("#!/bin/sh\nprintf 'Linux\\n'\n", encoding="utf-8")
-        fake_graphx.write_text(
-            f"#!/bin/sh\nprintf '%s\\n' \"$*\" >'{invocation_log}'\n", encoding="utf-8"
-        )
-        fake_uname.chmod(0o755)
-        fake_graphx.chmod(0o755)
-        environment = {**os.environ, "PATH": f"{temporary}:{os.environ['PATH']}",
-                       "GRAPHX_BIN": str(fake_graphx)}
-        subprocess.run([str(dispatcher), "ipvlan-l2", "plan"], env=environment, check=True)
-        invocation = invocation_log.read_text(encoding="utf-8")
-        require("infra create" in invocation and
-                str(root / "examples/ipvlan-l2/graphx.yaml") in invocation and
-                "--dry-run" in invocation,
-                "Linux network-lab plan does not select the requested version-2 topology")
+    for arguments in [("not-a-lab", "up"), ("ipvlan-l2", "plan")]:
+        rejected = subprocess.run([str(dispatcher), *arguments], text=True, capture_output=True)
+        require(rejected.returncode == 2 and "E_PHASE_UNAVAILABLE" in rejected.stderr,
+                "unconverted dispatcher must fail before selecting a runtime")
 
     config_digest = subprocess.run(
         ["bash", "-c", f'source "{lima / "common.sh"}"; graphx_lima_digest'],
@@ -116,16 +95,10 @@ def main() -> int:
             "GRAPHX_TEST_INSTANCE":
                 f"graphx|Running|aarch64|vz|{root}|{config_digest}",
         }
-        subprocess.run([str(dispatcher), "macvlan", "status"], env=environment, check=True)
-        invocations = invocation_log.read_text(encoding="utf-8").splitlines()
-        require(len(invocations) == 2, "macOS dispatcher did not preflight and invoke Lima")
-        require("test -x" in invocations[0] and "docker info" in invocations[0]
-                and "openvswitch-switch.service" in invocations[0],
-                "macOS dispatcher does not preflight its guest dependencies")
-        require("--workdir /workspace/graphx-docker graphx -- env" in invocations[1]
-                and "GRAPHX_BIN=/var/lib/graphx/runtime/build/dev/graphx" in invocations[1]
-                and "scripts/network-lab.sh macvlan status" in invocations[1],
-                "macOS dispatcher does not route the canonical action through Lima")
+        result = subprocess.run([str(dispatcher), "macvlan", "status"], env=environment, capture_output=True, text=True)
+        require(result.returncode == 2 and "E_PHASE_UNAVAILABLE" in result.stderr,
+                "v3 dispatcher must fail before Lima invocation")
+        require(not invocation_log.exists(), "gated dispatcher invoked Lima")
     provision = (lima / "provision.sh").read_text(encoding="utf-8")
     for token in ("docker.io", "docker-buildx", "docker-compose-v2", "openvswitch-switch", "nftables", "qemu-system-ppc", "tshark", "/var/lib/graphx"):
         require(token in provision, f"provisioning omits {token}")
@@ -173,7 +146,7 @@ def main() -> int:
             "Lima verification must exercise production lifecycle tests, not reproduce them")
 
     docs = "\n".join((root / name).read_text(encoding="utf-8") for name in ("README.md", "SUPPORT.md", "docs/security.md", "docs/GraphX_Architecture.md"))
-    for statement in ("version: 2", "veth", "TAP", "Open vSwitch"):
+    for statement in ("version: 3", "veth", "TAP", "Open vSwitch"):
         require(statement.lower() in docs.lower(), f"documentation does not state Lima boundary: {statement}")
     print("Lima static contract checks passed")
     return 0

@@ -1,22 +1,20 @@
 # Shared-memory process pipeline
 
-Platform: native Linux and macOS; no Docker or privileged networking required.
+This authored v3 example is supported for validation and normalization. Graph
+execution is unavailable in P1; its launcher returns `E_PHASE_UNAVAILABLE` before
+performing actions. The retained launch recipes require the later adapters.
 
-This example runs generator, transform, and sink as three local processes. Both
-logical edges use bounded POSIX shared-memory rings rather than sockets.
+Run from the repository root:
 
 ```sh
-cmake --preset dev && cmake --build --preset dev
-./build/dev/graphx validate examples/shared-memory/graphx.yaml
-examples/shared-memory/run.sh
+build/dev/graphx validate examples/shared-memory/graphx.yml
+build/dev/graphx config normalize examples/shared-memory/graphx.yml > resolved.json
 ```
 
-The default run sends 20 messages and exits cleanly. Override
-`GRAPHX_MAX_MESSAGES`, `GRAPHX_INTERVAL_MS`, or `GRAPHX_BUILD_DIR` as needed.
-Each listener owns its segment and unlinks it during an orderly shutdown. A new
-listener also removes a stale name before creating its segment.
+Select `--target native-linux`, `native-macos`, `orbstack`, or `lima` to check
+placement capabilities. Managed OVS and QEMU require Linux or Lima; this command
+does not run a laboratory. The graph declares its catalog, typed node instances,
+connections, bounded platform policy and any explicit scenario actions.
 
-The implementation is single-producer/single-consumer and copy-based. It does
-not work across hosts or across containers with separate IPC namespaces unless
-they are deliberately configured to share the same POSIX shared-memory mount and
-IPC namespace.
+See the [example matrix](../README.md) for all supported inputs and
+[configuration contract](../../docs/configuration.md) for diagnostics and limits.

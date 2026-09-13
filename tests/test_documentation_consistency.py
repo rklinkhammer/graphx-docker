@@ -92,8 +92,9 @@ def main() -> int:
     if not minimal_config:
         raise AssertionError("user guide does not contain a YAML configuration")
     with tempfile.TemporaryDirectory(prefix="graphx-user-guide-") as temporary:
-        example = Path(temporary) / "graphx.yaml"
-        example.write_text(minimal_config.group(1) + "\n", encoding="utf-8")
+        example = Path(temporary) / "graphx.yml"
+        contents = re.sub(r"^catalog:.*$", "catalog: " + os.path.relpath(root / "config/catalog/lock.json", example.parent), minimal_config.group(1), flags=re.MULTILINE)
+        example.write_text(contents + "\n", encoding="utf-8")
         subprocess.run(
             [graphx_cli, "validate", example],
             cwd=root,

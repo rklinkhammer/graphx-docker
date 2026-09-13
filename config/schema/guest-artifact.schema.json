@@ -1,0 +1,152 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "accelerators": {
+      "items": {
+        "enum": [
+          "tcg"
+        ]
+      },
+      "maxItems": 1,
+      "minItems": 1,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "application": {
+      "maxLength": 4096,
+      "minLength": 1,
+      "type": "string"
+    },
+    "architecture": {
+      "enum": [
+        "x86_64",
+        "arm64"
+      ]
+    },
+    "build_argv": {
+      "items": {
+        "maxLength": 4096,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 64,
+      "minItems": 1,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "builder_image": {
+      "pattern": "^.+@sha256:[a-f0-9]{64}$",
+      "type": "string"
+    },
+    "configuration_delivery": {
+      "maxLength": 4096,
+      "minLength": 1,
+      "type": "string"
+    },
+    "credential_delivery": {
+      "maxLength": 4096,
+      "minLength": 1,
+      "type": "string"
+    },
+    "exists_today": {
+      "type": "boolean"
+    },
+    "id": {
+      "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+      "type": "string"
+    },
+    "outputs": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$",
+            "type": "string"
+          },
+          "sha256": {
+            "pattern": "^[a-f0-9]{64}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "sha256"
+        ],
+        "type": "object"
+      },
+      "maxItems": 16,
+      "minItems": 1,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "readiness": {
+      "additionalProperties": false,
+      "properties": {
+        "channel": {
+          "maxLength": 4096,
+          "minLength": 1,
+          "type": "string"
+        },
+        "message": {
+          "maxLength": 4096,
+          "minLength": 1,
+          "type": "string"
+        },
+        "timeout_ms": {
+          "maximum": 120000,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "channel",
+        "message",
+        "timeout_ms"
+      ],
+      "type": "object"
+    },
+    "recipe_revision": {
+      "maximum": 65535,
+      "minimum": 1,
+      "type": "integer"
+    },
+    "required_work": {
+      "maxLength": 4096,
+      "minLength": 1,
+      "type": "string"
+    },
+    "source_date_epoch": {
+      "maximum": 4102444800,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "source_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "type": "string"
+    },
+    "source_ref": {
+      "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "accelerators",
+    "application",
+    "architecture",
+    "build_argv",
+    "builder_image",
+    "configuration_delivery",
+    "credential_delivery",
+    "exists_today",
+    "id",
+    "outputs",
+    "readiness",
+    "recipe_revision",
+    "required_work",
+    "source_date_epoch",
+    "source_digest",
+    "source_ref"
+  ],
+  "type": "object"
+}

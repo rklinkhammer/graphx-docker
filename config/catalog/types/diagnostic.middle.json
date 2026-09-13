@@ -1,0 +1,49 @@
+{
+  "credentials": [],
+  "executable": "graphx-diagnostic",
+  "execution": [
+    "namespace"
+  ],
+  "id": "diagnostic.middle",
+  "image": "graphx-design/runtime@sha256:09486a2ac3d5398b1bb25e807db55c4954971f306b94e55498ee30b6f02cda8c",
+  "observation": "packet",
+  "parameters": {},
+  "ports": {
+    "allowed": {
+      "default_port": 18601,
+      "direction": "input",
+      "encoding": "raw",
+      "feedback": true,
+      "listener": true,
+      "max_connections": 1,
+      "min_connections": 1,
+      "schema": "RawDiagnosticDatagram",
+      "transports": [
+        "udp"
+      ]
+    },
+    "denied": {
+      "default_port": 18602,
+      "direction": "output",
+      "encoding": "raw",
+      "feedback": true,
+      "listener": false,
+      "max_connections": 1,
+      "min_connections": 1,
+      "schema": "RawDiagnosticDatagram",
+      "transports": [
+        "udp"
+      ]
+    }
+  },
+  "readiness": {
+    "kind": "local-bound",
+    "timeout_ms": 30000
+  },
+  "resources": {
+    "memory_bytes": 134217728,
+    "pids": 64
+  },
+  "revision": 1,
+  "template": "node-v1"
+}

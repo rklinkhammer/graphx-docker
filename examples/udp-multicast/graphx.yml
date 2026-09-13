@@ -1,0 +1,32 @@
+# GraphX version 3. Validate/normalize only; execution adapters are unavailable.
+catalog: ../../config/catalog/lock.json
+connections:
+  messages:
+    from: publisher.out
+    settings:
+      bind: 0.0.0.0
+      destination: 239.255.42.1
+      framing: u32be
+      interface: 127.0.0.1
+      loopback: true
+      max_datagram_bytes: 1400
+      mode: multicast
+      port: 47103
+      receive_buffer_bytes: 65536
+      reuse_address: true
+      send_buffer_bytes: 65536
+      ttl: 0
+    to: subscriber.in
+    transport: udp
+graph:
+  id: udp-multicast
+nodes:
+  publisher:
+    execution:
+      kind: native
+    type: udp.publisher
+  subscriber:
+    execution:
+      kind: native
+    type: udp.subscriber
+version: 3

@@ -1,0 +1,40 @@
+{
+  "accelerators": [
+    "tcg"
+  ],
+  "application": "sdr.radio",
+  "architecture": "x86_64",
+  "build_argv": [
+    "make",
+    "O=/work/build",
+    "BR2_EXTERNAL=/source/buildroot-external",
+    "graphx_radio_x86_defconfig",
+    "all",
+    "legal-info"
+  ],
+  "builder_image": "graphx-design/guest-builder@sha256:6a386502337587de8b635877138af27ebe5755eb8c8a4ae3182345deb9f4fcfd",
+  "configuration_delivery": "virtio-serial channel org.graphx.config; framed JSON before starting application",
+  "credential_delivery": "separate org.graphx.credentials channel; tmpfs 0400; no disk or serial logs",
+  "exists_today": false,
+  "id": "radio-x86",
+  "outputs": [
+    {
+      "path": "bzImage",
+      "sha256": "fe4d3c1c6539eee2fbdc61b13598c9f735d36b59dd3bd493f1f87af55d2e4d75"
+    },
+    {
+      "path": "rootfs.cpio.gz",
+      "sha256": "8c6e4209a8396ba27b8e1397f3a2594f15c0bff0d61c651dca75a7caa58d20a7"
+    }
+  ],
+  "readiness": {
+    "channel": "org.graphx.ready",
+    "message": "node ID + config digest + listeners-bound",
+    "timeout_ms": 120000
+  },
+  "recipe_revision": 1,
+  "required_work": "Build Linux guest with Python 3, OpenSSL and the SDR radio implementation; current echo guest cannot serve this type",
+  "source_date_epoch": 1700000000,
+  "source_digest": "2392a5c24a74b3e55065b49d11114177029926e0a4fc1f8dfd031686ebc19c41",
+  "source_ref": "guest-source-radio-x86"
+}

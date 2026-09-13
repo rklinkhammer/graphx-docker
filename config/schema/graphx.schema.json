@@ -1,523 +1,1248 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://graphx.dev/schema/graphx.schema.json",
-  "title": "GraphX configuration",
-  "type": "object",
-  "additionalProperties": false,
-  "required": ["version", "graph", "transport"],
-  "properties": {
-    "version": { "const": 2 },
-    "graph": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["id", "nodes", "edges"],
-      "properties": {
-        "id": { "$ref": "#/$defs/id" },
-        "nodes": {
-          "type": "array", "minItems": 1, "maxItems": 1024,
-          "items": { "$ref": "#/$defs/node" }
-        },
-        "edges": {
-          "type": "array", "maxItems": 4096,
-          "items": { "$ref": "#/$defs/edge" }
-        }
-      }
-    },
-    "transport": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "tcp": { "type": "object", "additionalProperties": { "$ref": "#/$defs/tcp" } },
-        "udp": { "type": "object", "additionalProperties": { "$ref": "#/$defs/udp" } },
-        "unix": { "type": "object", "additionalProperties": { "$ref": "#/$defs/unix" } },
-        "in_process": { "type": "object", "additionalProperties": { "$ref": "#/$defs/inProcess" } },
-        "shared_memory": { "type": "object", "additionalProperties": { "$ref": "#/$defs/sharedMemory" } }
-      }
-    },
-    "network": { "$ref": "#/$defs/networkInfrastructure" },
-    "deployment": {
-      "description": "Descriptive process placement metadata; it does not create or start services.",
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "project": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$" },
-        "services": {
-          "type": "object",
-          "additionalProperties": { "$ref": "#/$defs/service" }
-        },
-        "telemetry": { "$ref": "#/$defs/telemetry" }
-      }
-    },
-    "observability": { "$ref": "#/$defs/observability" }
-  },
   "$defs": {
-    "id": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$" },
-    "port": {
-      "type": "object", "additionalProperties": false,
-      "required": ["name", "direction", "schema"],
+    "action": {
+      "additionalProperties": false,
       "properties": {
-        "name": { "$ref": "#/$defs/id" },
-        "direction": { "enum": ["input", "output"] },
-        "schema": { "type": "string", "minLength": 1, "maxLength": 128 }
-      }
+        "action": {
+          "enum": [
+            "fault",
+            "route-apply",
+            "route-clear",
+            "traffic",
+            "external-simulator",
+            "credential-rotate"
+          ]
+        },
+        "address": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "attachment": {
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+          "type": "string"
+        },
+        "client_credentials": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "connections": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+            "type": "string"
+          },
+          "maxItems": 4096,
+          "type": "array"
+        },
+        "credential": {
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+          "type": "string"
+        },
+        "credentials": {
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+          "type": "string"
+        },
+        "delay_ms": {
+          "maximum": 600000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "destination": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "duration_seconds": {
+          "maximum": 86400,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "exclusive_with": {
+          "enum": [
+            "physical-device"
+          ]
+        },
+        "expect": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 4096,
+          "type": "array"
+        },
+        "grace_seconds": {
+          "maximum": 3600,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+          "type": "string"
+        },
+        "jitter_ms": {
+          "maximum": 600000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "loss_percent": {
+          "maximum": 100,
+          "minimum": 0,
+          "type": "number"
+        },
+        "next": {
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+          "type": "string"
+        },
+        "node": {
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+          "type": "string"
+        },
+        "router": {
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+          "type": "string"
+        },
+        "type": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "verify": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 4096,
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "action"
+      ],
+      "type": "object"
     },
-    "node": {
-      "type": "object", "additionalProperties": false,
-      "required": ["id", "kind", "ports"],
+    "attachment": {
+      "additionalProperties": false,
       "properties": {
-        "id": { "$ref": "#/$defs/id" },
-        "kind": { "$ref": "#/$defs/id" },
-        "runtime": { "enum": ["process", "docker", "qemu", "external"] },
-        "execution": { "enum": ["local", "host", "container"] },
-        "lifecycle": { "enum": ["managed", "external"] },
-        "control": { "enum": ["graphx", "origin", "none"] },
-        "accelerator": { "enum": ["auto", "kvm", "tcg", "hvf"] },
-        "architecture": { "enum": ["x86_64"] },
-        "ports": { "type": "array", "maxItems": 256, "items": { "$ref": "#/$defs/port" } }
-      }
+        "address": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "aliases": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 4096,
+          "type": "array"
+        },
+        "id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "container_veth",
+            "namespace_veth",
+            "qemu_tap",
+            "external",
+            "mirror"
+          ]
+        },
+        "mac": {
+          "pattern": "^[0-9a-f]{2}(:[0-9a-f]{2}){5}$",
+          "type": "string"
+        },
+        "network": {
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+          "type": "string"
+        },
+        "owner": {
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+          "type": "string"
+        },
+        "port": {
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+          "type": "string"
+        },
+        "routes": {
+          "items": {
+            "$ref": "#/$defs/route"
+          },
+          "maxItems": 4096,
+          "type": "array"
+        },
+        "switch": {
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+          "type": "string"
+        },
+        "tap_gid": {
+          "maximum": 4294967294,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "tap_uid": {
+          "maximum": 4294967294,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "vlan": {
+          "$ref": "#/$defs/vlan"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "owner"
+      ],
+      "type": "object"
     },
-    "edge": {
-      "type": "object", "additionalProperties": false,
-      "required": ["id", "from", "to", "transport"],
+    "capture": {
+      "additionalProperties": false,
       "properties": {
-        "id": { "$ref": "#/$defs/id" },
-        "from": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}\\.[A-Za-z][A-Za-z0-9_-]{0,63}$" },
-        "to": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}\\.[A-Za-z][A-Za-z0-9_-]{0,63}$" },
-        "transport": { "enum": ["tcp", "udp", "unix", "in_process", "shared_memory"] },
-        "data_plane": { "enum": ["graphx", "external"] }
-      }
+        "attachment": {
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+          "type": "string"
+        },
+        "id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+          "type": "string"
+        },
+        "max_file_bytes": {
+          "maximum": 4294967296,
+          "minimum": 65536,
+          "type": "integer"
+        },
+        "max_files": {
+          "maximum": 1024,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "retention_seconds": {
+          "maximum": 31536000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "rotation_seconds": {
+          "maximum": 86400,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "snaplen": {
+          "maximum": 262144,
+          "minimum": 256,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "attachment",
+        "snaplen",
+        "max_file_bytes",
+        "max_files",
+        "rotation_seconds",
+        "retention_seconds"
+      ],
+      "type": "object"
     },
-    "tcp": {
-      "type": "object", "additionalProperties": false,
-      "required": ["host", "bind", "port"],
+    "connection": {
+      "additionalProperties": false,
       "properties": {
-        "host": { "type": "string", "minLength": 1, "maxLength": 253 },
-        "bind": { "type": "string", "minLength": 1, "maxLength": 253 },
-        "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
-        "framing": { "enum": ["u32be", "none"] },
-        "connect_timeout_ms": { "type": "integer", "minimum": 1, "maximum": 600000 },
-        "send_timeout_ms": { "type": "integer", "minimum": 1, "maximum": 600000 },
-        "reconnect": { "type": "boolean" },
-        "retry": { "$ref": "#/$defs/tcpRetry" },
-        "tls": { "$ref": "#/$defs/tcpTls" }
-      }
-    },
-    "tcpTls": {
-      "type": "object", "additionalProperties": false,
-      "properties": {
-        "enabled": { "type": "boolean" },
-        "verify_peer": { "type": "boolean" },
-        "require_client_certificate": { "type": "boolean" },
-        "ca_file": { "type": "string", "minLength": 1, "maxLength": 4096 },
-        "certificate_file": { "type": "string", "minLength": 1, "maxLength": 4096 },
-        "private_key_file": { "type": "string", "minLength": 1, "maxLength": 4096 },
-        "server_name": { "type": "string", "minLength": 1, "maxLength": 253 }
-      }
-    },
-    "tcpRetry": {
-      "type": "object", "additionalProperties": false,
-      "properties": {
-        "max_attempts": { "type": "integer", "minimum": 1, "maximum": 1000 },
-        "initial_backoff_ms": { "type": "integer", "minimum": 0, "maximum": 600000 },
-        "max_backoff_ms": { "type": "integer", "minimum": 0, "maximum": 600000 }
-      }
-    },
-    "udp": {
-      "type": "object", "additionalProperties": false,
-      "required": ["mode", "destination", "bind", "port"],
-      "properties": {
-        "mode": { "enum": ["unicast", "broadcast", "multicast"] },
-        "destination": { "type": "string", "pattern": "^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(\\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)){3}$", "minLength": 7, "maxLength": 15 },
-        "bind": { "type": "string", "pattern": "^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(\\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)){3}$", "minLength": 7, "maxLength": 15 },
-        "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
-        "interface": { "type": "string", "maxLength": 15 },
-        "ttl": { "type": "integer", "minimum": 0, "maximum": 255 },
-        "loopback": { "type": "boolean" },
-        "reuse_address": { "type": "boolean" },
-        "receive_buffer_bytes": { "type": "integer", "minimum": 4096, "maximum": 268435456 },
-        "send_buffer_bytes": { "type": "integer", "minimum": 4096, "maximum": 268435456 },
-        "max_datagram_bytes": { "type": "integer", "minimum": 64, "maximum": 65507 },
-        "framing": { "enum": ["u32be", "none"] }
-      }
-    },
-    "unix": {
-      "type": "object", "additionalProperties": false,
-      "required": ["path"],
-      "properties": {
-        "path": { "type": "string", "minLength": 1, "maxLength": 103 },
-        "framing": { "const": "u32be" },
-        "connect_timeout_ms": { "type": "integer", "minimum": 1, "maximum": 600000 },
-        "send_timeout_ms": { "type": "integer", "minimum": 1, "maximum": 600000 }
-      }
-    },
-    "inProcess": {
-      "type": "object", "additionalProperties": false,
-      "required": ["channel"],
-      "properties": {
-        "channel": { "$ref": "#/$defs/id" },
-        "capacity": { "type": "integer", "minimum": 1, "maximum": 65536 },
-        "backpressure": { "enum": ["block", "reject"] },
-        "send_timeout_ms": { "type": "integer", "minimum": 1, "maximum": 600000 }
-      }
-    },
-    "sharedMemory": {
-      "type": "object", "additionalProperties": false,
-      "required": ["segment"],
-      "properties": {
-        "segment": { "type": "string", "pattern": "^/?[A-Za-z][A-Za-z0-9_-]{0,63}$" },
-        "capacity": { "type": "integer", "minimum": 1, "maximum": 65536 },
-        "max_message_bytes": { "type": "integer", "minimum": 64, "maximum": 16777220 },
-        "backpressure": { "enum": ["block", "reject"] },
-        "connect_timeout_ms": { "type": "integer", "minimum": 1, "maximum": 600000 },
-        "send_timeout_ms": { "type": "integer", "minimum": 1, "maximum": 600000 }
-      }
-    },
-    "networkInfrastructure": {
-      "type": "object", "additionalProperties": false,
-      "properties": {
-        "networks": { "type": "array", "items": { "$ref": "#/$defs/networkDefinition" } },
-        "switches": { "type": "array", "items": { "$ref": "#/$defs/switchDefinition" } },
-        "routers": { "type": "array", "items": { "$ref": "#/$defs/routerDefinition" } },
         "attachments": {
-          "type": "array", "maxItems": 262144,
-          "items": { "$ref": "#/$defs/attachmentDefinition" }
+          "additionalProperties": false,
+          "properties": {
+            "from": {
+              "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+              "type": "string"
+            },
+            "to": {
+              "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "from",
+            "to"
+          ],
+          "type": "object"
+        },
+        "feedback": {
+          "type": "boolean"
+        },
+        "from": {
+          "pattern": "^[a-z][a-z0-9_-]{0,63}\\.[a-z][a-z0-9_-]{0,63}$",
+          "type": "string"
+        },
+        "security": {
+          "additionalProperties": false,
+          "properties": {
+            "profile": {
+              "enum": [
+                "none",
+                "mtls"
+              ]
+            },
+            "server_name": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "profile"
+          ],
+          "type": "object"
+        },
+        "settings": {
+          "$ref": "#/$defs/settings"
+        },
+        "to": {
+          "pattern": "^[a-z][a-z0-9_-]{0,63}\\.[a-z][a-z0-9_-]{0,63}$",
+          "type": "string"
+        },
+        "transport": {
+          "enum": [
+            "tcp",
+            "udp",
+            "shared_memory"
+          ]
+        }
+      },
+      "required": [
+        "from",
+        "to",
+        "transport"
+      ],
+      "type": "object"
+    },
+    "credential": {
+      "additionalProperties": false,
+      "properties": {
+        "identity": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "members": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 16,
+          "type": "array"
+        },
+        "note": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "provider": {
+          "enum": [
+            "external",
+            "lab-generated",
+            "runtime-generated"
+          ]
+        }
+      },
+      "required": [
+        "provider",
+        "identity",
+        "members"
+      ],
+      "type": "object"
+    },
+    "execution": {
+      "additionalProperties": false,
+      "properties": {
+        "accelerator": {
+          "enum": [
+            "tcg",
+            "kvm"
+          ]
+        },
+        "address": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "architecture": {
+          "enum": [
+            "x86_64",
+            "arm64"
+          ]
+        },
+        "attachment_only": {
+          "type": "boolean"
+        },
+        "guest": {
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+          "type": "string"
+        },
+        "ipc_domain": {
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "container",
+            "native",
+            "namespace",
+            "qemu",
+            "external"
+          ]
+        },
+        "namespace": {
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "type": "object"
+    },
+    "history": {
+      "additionalProperties": false,
+      "properties": {
+        "backend": {
+          "const": "sqlite"
+        },
+        "batch_size": {
+          "maximum": 10000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "enabled": {
+          "const": true
+        },
+        "flush_interval_ms": {
+          "maximum": 60000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "max_database_bytes": {
+          "maximum": 4294967296,
+          "minimum": 1048576,
+          "type": "integer"
+        },
+        "max_pending_queries": {
+          "maximum": 256,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "max_queue_bytes": {
+          "maximum": 67108864,
+          "minimum": 4096,
+          "type": "integer"
+        },
+        "max_records": {
+          "maximum": 10000000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "query_limit": {
+          "maximum": 10000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "query_timeout_ms": {
+          "maximum": 60000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "queue_capacity": {
+          "maximum": 65536,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "retention_seconds": {
+          "maximum": 31536000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "shutdown_timeout_ms": {
+          "maximum": 60000,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [],
+      "type": "object"
+    },
+    "network": {
+      "additionalProperties": false,
+      "properties": {
+        "attachments": {
+          "items": {
+            "$ref": "#/$defs/attachment"
+          },
+          "maxItems": 4096,
+          "type": "array"
         },
         "captures": {
-          "type": "array", "maxItems": 64, "uniqueItems": true,
-          "items": { "$ref": "#/$defs/networkCapture" }
-        },
-        "faults": {
-          "type": "array", "maxItems": 64, "uniqueItems": true,
-          "items": { "$ref": "#/$defs/networkFault" }
+          "items": {
+            "$ref": "#/$defs/capture"
+          },
+          "maxItems": 64,
+          "type": "array"
         },
         "edge_paths": {
-          "type": "object",
-          "additionalProperties": { "type": "array", "minItems": 2, "items": { "$ref": "#/$defs/id" } }
-        }
-      }
-    },
-    "networkDefinition": {
-      "type": "object", "additionalProperties": false,
-      "required": ["id", "profile", "subnets"],
-      "allOf": [
-        {
-          "if": { "properties": { "profile": { "const": "ethernet" } }, "required": ["profile"] },
-          "then": {},
-          "else": { "required": ["uplink"] }
-        },
-        {
-          "if": { "properties": { "profile": { "enum": ["ipvlan-l3", "ipvlan-l3s"] } }, "required": ["profile"] },
-          "then": {},
-          "else": { "required": ["gateway"], "properties": { "subnets": { "maxItems": 1 } } }
-        }
-      ],
-      "properties": {
-        "id": { "$ref": "#/$defs/id" },
-        "profile": { "enum": ["ethernet", "macvlan", "ipvlan-l2", "ipvlan-l3", "ipvlan-l3s"] },
-        "subnets": {
-          "type": "array", "minItems": 1, "maxItems": 16, "uniqueItems": true,
-          "items": { "type": "string", "minLength": 1, "maxLength": 43 }
-        },
-        "gateway": { "type": "string", "minLength": 1, "maxLength": 39 },
-        "uplink": { "type": "string", "minLength": 1, "maxLength": 15 },
-        "external": { "type": "boolean" }
-      }
-    },
-    "vlan": {
-      "type": "object", "additionalProperties": false,
-      "properties": {
-        "access_tag": { "type": "integer", "minimum": 1, "maximum": 4094 },
-        "trunks": { "type": "array", "items": { "type": "integer", "minimum": 1, "maximum": 4094 } }
-      }
-    },
-    "switchPort": {
-      "type": "object", "additionalProperties": false,
-      "required": ["id", "interface"],
-      "properties": {
-        "id": { "$ref": "#/$defs/id" },
-        "interface": { "type": "string", "minLength": 1, "maxLength": 15 },
-        "peer": { "type": "string", "minLength": 1, "maxLength": 15 },
-        "vlan": { "$ref": "#/$defs/vlan" }
-      }
-    },
-    "switchDefinition": {
-      "type": "object", "additionalProperties": false,
-      "required": ["id", "kind", "ports"],
-      "properties": {
-        "id": { "type": "string", "minLength": 1, "maxLength": 15 },
-        "kind": { "const": "openvswitch" },
-        "datapath": { "const": "system" },
-        "ports": { "type": "array", "items": { "$ref": "#/$defs/switchPort" } },
-        "mirror": {
-          "type": "object", "additionalProperties": false,
-          "required": ["id", "output_port"],
-          "properties": {
-            "id": { "$ref": "#/$defs/id" },
-            "output_port": { "$ref": "#/$defs/id" },
-            "select_all": { "type": "boolean" }
-          }
-        }
-      }
-    },
-    "attachmentDefinition": {
-      "type": "object", "additionalProperties": false,
-      "required": ["id", "kind", "owner"],
-      "allOf": [
-        {
-          "if": { "properties": { "kind": { "const": "mirror" } }, "required": ["kind"] },
-          "then": {
-            "required": ["interface", "switch"],
-            "not": { "anyOf": [
-              { "required": ["network"] }, { "required": ["address"] },
-              { "required": ["mac"] }, { "required": ["peer"] }
-            ] }
-          },
-          "else": { "required": ["network"] }
-        },
-        {
-          "if": { "properties": { "kind": { "const": "container_veth" } }, "required": ["kind"] },
-          "then": { "required": ["interface", "peer", "switch"] }
-        },
-        {
-          "if": { "properties": { "kind": { "const": "namespace_veth" } }, "required": ["kind"] },
-          "then": { "required": ["address", "interface", "peer", "switch"] }
-        },
-        {
-          "if": { "properties": { "kind": { "const": "qemu_tap" } }, "required": ["kind"] },
-          "then": {
-            "required": ["address", "interface", "switch", "tap_uid", "tap_gid"],
-            "not": { "anyOf": [{ "required": ["peer"] }, { "required": ["routes"] }] }
-          },
-          "else": { "not": { "anyOf": [
-            { "required": ["tap_uid"] }, { "required": ["tap_gid"] }
-          ] } }
-        }
-      ],
-      "properties": {
-        "id": { "$ref": "#/$defs/id" },
-        "kind": { "enum": ["container_veth", "namespace_veth", "qemu_tap", "external", "mirror"] },
-        "owner": { "$ref": "#/$defs/id" },
-        "network": { "$ref": "#/$defs/id" },
-        "address": { "type": "string", "minLength": 1, "maxLength": 43 },
-        "mac": { "type": "string", "pattern": "^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$" },
-        "interface": { "type": "string", "minLength": 1, "maxLength": 15 },
-        "peer": { "type": "string", "minLength": 1, "maxLength": 15 },
-        "switch": { "type": "string", "minLength": 1, "maxLength": 15 },
-        "mtu": { "type": "integer", "minimum": 576, "maximum": 9216 },
-        "tap_uid": { "type": "integer", "minimum": 1, "maximum": 4294967294 },
-        "tap_gid": { "type": "integer", "minimum": 1, "maximum": 4294967294 },
-        "routes": {
-          "type": "array",
-          "items": {
-            "type": "object", "additionalProperties": false, "required": ["destination"],
-            "properties": {
-              "destination": { "type": "string", "minLength": 1, "maxLength": 43 },
-              "via": { "type": "string", "minLength": 1, "maxLength": 39 }
-            }
-          }
-        }
-      }
-    },
-    "networkCapture": {
-      "type": "object", "additionalProperties": false,
-      "required": ["id", "attachment", "directory"],
-      "properties": {
-        "id": { "$ref": "#/$defs/id" },
-        "attachment": { "$ref": "#/$defs/id" },
-        "directory": { "type": "string", "pattern": "^/", "minLength": 1, "maxLength": 1024 },
-        "snaplen": { "type": "integer", "minimum": 256, "maximum": 262144 },
-        "max_file_bytes": { "type": "integer", "minimum": 65536, "maximum": 4294967296 },
-        "max_files": { "type": "integer", "minimum": 1, "maximum": 1024 },
-        "rotation_seconds": { "type": "integer", "minimum": 1, "maximum": 86400 },
-        "retention_seconds": { "type": "integer", "minimum": 1, "maximum": 31536000 }
-      }
-    },
-    "networkFault": {
-      "type": "object", "additionalProperties": false,
-      "required": ["id", "attachment", "duration_seconds"],
-      "anyOf": [
-        { "required": ["delay_ms"] }, { "required": ["loss_percent"] },
-        { "required": ["rate_kbit"] }
-      ],
-      "properties": {
-        "id": { "$ref": "#/$defs/id" },
-        "attachment": { "$ref": "#/$defs/id" },
-        "delay_ms": { "type": "integer", "minimum": 0, "maximum": 600000 },
-        "jitter_ms": { "type": "integer", "minimum": 0, "maximum": 600000 },
-        "loss_percent": { "type": "number", "minimum": 0, "maximum": 100 },
-        "rate_kbit": { "type": "integer", "minimum": 0, "maximum": 100000000 },
-        "duration_seconds": { "type": "integer", "minimum": 1, "maximum": 86400 }
-      }
-    },
-    "routerInterface": {
-      "type": "object", "additionalProperties": false,
-      "required": ["id", "network", "address", "device", "peer", "switch"],
-      "properties": {
-        "id": { "$ref": "#/$defs/id" }, "network": { "$ref": "#/$defs/id" },
-        "address": { "type": "string", "minLength": 1, "maxLength": 43 },
-        "device": { "type": "string", "minLength": 1, "maxLength": 15 },
-        "peer": { "type": "string", "minLength": 1, "maxLength": 15 },
-        "switch": { "type": "string", "minLength": 1, "maxLength": 15 }
-      }
-    },
-    "route": {
-      "type": "object", "additionalProperties": false, "required": ["destination"],
-      "properties": {
-        "destination": { "type": "string", "minLength": 1, "maxLength": 43 },
-        "via": { "type": "string", "minLength": 1, "maxLength": 39 },
-        "device": { "type": "string", "minLength": 1, "maxLength": 15 },
-        "install": { "enum": ["create", "manual"] }
-      }
-    },
-    "policy": {
-      "type": "object", "additionalProperties": false, "required": ["id"],
-      "properties": {
-        "id": { "$ref": "#/$defs/id" },
-        "source": { "type": "string", "minLength": 1, "maxLength": 43 },
-        "destination": { "type": "string", "minLength": 1, "maxLength": 43 },
-        "action": { "enum": ["accept", "drop"] }
-      }
-    },
-    "routerDefinition": {
-      "type": "object", "additionalProperties": false,
-      "required": ["id", "kind", "interfaces"],
-      "properties": {
-        "id": { "$ref": "#/$defs/id" },
-        "kind": { "enum": ["linux_namespace", "container"] },
-        "namespace": { "type": "string", "minLength": 1, "maxLength": 64 },
-        "forwarding": { "type": "boolean" },
-        "interfaces": { "type": "array", "minItems": 2, "items": { "$ref": "#/$defs/routerInterface" } },
-        "routes": { "type": "array", "items": { "$ref": "#/$defs/route" } },
-        "policies": { "type": "array", "items": { "$ref": "#/$defs/policy" } }
-      }
-    },
-    "service": {
-      "type": "object", "additionalProperties": false,
-      "required": ["image", "command"],
-      "properties": {
-        "image": { "type": "string", "minLength": 1, "maxLength": 1024 },
-        "command": { "type": "string", "minLength": 1, "maxLength": 1024 }
-      }
-    },
-    "telemetry": {
-      "type": "object", "additionalProperties": false,
-      "required": ["service", "port"],
-      "properties": {
-        "service": { "type": "string", "minLength": 1, "maxLength": 128 },
-        "port": { "type": "integer", "minimum": 1, "maximum": 65535 }
-      }
-    },
-    "observabilitySignal": {
-      "type": "object", "additionalProperties": false,
-      "properties": {
-        "enabled": { "type": "boolean" },
-        "exporters": {
-          "type": "array", "minItems": 1, "uniqueItems": true,
-          "items": { "enum": ["console", "udp-json", "otlp-http"] }
-        }
-      }
-    },
-    "observability": {
-      "type": "object", "additionalProperties": false,
-      "properties": {
-        "metrics": {
-          "allOf": [{ "$ref": "#/$defs/observabilitySignal" }],
-          "properties": { "exporters": { "items": { "enum": ["console", "udp-json"] } } }
-        },
-        "tracing": { "$ref": "#/$defs/observabilitySignal" },
-        "telemetry": {
-          "type": "object", "additionalProperties": false,
-          "properties": {
-            "host": { "type": "string", "minLength": 1, "maxLength": 253 },
-            "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
-            "websocket": { "type": "string", "pattern": "^/", "maxLength": 128 },
-            "heartbeat_interval_ms": { "type": "integer", "minimum": 1, "maximum": 600000 },
-            "heartbeat_timeout_ms": { "type": "integer", "minimum": 2, "maximum": 3600000 }
-          }
-        },
-        "capture": {
-          "type": "object", "additionalProperties": false,
-          "allOf": [
-            {
-              "if": { "properties": { "enabled": { "const": true } }, "required": ["enabled"] },
-              "then": { "required": ["provider"] }
+          "additionalProperties": {
+            "items": {
+              "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+              "type": "string"
             },
-            {
-              "if": {
-                "properties": { "enabled": { "const": true }, "provider": { "const": "pcapng" } },
-                "required": ["enabled", "provider"]
+            "maxItems": 64,
+            "type": "array"
+          },
+          "propertyNames": {
+            "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "networks": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "gateway": {
+                "minLength": 1,
+                "type": "string"
               },
-              "then": { "required": ["directory"] }
+              "id": {
+                "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+                "type": "string"
+              },
+              "profile": {
+                "enum": [
+                  "ethernet",
+                  "macvlan",
+                  "ipvlan-l2",
+                  "ipvlan-l3"
+                ]
+              },
+              "realization": {
+                "const": "ovs"
+              },
+              "subnets": {
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 16,
+                "type": "array"
+              }
+            },
+            "required": [
+              "id",
+              "realization",
+              "profile",
+              "subnets"
+            ],
+            "type": "object"
+          },
+          "maxItems": 256,
+          "type": "array"
+        },
+        "routers": {
+          "items": {
+            "$ref": "#/$defs/router"
+          },
+          "maxItems": 256,
+          "type": "array"
+        },
+        "switches": {
+          "items": {
+            "$ref": "#/$defs/switch"
+          },
+          "maxItems": 256,
+          "type": "array"
+        }
+      },
+      "required": [
+        "networks",
+        "switches",
+        "attachments"
+      ],
+      "type": "object"
+    },
+    "node": {
+      "additionalProperties": false,
+      "properties": {
+        "credentials": {
+          "additionalProperties": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "propertyNames": {
+            "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "execution": {
+          "$ref": "#/$defs/execution"
+        },
+        "observation": {
+          "items": {
+            "enum": [
+              "graphx",
+              "packet",
+              "external-status",
+              "none"
+            ]
+          },
+          "maxItems": 3,
+          "type": "array"
+        },
+        "parameters": {
+          "additionalProperties": {
+            "type": [
+              "string",
+              "integer",
+              "boolean"
+            ]
+          },
+          "type": "object"
+        },
+        "type": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "execution"
+      ],
+      "type": "object"
+    },
+    "platform": {
+      "additionalProperties": false,
+      "properties": {
+        "capture": {
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "max_file_bytes": {
+              "maximum": 4294967296,
+              "minimum": 65536,
+              "type": "integer"
+            },
+            "max_files": {
+              "maximum": 64,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "max_packets": {
+              "maximum": 10000000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "provider": {
+              "enum": [
+                "application",
+                "ovs-span"
+              ]
+            },
+            "retention_seconds": {
+              "maximum": 31536000,
+              "minimum": 1,
+              "type": "integer"
             }
-          ],
-          "properties": {
-            "enabled": { "type": "boolean" },
-            "provider": { "type": "string", "enum": ["pcapng", "ovs-span"] },
-            "directory": { "type": "string", "minLength": 1, "maxLength": 1024 },
-            "snaplen": { "type": "integer", "minimum": 256, "maximum": 16777220 },
-            "max_file_bytes": { "type": "integer", "minimum": 65536, "maximum": 4294967296 },
-            "max_packets": { "type": "integer", "minimum": 1, "maximum": 100000000 }
-          }
+          },
+          "required": [],
+          "type": "object"
         },
-        "otlp": {
-          "type": "object", "additionalProperties": false,
+        "console": {
+          "additionalProperties": false,
           "properties": {
-            "enabled": { "type": "boolean" },
-            "endpoint": { "type": "string", "pattern": "^https?://(\\[[0-9A-Fa-f:]+\\]|[A-Za-z0-9.-]+)(:[0-9]{1,5})?/?$", "maxLength": 2048 },
-            "traces_path": { "type": "string", "pattern": "^/[A-Za-z0-9._~/-]*$", "maxLength": 256 },
-            "metrics_path": { "type": "string", "pattern": "^/[A-Za-z0-9._~/-]*$", "maxLength": 256 },
-            "export_interval_ms": { "type": "integer", "minimum": 250, "maximum": 600000 },
-            "timeout_ms": { "type": "integer", "minimum": 100, "maximum": 60000 },
-            "queue_capacity": { "type": "integer", "minimum": 1, "maximum": 65536 },
-            "max_queue_bytes": { "type": "integer", "minimum": 65536, "maximum": 67108864 },
-            "max_response_bytes": { "type": "integer", "minimum": 1024, "maximum": 4194304 },
-            "retry_max_attempts": { "type": "integer", "minimum": 1, "maximum": 10 },
-            "retry_initial_backoff_ms": { "type": "integer", "minimum": 10, "maximum": 60000 },
-            "retry_max_backoff_ms": { "type": "integer", "minimum": 10, "maximum": 600000 }
-          }
-        },
-        "slos": {
-          "type": "object", "additionalProperties": false,
-          "properties": {
-            "window_seconds": { "type": "integer", "minimum": 10, "maximum": 3600 },
-            "minimum_window_seconds": { "type": "integer", "minimum": 1, "maximum": 3600 },
-            "availability_target": { "type": "number", "minimum": 0, "maximum": 1 },
-            "max_error_ratio": { "type": "number", "minimum": 0, "maximum": 1 },
-            "max_drop_ratio": { "type": "number", "minimum": 0, "maximum": 1 },
-            "max_p95_latency_us": { "type": "integer", "minimum": 1, "maximum": 3600000000 }
-          }
-        },
-        "history": {
-          "type": "object", "additionalProperties": false,
-          "properties": {
-            "enabled": { "type": "boolean" },
-            "backend": { "const": "sqlite" },
-            "database_file": { "type": "string", "minLength": 1, "maxLength": 1024 },
-            "retention_seconds": { "type": "integer", "minimum": 60, "maximum": 31536000 },
-            "max_records": { "type": "integer", "minimum": 10, "maximum": 10000000 },
-            "max_database_bytes": { "type": "integer", "minimum": 1048576, "maximum": 4294967296 },
-            "queue_capacity": { "type": "integer", "minimum": 1, "maximum": 65536 },
-            "max_queue_bytes": { "type": "integer", "minimum": 65536, "maximum": 67108864 },
-            "batch_size": { "type": "integer", "minimum": 1, "maximum": 1000 },
-            "flush_interval_ms": { "type": "integer", "minimum": 10, "maximum": 60000 },
-            "query_limit": { "type": "integer", "minimum": 1, "maximum": 1000 },
-            "query_timeout_ms": { "type": "integer", "minimum": 100, "maximum": 10000 },
-            "max_pending_queries": { "type": "integer", "minimum": 1, "maximum": 128 },
-            "shutdown_timeout_ms": { "type": "integer", "minimum": 100, "maximum": 10000 }
-          }
+            "bind": {
+              "const": "127.0.0.1"
+            },
+            "port": {
+              "maximum": 65535,
+              "minimum": 1024,
+              "type": "integer"
+            }
+          },
+          "required": [],
+          "type": "object"
         },
         "control": {
-          "type": "object", "additionalProperties": false,
+          "additionalProperties": false,
           "properties": {
-            "command_timeout_ms": { "type": "integer", "minimum": 100, "maximum": 30000 },
-            "command_retention_seconds": { "type": "integer", "minimum": 60, "maximum": 86400 },
-            "max_commands": { "type": "integer", "minimum": 1, "maximum": 10000 },
-            "max_audit_records": { "type": "integer", "minimum": 10, "maximum": 100000 },
-            "idempotency_ttl_seconds": { "type": "integer", "minimum": 60, "maximum": 86400 },
-            "max_request_bytes": { "type": "integer", "minimum": 256, "maximum": 16384 }
-          }
+            "enabled": {
+              "type": "boolean"
+            },
+            "grants": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "actions": {
+                    "items": {
+                      "enum": [
+                        "pause",
+                        "resume",
+                        "set_frequency"
+                      ]
+                    },
+                    "maxItems": 3,
+                    "type": "array"
+                  },
+                  "credential": {
+                    "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+                    "type": "string"
+                  },
+                  "nodes": {
+                    "items": {
+                      "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+                      "type": "string"
+                    },
+                    "maxItems": 1024,
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "credential",
+                  "nodes",
+                  "actions"
+                ],
+                "type": "object"
+              },
+              "maxItems": 4096,
+              "type": "array"
+            },
+            "idempotency_ttl_seconds": {
+              "maximum": 86400,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "max_audit_records": {
+              "maximum": 100000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "max_request_bytes": {
+              "maximum": 65536,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          "required": [],
+          "type": "object"
+        },
+        "extensions": {
+          "items": {
+            "enum": [
+              "prometheus",
+              "grafana"
+            ]
+          },
+          "maxItems": 2,
+          "type": "array"
+        },
+        "history": {
+          "$ref": "#/$defs/history"
+        },
+        "otlp": {
+          "additionalProperties": false,
+          "properties": {
+            "credentials": {
+              "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+              "type": "string"
+            },
+            "enabled": {
+              "type": "boolean"
+            },
+            "endpoint": {
+              "pattern": "^https://",
+              "type": "string"
+            },
+            "max_queue_bytes": {
+              "maximum": 67108864,
+              "minimum": 4096,
+              "type": "integer"
+            },
+            "mode": {
+              "enum": [
+                "bearer",
+                "mtls"
+              ]
+            },
+            "queue_capacity": {
+              "maximum": 65536,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "server_name": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "timeout_ms": {
+              "maximum": 60000,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          "required": [],
+          "type": "object"
         }
-      }
+      },
+      "required": [],
+      "type": "object"
+    },
+    "policy": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "enum": [
+            "accept",
+            "drop"
+          ]
+        },
+        "destination": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+          "type": "string"
+        },
+        "source": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "source",
+        "destination",
+        "action"
+      ],
+      "type": "object"
+    },
+    "route": {
+      "additionalProperties": false,
+      "properties": {
+        "destination": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "install": {
+          "enum": [
+            "create",
+            "manual"
+          ]
+        },
+        "interface": {
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+          "type": "string"
+        },
+        "via": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "destination"
+      ],
+      "type": "object"
+    },
+    "router": {
+      "additionalProperties": false,
+      "properties": {
+        "forwarding": {
+          "type": "boolean"
+        },
+        "id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+          "type": "string"
+        },
+        "interfaces": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "address": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "attachment_id": {
+                "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+                "type": "string"
+              },
+              "id": {
+                "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+                "type": "string"
+              },
+              "network": {
+                "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+                "type": "string"
+              },
+              "port": {
+                "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+                "type": "string"
+              },
+              "switch": {
+                "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "network",
+              "address",
+              "switch"
+            ],
+            "type": "object"
+          },
+          "maxItems": 256,
+          "type": "array"
+        },
+        "kind": {
+          "const": "linux_namespace"
+        },
+        "policies": {
+          "items": {
+            "$ref": "#/$defs/policy"
+          },
+          "maxItems": 4096,
+          "type": "array"
+        },
+        "routes": {
+          "items": {
+            "$ref": "#/$defs/route"
+          },
+          "maxItems": 4096,
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "forwarding",
+        "interfaces"
+      ],
+      "type": "object"
+    },
+    "settings": {
+      "additionalProperties": false,
+      "properties": {
+        "backpressure": {
+          "enum": [
+            "block",
+            "reject"
+          ]
+        },
+        "bind": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "capacity": {
+          "maximum": 65536,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "connect_timeout_ms": {
+          "maximum": 600000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "destination": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "framing": {
+          "enum": [
+            "u32be",
+            "none"
+          ]
+        },
+        "host": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "interface": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "loopback": {
+          "type": "boolean"
+        },
+        "max_datagram_bytes": {
+          "maximum": 65507,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "max_message_bytes": {
+          "maximum": 16777216,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "mode": {
+          "enum": [
+            "unicast",
+            "broadcast",
+            "multicast"
+          ]
+        },
+        "port": {
+          "maximum": 65535,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "receive_buffer_bytes": {
+          "maximum": 16777216,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "reconnect": {
+          "type": "boolean"
+        },
+        "retry": {
+          "additionalProperties": false,
+          "properties": {
+            "initial_backoff_ms": {
+              "maximum": 60000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "max_attempts": {
+              "maximum": 1000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "max_backoff_ms": {
+              "maximum": 60000,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "max_attempts",
+            "initial_backoff_ms",
+            "max_backoff_ms"
+          ],
+          "type": "object"
+        },
+        "reuse_address": {
+          "type": "boolean"
+        },
+        "segment": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "send_buffer_bytes": {
+          "maximum": 16777216,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "send_timeout_ms": {
+          "maximum": 600000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "ttl": {
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [],
+      "type": "object"
+    },
+    "switch": {
+      "additionalProperties": false,
+      "properties": {
+        "datapath": {
+          "const": "system"
+        },
+        "id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+          "type": "string"
+        },
+        "kind": {
+          "const": "openvswitch"
+        },
+        "mirror": {
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+              "type": "string"
+            },
+            "output_port": {
+              "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+              "type": "string"
+            },
+            "select_all": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "id",
+            "output_port",
+            "select_all"
+          ],
+          "type": "object"
+        },
+        "ports": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+                "type": "string"
+              },
+              "vlan": {
+                "$ref": "#/$defs/vlan"
+              }
+            },
+            "required": [
+              "id"
+            ],
+            "type": "object"
+          },
+          "maxItems": 1024,
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "datapath",
+        "ports"
+      ],
+      "type": "object"
+    },
+    "vlan": {
+      "additionalProperties": false,
+      "properties": {
+        "access_tag": {
+          "maximum": 4094,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "trunks": {
+          "items": {
+            "maximum": 4094,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "maxItems": 4094,
+          "type": "array"
+        }
+      },
+      "required": [],
+      "type": "object"
     }
-  }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "catalog": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "connections": {
+      "additionalProperties": {
+        "$ref": "#/$defs/connection"
+      },
+      "maxProperties": 4096,
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+        "type": "string"
+      },
+      "type": "object"
+    },
+    "credentials": {
+      "additionalProperties": {
+        "$ref": "#/$defs/credential"
+      },
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+        "type": "string"
+      },
+      "type": "object"
+    },
+    "graph": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "network": {
+      "$ref": "#/$defs/network"
+    },
+    "nodes": {
+      "additionalProperties": {
+        "$ref": "#/$defs/node"
+      },
+      "maxProperties": 1024,
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+        "type": "string"
+      },
+      "type": "object"
+    },
+    "platform": {
+      "$ref": "#/$defs/platform"
+    },
+    "portable_network": {
+      "additionalProperties": false,
+      "properties": {
+        "addresses": {
+          "additionalProperties": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "propertyNames": {
+            "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "subnet": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "subnet",
+        "addresses"
+      ],
+      "type": "object"
+    },
+    "scenario": {
+      "additionalProperties": false,
+      "properties": {
+        "actions": {
+          "items": {
+            "$ref": "#/$defs/action"
+          },
+          "maxItems": 64,
+          "type": "array"
+        }
+      },
+      "required": [
+        "actions"
+      ],
+      "type": "object"
+    },
+    "version": {
+      "const": 3
+    }
+  },
+  "required": [
+    "version",
+    "graph",
+    "catalog",
+    "nodes",
+    "connections"
+  ],
+  "title": "GraphX version 3 graph",
+  "type": "object"
 }

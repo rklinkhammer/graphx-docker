@@ -69,18 +69,8 @@ and sequence-anomaly counters. Do not log complete payloads.
 
 ## Examples
 
-```sh
-examples/udp-unicast/run.sh
-examples/udp-multicast/run.sh
-examples/udp-broadcast/run.sh
-```
-
-Unicast and loopback multicast are unprivileged. Broadcast requires Docker for
-the isolated example. OrbStack results do not replace native Linux
-verification of namespace, firewall, or physical multicast behavior.
-The broadcast README separates the connected image-preparation step from the
-offline run; its runner uses only a preloaded image and disables builds and pulls.
-
-GraphX currently models multicast as one logical source-to-destination edge.
-The second process in the multicast example is a diagnostic listener proving
-network fan-out, not a native one-to-many graph edge.
+Normalize `examples/udp-unicast/graphx.yml`, `examples/udp-multicast/graphx.yml`,
+or `examples/udp-broadcast/graphx.yml` with `graphx config normalize`. The v3
+loader validates type capabilities and datagram settings. Example execution is
+gated until the generic bindings and orchestration adapters are implemented.
+The reusable UDP transport is covered by unprivileged socket tests.

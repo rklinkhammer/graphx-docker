@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
+
+# Authored v3 execution is not yet implemented. Sourced library functions remain available.
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  echo "E_PHASE_UNAVAILABLE: GraphX v3 execution adapters are not implemented; no action was performed" >&2
+  exit 2
+fi
 set -euo pipefail
 
 example_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -93,12 +99,12 @@ fi
 # Redirection intentionally belongs to the invoking user in its private temp directory.
 # shellcheck disable=SC2024
 sudo ip netns exec "$listener_ns" env \
-  GRAPHX_CONFIG="$example_dir/graphx.yaml" GRAPHX_MAX_MESSAGES=5 \
+  GRAPHX_CONFIG="$example_dir/graphx.yml" GRAPHX_MAX_MESSAGES=5 \
   "$subscriber" >"$log_dir/listener.log" 2>&1 &
 listener_pid=$!
 sleep 0.2
 sudo ip netns exec "$publisher_ns" env \
-  GRAPHX_CONFIG="$example_dir/graphx.yaml" GRAPHX_MAX_MESSAGES=5 \
+  GRAPHX_CONFIG="$example_dir/graphx.yml" GRAPHX_MAX_MESSAGES=5 \
   GRAPHX_MESSAGE_PREFIX=discovery GRAPHX_START_DELAY_MS=100 \
   "$publisher"
 wait "$listener_pid"

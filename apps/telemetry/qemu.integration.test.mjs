@@ -51,7 +51,7 @@ test('QEMU packet observations remain raw and drive the shared topology', { time
     cwd: here,
     env: { ...process.env, PORT: String(port), GRAPHX_TELEMETRY_PORT: String(udpPort),
       GRAPHX_HTTP_BIND: '127.0.0.1', GRAPHX_TELEMETRY_BIND: '127.0.0.1',
-      ...normalizedConfigEnvironment(resolve(repository, 'examples/qemu-node/tap/graphx.yaml')),
+      ...normalizedConfigEnvironment(resolve(repository, 'examples/qemu-node/tap/graphx.yml')),
       GRAPHX_TELEMETRY_SHARED_SECRET: secret, GRAPHX_CONTROL_TOKEN: secret.split('').reverse().join(''),
       GRAPHX_CAPTURE_ENABLED: 'false', GRAPHX_HISTORY_ENABLED: 'false',
       GRAPHX_QEMU_ACCEL: 'tcg', GRAPHX_QEMU_REQUESTED_ACCEL: 'tcg',
@@ -62,7 +62,7 @@ test('QEMU packet observations remain raw and drive the shared topology', { time
   try {
     await waitFor(`http://127.0.0.1:${port}/api/health`)
     const initial = await (await fetch(`http://127.0.0.1:${port}/api/topology`)).json()
-    assert.equal(initial.topology.nodes.find(node => node.id === 'qemu-node').execution, 'host')
+    assert.equal(initial.topology.nodes.find(node => node.id === 'qemu-node').execution, 'qemu')
     assert.equal(initial.topology.nodes.find(node => node.id === 'qemu-node').runtime, 'qemu')
     assert.equal(initial.topology.nodes.find(node => node.id === 'qemu-node').actualAccelerator, 'tcg')
     assert.equal(initial.nodes['qemu-node'].status, 'booting')

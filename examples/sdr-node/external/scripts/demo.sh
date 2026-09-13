@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
+
+# Authored v3 execution is not yet implemented. Sourced library functions remain available.
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  echo "E_PHASE_UNAVAILABLE: GraphX v3 execution adapters are not implemented; no action was performed" >&2
+  exit 2
+fi
 set -euo pipefail
 umask 077
 
@@ -7,7 +13,7 @@ example_dir=$(cd "$profile_dir/.." && pwd)
 repo_dir=$(cd "$example_dir/../.." && pwd)
 source "$repo_dir/examples/external-ovs-boundary.sh"
 graphx=${GRAPHX_BIN:-$repo_dir/build/dev/graphx}
-config=$profile_dir/graphx.yaml
+config=$profile_dir/graphx.yml
 compose=$profile_dir/compose.yaml
 state=$profile_dir/.state/external.env
 namespace=gx-sdr-device

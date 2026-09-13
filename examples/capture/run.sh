@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
+
+# Authored v3 execution is not yet implemented. Sourced library functions remain available.
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  echo "E_PHASE_UNAVAILABLE: GraphX v3 execution adapters are not implemented; no action was performed" >&2
+  exit 2
+fi
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
@@ -15,7 +21,7 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 mkdir -p "$CAPTURE_DIR"
-export GRAPHX_CONFIG="$ROOT/examples/sample-pipeline/graphx.yaml"
+export GRAPHX_CONFIG="$ROOT/examples/sample-pipeline/graphx.yml"
 export GRAPHX_OVERRIDES='transport.tcp.samples.host=127.0.0.1;transport.tcp.transformed.host=127.0.0.1'
 export GRAPHX_CAPTURE_ENABLED=true GRAPHX_CAPTURE_DIR="$CAPTURE_DIR"
 export GRAPHX_MAX_MESSAGES=${GRAPHX_MAX_MESSAGES:-10}

@@ -3,13 +3,14 @@
 GraphX separates declarative intent, application execution, Linux data-plane
 resources, and observation.
 
-1. `graphx.yaml` defines graph nodes and edges, transports, deployment, OVS
-   networking, and observability.
-2. The C++ loader validates that model and emits deterministic normalized JSON.
+1. `graphx.yml` version 3 defines catalog type instances, connections, logical OVS
+   networking, platform policy, credential references and scenario declarations.
+2. The C++ loader validates that model and emits deterministic normalized JSON
+   contract version 2 with shared endpoint settings and closed nested schemas.
 3. Transport implementations move GraphX envelopes over TCP, UDP, Unix-domain
    sockets, shared memory, or in-process queues.
-4. The infrastructure lifecycle realizes system OVS bridges, veth/TAP attachments,
-   namespaces, routes, policy, capture, and bounded network faults.
+4. Reusable infrastructure modules own system OVS, veth/TAP, namespaces, routes,
+   policy, capture and faults. Their v3 graph adapter is gated until P7/P8.
 5. The telemetry service consumes normalized configuration and runtime events to
    provide health, topology, metrics, trace, history, capture, and authorized
    control APIs.
@@ -33,10 +34,13 @@ identity. Destruction verifies those identities and refuses ambiguous cleanup.
 Credentials are projected as files, excluded from normalized configuration and
 telemetry, and redacted from logs and APIs.
 
+Graph execution is unavailable during the P1 cutover. The CLI exposes validation,
+inspection and normalization; all launchers reject execution before mutation.
+Generic bindings and credential staging have subsequent implementation gates.
+
 ## Runtime boundaries
 
-- Graph-managed execution is acyclic; external raw-device relationships may form
-  control cycles.
+- Cycles require feedback support on every participating type port.
 - QEMU networking uses a TAP attached to OVS. QMP handles VM state evidence and
   bounded pause/resume actions.
 - Semantic profiles (`ethernet`, `macvlan`, and IPVLAN variants) are implemented by

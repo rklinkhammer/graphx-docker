@@ -14,7 +14,7 @@ x-node-service: &node-service
   image: graphx-demo:latest
   volumes:
     - captures:/captures
-    - ${GRAPHX_CONFIG_FILE:-./graphx.yaml}:/etc/graphx/graphx.yaml:ro
+    - ${GRAPHX_CONFIG_FILE:-./graphx.yml}:/etc/graphx/graphx.yml:ro
   networks: [graphx]
   read_only: true
   tmpfs: [/tmp]
@@ -35,13 +35,13 @@ services:
     command:
       - >-
         umask 022;
-        /usr/local/bin/graphx config normalize /config/graphx.yaml > /run/graphx/normalized.json.tmp;
+        /usr/local/bin/graphx config normalize /config/graphx.yml > /run/graphx/normalized.json.tmp;
         chmod 0444 /run/graphx/normalized.json.tmp;
         mv /run/graphx/normalized.json.tmp /run/graphx/normalized.json
     environment:
       GRAPHX_OVERRIDES: ${GRAPHX_OVERRIDES:-}
     volumes:
-      - ${GRAPHX_CONFIG_FILE:-./graphx.yaml}:/config/graphx.yaml:ro
+      - ${GRAPHX_CONFIG_FILE:-./graphx.yml}:/config/graphx.yml:ro
       - normalized-config:/run/graphx
     read_only: true
     tmpfs: [/tmp]

@@ -1,0 +1,45 @@
+# GraphX version 3. Validate/normalize only; execution adapters are unavailable.
+catalog: ../../../config/catalog/lock.json
+connections:
+  samples:
+    from: generator.samples
+    to: transform.samples
+    transport: tcp
+  transformed:
+    from: transform.transformed
+    to: sink.transformed
+    transport: tcp
+credentials:
+  otlp:
+    identity: platform
+    members:
+    - ca.pem
+    - cert.pem
+    - key.pem
+    provider: external
+graph:
+  id: variant-otlp-mtls
+nodes:
+  generator:
+    execution:
+      kind: container
+    type: sample.source
+  sink:
+    execution:
+      kind: container
+    type: sample.sink
+  transform:
+    execution:
+      kind: container
+    type: sample.transform
+platform:
+  otlp:
+    credentials: otlp
+    enabled: true
+    endpoint: https://collector.example.test:4318
+    max_queue_bytes: 8388608
+    mode: mtls
+    queue_capacity: 1024
+    server_name: collector.example.test
+    timeout_ms: 2000
+version: 3

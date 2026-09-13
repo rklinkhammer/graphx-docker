@@ -1,15 +1,15 @@
+import { applicationGraph } from './normalized-config.mjs'
+
 export function createTopology(config, environment = process.env) {
-  const graph = config.graph
-  const deployment = new Map(config.deployment.services.map(service =>
-    [service.node_id, service]))
+  const graph = applicationGraph(config)
   const requestedQemuAccelerator = environment.GRAPHX_QEMU_REQUESTED_ACCEL || ''
   const selectedQemuAccelerator = environment.GRAPHX_QEMU_ACCEL || ''
   const externalObservationSource = graph.nodes.some(node => node.runtime === 'qemu')
     ? 'qemu-pcap'
-    : config.observability.capture.provider === 'ovs-span' ? 'ovs-span' : 'ethernet-pcap'
+    : config.platform.capture.provider === 'ovs-span' ? 'ovs-span' : 'ethernet-pcap'
   const graphNodes = graph.nodes.map(node => ({
     id: node.id, label: node.id, role: node.kind,
-    image: deployment.get(node.id)?.image || 'local process',
+    image: node.kind,
     runtime: node.runtime, execution: node.execution,
     lifecycle: node.lifecycle, control: node.control,
     accelerator: node.runtime === 'qemu' ? selectedQemuAccelerator || node.accelerator || 'unknown' : null,
@@ -48,12 +48,11 @@ export function createTopology(config, environment = process.env) {
     image: item.forwarding === false ? 'forwarding off' : 'IPv4 forwarding',
     input: true, output: true,
   })
-  const qemu = graphNodes.find(node => node.runtime === 'qemu')
-  const paths = Object.fromEntries(network.edge_paths.map(path =>
-    [path.edge_id, structuredClone(path.hops)]))
-  if (qemu) {
+  const paths = Object.fromEntries(Object.entries(network.edge_paths).map(([id, hops]) =>
+    [id, structuredClone(hops)]))
+  for (const qemu of graphNodes.filter(node => node.runtime === 'qemu')) {
     const boundary = { id: `${qemu.id}-host-runtime`, label: 'Host QEMU process', role: 'Host runtime',
-      image: 'externally managed', hierarchy: 'host', input: true, output: true }
+      image: `${qemu.lifecycle} process`, hierarchy: 'host', input: true, output: true }
     infrastructure.set(boundary.id, boundary)
     infrastructure.set(`${qemu.id}-guest-app`, { id: `${qemu.id}-guest-app`,
       label: 'Raw TCP/UDP guest application', role: 'Guest application', image: qemu.guestArchitecture,
@@ -86,7 +85,10 @@ export function topologyView(topology, evidence, diagnosticEvidence = null, diag
       updatedAt: diagnosticEvidence.updatedAt },
   } : topology
   if (!evidence) return withDiagnostics
-  const qemuNode = topology.nodes.find(node => node.runtime === 'qemu')
+  const qemuNodes = topology.nodes.filter(node => node.runtime === 'qemu')
+  const qemuNode = evidence.nodeId ? qemuNodes.find(node => node.id === evidence.nodeId)
+    : qemuNodes.length === 1 ? qemuNodes[0] : null
+  if (!qemuNode) return withDiagnostics
   const runtimeFields = { requestedAccelerator: evidence.requestedAccelerator || 'unknown',
     selectedAccelerator: evidence.selectedAccelerator || 'unknown',
     actualAccelerator: evidence.actualAccelerator || null,
@@ -97,7 +99,7 @@ export function topologyView(topology, evidence, diagnosticEvidence = null, diag
   const boundaryState = evidence.state === 'stopped' ? 'stopped'
     : evidence.vmState === 'unavailable' ? 'unavailable' : 'running'
   return { ...withDiagnostics,
-    nodes: topology.nodes.map(node => node.runtime === 'qemu' ? { ...node, ...runtimeFields } : node),
+    nodes: topology.nodes.map(node => node.id === qemuNode.id ? { ...node, ...runtimeFields } : node),
     networkNodes: topology.networkNodes.map(node => {
       if (!qemuNode) return node
       if (node.id === qemuNode.id) return { ...node, ...runtimeFields,
