@@ -1,0 +1,20 @@
+# DESIGN ONLY — not accepted by current GraphX.
+catalog: ../../catalog/lock.json
+connections:
+  loop:
+    feedback: true
+    from: a.out
+    to: b.in
+    transport: udp
+graph:
+  id: feedback
+nodes:
+  a:
+    execution:
+      kind: native
+    type: udp.publisher
+  b:
+    execution:
+      kind: native
+    type: udp.subscriber
+version: 3

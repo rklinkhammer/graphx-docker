@@ -1,0 +1,380 @@
+# DESIGN ONLY — proposed credential-scoped read-only mounts.
+name: renamed-multi-source
+networks:
+  data:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+      - subnet: 172.28.50.0/24
+  mg-processor-east:
+    driver: bridge
+    internal: true
+  mg-processor-west:
+    driver: bridge
+    internal: true
+  mg-recorder-east:
+    driver: bridge
+    internal: true
+  mg-recorder-west:
+    driver: bridge
+    internal: true
+  mg-source-east:
+    driver: bridge
+    internal: true
+  mg-source-west:
+    driver: bridge
+    internal: true
+services:
+  platform:
+    cap_drop:
+    - ALL
+    command:
+    - --config
+    - /run/graphx/platform.json
+    entrypoint:
+    - graphx-platform
+    environment:
+      GX_CREDENTIALS: /run/secrets
+      GX_STATE: /var/lib/graphx
+    healthcheck:
+      interval: 2s
+      retries: 15
+      test:
+      - CMD
+      - graphx-platform
+      - health
+      - --url
+      - http://127.0.0.1:8080/api/ready
+      timeout: 2s
+    image: graphx-design/platform@sha256:41b3db89b6ec78cab84b29c12a1af5024ba670b44463edc40d887cad8b952ba4
+    logging:
+      driver: json-file
+      options:
+        max-file: '2'
+        max-size: 1m
+    mem_limit: 128m
+    networks:
+      mg-processor-east:
+        aliases:
+        - platform
+      mg-processor-west:
+        aliases:
+        - platform
+      mg-recorder-east:
+        aliases:
+        - platform
+      mg-recorder-west:
+        aliases:
+        - platform
+      mg-source-east:
+        aliases:
+        - platform
+      mg-source-west:
+        aliases:
+        - platform
+    pids_limit: 64
+    ports:
+    - 127.0.0.1:8080:8080
+    read_only: true
+    restart: 'no'
+    security_opt:
+    - no-new-privileges:true
+    tmpfs:
+    - /tmp:rw,nosuid,nodev,size=16m
+    user: 65532:65532
+    volumes:
+    - ./resolved.json:/run/graphx/resolved.json:ro
+    - ./platform.json:/run/graphx/platform.json:ro
+    - ./credentials.json:/run/graphx/credentials.json:ro
+    - ${GX_STATE}/history:/var/lib/graphx/history
+    - ${GX_STATE}/handoff:/captures:ro
+    - ${GX_CREDENTIALS}/observer:/run/secrets/observer:ro
+    - ${GX_CREDENTIALS}/runtime-processor-east:/run/secrets/runtime-processor-east:ro
+    - ${GX_CREDENTIALS}/runtime-processor-west:/run/secrets/runtime-processor-west:ro
+    - ${GX_CREDENTIALS}/runtime-recorder-east:/run/secrets/runtime-recorder-east:ro
+    - ${GX_CREDENTIALS}/runtime-recorder-west:/run/secrets/runtime-recorder-west:ro
+    - ${GX_CREDENTIALS}/runtime-source-east:/run/secrets/runtime-source-east:ro
+    - ${GX_CREDENTIALS}/runtime-source-west:/run/secrets/runtime-source-west:ro
+  processor-east:
+    cap_drop:
+    - ALL
+    command:
+    - --node
+    - processor-east
+    - --config
+    - /run/graphx/node.json
+    entrypoint:
+    - graphx-transform
+    environment:
+      GRAPHX_CREDENTIALS: /run/secrets
+    healthcheck:
+      interval: 2s
+      retries: 15
+      test:
+      - CMD
+      - graphx-transform
+      - --node
+      - processor-east
+      - --config
+      - /run/graphx/node.json
+      - --check-local-ready
+      timeout: 2s
+    image: graphx-design/runtime@sha256:09486a2ac3d5398b1bb25e807db55c4954971f306b94e55498ee30b6f02cda8c
+    logging:
+      driver: json-file
+      options:
+        max-file: '2'
+        max-size: 1m
+    mem_limit: 128m
+    networks:
+      data:
+        ipv4_address: 172.28.50.10
+      mg-processor-east: {}
+    pids_limit: 64
+    read_only: true
+    restart: 'no'
+    security_opt:
+    - no-new-privileges:true
+    tmpfs:
+    - /tmp:rw,nosuid,nodev,size=16m
+    user: 65532:65532
+    volumes:
+    - ./nodes/processor-east.json:/run/graphx/node.json:ro
+    - ${GX_STATE}/barriers:/run/graphx/barriers:ro
+    - ${GX_CREDENTIALS}/runtime-processor-east:/run/secrets/runtime-processor-east:ro
+  processor-west:
+    cap_drop:
+    - ALL
+    command:
+    - --node
+    - processor-west
+    - --config
+    - /run/graphx/node.json
+    entrypoint:
+    - graphx-transform
+    environment:
+      GRAPHX_CREDENTIALS: /run/secrets
+    healthcheck:
+      interval: 2s
+      retries: 15
+      test:
+      - CMD
+      - graphx-transform
+      - --node
+      - processor-west
+      - --config
+      - /run/graphx/node.json
+      - --check-local-ready
+      timeout: 2s
+    image: graphx-design/runtime@sha256:09486a2ac3d5398b1bb25e807db55c4954971f306b94e55498ee30b6f02cda8c
+    logging:
+      driver: json-file
+      options:
+        max-file: '2'
+        max-size: 1m
+    mem_limit: 128m
+    networks:
+      data:
+        ipv4_address: 172.28.50.11
+      mg-processor-west: {}
+    pids_limit: 64
+    read_only: true
+    restart: 'no'
+    security_opt:
+    - no-new-privileges:true
+    tmpfs:
+    - /tmp:rw,nosuid,nodev,size=16m
+    user: 65532:65532
+    volumes:
+    - ./nodes/processor-west.json:/run/graphx/node.json:ro
+    - ${GX_STATE}/barriers:/run/graphx/barriers:ro
+    - ${GX_CREDENTIALS}/runtime-processor-west:/run/secrets/runtime-processor-west:ro
+  recorder-east:
+    cap_drop:
+    - ALL
+    command:
+    - --node
+    - recorder-east
+    - --config
+    - /run/graphx/node.json
+    entrypoint:
+    - graphx-sink
+    environment:
+      GRAPHX_CREDENTIALS: /run/secrets
+    healthcheck:
+      interval: 2s
+      retries: 15
+      test:
+      - CMD
+      - graphx-sink
+      - --node
+      - recorder-east
+      - --config
+      - /run/graphx/node.json
+      - --check-local-ready
+      timeout: 2s
+    image: graphx-design/runtime@sha256:09486a2ac3d5398b1bb25e807db55c4954971f306b94e55498ee30b6f02cda8c
+    logging:
+      driver: json-file
+      options:
+        max-file: '2'
+        max-size: 1m
+    mem_limit: 128m
+    networks:
+      data:
+        ipv4_address: 172.28.50.12
+      mg-recorder-east: {}
+    pids_limit: 64
+    read_only: true
+    restart: 'no'
+    security_opt:
+    - no-new-privileges:true
+    tmpfs:
+    - /tmp:rw,nosuid,nodev,size=16m
+    user: 65532:65532
+    volumes:
+    - ./nodes/recorder-east.json:/run/graphx/node.json:ro
+    - ${GX_STATE}/barriers:/run/graphx/barriers:ro
+    - ${GX_CREDENTIALS}/runtime-recorder-east:/run/secrets/runtime-recorder-east:ro
+  recorder-west:
+    cap_drop:
+    - ALL
+    command:
+    - --node
+    - recorder-west
+    - --config
+    - /run/graphx/node.json
+    entrypoint:
+    - graphx-sink
+    environment:
+      GRAPHX_CREDENTIALS: /run/secrets
+    healthcheck:
+      interval: 2s
+      retries: 15
+      test:
+      - CMD
+      - graphx-sink
+      - --node
+      - recorder-west
+      - --config
+      - /run/graphx/node.json
+      - --check-local-ready
+      timeout: 2s
+    image: graphx-design/runtime@sha256:09486a2ac3d5398b1bb25e807db55c4954971f306b94e55498ee30b6f02cda8c
+    logging:
+      driver: json-file
+      options:
+        max-file: '2'
+        max-size: 1m
+    mem_limit: 128m
+    networks:
+      data:
+        ipv4_address: 172.28.50.13
+      mg-recorder-west: {}
+    pids_limit: 64
+    read_only: true
+    restart: 'no'
+    security_opt:
+    - no-new-privileges:true
+    tmpfs:
+    - /tmp:rw,nosuid,nodev,size=16m
+    user: 65532:65532
+    volumes:
+    - ./nodes/recorder-west.json:/run/graphx/node.json:ro
+    - ${GX_STATE}/barriers:/run/graphx/barriers:ro
+    - ${GX_CREDENTIALS}/runtime-recorder-west:/run/secrets/runtime-recorder-west:ro
+  source-east:
+    cap_drop:
+    - ALL
+    command:
+    - --node
+    - source-east
+    - --config
+    - /run/graphx/node.json
+    entrypoint:
+    - graphx-generator
+    environment:
+      GRAPHX_CREDENTIALS: /run/secrets
+    healthcheck:
+      interval: 2s
+      retries: 15
+      test:
+      - CMD
+      - graphx-generator
+      - --node
+      - source-east
+      - --config
+      - /run/graphx/node.json
+      - --check-local-ready
+      timeout: 2s
+    image: graphx-design/runtime@sha256:09486a2ac3d5398b1bb25e807db55c4954971f306b94e55498ee30b6f02cda8c
+    logging:
+      driver: json-file
+      options:
+        max-file: '2'
+        max-size: 1m
+    mem_limit: 128m
+    networks:
+      data:
+        ipv4_address: 172.28.50.14
+      mg-source-east: {}
+    pids_limit: 64
+    read_only: true
+    restart: 'no'
+    security_opt:
+    - no-new-privileges:true
+    tmpfs:
+    - /tmp:rw,nosuid,nodev,size=16m
+    user: 65532:65532
+    volumes:
+    - ./nodes/source-east.json:/run/graphx/node.json:ro
+    - ${GX_STATE}/barriers:/run/graphx/barriers:ro
+    - ${GX_CREDENTIALS}/runtime-source-east:/run/secrets/runtime-source-east:ro
+  source-west:
+    cap_drop:
+    - ALL
+    command:
+    - --node
+    - source-west
+    - --config
+    - /run/graphx/node.json
+    entrypoint:
+    - graphx-generator
+    environment:
+      GRAPHX_CREDENTIALS: /run/secrets
+    healthcheck:
+      interval: 2s
+      retries: 15
+      test:
+      - CMD
+      - graphx-generator
+      - --node
+      - source-west
+      - --config
+      - /run/graphx/node.json
+      - --check-local-ready
+      timeout: 2s
+    image: graphx-design/runtime@sha256:09486a2ac3d5398b1bb25e807db55c4954971f306b94e55498ee30b6f02cda8c
+    logging:
+      driver: json-file
+      options:
+        max-file: '2'
+        max-size: 1m
+    mem_limit: 128m
+    networks:
+      data:
+        ipv4_address: 172.28.50.15
+      mg-source-west: {}
+    pids_limit: 64
+    read_only: true
+    restart: 'no'
+    security_opt:
+    - no-new-privileges:true
+    tmpfs:
+    - /tmp:rw,nosuid,nodev,size=16m
+    user: 65532:65532
+    volumes:
+    - ./nodes/source-west.json:/run/graphx/node.json:ro
+    - ${GX_STATE}/barriers:/run/graphx/barriers:ro
+    - ${GX_CREDENTIALS}/runtime-source-west:/run/secrets/runtime-source-west:ro

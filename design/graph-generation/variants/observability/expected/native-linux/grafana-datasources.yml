@@ -1,0 +1,8 @@
+# DESIGN ONLY — proposed contract; not executable today.
+apiVersion: 1
+datasources:
+- access: proxy
+  isDefault: true
+  name: GraphX
+  type: prometheus
+  url: http://prometheus:9090

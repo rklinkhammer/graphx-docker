@@ -1,0 +1,22 @@
+{
+  "credentials": [],
+  "executable": "",
+  "execution": [
+    "external"
+  ],
+  "id": "external.packet-source",
+  "image": "graphx-design/runtime@sha256:09486a2ac3d5398b1bb25e807db55c4954971f306b94e55498ee30b6f02cda8c",
+  "observation": "packet",
+  "parameters": {},
+  "ports": {},
+  "readiness": {
+    "kind": "local-bound",
+    "timeout_ms": 30000
+  },
+  "resources": {
+    "memory_bytes": 134217728,
+    "pids": 64
+  },
+  "revision": 1,
+  "template": "node-v1"
+}

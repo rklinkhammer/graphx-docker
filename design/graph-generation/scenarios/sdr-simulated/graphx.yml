@@ -1,0 +1,67 @@
+# DESIGN ONLY — not accepted by current GraphX.
+catalog: ../../catalog/lock.json
+connections:
+  control:
+    from: processor.control
+    security:
+      profile: mtls
+      server_name: radio
+    to: radio.control
+    transport: tcp
+  iq:
+    from: radio.samples
+    to: processor.samples
+    transport: udp
+  results:
+    from: processor.results
+    to: sink.results
+    transport: tcp
+credentials:
+  lab-processor:
+    identity: processor
+    members:
+    - ca.pem
+    - cert.pem
+    - key.pem
+    provider: lab-generated
+  lab-radio:
+    identity: radio
+    members:
+    - ca.pem
+    - cert.pem
+    - key.pem
+    provider: lab-generated
+graph:
+  id: sdr-simulated
+nodes:
+  processor:
+    credentials:
+      control: lab-processor
+    execution:
+      kind: container
+    type: sdr.processor
+  radio:
+    credentials:
+      control: lab-radio
+    execution:
+      kind: container
+    type: sdr.simulator
+  sink:
+    execution:
+      kind: container
+    type: sdr.result-sink
+platform:
+  capture:
+    enabled: true
+    provider: application
+  history:
+    max_database_bytes: 67108864
+    max_records: 50000
+    retention_seconds: 86400
+portable_network:
+  addresses:
+    processor: 172.30.13.20
+    radio: 172.30.13.10
+    sink: 172.30.13.30
+  subnet: 172.30.13.0/24
+version: 3

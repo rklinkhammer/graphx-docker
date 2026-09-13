@@ -1,0 +1,18 @@
+{
+  "failure": "report console access unavailable; do not change VM or choose another port",
+  "forwarded_sockets": [],
+  "local_bind": "127.0.0.1",
+  "local_port": 8080,
+  "operation": "lima_loopback_forward",
+  "owner": "existing host Lima boundary plus narrow nonprivileged SSH forward adapter",
+  "protocol": "tcp",
+  "readiness": "guest platform /api/ready and host port available",
+  "remote_bind": "127.0.0.1",
+  "remote_port": 8080,
+  "ssh_endpoint": "read from identity-checked existing Lima instance at execution",
+  "start_argv_contract": "SSH -N with ExitOnForwardFailure and LocalForward; no remote command; endpoint obtained from existing instance metadata",
+  "stop": "identity-checked forwarding process only",
+  "version": 1,
+  "vm": "graphx",
+  "vm_identity": "existing checked configuration digest; never replace VM"
+}

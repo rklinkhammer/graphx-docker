@@ -1,0 +1,66 @@
+{
+  "catalog_digest": "d984d3c04c8ac657407f9c704a3f3a3760a352e348fb0a32616077b2caba5cff",
+  "compiler": "proposed-graphx-v3-design-1",
+  "files": [
+    {
+      "path": "access-plan.json",
+      "sha256": "b63f1f98b6d6a1c4ce601255e5db83c76eed5f3df8750d25d0af8b03bb546be6"
+    },
+    {
+      "path": "capture-handoff.json",
+      "sha256": "c9bb87c80dc9f6d30d827a8a248810606363e3ebfc2c77f0af7584b38ae50b07"
+    },
+    {
+      "path": "compose.yaml",
+      "sha256": "f0d4b3672044ddfefaf41c2c148ae5448f16410f61132396360203637397390d"
+    },
+    {
+      "path": "credentials.json",
+      "sha256": "c73a78500470a6a5ef386c1084d903da11655463e20d1a5e2abe5a0f2ac63ebb"
+    },
+    {
+      "path": "execution-plan.json",
+      "sha256": "a92171d0e1c7ab035f899125556f7a334371b65943afd860dd8b54e2e66dd398"
+    },
+    {
+      "path": "native-plan.json",
+      "sha256": "045841a81c622c67433d9b6e044251ab396eb091d3b2a3a7d8508ef38a33f2dd"
+    },
+    {
+      "path": "nodes/left.json",
+      "sha256": "f1ea66b0e1e0f94d8d0eac3a3e4811befbc2f12a14b16f77919635b78a47b3e1"
+    },
+    {
+      "path": "nodes/middle.json",
+      "sha256": "3d79015cf5e421520b3f9cd29c7088b59858cc04274ce673401b2f0735a8f03a"
+    },
+    {
+      "path": "nodes/right.json",
+      "sha256": "92e6f818659fc30ad6484f62346189abdb9eb89d62dd146d0dd9dba5cd30bb55"
+    },
+    {
+      "path": "ovs-plan.json",
+      "sha256": "5e0e20ccd33bf3a07df3249167c05d7107a9f1d6c5fd6b979c6b872f41c18d48"
+    },
+    {
+      "path": "platform.json",
+      "sha256": "016517d3f6a4660ee3b1fee9222c0e894cd53e81b084bf4e954399fb3ec1d8bc"
+    },
+    {
+      "path": "resolved.json",
+      "sha256": "ccca6da2252843f14e5d781b24c45fc294f485010f310a0f4fc95e11d2810aeb"
+    },
+    {
+      "path": "scenario-plan.json",
+      "sha256": "45fc910f77fec0221b1b03deec0b22e0293b31da944af8ab76c8d6fec48eee20"
+    },
+    {
+      "path": "substitutions.json",
+      "sha256": "dc7fe38c396ee0c3af588e38085544fc8ac154d9e43378fa4c0ca1dbd69056f2"
+    }
+  ],
+  "graph_id": "static-route-policy",
+  "input_digest": "e916287b458dcddf0c9211fc19c47aa081d0ab7817385a240d33b333092f0e25",
+  "ownership": "invoking UID and graph ID; checked replacement only; no runtime lifecycle records",
+  "version": 1
+}

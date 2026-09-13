@@ -1,0 +1,174 @@
+# DESIGN ONLY — not accepted by current GraphX.
+catalog: ../../catalog/lock.json
+connections:
+  peer-qemu-tcp:
+    attachments:
+      from: peer-data
+      to: qemu-data
+    from: host-peer.tcp_out
+    settings:
+      bind: 0.0.0.0
+      framing: none
+      host: 10.0.2.15
+      port: 18001
+    to: qemu-node.tcp_in
+    transport: tcp
+  peer-qemu-udp:
+    attachments:
+      from: peer-data
+      to: qemu-data
+    from: host-peer.udp_out
+    settings:
+      bind: 0.0.0.0
+      destination: 10.0.2.15
+      framing: none
+      max_datagram_bytes: 1400
+      mode: unicast
+      port: 18001
+    to: qemu-node.udp_in
+    transport: udp
+  qemu-peer-tcp:
+    attachments:
+      from: qemu-data
+      to: peer-data
+    from: qemu-node.tcp_out
+    settings:
+      bind: 0.0.0.0
+      framing: none
+      host: 10.0.2.2
+      port: 19001
+    to: host-peer.tcp_in
+    transport: tcp
+  qemu-peer-udp:
+    attachments:
+      from: qemu-data
+      to: peer-data
+    from: qemu-node.udp_out
+    settings:
+      bind: 0.0.0.0
+      destination: 10.0.2.2
+      framing: none
+      max_datagram_bytes: 1400
+      mode: unicast
+      port: 19001
+    to: host-peer.udp_in
+    transport: udp
+graph:
+  id: qemu-tap
+network:
+  attachments:
+  - address: 10.0.2.15/24
+    id: qemu-data
+    kind: qemu_tap
+    mac: 02:00:00:00:02:15
+    network: qemu-lan
+    owner: qemu-node
+    port: qemu
+    switch: br-qemu-tap
+    tap_gid: 65532
+    tap_uid: 65532
+  - id: qemu-span
+    kind: mirror
+    owner: br-qemu-tap
+    port: capture
+    switch: br-qemu-tap
+  captures:
+  - attachment: qemu-span
+    id: qemu-span
+    max_file_bytes: 67108864
+    max_files: 2
+    retention_seconds: 86400
+    rotation_seconds: 300
+    snaplen: 65535
+  edge_paths:
+    peer-qemu-tcp:
+    - host-peer
+    - qemu-lan
+    - br-qemu-tap
+    - qemu-node
+    peer-qemu-udp:
+    - host-peer
+    - qemu-lan
+    - br-qemu-tap
+    - qemu-node
+    qemu-peer-tcp:
+    - qemu-node
+    - br-qemu-tap
+    - qemu-lan
+    - host-peer
+    qemu-peer-udp:
+    - qemu-node
+    - br-qemu-tap
+    - qemu-lan
+    - host-peer
+  networks:
+  - gateway: 10.0.2.2
+    id: qemu-lan
+    profile: ethernet
+    realization: ovs
+    subnets:
+    - 10.0.2.0/24
+  routers:
+  - forwarding: false
+    id: qemu-peer
+    interfaces:
+    - address: 10.0.2.2/24
+      attachment_id: peer-data
+      id: data
+      network: qemu-lan
+      switch: br-qemu-tap
+    - address: 10.0.2.99/24
+      attachment_id: isolated-data
+      id: isolated
+      network: qemu-lan
+      switch: br-qemu-tap
+    kind: linux_namespace
+  switches:
+  - datapath: system
+    id: br-qemu-tap
+    kind: openvswitch
+    mirror:
+      id: qemu-span
+      output_port: capture
+      select_all: true
+    ports:
+    - id: qemu
+      vlan:
+        access_tag: 42
+    - id: peer
+      vlan:
+        access_tag: 42
+    - id: isolated
+      vlan:
+        access_tag: 43
+    - id: capture
+nodes:
+  host-peer:
+    execution:
+      kind: namespace
+      namespace: qemu-peer
+    type: diagnostic.peer
+  qemu-node:
+    execution:
+      accelerator: tcg
+      architecture: x86_64
+      guest: echo-x86
+      kind: qemu
+    type: guest.echo
+scenario:
+  actions:
+  - action: traffic
+    connections:
+    - peer-qemu-tcp
+    - peer-qemu-udp
+    - qemu-peer-tcp
+    - qemu-peer-udp
+    expect:
+    - bidirectional-tcp-udp
+    - broadcast-echo-10.0.2.255:18001
+    - multicast-observed-239.1.2.3:18001
+    - vlan-43-isolated
+    - capture-nonempty
+    - qmp-pause-resume
+    id: verify-guest
+version: 3

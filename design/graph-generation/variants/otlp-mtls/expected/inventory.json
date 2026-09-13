@@ -1,0 +1,297 @@
+{
+  "artifact_sets": [
+    {
+      "application_placement": "Docker containers on native-linux",
+      "completeness": "complete-illustrative",
+      "counts": {
+        "application_services": 3,
+        "auxiliary_services": 0,
+        "capture_processes": 0,
+        "external_managed_processes": 0,
+        "handoff_processes": 0,
+        "host_forward_processes": 0,
+        "native_application_processes": 0,
+        "native_platform_processes": 0,
+        "optional_scenario_processes": 0,
+        "platform_services": 1,
+        "qemu_processes": 0,
+        "transient_build_processes": 0,
+        "transient_execution_adapter_processes": 1
+      },
+      "files": [
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/native-linux/compile-manifest.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "yaml",
+          "path": "expected/native-linux/compose.yaml",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/native-linux/credentials.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/native-linux/execution-plan.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/native-linux/nodes/generator.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/native-linux/nodes/sink.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/native-linux/nodes/transform.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/native-linux/platform.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/native-linux/resolved.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/native-linux/substitutions.json",
+          "status": "static-design"
+        }
+      ],
+      "platform_placement": "unprivileged container on native-linux",
+      "status": "static-design",
+      "target": "native-linux"
+    },
+    {
+      "application_placement": "Docker containers on orbstack",
+      "completeness": "complete-illustrative",
+      "counts": {
+        "application_services": 3,
+        "auxiliary_services": 0,
+        "capture_processes": 0,
+        "external_managed_processes": 0,
+        "handoff_processes": 0,
+        "host_forward_processes": 0,
+        "native_application_processes": 0,
+        "native_platform_processes": 0,
+        "optional_scenario_processes": 0,
+        "platform_services": 1,
+        "qemu_processes": 0,
+        "transient_build_processes": 0,
+        "transient_execution_adapter_processes": 1
+      },
+      "files": [
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/orbstack/compile-manifest.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "yaml",
+          "path": "expected/orbstack/compose.yaml",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/orbstack/credentials.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/orbstack/execution-plan.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/orbstack/nodes/generator.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/orbstack/nodes/sink.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/orbstack/nodes/transform.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/orbstack/platform.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/orbstack/resolved.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/orbstack/substitutions.json",
+          "status": "static-design"
+        }
+      ],
+      "platform_placement": "unprivileged container on orbstack",
+      "status": "static-design",
+      "target": "orbstack"
+    },
+    {
+      "application_placement": "Docker containers on lima",
+      "completeness": "complete-illustrative",
+      "counts": {
+        "application_services": 3,
+        "auxiliary_services": 0,
+        "capture_processes": 0,
+        "external_managed_processes": 0,
+        "handoff_processes": 0,
+        "host_forward_processes": 1,
+        "native_application_processes": 0,
+        "native_platform_processes": 0,
+        "optional_scenario_processes": 0,
+        "platform_services": 1,
+        "qemu_processes": 0,
+        "transient_build_processes": 0,
+        "transient_execution_adapter_processes": 1
+      },
+      "files": [
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/lima/access-plan.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/lima/compile-manifest.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "yaml",
+          "path": "expected/lima/compose.yaml",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/lima/credentials.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/lima/execution-plan.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/lima/nodes/generator.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/lima/nodes/sink.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/lima/nodes/transform.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/lima/platform.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/lima/resolved.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/lima/substitutions.json",
+          "status": "static-design"
+        }
+      ],
+      "platform_placement": "unprivileged container on lima",
+      "status": "static-design",
+      "target": "lima"
+    }
+  ],
+  "capabilities": {
+    "lima": {
+      "artifact_set": "lima",
+      "cell": "supported placement",
+      "reason": "Docker containers on lima; unprivileged container on lima",
+      "rule": "C-CONTAINER",
+      "status": "static-design",
+      "support": "proposed generation; preserved application/network semantics where current source cited"
+    },
+    "native-linux": {
+      "artifact_set": "native-linux",
+      "cell": "supported placement",
+      "reason": "Docker containers on native-linux; unprivileged container on native-linux",
+      "rule": "C-CONTAINER",
+      "status": "static-design",
+      "support": "proposed generation; preserved application/network semantics where current source cited"
+    },
+    "native-macos": {
+      "cell": "unsupported",
+      "diagnostic": "expected/native-macos/diagnostic.json",
+      "reason": "authored execution cannot be silently moved to another environment",
+      "rule": "C-CONTAINER",
+      "status": "static-design"
+    },
+    "orbstack": {
+      "artifact_set": "orbstack",
+      "cell": "supported placement",
+      "reason": "Docker containers on orbstack; unprivileged container on orbstack",
+      "rule": "C-CONTAINER",
+      "status": "static-design",
+      "support": "proposed generation; preserved application/network semantics where current source cited"
+    }
+  },
+  "case_id": "V06",
+  "status": "static-design"
+}

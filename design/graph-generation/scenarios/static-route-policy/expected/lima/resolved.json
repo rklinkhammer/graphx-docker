@@ -1,0 +1,853 @@
+{
+  "catalog_digest": "d984d3c04c8ac657407f9c704a3f3a3760a352e348fb0a32616077b2caba5cff",
+  "connections": [
+    {
+      "attachments": {
+        "from": "left-data",
+        "to": "middle-data"
+      },
+      "destination_address": "10.64.2.10",
+      "encoding": "raw",
+      "from": {
+        "node": "left",
+        "port": "allowed"
+      },
+      "id": "allowed-flow",
+      "listener": "middle.allowed",
+      "schema": "RawDiagnosticDatagram",
+      "security": {
+        "profile": "none"
+      },
+      "settings": {
+        "bind": "10.64.2.10",
+        "destination": "10.64.2.10",
+        "framing": "none",
+        "loopback": true,
+        "max_datagram_bytes": 512,
+        "mode": "unicast",
+        "port": 18601,
+        "receive_buffer_bytes": 65536,
+        "reuse_address": false,
+        "send_buffer_bytes": 65536,
+        "ttl": 1
+      },
+      "source_address": "10.64.1.10",
+      "to": {
+        "node": "middle",
+        "port": "allowed"
+      },
+      "transport": "udp"
+    },
+    {
+      "attachments": {
+        "from": "middle-data",
+        "to": "left-data"
+      },
+      "destination_address": "10.64.1.10",
+      "encoding": "raw",
+      "from": {
+        "node": "middle",
+        "port": "denied"
+      },
+      "id": "denied-flow",
+      "listener": "left.denied",
+      "schema": "RawDiagnosticDatagram",
+      "security": {
+        "profile": "none"
+      },
+      "settings": {
+        "bind": "10.64.1.10",
+        "destination": "10.64.1.10",
+        "framing": "none",
+        "loopback": true,
+        "max_datagram_bytes": 512,
+        "mode": "unicast",
+        "port": 18602,
+        "receive_buffer_bytes": 65536,
+        "reuse_address": false,
+        "send_buffer_bytes": 65536,
+        "ttl": 1
+      },
+      "source_address": "10.64.2.10",
+      "to": {
+        "node": "left",
+        "port": "denied"
+      },
+      "transport": "udp"
+    },
+    {
+      "attachments": {
+        "from": "left-data",
+        "to": "right-data"
+      },
+      "destination_address": "10.64.3.10",
+      "encoding": "raw",
+      "from": {
+        "node": "left",
+        "port": "routed"
+      },
+      "id": "routed-flow",
+      "listener": "right.routed",
+      "schema": "RawDiagnosticDatagram",
+      "security": {
+        "profile": "none"
+      },
+      "settings": {
+        "bind": "10.64.3.10",
+        "destination": "10.64.30.10",
+        "framing": "none",
+        "loopback": true,
+        "max_datagram_bytes": 512,
+        "mode": "unicast",
+        "port": 18603,
+        "receive_buffer_bytes": 65536,
+        "reuse_address": false,
+        "send_buffer_bytes": 65536,
+        "ttl": 1
+      },
+      "source_address": "10.64.1.10",
+      "to": {
+        "node": "right",
+        "port": "routed"
+      },
+      "transport": "udp"
+    }
+  ],
+  "contract_version": 2,
+  "credential_references": [
+    "observer"
+  ],
+  "execution_values": [
+    "GX_STATE",
+    "GX_CREDENTIALS",
+    "GX_OUTPUT",
+    "GX_RELEASE",
+    "GX_OWNER"
+  ],
+  "graph_id": "static-route-policy",
+  "graph_version": 3,
+  "input_digest": "e916287b458dcddf0c9211fc19c47aa081d0ab7817385a240d33b333092f0e25",
+  "network": {
+    "attachments": [
+      {
+        "address": "10.64.1.10/24",
+        "id": "left-data",
+        "interface": "gxie61476d63a04",
+        "kind": "namespace_veth",
+        "mac": "02:64:00:00:01:10",
+        "namespace": "gxn3b90847b051f",
+        "network": "gx-route-left",
+        "owner": "left",
+        "peer": "gxpc4f8948124eb",
+        "routes": [
+          {
+            "destination": "10.64.2.0/24",
+            "via": "10.64.1.1"
+          },
+          {
+            "destination": "10.64.30.10/32",
+            "via": "10.64.1.1"
+          }
+        ],
+        "switch": "br-route-left"
+      },
+      {
+        "address": "10.64.2.10/24",
+        "id": "middle-data",
+        "interface": "gxi08945fc40aae",
+        "kind": "namespace_veth",
+        "mac": "02:64:00:00:02:10",
+        "namespace": "gxndb0f1d7b8d00",
+        "network": "gx-route-middle",
+        "owner": "middle",
+        "peer": "gxpd31b01da5a71",
+        "routes": [
+          {
+            "destination": "10.64.1.0/24",
+            "via": "10.64.2.1"
+          }
+        ],
+        "switch": "br-route-middle"
+      },
+      {
+        "id": "mirror-route-left",
+        "interface": "gxi8311e78cbe59",
+        "kind": "mirror",
+        "owner": "br-route-left",
+        "peer": "gxp8aff86f499cb",
+        "port": "capture",
+        "switch": "br-route-left"
+      },
+      {
+        "id": "mirror-route-middle",
+        "interface": "gxi10d4a3a0f8f7",
+        "kind": "mirror",
+        "owner": "br-route-middle",
+        "peer": "gxp82bc9c25402f",
+        "port": "capture",
+        "switch": "br-route-middle"
+      },
+      {
+        "id": "mirror-route-right",
+        "interface": "gxi9d55bf026041",
+        "kind": "mirror",
+        "owner": "br-route-right",
+        "peer": "gxpff33d1b2ae44",
+        "port": "capture",
+        "switch": "br-route-right"
+      },
+      {
+        "address": "10.64.3.10/24",
+        "aliases": [
+          "10.64.30.10/32"
+        ],
+        "id": "right-data",
+        "interface": "gxie9c78d70a263",
+        "kind": "namespace_veth",
+        "mac": "02:64:00:00:03:10",
+        "namespace": "gxn5e5a66848238",
+        "network": "gx-route-right",
+        "owner": "right",
+        "peer": "gxp6f80636df09d",
+        "routes": [
+          {
+            "destination": "10.64.1.0/24",
+            "via": "10.64.3.1"
+          }
+        ],
+        "switch": "br-route-right"
+      },
+      {
+        "address": "10.64.1.1/24",
+        "id": "route-router-left",
+        "interface": "gxi244e688f3704",
+        "kind": "namespace_veth",
+        "network": "gx-route-left",
+        "owner": "route-router",
+        "peer": "gxp966244b685f7",
+        "switch": "br-route-left"
+      },
+      {
+        "address": "10.64.2.1/24",
+        "id": "route-router-middle",
+        "interface": "gxi1a76aa166200",
+        "kind": "namespace_veth",
+        "network": "gx-route-middle",
+        "owner": "route-router",
+        "peer": "gxpfb03a55a8bc8",
+        "switch": "br-route-middle"
+      },
+      {
+        "address": "10.64.3.1/24",
+        "id": "route-router-right",
+        "interface": "gxi32571f95c90c",
+        "kind": "namespace_veth",
+        "network": "gx-route-right",
+        "owner": "route-router",
+        "peer": "gxp2f729571407a",
+        "switch": "br-route-right"
+      }
+    ],
+    "captures": [
+      {
+        "attachment": "mirror-route-left",
+        "directory": "/var/lib/graphx/captures/static-route-policy/mirror-route-left",
+        "id": "mirror-route-left",
+        "max_file_bytes": 67108864,
+        "max_files": 2,
+        "retention_seconds": 86400,
+        "rotation_seconds": 300,
+        "snaplen": 65535
+      },
+      {
+        "attachment": "mirror-route-middle",
+        "directory": "/var/lib/graphx/captures/static-route-policy/mirror-route-middle",
+        "id": "mirror-route-middle",
+        "max_file_bytes": 67108864,
+        "max_files": 2,
+        "retention_seconds": 86400,
+        "rotation_seconds": 300,
+        "snaplen": 65535
+      },
+      {
+        "attachment": "mirror-route-right",
+        "directory": "/var/lib/graphx/captures/static-route-policy/mirror-route-right",
+        "id": "mirror-route-right",
+        "max_file_bytes": 67108864,
+        "max_files": 2,
+        "retention_seconds": 86400,
+        "rotation_seconds": 300,
+        "snaplen": 65535
+      }
+    ],
+    "edge_paths": {
+      "allowed-flow": [
+        "left",
+        "gx-route-left",
+        "br-route-left",
+        "route-router",
+        "br-route-middle",
+        "gx-route-middle",
+        "middle"
+      ],
+      "denied-flow": [
+        "middle",
+        "gx-route-middle",
+        "br-route-middle",
+        "route-router",
+        "br-route-left",
+        "gx-route-left",
+        "left"
+      ],
+      "routed-flow": [
+        "left",
+        "gx-route-left",
+        "br-route-left",
+        "route-router",
+        "br-route-right",
+        "gx-route-right",
+        "right"
+      ]
+    },
+    "management_isolation": {
+      "application_bind": "selected-data-address",
+      "ip_forward": false,
+      "ovs_management_acl": "only platform TCP 8080 and UDP 9000; deny node-to-node and forwarding; enforced before release barrier",
+      "per_node_network": true,
+      "platform_routes_data": false
+    },
+    "networks": [
+      {
+        "gateway": "10.64.1.1",
+        "id": "gx-route-left",
+        "profile": "ethernet",
+        "realization": "ovs",
+        "subnets": [
+          "10.64.1.0/24"
+        ]
+      },
+      {
+        "gateway": "10.64.2.1",
+        "id": "gx-route-middle",
+        "profile": "ethernet",
+        "realization": "ovs",
+        "subnets": [
+          "10.64.2.0/24"
+        ]
+      },
+      {
+        "gateway": "10.64.3.1",
+        "id": "gx-route-right",
+        "profile": "ethernet",
+        "realization": "ovs",
+        "subnets": [
+          "10.64.3.0/24"
+        ]
+      }
+    ],
+    "routers": [
+      {
+        "forwarding": true,
+        "id": "route-router",
+        "interfaces": [
+          {
+            "address": "10.64.1.1/24",
+            "device": "gxi244e688f3704",
+            "id": "left",
+            "network": "gx-route-left",
+            "peer": "gxp966244b685f7",
+            "switch": "br-route-left"
+          },
+          {
+            "address": "10.64.2.1/24",
+            "device": "gxi1a76aa166200",
+            "id": "middle",
+            "network": "gx-route-middle",
+            "peer": "gxpfb03a55a8bc8",
+            "switch": "br-route-middle"
+          },
+          {
+            "address": "10.64.3.1/24",
+            "device": "gxi32571f95c90c",
+            "id": "right",
+            "network": "gx-route-right",
+            "peer": "gxp2f729571407a",
+            "switch": "br-route-right"
+          }
+        ],
+        "kind": "linux_namespace",
+        "namespace": "gxn57d2e91ce4af",
+        "policies": [
+          {
+            "action": "accept",
+            "destination": "10.64.2.0/24",
+            "id": "allow-left-middle",
+            "source": "10.64.1.0/24"
+          },
+          {
+            "action": "drop",
+            "destination": "10.64.1.0/24",
+            "id": "deny-middle-left",
+            "source": "10.64.2.0/24"
+          },
+          {
+            "action": "accept",
+            "destination": "10.64.30.10/32",
+            "id": "allow-left-right",
+            "source": "10.64.1.0/24"
+          }
+        ],
+        "routes": [
+          {
+            "destination": "10.64.30.10/32",
+            "device": "gxi32571f95c90c",
+            "install": "manual",
+            "interface": "right",
+            "via": "10.64.3.10"
+          }
+        ]
+      }
+    ],
+    "switches": [
+      {
+        "datapath": "system",
+        "id": "br-route-left",
+        "kind": "openvswitch",
+        "mirror": {
+          "id": "mirror-route-left",
+          "output_port": "capture",
+          "select_all": true
+        },
+        "name": "gxbc61b773a8e27",
+        "ports": [
+          {
+            "id": "capture",
+            "interface": "gxi8311e78cbe59",
+            "peer": "gxp8aff86f499cb"
+          },
+          {
+            "id": "endpoint",
+            "interface": "gxia77c7ff8d5bf",
+            "peer": "gxp6ed5dc52dea1"
+          }
+        ]
+      },
+      {
+        "datapath": "system",
+        "id": "br-route-middle",
+        "kind": "openvswitch",
+        "mirror": {
+          "id": "mirror-route-middle",
+          "output_port": "capture",
+          "select_all": true
+        },
+        "name": "gxba247bf510d8b",
+        "ports": [
+          {
+            "id": "capture",
+            "interface": "gxi10d4a3a0f8f7",
+            "peer": "gxp82bc9c25402f"
+          },
+          {
+            "id": "endpoint",
+            "interface": "gxi6dada8ac4db4",
+            "peer": "gxpe4fb5102eb27"
+          }
+        ]
+      },
+      {
+        "datapath": "system",
+        "id": "br-route-right",
+        "kind": "openvswitch",
+        "mirror": {
+          "id": "mirror-route-right",
+          "output_port": "capture",
+          "select_all": true
+        },
+        "name": "gxb40a7b154cc4a",
+        "ports": [
+          {
+            "id": "capture",
+            "interface": "gxi9d55bf026041",
+            "peer": "gxpff33d1b2ae44"
+          },
+          {
+            "id": "endpoint",
+            "interface": "gxib9ce670236d9",
+            "peer": "gxp55ff9f6a1143"
+          }
+        ]
+      }
+    ]
+  },
+  "nodes": [
+    {
+      "bindings": {
+        "allowed": [
+          {
+            "attachments": {
+              "from": "left-data",
+              "to": "middle-data"
+            },
+            "connection": "allowed-flow",
+            "destination_address": "10.64.2.10",
+            "encoding": "raw",
+            "role": "connect",
+            "schema": "RawDiagnosticDatagram",
+            "security": {
+              "profile": "none"
+            },
+            "settings": {
+              "bind": "10.64.2.10",
+              "destination": "10.64.2.10",
+              "framing": "none",
+              "loopback": true,
+              "max_datagram_bytes": 512,
+              "mode": "unicast",
+              "port": 18601,
+              "receive_buffer_bytes": 65536,
+              "reuse_address": false,
+              "send_buffer_bytes": 65536,
+              "ttl": 1
+            },
+            "source_address": "10.64.1.10",
+            "transport": "udp"
+          }
+        ],
+        "denied": [
+          {
+            "attachments": {
+              "from": "middle-data",
+              "to": "left-data"
+            },
+            "connection": "denied-flow",
+            "destination_address": "10.64.1.10",
+            "encoding": "raw",
+            "role": "listen",
+            "schema": "RawDiagnosticDatagram",
+            "security": {
+              "profile": "none"
+            },
+            "settings": {
+              "bind": "10.64.1.10",
+              "destination": "10.64.1.10",
+              "framing": "none",
+              "loopback": true,
+              "max_datagram_bytes": 512,
+              "mode": "unicast",
+              "port": 18602,
+              "receive_buffer_bytes": 65536,
+              "reuse_address": false,
+              "send_buffer_bytes": 65536,
+              "ttl": 1
+            },
+            "source_address": "10.64.2.10",
+            "transport": "udp"
+          }
+        ],
+        "routed": [
+          {
+            "attachments": {
+              "from": "left-data",
+              "to": "right-data"
+            },
+            "connection": "routed-flow",
+            "destination_address": "10.64.3.10",
+            "encoding": "raw",
+            "role": "connect",
+            "schema": "RawDiagnosticDatagram",
+            "security": {
+              "profile": "none"
+            },
+            "settings": {
+              "bind": "10.64.3.10",
+              "destination": "10.64.30.10",
+              "framing": "none",
+              "loopback": true,
+              "max_datagram_bytes": 512,
+              "mode": "unicast",
+              "port": 18603,
+              "receive_buffer_bytes": 65536,
+              "reuse_address": false,
+              "send_buffer_bytes": 65536,
+              "ttl": 1
+            },
+            "source_address": "10.64.1.10",
+            "transport": "udp"
+          }
+        ]
+      },
+      "capture": {
+        "directory": "/captures",
+        "enabled": true,
+        "max_file_bytes": 67108864,
+        "max_files": 2,
+        "max_packets": 100000,
+        "provider": "ovs-span",
+        "retention_seconds": 86400
+      },
+      "contract_version": 2,
+      "credentials": {},
+      "execution": {
+        "kind": "namespace"
+      },
+      "graph_id": "static-route-policy",
+      "graph_version": 3,
+      "node_id": "left",
+      "observation": [
+        "packet"
+      ],
+      "parameters": {},
+      "readiness": {
+        "kind": "local-bound",
+        "timeout_ms": 30000
+      },
+      "startup": {
+        "bind_before_connect": true,
+        "max_wait_ms": 30000,
+        "release_barrier": true
+      },
+      "telemetry": {
+        "credential": null,
+        "host": "platform",
+        "port": 9000
+      },
+      "type": "diagnostic.left",
+      "type_revision": 1
+    },
+    {
+      "bindings": {
+        "allowed": [
+          {
+            "attachments": {
+              "from": "left-data",
+              "to": "middle-data"
+            },
+            "connection": "allowed-flow",
+            "destination_address": "10.64.2.10",
+            "encoding": "raw",
+            "role": "listen",
+            "schema": "RawDiagnosticDatagram",
+            "security": {
+              "profile": "none"
+            },
+            "settings": {
+              "bind": "10.64.2.10",
+              "destination": "10.64.2.10",
+              "framing": "none",
+              "loopback": true,
+              "max_datagram_bytes": 512,
+              "mode": "unicast",
+              "port": 18601,
+              "receive_buffer_bytes": 65536,
+              "reuse_address": false,
+              "send_buffer_bytes": 65536,
+              "ttl": 1
+            },
+            "source_address": "10.64.1.10",
+            "transport": "udp"
+          }
+        ],
+        "denied": [
+          {
+            "attachments": {
+              "from": "middle-data",
+              "to": "left-data"
+            },
+            "connection": "denied-flow",
+            "destination_address": "10.64.1.10",
+            "encoding": "raw",
+            "role": "connect",
+            "schema": "RawDiagnosticDatagram",
+            "security": {
+              "profile": "none"
+            },
+            "settings": {
+              "bind": "10.64.1.10",
+              "destination": "10.64.1.10",
+              "framing": "none",
+              "loopback": true,
+              "max_datagram_bytes": 512,
+              "mode": "unicast",
+              "port": 18602,
+              "receive_buffer_bytes": 65536,
+              "reuse_address": false,
+              "send_buffer_bytes": 65536,
+              "ttl": 1
+            },
+            "source_address": "10.64.2.10",
+            "transport": "udp"
+          }
+        ]
+      },
+      "capture": {
+        "directory": "/captures",
+        "enabled": true,
+        "max_file_bytes": 67108864,
+        "max_files": 2,
+        "max_packets": 100000,
+        "provider": "ovs-span",
+        "retention_seconds": 86400
+      },
+      "contract_version": 2,
+      "credentials": {},
+      "execution": {
+        "kind": "namespace"
+      },
+      "graph_id": "static-route-policy",
+      "graph_version": 3,
+      "node_id": "middle",
+      "observation": [
+        "packet"
+      ],
+      "parameters": {},
+      "readiness": {
+        "kind": "local-bound",
+        "timeout_ms": 30000
+      },
+      "startup": {
+        "bind_before_connect": true,
+        "max_wait_ms": 30000,
+        "release_barrier": true
+      },
+      "telemetry": {
+        "credential": null,
+        "host": "platform",
+        "port": 9000
+      },
+      "type": "diagnostic.middle",
+      "type_revision": 1
+    },
+    {
+      "bindings": {
+        "routed": [
+          {
+            "attachments": {
+              "from": "left-data",
+              "to": "right-data"
+            },
+            "connection": "routed-flow",
+            "destination_address": "10.64.3.10",
+            "encoding": "raw",
+            "role": "listen",
+            "schema": "RawDiagnosticDatagram",
+            "security": {
+              "profile": "none"
+            },
+            "settings": {
+              "bind": "10.64.3.10",
+              "destination": "10.64.30.10",
+              "framing": "none",
+              "loopback": true,
+              "max_datagram_bytes": 512,
+              "mode": "unicast",
+              "port": 18603,
+              "receive_buffer_bytes": 65536,
+              "reuse_address": false,
+              "send_buffer_bytes": 65536,
+              "ttl": 1
+            },
+            "source_address": "10.64.1.10",
+            "transport": "udp"
+          }
+        ]
+      },
+      "capture": {
+        "directory": "/captures",
+        "enabled": true,
+        "max_file_bytes": 67108864,
+        "max_files": 2,
+        "max_packets": 100000,
+        "provider": "ovs-span",
+        "retention_seconds": 86400
+      },
+      "contract_version": 2,
+      "credentials": {},
+      "execution": {
+        "kind": "namespace"
+      },
+      "graph_id": "static-route-policy",
+      "graph_version": 3,
+      "node_id": "right",
+      "observation": [
+        "packet"
+      ],
+      "parameters": {},
+      "readiness": {
+        "kind": "local-bound",
+        "timeout_ms": 30000
+      },
+      "startup": {
+        "bind_before_connect": true,
+        "max_wait_ms": 30000,
+        "release_barrier": true
+      },
+      "telemetry": {
+        "credential": null,
+        "host": "platform",
+        "port": 9000
+      },
+      "type": "diagnostic.right",
+      "type_revision": 1
+    }
+  ],
+  "ordering": "lexicographic-ascii",
+  "platform": {
+    "capture": {
+      "directory": "/captures",
+      "enabled": true,
+      "max_file_bytes": 67108864,
+      "max_files": 2,
+      "max_packets": 100000,
+      "provider": "ovs-span",
+      "retention_seconds": 86400
+    },
+    "console": {
+      "bind": "127.0.0.1",
+      "port": 8080
+    },
+    "control": {
+      "allowed_origins": [
+        "http://127.0.0.1:8080"
+      ],
+      "enabled": false,
+      "grants": [],
+      "idempotency_ttl_seconds": 3600,
+      "max_audit_records": 4096,
+      "max_request_bytes": 4096
+    },
+    "credential_manifest": "credentials.json",
+    "extensions": [],
+    "history": {
+      "backend": "sqlite",
+      "batch_size": 100,
+      "database_file": "/var/lib/graphx/history/history.sqlite",
+      "enabled": true,
+      "flush_interval_ms": 250,
+      "max_database_bytes": 268435456,
+      "max_pending_queries": 16,
+      "max_queue_bytes": 8388608,
+      "max_records": 100000,
+      "query_limit": 200,
+      "query_timeout_ms": 2000,
+      "queue_capacity": 4096,
+      "retention_seconds": 604800,
+      "shutdown_timeout_ms": 2000
+    },
+    "image": "graphx-design/platform@sha256:41b3db89b6ec78cab84b29c12a1af5024ba670b44463edc40d887cad8b952ba4",
+    "normalization": "resolved.json",
+    "otlp": {
+      "enabled": false
+    },
+    "telemetry": {
+      "authentication": "per-node-hmac",
+      "heartbeat_interval_ms": 1000,
+      "heartbeat_timeout_ms": 5000,
+      "host": "platform",
+      "port": 9000
+    },
+    "template": "platform-v1"
+  },
+  "portable_network": null,
+  "target": "lima"
+}

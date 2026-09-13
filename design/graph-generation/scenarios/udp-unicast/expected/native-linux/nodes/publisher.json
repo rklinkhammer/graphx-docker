@@ -1,0 +1,71 @@
+{
+  "bindings": {
+    "out": [
+      {
+        "attachments": {},
+        "connection": "messages",
+        "destination_address": "127.0.0.1",
+        "encoding": "graphx",
+        "role": "connect",
+        "schema": "UdpExample",
+        "security": {
+          "profile": "none"
+        },
+        "settings": {
+          "bind": "127.0.0.1",
+          "destination": "127.0.0.1",
+          "framing": "u32be",
+          "loopback": true,
+          "max_datagram_bytes": 1400,
+          "mode": "unicast",
+          "port": 47101,
+          "receive_buffer_bytes": 65536,
+          "reuse_address": false,
+          "send_buffer_bytes": 65536,
+          "ttl": 1
+        },
+        "source_address": "127.0.0.1",
+        "transport": "udp"
+      }
+    ]
+  },
+  "capture": {
+    "directory": "${GX_STATE}/captures/publisher",
+    "enabled": false,
+    "max_file_bytes": 67108864,
+    "max_files": 2,
+    "max_packets": 100000,
+    "provider": "application",
+    "retention_seconds": 86400
+  },
+  "contract_version": 2,
+  "credentials": {},
+  "execution": {
+    "kind": "native"
+  },
+  "graph_id": "udp-unicast",
+  "graph_version": 3,
+  "node_id": "publisher",
+  "observation": [
+    "graphx"
+  ],
+  "parameters": {
+    "max_messages": 20
+  },
+  "readiness": {
+    "kind": "local-bound",
+    "timeout_ms": 30000
+  },
+  "startup": {
+    "bind_before_connect": true,
+    "max_wait_ms": 30000,
+    "release_barrier": true
+  },
+  "telemetry": {
+    "credential": "runtime-publisher",
+    "host": "127.0.0.1",
+    "port": 9000
+  },
+  "type": "udp.publisher",
+  "type_revision": 1
+}

@@ -1,0 +1,127 @@
+{
+  "api": "execute_ovs_lifecycle",
+  "capture_process_count": 1,
+  "cleanup": "execute_ovs_lifecycle destroy; external devices untouched",
+  "config": "resolved.json",
+  "on_failure": "reverse newly owned resources only; preserve state on cleanup failure",
+  "preflight": [
+    "Linux system OVS available",
+    "explicit execution authorization",
+    "container IDs checked against graph labels",
+    "addresses and names free or same owner",
+    "UID/GID 65532 dedicated QEMU identity when TAP selected"
+  ],
+  "readiness": [
+    "endpoint identity matches",
+    "routes and OVS flows installed",
+    "capture writer owned and ready"
+  ],
+  "resource_intent": {
+    "attachments": [
+      {
+        "id": "mirror-sdr",
+        "interface": "gxid84021ef76e8",
+        "kind": "mirror",
+        "owner": "br-sdr",
+        "peer": "gxp78f99e1d28f5",
+        "port": "capture",
+        "switch": "br-sdr"
+      },
+      {
+        "address": "10.63.0.20/24",
+        "id": "processor-data",
+        "interface": "gxi52406dc1edb2",
+        "kind": "container_veth",
+        "mac": "02:63:00:00:00:20",
+        "network": "gx-sdr-native",
+        "owner": "processor",
+        "peer": "gxp57dbb2d848fb",
+        "switch": "br-sdr"
+      },
+      {
+        "address": "10.63.0.10/24",
+        "id": "sdr-node-data",
+        "kind": "external",
+        "mac": "02:63:00:00:00:10",
+        "network": "gx-sdr-native",
+        "owner": "radio"
+      },
+      {
+        "address": "10.63.0.30/24",
+        "id": "sink-data",
+        "interface": "gxi823a6ab0777a",
+        "kind": "container_veth",
+        "mac": "02:63:00:00:00:30",
+        "network": "gx-sdr-native",
+        "owner": "sink",
+        "peer": "gxp20b54fcb4b70",
+        "switch": "br-sdr"
+      }
+    ],
+    "captures": [
+      {
+        "attachment": "mirror-sdr",
+        "directory": "/var/lib/graphx/captures/sdr-external/mirror-sdr",
+        "id": "mirror-sdr",
+        "max_file_bytes": 67108864,
+        "max_files": 2,
+        "retention_seconds": 86400,
+        "rotation_seconds": 300,
+        "snaplen": 65535
+      }
+    ],
+    "edge_paths": {},
+    "management_isolation": {
+      "application_bind": "selected-data-address",
+      "ip_forward": false,
+      "ovs_management_acl": "only platform TCP 8080 and UDP 9000; deny node-to-node and forwarding; enforced before release barrier",
+      "per_node_network": true,
+      "platform_routes_data": false
+    },
+    "networks": [
+      {
+        "gateway": "10.63.0.1",
+        "id": "gx-sdr-native",
+        "profile": "macvlan",
+        "realization": "ovs",
+        "subnets": [
+          "10.63.0.0/24"
+        ]
+      }
+    ],
+    "switches": [
+      {
+        "datapath": "system",
+        "id": "br-sdr",
+        "kind": "openvswitch",
+        "mirror": {
+          "id": "mirror-sdr",
+          "output_port": "capture",
+          "select_all": true
+        },
+        "name": "gxbcaa1beff1f71",
+        "ports": [
+          {
+            "id": "capture",
+            "interface": "gxid84021ef76e8",
+            "peer": "gxp78f99e1d28f5"
+          },
+          {
+            "id": "sdr-device",
+            "interface": "gxi2b20d3f5c540",
+            "peer": "gxp1476307ae824"
+          }
+        ]
+      }
+    ]
+  },
+  "stages": [
+    "preflight identity and capabilities",
+    "create containers held at local barrier",
+    "create namespaces bridges veth and TAP",
+    "install routes policies mirrors capture and management ACL",
+    "release application barriers"
+  ],
+  "state_root": "/var/lib/graphx/ownership",
+  "version": 1
+}

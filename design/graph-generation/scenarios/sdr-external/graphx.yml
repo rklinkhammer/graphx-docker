@@ -1,0 +1,145 @@
+# DESIGN ONLY — baseline external device and separately invoked lab fixture.
+catalog: ../../catalog/lock.json
+connections:
+  control:
+    attachments:
+      from: processor-data
+      to: sdr-node-data
+    from: processor.control
+    security:
+      profile: mtls
+      server_name: sdr-node
+    to: radio.control
+    transport: tcp
+  iq:
+    attachments:
+      from: sdr-node-data
+      to: processor-data
+    from: radio.samples
+    to: processor.samples
+    transport: udp
+  results:
+    attachments:
+      from: processor-data
+      to: sink-data
+    from: processor.results
+    to: sink.results
+    transport: tcp
+credentials:
+  lab-processor:
+    identity: processor
+    members:
+    - ca.pem
+    - cert.pem
+    - key.pem
+    provider: external
+  lab-radio:
+    identity: radio
+    members:
+    - ca.pem
+    note: Device private key stays on physical device; never provisioned by GraphX
+    provider: external
+  test-processor:
+    identity: processor
+    members:
+    - ca.pem
+    - cert.pem
+    - key.pem
+    provider: lab-generated
+  test-radio:
+    identity: sdr-node
+    members:
+    - ca.pem
+    - cert.pem
+    - key.pem
+    provider: lab-generated
+graph:
+  id: sdr-external
+network:
+  attachments:
+  - address: 10.63.0.10/24
+    id: sdr-node-data
+    kind: external
+    mac: 02:63:00:00:00:10
+    network: gx-sdr-native
+    owner: radio
+  - address: 10.63.0.20/24
+    id: processor-data
+    kind: container_veth
+    mac: 02:63:00:00:00:20
+    network: gx-sdr-native
+    owner: processor
+    switch: br-sdr
+  - address: 10.63.0.30/24
+    id: sink-data
+    kind: container_veth
+    mac: 02:63:00:00:00:30
+    network: gx-sdr-native
+    owner: sink
+    switch: br-sdr
+  - id: mirror-sdr
+    kind: mirror
+    owner: br-sdr
+    port: capture
+    switch: br-sdr
+  captures:
+  - attachment: mirror-sdr
+    id: mirror-sdr
+    max_file_bytes: 67108864
+    max_files: 2
+    retention_seconds: 86400
+    rotation_seconds: 300
+    snaplen: 65535
+  edge_paths: {}
+  networks:
+  - gateway: 10.63.0.1
+    id: gx-sdr-native
+    profile: macvlan
+    realization: ovs
+    subnets:
+    - 10.63.0.0/24
+  switches:
+  - datapath: system
+    id: br-sdr
+    kind: openvswitch
+    mirror:
+      id: mirror-sdr
+      output_port: capture
+      select_all: true
+    ports:
+    - id: sdr-device
+    - id: capture
+nodes:
+  processor:
+    credentials:
+      control: lab-processor
+    execution:
+      kind: container
+    type: sdr.processor
+  radio:
+    credentials:
+      control: lab-radio
+    execution:
+      address: 10.63.0.10
+      kind: external
+    observation:
+    - packet
+    - external-status
+    type: sdr.radio
+  sink:
+    execution:
+      kind: container
+    type: sdr.result-sink
+scenario:
+  actions:
+  - action: external-simulator
+    address: 10.63.0.10
+    attachment: sdr-node-data
+    client_credentials:
+      processor: test-processor
+    credentials: test-radio
+    exclusive_with: physical-device
+    id: laboratory-radio
+    node: radio
+    type: sdr.simulator
+version: 3

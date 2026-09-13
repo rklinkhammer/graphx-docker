@@ -1,0 +1,62 @@
+{
+  "catalog_digest": "d984d3c04c8ac657407f9c704a3f3a3760a352e348fb0a32616077b2caba5cff",
+  "compiler": "proposed-graphx-v3-design-1",
+  "files": [
+    {
+      "path": "access-plan.json",
+      "sha256": "b63f1f98b6d6a1c4ce601255e5db83c76eed5f3df8750d25d0af8b03bb546be6"
+    },
+    {
+      "path": "compose.yaml",
+      "sha256": "f30083ee8c06667e4911b002c2652cb8f40ec08dc2afa31115ace3c30d598f52"
+    },
+    {
+      "path": "credentials.json",
+      "sha256": "400d16758c065dea37a7b738fe59184bd9c69eafb8e0a12c9704a9e4f37bfa65"
+    },
+    {
+      "path": "execution-plan.json",
+      "sha256": "56b504470fcfe47370ddc8329eb68c95bd0af8cfb4985f8b525ae4650b07840f"
+    },
+    {
+      "path": "nodes/processor-east.json",
+      "sha256": "c389242bc5b910c105607823a29a842d71fc0067e8a0d88318348aa5df587143"
+    },
+    {
+      "path": "nodes/processor-west.json",
+      "sha256": "86e99e63180ee2896f10b0a5e7ac15fb51a1d04c16ad3ca0a9d921102962afab"
+    },
+    {
+      "path": "nodes/recorder-east.json",
+      "sha256": "bce8bfe45485023897f7b14cbc0c75ef1b2a5fc932c77084f581c2d1f55f9eba"
+    },
+    {
+      "path": "nodes/recorder-west.json",
+      "sha256": "1b9f1c6febdf6dbd66ee6f8e3729a91833e71bd0e4c3e3c895215de4379a9f7f"
+    },
+    {
+      "path": "nodes/source-east.json",
+      "sha256": "d41a9da23038700d5bd67bb85ae2efaa01a6d1c9268f0c918308285df1049ce1"
+    },
+    {
+      "path": "nodes/source-west.json",
+      "sha256": "d9ad7b18f529bcc868d385af051dec59878d84562bcc0e6d49e1ea610a26e8d6"
+    },
+    {
+      "path": "platform.json",
+      "sha256": "ff184b1490a5b971e4f30e16eac32e690ec97e9bdaaf612f8c2a35fea45f8b30"
+    },
+    {
+      "path": "resolved.json",
+      "sha256": "5db234159b3cacbc2e97f5e72b13b31f81b00ecc9d18042b6009a020233eb413"
+    },
+    {
+      "path": "substitutions.json",
+      "sha256": "cbd5759fa4c7ac0ac0649597ed2cc29e758e2940cb76ef24a299d2e454c92dfa"
+    }
+  ],
+  "graph_id": "renamed-multi-source",
+  "input_digest": "ea44144794e652963dbf1e18e66da6d5f6ae0294daa2a5e506d5159bbe522c23",
+  "ownership": "invoking UID and graph ID; checked replacement only; no runtime lifecycle records",
+  "version": 1
+}

@@ -1,0 +1,739 @@
+{
+  "catalog_digest": "d984d3c04c8ac657407f9c704a3f3a3760a352e348fb0a32616077b2caba5cff",
+  "connections": [
+    {
+      "attachments": {},
+      "destination_address": "172.28.50.10",
+      "encoding": "graphx",
+      "from": {
+        "node": "source-east",
+        "port": "samples"
+      },
+      "id": "east-iq",
+      "listener": "processor-east.samples",
+      "schema": "Sample",
+      "security": {
+        "profile": "none"
+      },
+      "settings": {
+        "bind": "172.28.50.10",
+        "connect_timeout_ms": 5000,
+        "framing": "u32be",
+        "host": "172.28.50.10",
+        "port": 20000,
+        "reconnect": true,
+        "retry": {
+          "initial_backoff_ms": 100,
+          "max_attempts": 60,
+          "max_backoff_ms": 2000
+        },
+        "send_timeout_ms": 5000
+      },
+      "source_address": "172.28.50.14",
+      "to": {
+        "node": "processor-east",
+        "port": "samples"
+      },
+      "transport": "tcp"
+    },
+    {
+      "attachments": {},
+      "destination_address": "172.28.50.12",
+      "encoding": "graphx",
+      "from": {
+        "node": "processor-east",
+        "port": "transformed"
+      },
+      "id": "east-result",
+      "listener": "recorder-east.transformed",
+      "schema": "TransformedSample",
+      "security": {
+        "profile": "none"
+      },
+      "settings": {
+        "bind": "172.28.50.12",
+        "connect_timeout_ms": 5000,
+        "framing": "u32be",
+        "host": "172.28.50.12",
+        "port": 20001,
+        "reconnect": true,
+        "retry": {
+          "initial_backoff_ms": 100,
+          "max_attempts": 60,
+          "max_backoff_ms": 2000
+        },
+        "send_timeout_ms": 5000
+      },
+      "source_address": "172.28.50.10",
+      "to": {
+        "node": "recorder-east",
+        "port": "transformed"
+      },
+      "transport": "tcp"
+    },
+    {
+      "attachments": {},
+      "destination_address": "172.28.50.11",
+      "encoding": "graphx",
+      "from": {
+        "node": "source-west",
+        "port": "samples"
+      },
+      "id": "west-iq",
+      "listener": "processor-west.samples",
+      "schema": "Sample",
+      "security": {
+        "profile": "none"
+      },
+      "settings": {
+        "bind": "172.28.50.11",
+        "connect_timeout_ms": 5000,
+        "framing": "u32be",
+        "host": "172.28.50.11",
+        "port": 20002,
+        "reconnect": true,
+        "retry": {
+          "initial_backoff_ms": 100,
+          "max_attempts": 60,
+          "max_backoff_ms": 2000
+        },
+        "send_timeout_ms": 5000
+      },
+      "source_address": "172.28.50.15",
+      "to": {
+        "node": "processor-west",
+        "port": "samples"
+      },
+      "transport": "tcp"
+    },
+    {
+      "attachments": {},
+      "destination_address": "172.28.50.13",
+      "encoding": "graphx",
+      "from": {
+        "node": "processor-west",
+        "port": "transformed"
+      },
+      "id": "west-result",
+      "listener": "recorder-west.transformed",
+      "schema": "TransformedSample",
+      "security": {
+        "profile": "none"
+      },
+      "settings": {
+        "bind": "172.28.50.13",
+        "connect_timeout_ms": 5000,
+        "framing": "u32be",
+        "host": "172.28.50.13",
+        "port": 20003,
+        "reconnect": true,
+        "retry": {
+          "initial_backoff_ms": 100,
+          "max_attempts": 60,
+          "max_backoff_ms": 2000
+        },
+        "send_timeout_ms": 5000
+      },
+      "source_address": "172.28.50.11",
+      "to": {
+        "node": "recorder-west",
+        "port": "transformed"
+      },
+      "transport": "tcp"
+    }
+  ],
+  "contract_version": 2,
+  "credential_references": [
+    "observer",
+    "runtime-processor-east",
+    "runtime-processor-west",
+    "runtime-recorder-east",
+    "runtime-recorder-west",
+    "runtime-source-east",
+    "runtime-source-west"
+  ],
+  "execution_values": [
+    "GX_STATE",
+    "GX_CREDENTIALS",
+    "GX_OUTPUT",
+    "GX_RELEASE",
+    "GX_OWNER"
+  ],
+  "graph_id": "renamed-multi-source",
+  "graph_version": 3,
+  "input_digest": "ea44144794e652963dbf1e18e66da6d5f6ae0294daa2a5e506d5159bbe522c23",
+  "network": {
+    "management_isolation": {
+      "application_bind": "selected-data-address",
+      "ip_forward": false,
+      "ovs_management_acl": "only platform TCP 8080 and UDP 9000; deny node-to-node and forwarding; enforced before release barrier",
+      "per_node_network": true,
+      "platform_routes_data": false
+    }
+  },
+  "nodes": [
+    {
+      "bindings": {
+        "samples": [
+          {
+            "attachments": {},
+            "connection": "east-iq",
+            "destination_address": "172.28.50.10",
+            "encoding": "graphx",
+            "role": "listen",
+            "schema": "Sample",
+            "security": {
+              "profile": "none"
+            },
+            "settings": {
+              "bind": "172.28.50.10",
+              "connect_timeout_ms": 5000,
+              "framing": "u32be",
+              "host": "172.28.50.10",
+              "port": 20000,
+              "reconnect": true,
+              "retry": {
+                "initial_backoff_ms": 100,
+                "max_attempts": 60,
+                "max_backoff_ms": 2000
+              },
+              "send_timeout_ms": 5000
+            },
+            "source_address": "172.28.50.14",
+            "transport": "tcp"
+          }
+        ],
+        "transformed": [
+          {
+            "attachments": {},
+            "connection": "east-result",
+            "destination_address": "172.28.50.12",
+            "encoding": "graphx",
+            "role": "connect",
+            "schema": "TransformedSample",
+            "security": {
+              "profile": "none"
+            },
+            "settings": {
+              "bind": "172.28.50.12",
+              "connect_timeout_ms": 5000,
+              "framing": "u32be",
+              "host": "172.28.50.12",
+              "port": 20001,
+              "reconnect": true,
+              "retry": {
+                "initial_backoff_ms": 100,
+                "max_attempts": 60,
+                "max_backoff_ms": 2000
+              },
+              "send_timeout_ms": 5000
+            },
+            "source_address": "172.28.50.10",
+            "transport": "tcp"
+          }
+        ]
+      },
+      "capture": {
+        "directory": "/captures",
+        "enabled": false,
+        "max_file_bytes": 67108864,
+        "max_files": 2,
+        "max_packets": 100000,
+        "provider": "application",
+        "retention_seconds": 86400
+      },
+      "contract_version": 2,
+      "credentials": {},
+      "execution": {
+        "kind": "container"
+      },
+      "graph_id": "renamed-multi-source",
+      "graph_version": 3,
+      "node_id": "processor-east",
+      "observation": [
+        "graphx"
+      ],
+      "parameters": {
+        "factor": 2,
+        "max_messages": 20
+      },
+      "readiness": {
+        "kind": "local-bound",
+        "timeout_ms": 30000
+      },
+      "startup": {
+        "bind_before_connect": true,
+        "max_wait_ms": 30000,
+        "release_barrier": true
+      },
+      "telemetry": {
+        "credential": "runtime-processor-east",
+        "host": "platform",
+        "port": 9000
+      },
+      "type": "sample.transform",
+      "type_revision": 1
+    },
+    {
+      "bindings": {
+        "samples": [
+          {
+            "attachments": {},
+            "connection": "west-iq",
+            "destination_address": "172.28.50.11",
+            "encoding": "graphx",
+            "role": "listen",
+            "schema": "Sample",
+            "security": {
+              "profile": "none"
+            },
+            "settings": {
+              "bind": "172.28.50.11",
+              "connect_timeout_ms": 5000,
+              "framing": "u32be",
+              "host": "172.28.50.11",
+              "port": 20002,
+              "reconnect": true,
+              "retry": {
+                "initial_backoff_ms": 100,
+                "max_attempts": 60,
+                "max_backoff_ms": 2000
+              },
+              "send_timeout_ms": 5000
+            },
+            "source_address": "172.28.50.15",
+            "transport": "tcp"
+          }
+        ],
+        "transformed": [
+          {
+            "attachments": {},
+            "connection": "west-result",
+            "destination_address": "172.28.50.13",
+            "encoding": "graphx",
+            "role": "connect",
+            "schema": "TransformedSample",
+            "security": {
+              "profile": "none"
+            },
+            "settings": {
+              "bind": "172.28.50.13",
+              "connect_timeout_ms": 5000,
+              "framing": "u32be",
+              "host": "172.28.50.13",
+              "port": 20003,
+              "reconnect": true,
+              "retry": {
+                "initial_backoff_ms": 100,
+                "max_attempts": 60,
+                "max_backoff_ms": 2000
+              },
+              "send_timeout_ms": 5000
+            },
+            "source_address": "172.28.50.11",
+            "transport": "tcp"
+          }
+        ]
+      },
+      "capture": {
+        "directory": "/captures",
+        "enabled": false,
+        "max_file_bytes": 67108864,
+        "max_files": 2,
+        "max_packets": 100000,
+        "provider": "application",
+        "retention_seconds": 86400
+      },
+      "contract_version": 2,
+      "credentials": {},
+      "execution": {
+        "kind": "container"
+      },
+      "graph_id": "renamed-multi-source",
+      "graph_version": 3,
+      "node_id": "processor-west",
+      "observation": [
+        "graphx"
+      ],
+      "parameters": {
+        "factor": 2,
+        "max_messages": 20
+      },
+      "readiness": {
+        "kind": "local-bound",
+        "timeout_ms": 30000
+      },
+      "startup": {
+        "bind_before_connect": true,
+        "max_wait_ms": 30000,
+        "release_barrier": true
+      },
+      "telemetry": {
+        "credential": "runtime-processor-west",
+        "host": "platform",
+        "port": 9000
+      },
+      "type": "sample.transform",
+      "type_revision": 1
+    },
+    {
+      "bindings": {
+        "transformed": [
+          {
+            "attachments": {},
+            "connection": "east-result",
+            "destination_address": "172.28.50.12",
+            "encoding": "graphx",
+            "role": "listen",
+            "schema": "TransformedSample",
+            "security": {
+              "profile": "none"
+            },
+            "settings": {
+              "bind": "172.28.50.12",
+              "connect_timeout_ms": 5000,
+              "framing": "u32be",
+              "host": "172.28.50.12",
+              "port": 20001,
+              "reconnect": true,
+              "retry": {
+                "initial_backoff_ms": 100,
+                "max_attempts": 60,
+                "max_backoff_ms": 2000
+              },
+              "send_timeout_ms": 5000
+            },
+            "source_address": "172.28.50.10",
+            "transport": "tcp"
+          }
+        ]
+      },
+      "capture": {
+        "directory": "/captures",
+        "enabled": false,
+        "max_file_bytes": 67108864,
+        "max_files": 2,
+        "max_packets": 100000,
+        "provider": "application",
+        "retention_seconds": 86400
+      },
+      "contract_version": 2,
+      "credentials": {},
+      "execution": {
+        "kind": "container"
+      },
+      "graph_id": "renamed-multi-source",
+      "graph_version": 3,
+      "node_id": "recorder-east",
+      "observation": [
+        "graphx"
+      ],
+      "parameters": {
+        "max_messages": 20
+      },
+      "readiness": {
+        "kind": "local-bound",
+        "timeout_ms": 30000
+      },
+      "startup": {
+        "bind_before_connect": true,
+        "max_wait_ms": 30000,
+        "release_barrier": true
+      },
+      "telemetry": {
+        "credential": "runtime-recorder-east",
+        "host": "platform",
+        "port": 9000
+      },
+      "type": "sample.sink",
+      "type_revision": 1
+    },
+    {
+      "bindings": {
+        "transformed": [
+          {
+            "attachments": {},
+            "connection": "west-result",
+            "destination_address": "172.28.50.13",
+            "encoding": "graphx",
+            "role": "listen",
+            "schema": "TransformedSample",
+            "security": {
+              "profile": "none"
+            },
+            "settings": {
+              "bind": "172.28.50.13",
+              "connect_timeout_ms": 5000,
+              "framing": "u32be",
+              "host": "172.28.50.13",
+              "port": 20003,
+              "reconnect": true,
+              "retry": {
+                "initial_backoff_ms": 100,
+                "max_attempts": 60,
+                "max_backoff_ms": 2000
+              },
+              "send_timeout_ms": 5000
+            },
+            "source_address": "172.28.50.11",
+            "transport": "tcp"
+          }
+        ]
+      },
+      "capture": {
+        "directory": "/captures",
+        "enabled": false,
+        "max_file_bytes": 67108864,
+        "max_files": 2,
+        "max_packets": 100000,
+        "provider": "application",
+        "retention_seconds": 86400
+      },
+      "contract_version": 2,
+      "credentials": {},
+      "execution": {
+        "kind": "container"
+      },
+      "graph_id": "renamed-multi-source",
+      "graph_version": 3,
+      "node_id": "recorder-west",
+      "observation": [
+        "graphx"
+      ],
+      "parameters": {
+        "max_messages": 20
+      },
+      "readiness": {
+        "kind": "local-bound",
+        "timeout_ms": 30000
+      },
+      "startup": {
+        "bind_before_connect": true,
+        "max_wait_ms": 30000,
+        "release_barrier": true
+      },
+      "telemetry": {
+        "credential": "runtime-recorder-west",
+        "host": "platform",
+        "port": 9000
+      },
+      "type": "sample.sink",
+      "type_revision": 1
+    },
+    {
+      "bindings": {
+        "samples": [
+          {
+            "attachments": {},
+            "connection": "east-iq",
+            "destination_address": "172.28.50.10",
+            "encoding": "graphx",
+            "role": "connect",
+            "schema": "Sample",
+            "security": {
+              "profile": "none"
+            },
+            "settings": {
+              "bind": "172.28.50.10",
+              "connect_timeout_ms": 5000,
+              "framing": "u32be",
+              "host": "172.28.50.10",
+              "port": 20000,
+              "reconnect": true,
+              "retry": {
+                "initial_backoff_ms": 100,
+                "max_attempts": 60,
+                "max_backoff_ms": 2000
+              },
+              "send_timeout_ms": 5000
+            },
+            "source_address": "172.28.50.14",
+            "transport": "tcp"
+          }
+        ]
+      },
+      "capture": {
+        "directory": "/captures",
+        "enabled": false,
+        "max_file_bytes": 67108864,
+        "max_files": 2,
+        "max_packets": 100000,
+        "provider": "application",
+        "retention_seconds": 86400
+      },
+      "contract_version": 2,
+      "credentials": {},
+      "execution": {
+        "kind": "container"
+      },
+      "graph_id": "renamed-multi-source",
+      "graph_version": 3,
+      "node_id": "source-east",
+      "observation": [
+        "graphx"
+      ],
+      "parameters": {
+        "interval_ms": 500,
+        "max_messages": 20
+      },
+      "readiness": {
+        "kind": "local-bound",
+        "timeout_ms": 30000
+      },
+      "startup": {
+        "bind_before_connect": true,
+        "max_wait_ms": 30000,
+        "release_barrier": true
+      },
+      "telemetry": {
+        "credential": "runtime-source-east",
+        "host": "platform",
+        "port": 9000
+      },
+      "type": "sample.source",
+      "type_revision": 1
+    },
+    {
+      "bindings": {
+        "samples": [
+          {
+            "attachments": {},
+            "connection": "west-iq",
+            "destination_address": "172.28.50.11",
+            "encoding": "graphx",
+            "role": "connect",
+            "schema": "Sample",
+            "security": {
+              "profile": "none"
+            },
+            "settings": {
+              "bind": "172.28.50.11",
+              "connect_timeout_ms": 5000,
+              "framing": "u32be",
+              "host": "172.28.50.11",
+              "port": 20002,
+              "reconnect": true,
+              "retry": {
+                "initial_backoff_ms": 100,
+                "max_attempts": 60,
+                "max_backoff_ms": 2000
+              },
+              "send_timeout_ms": 5000
+            },
+            "source_address": "172.28.50.15",
+            "transport": "tcp"
+          }
+        ]
+      },
+      "capture": {
+        "directory": "/captures",
+        "enabled": false,
+        "max_file_bytes": 67108864,
+        "max_files": 2,
+        "max_packets": 100000,
+        "provider": "application",
+        "retention_seconds": 86400
+      },
+      "contract_version": 2,
+      "credentials": {},
+      "execution": {
+        "kind": "container"
+      },
+      "graph_id": "renamed-multi-source",
+      "graph_version": 3,
+      "node_id": "source-west",
+      "observation": [
+        "graphx"
+      ],
+      "parameters": {
+        "interval_ms": 500,
+        "max_messages": 20
+      },
+      "readiness": {
+        "kind": "local-bound",
+        "timeout_ms": 30000
+      },
+      "startup": {
+        "bind_before_connect": true,
+        "max_wait_ms": 30000,
+        "release_barrier": true
+      },
+      "telemetry": {
+        "credential": "runtime-source-west",
+        "host": "platform",
+        "port": 9000
+      },
+      "type": "sample.source",
+      "type_revision": 1
+    }
+  ],
+  "ordering": "lexicographic-ascii",
+  "platform": {
+    "capture": {
+      "directory": "/captures",
+      "enabled": false,
+      "max_file_bytes": 67108864,
+      "max_files": 2,
+      "max_packets": 100000,
+      "provider": "application",
+      "retention_seconds": 86400
+    },
+    "console": {
+      "bind": "127.0.0.1",
+      "port": 8080
+    },
+    "control": {
+      "allowed_origins": [
+        "http://127.0.0.1:8080"
+      ],
+      "enabled": false,
+      "grants": [],
+      "idempotency_ttl_seconds": 3600,
+      "max_audit_records": 4096,
+      "max_request_bytes": 4096
+    },
+    "credential_manifest": "credentials.json",
+    "extensions": [],
+    "history": {
+      "backend": "sqlite",
+      "batch_size": 100,
+      "database_file": "/var/lib/graphx/history/history.sqlite",
+      "enabled": true,
+      "flush_interval_ms": 250,
+      "max_database_bytes": 268435456,
+      "max_pending_queries": 16,
+      "max_queue_bytes": 8388608,
+      "max_records": 100000,
+      "query_limit": 200,
+      "query_timeout_ms": 2000,
+      "queue_capacity": 4096,
+      "retention_seconds": 604800,
+      "shutdown_timeout_ms": 2000
+    },
+    "image": "graphx-design/platform@sha256:41b3db89b6ec78cab84b29c12a1af5024ba670b44463edc40d887cad8b952ba4",
+    "normalization": "resolved.json",
+    "otlp": {
+      "enabled": false
+    },
+    "telemetry": {
+      "authentication": "per-node-hmac",
+      "heartbeat_interval_ms": 1000,
+      "heartbeat_timeout_ms": 5000,
+      "host": "platform",
+      "port": 9000
+    },
+    "template": "platform-v1"
+  },
+  "portable_network": {
+    "addresses": {
+      "processor-east": "172.28.50.10",
+      "processor-west": "172.28.50.11",
+      "recorder-east": "172.28.50.12",
+      "recorder-west": "172.28.50.13",
+      "source-east": "172.28.50.14",
+      "source-west": "172.28.50.15"
+    },
+    "subnet": "172.28.50.0/24"
+  },
+  "target": "native-linux"
+}

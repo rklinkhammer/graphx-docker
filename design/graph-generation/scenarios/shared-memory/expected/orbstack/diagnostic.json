@@ -1,0 +1,8 @@
+{
+  "code": "E_IPC_PLACEMENT",
+  "message": "C-NATIVE requires native process placement; OrbStack cannot run host-native processes",
+  "no_artifacts": true,
+  "path": "target",
+  "phase": "compile",
+  "severity": "error"
+}

@@ -1,0 +1,46 @@
+{
+  "catalog_digest": "d984d3c04c8ac657407f9c704a3f3a3760a352e348fb0a32616077b2caba5cff",
+  "compiler": "proposed-graphx-v3-design-1",
+  "files": [
+    {
+      "path": "compose.yaml",
+      "sha256": "cdecf9f5e98059a892877ccfd6f84803962e18313e18053e77b5f6140e8b6a58"
+    },
+    {
+      "path": "credentials.json",
+      "sha256": "5f170520b102e449ebae584317dc744e9fd8b3611e8dd41da2b445ccfc84f45f"
+    },
+    {
+      "path": "execution-plan.json",
+      "sha256": "56b504470fcfe47370ddc8329eb68c95bd0af8cfb4985f8b525ae4650b07840f"
+    },
+    {
+      "path": "nodes/processor.json",
+      "sha256": "469335b6ce3ed09af8fcaefdec159354a96668a1877679f0c80042431ca55430"
+    },
+    {
+      "path": "nodes/radio.json",
+      "sha256": "53d733489010c915bb5a6c8c389d0816dd53fd670b147b17fba9d3d9551ab305"
+    },
+    {
+      "path": "nodes/sink.json",
+      "sha256": "c1434d40d8a2c66290d11284f6d8998142c665772ed0e629494aed379630d2de"
+    },
+    {
+      "path": "platform.json",
+      "sha256": "7c804e7cf7be065f5aef264f6be87300d86c0e6b070009935ef7d8bc4355a57a"
+    },
+    {
+      "path": "resolved.json",
+      "sha256": "d45291828b41ed6513600dd168e2ab1ef7064c754d3a43f921943983144e4af1"
+    },
+    {
+      "path": "substitutions.json",
+      "sha256": "f144b2044146a34ca527b9302b77d2983fc1a6ac43ea3aac17011637590311a0"
+    }
+  ],
+  "graph_id": "sdr-simulated",
+  "input_digest": "da6de9fe3602850c08033d55b9e65d55d93f44bdfd2ff7ee2d5fa5bf60b986ef",
+  "ownership": "invoking UID and graph ID; checked replacement only; no runtime lifecycle records",
+  "version": 1
+}

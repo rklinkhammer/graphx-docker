@@ -1,0 +1,50 @@
+{
+  "catalog_digest": "d984d3c04c8ac657407f9c704a3f3a3760a352e348fb0a32616077b2caba5cff",
+  "compiler": "proposed-graphx-v3-design-1",
+  "files": [
+    {
+      "path": "access-plan.json",
+      "sha256": "b63f1f98b6d6a1c4ce601255e5db83c76eed5f3df8750d25d0af8b03bb546be6"
+    },
+    {
+      "path": "credentials.json",
+      "sha256": "2d8195f2d8743b7deaf22967744056904794f7083364070d08f984f146d0f4fa"
+    },
+    {
+      "path": "execution-plan.json",
+      "sha256": "21f1c2c3e61f37a9a1db9744283ef25a8609017246a75bb5100e65254944fb05"
+    },
+    {
+      "path": "native-plan.json",
+      "sha256": "a17787bcad7216d37458ef991a726c00a11d8b4f08ce2cc52a78e0e8a8bf307f"
+    },
+    {
+      "path": "nodes/generator.json",
+      "sha256": "55ef7ad74747b96d868d5ec958fb3e6554feb4d59ae4a03120882e060d8a30c8"
+    },
+    {
+      "path": "nodes/sink.json",
+      "sha256": "a8f0921068a991cc17f175648793213d28ad75916a80324c58847cefd8a361bc"
+    },
+    {
+      "path": "nodes/transform.json",
+      "sha256": "010e95dbd9c51665d9601fb6626a3d037009350b30589548c5729d50444b64f1"
+    },
+    {
+      "path": "platform.json",
+      "sha256": "6ae4543fa7057a0d207edd843a9322c8413e822992696d5d713deaea9ede253c"
+    },
+    {
+      "path": "resolved.json",
+      "sha256": "33f0faf1cb1fbdd6b86eff6616c354a8aaba82557a4f0a9bbd6576788fbf6a89"
+    },
+    {
+      "path": "substitutions.json",
+      "sha256": "213f4e42390f513442e3215956aa1f91b343134a73bee0d7a8ceb31a39355f3a"
+    }
+  ],
+  "graph_id": "shared-memory",
+  "input_digest": "4fadf7c33562a2327ccd931d6ec7d63f66010ad85b164c88d925565c704cdab5",
+  "ownership": "invoking UID and graph ID; checked replacement only; no runtime lifecycle records",
+  "version": 1
+}

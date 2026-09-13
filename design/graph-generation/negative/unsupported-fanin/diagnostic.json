@@ -1,0 +1,8 @@
+{
+  "code": "E_CARDINALITY",
+  "message": "2 inbound connections exceed maximum 1",
+  "no_artifacts": true,
+  "path": "nodes.transform.ports.samples",
+  "phase": "compile",
+  "severity": "error"
+}

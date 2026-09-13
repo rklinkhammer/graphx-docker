@@ -1,0 +1,44 @@
+{
+  "bindings": {},
+  "capture": {
+    "directory": "/captures",
+    "enabled": true,
+    "max_file_bytes": 67108864,
+    "max_files": 2,
+    "max_packets": 100000,
+    "provider": "ovs-span",
+    "retention_seconds": 86400
+  },
+  "contract_version": 2,
+  "credentials": {},
+  "execution": {
+    "accelerator": "tcg",
+    "architecture": "x86_64",
+    "attachment_only": true,
+    "kind": "external"
+  },
+  "graph_id": "network-observation",
+  "graph_version": 3,
+  "node_id": "packet-source",
+  "observation": [
+    "packet",
+    "external-status"
+  ],
+  "parameters": {},
+  "readiness": {
+    "kind": "local-bound",
+    "timeout_ms": 30000
+  },
+  "startup": {
+    "bind_before_connect": true,
+    "max_wait_ms": 30000,
+    "release_barrier": false
+  },
+  "telemetry": {
+    "credential": null,
+    "host": "platform",
+    "port": 9000
+  },
+  "type": "external.packet-source",
+  "type_revision": 1
+}

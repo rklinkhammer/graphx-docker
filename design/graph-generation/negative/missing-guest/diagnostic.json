@@ -1,0 +1,8 @@
+{
+  "code": "E_GUEST_ARTIFACT",
+  "message": "Guest absent has neither a pinned artifact set nor a declared build recipe",
+  "no_artifacts": true,
+  "path": "nodes.qemu-node.execution.guest",
+  "phase": "compile",
+  "severity": "error"
+}

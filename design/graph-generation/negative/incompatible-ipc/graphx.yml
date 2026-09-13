@@ -1,0 +1,44 @@
+# DESIGN ONLY — not accepted by current GraphX.
+catalog: ../../catalog/lock.json
+connections:
+  samples:
+    from: generator.samples
+    settings:
+      backpressure: block
+      capacity: 8
+      connect_timeout_ms: 5000
+      max_message_bytes: 4096
+      segment: gx-shm-samples
+      send_timeout_ms: 2000
+    to: transform.samples
+    transport: shared_memory
+  transformed:
+    from: transform.transformed
+    settings:
+      backpressure: block
+      capacity: 8
+      connect_timeout_ms: 5000
+      max_message_bytes: 4096
+      segment: gx-shm-transformed
+      send_timeout_ms: 2000
+    to: sink.transformed
+    transport: shared_memory
+graph:
+  id: shared-memory
+nodes:
+  generator:
+    execution:
+      ipc_domain: local
+      kind: native
+    type: sample.source
+  sink:
+    execution:
+      ipc_domain: local
+      kind: native
+    type: sample.sink
+  transform:
+    execution:
+      ipc_domain: other
+      kind: native
+    type: sample.transform
+version: 3

@@ -1,0 +1,50 @@
+{
+  "catalog_digest": "d984d3c04c8ac657407f9c704a3f3a3760a352e348fb0a32616077b2caba5cff",
+  "compiler": "proposed-graphx-v3-design-1",
+  "files": [
+    {
+      "path": "compose.yaml",
+      "sha256": "057a4b8fc52184010ef17ddbe4289ecc1ea7ad0e5e26192916832478c19403a3"
+    },
+    {
+      "path": "credentials.json",
+      "sha256": "e6234d25a78fe8f9f850caef5f543b02e87e8281068414f069b5e5c5911a2d35"
+    },
+    {
+      "path": "execution-plan.json",
+      "sha256": "56b504470fcfe47370ddc8329eb68c95bd0af8cfb4985f8b525ae4650b07840f"
+    },
+    {
+      "path": "nodes/generator.json",
+      "sha256": "af7963dc71b2ce5cd42ddf318666cb6a6a18e00e16c9d01770fee7f5ce55d602"
+    },
+    {
+      "path": "nodes/sink.json",
+      "sha256": "104bae619d85f5075401e1c64f17739215c150c2174bd3d4ebbb58c999da5c8b"
+    },
+    {
+      "path": "nodes/transform.json",
+      "sha256": "ff3ddf30d60a93453b1ddc4989a1987612271f0a7c1389fa1cbf7a235312687b"
+    },
+    {
+      "path": "platform.json",
+      "sha256": "c0ba1d108af5c9bff6418819d21cc4140e63fc2126970a375ef29d37379a7783"
+    },
+    {
+      "path": "resolved.json",
+      "sha256": "69562f0601f28341133e4e600cada90e0a9a3bc8773ab4dfad4e76c2e0758635"
+    },
+    {
+      "path": "scenario-plan.json",
+      "sha256": "30ef61b234beff963301beda0fd4de5401951e2cc69a9d5beb35a28110a320b9"
+    },
+    {
+      "path": "substitutions.json",
+      "sha256": "dd6bd4b38f5442274396fec79bc6ed99d3773ba3a494f4fba6f7ea9654a77152"
+    }
+  ],
+  "graph_id": "variant-credential-rotation",
+  "input_digest": "c4465d88bb0576cccf36c2240797d1d7caf70a481e71b0246e5937dbbc3cd2bc",
+  "ownership": "invoking UID and graph ID; checked replacement only; no runtime lifecycle records",
+  "version": 1
+}

@@ -1,0 +1,178 @@
+# DESIGN ONLY — not accepted by current GraphX.
+catalog: ../../catalog/lock.json
+connections:
+  samples:
+    attachments:
+      from: generator-data
+      to: transform-data
+    from: generator.samples
+    settings:
+      bind: 0.0.0.0
+      connect_timeout_ms: 2000
+      framing: u32be
+      host: 10.20.0.20
+      port: 7001
+      reconnect: true
+      retry:
+        initial_backoff_ms: 100
+        max_attempts: 60
+        max_backoff_ms: 2000
+      send_timeout_ms: 5000
+    to: transform.samples
+    transport: tcp
+  transformed:
+    attachments:
+      from: transform-data
+      to: sink-data
+    from: transform.transformed
+    settings:
+      bind: 0.0.0.0
+      connect_timeout_ms: 2000
+      framing: u32be
+      host: 10.20.0.30
+      port: 7002
+      reconnect: true
+      retry:
+        initial_backoff_ms: 100
+        max_attempts: 60
+        max_backoff_ms: 2000
+      send_timeout_ms: 5000
+    to: sink.transformed
+    transport: tcp
+graph:
+  id: mixed-network
+network:
+  attachments:
+  - address: 10.10.0.10/24
+    id: generator-data
+    kind: container_veth
+    mac: 02:10:00:00:00:10
+    network: gx-mac-domain
+    owner: generator
+    routes:
+    - destination: 10.20.0.0/24
+      via: 10.10.0.1
+    switch: br-gx-mac
+  - address: 10.20.0.20/24
+    id: transform-data
+    kind: container_veth
+    mac: 02:20:00:00:00:01
+    network: gx-ipv-domain
+    owner: transform
+    routes:
+    - destination: 10.10.0.0/24
+      via: 10.20.0.1
+    switch: br-gx-ipv
+  - address: 10.20.0.30/24
+    id: sink-data
+    kind: container_veth
+    mac: 02:20:00:00:00:01
+    network: gx-ipv-domain
+    owner: sink
+    switch: br-gx-ipv
+  - id: mirror-mac
+    kind: mirror
+    owner: br-gx-mac
+    port: capture
+    switch: br-gx-mac
+  - id: mirror-ipv
+    kind: mirror
+    owner: br-gx-ipv
+    port: capture
+    switch: br-gx-ipv
+  captures:
+  - attachment: mirror-mac
+    id: mirror-mac
+    max_file_bytes: 67108864
+    max_files: 2
+    retention_seconds: 86400
+    rotation_seconds: 300
+    snaplen: 65535
+  - attachment: mirror-ipv
+    id: mirror-ipv
+    max_file_bytes: 67108864
+    max_files: 2
+    retention_seconds: 86400
+    rotation_seconds: 300
+    snaplen: 65535
+  edge_paths:
+    samples:
+    - generator
+    - gx-mac-domain
+    - br-gx-mac
+    - domain-router
+    - br-gx-ipv
+    - gx-ipv-domain
+    - transform
+    transformed:
+    - transform
+    - gx-ipv-domain
+    - sink
+  networks:
+  - gateway: 10.10.0.1
+    id: gx-mac-domain
+    profile: macvlan
+    realization: ovs
+    subnets:
+    - 10.10.0.0/24
+  - gateway: 10.20.0.1
+    id: gx-ipv-domain
+    profile: ipvlan-l2
+    realization: ovs
+    subnets:
+    - 10.20.0.0/24
+  routers:
+  - forwarding: true
+    id: domain-router
+    interfaces:
+    - address: 10.10.0.1/24
+      id: mac
+      network: gx-mac-domain
+      switch: br-gx-mac
+    - address: 10.20.0.1/24
+      id: ipv
+      network: gx-ipv-domain
+      switch: br-gx-ipv
+    kind: linux_namespace
+    policies:
+    - action: accept
+      destination: 10.20.0.0/24
+      id: mac-to-ipv
+      source: 10.10.0.0/24
+    - action: accept
+      destination: 10.10.0.0/24
+      id: ipv-to-mac
+      source: 10.20.0.0/24
+  switches:
+  - datapath: system
+    id: br-gx-mac
+    kind: openvswitch
+    mirror:
+      id: mirror-mac
+      output_port: capture
+      select_all: true
+    ports:
+    - id: capture
+  - datapath: system
+    id: br-gx-ipv
+    kind: openvswitch
+    mirror:
+      id: mirror-ipv
+      output_port: capture
+      select_all: true
+    ports:
+    - id: capture
+nodes:
+  generator:
+    execution:
+      kind: container
+    type: sample.source
+  sink:
+    execution:
+      kind: container
+    type: sample.sink
+  transform:
+    execution:
+      kind: container
+    type: sample.transform
+version: 3

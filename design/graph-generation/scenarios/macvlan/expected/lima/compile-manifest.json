@@ -1,0 +1,54 @@
+{
+  "catalog_digest": "d984d3c04c8ac657407f9c704a3f3a3760a352e348fb0a32616077b2caba5cff",
+  "compiler": "proposed-graphx-v3-design-1",
+  "files": [
+    {
+      "path": "access-plan.json",
+      "sha256": "b63f1f98b6d6a1c4ce601255e5db83c76eed5f3df8750d25d0af8b03bb546be6"
+    },
+    {
+      "path": "compose.yaml",
+      "sha256": "12beca9dce00e8a8236e921f6534274babe72c70a7141db394ea5dfae42c7582"
+    },
+    {
+      "path": "credentials.json",
+      "sha256": "2d8195f2d8743b7deaf22967744056904794f7083364070d08f984f146d0f4fa"
+    },
+    {
+      "path": "execution-plan.json",
+      "sha256": "f6e62c16f1ad9b7293522fe1df61407f5296993850d0015ca6647bb04d4724c4"
+    },
+    {
+      "path": "nodes/generator.json",
+      "sha256": "bd2c571318927f9b7912e891c4a0fa27c2c8c553e64a990d25df23779f1baa10"
+    },
+    {
+      "path": "nodes/sink.json",
+      "sha256": "575c436e67159decd615896d62eafc3e0e282ae47a0dc9c351f880d7e6ae0b99"
+    },
+    {
+      "path": "nodes/transform.json",
+      "sha256": "374ee5bd1119b2f9f91d17a2800ffc8abea4657ef5c71902c8ea643cf3dc8c92"
+    },
+    {
+      "path": "ovs-plan.json",
+      "sha256": "f696056176c38673be465df8597784e751b9759a7f3c333212e47c5bf33690ef"
+    },
+    {
+      "path": "platform.json",
+      "sha256": "f29b6b2c3c614c059d16dbd558e0a0633db5a332a3dfe970ea21bdb3871f353c"
+    },
+    {
+      "path": "resolved.json",
+      "sha256": "1013d2dfc2ca7110ed3299423a797da65cf75f99d8f71644b53ce1d82e435e54"
+    },
+    {
+      "path": "substitutions.json",
+      "sha256": "6079a550b97c24c36938e4b68a1f392d38cc2f11ba789f50ccf82b153ebe3fbb"
+    }
+  ],
+  "graph_id": "macvlan",
+  "input_digest": "51b096c74b591858ac5dfb0eb592e95bb910c1ce86ceb99d9c744c9927d4c689",
+  "ownership": "invoking UID and graph ID; checked replacement only; no runtime lifecycle records",
+  "version": 1
+}

@@ -1,0 +1,8 @@
+{
+  "code": "E_TARGET_CAPABILITY",
+  "message": "C-CONTAINER requires a Docker engine; native-macos target does not include OrbStack",
+  "no_artifacts": true,
+  "path": "target",
+  "phase": "compile",
+  "severity": "error"
+}

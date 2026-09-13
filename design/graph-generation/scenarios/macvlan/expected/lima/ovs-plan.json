@@ -1,0 +1,104 @@
+{
+  "api": "execute_ovs_lifecycle",
+  "capture_process_count": 0,
+  "cleanup": "execute_ovs_lifecycle destroy; external devices untouched",
+  "config": "resolved.json",
+  "on_failure": "reverse newly owned resources only; preserve state on cleanup failure",
+  "preflight": [
+    "Linux system OVS available",
+    "explicit execution authorization",
+    "container IDs checked against graph labels",
+    "addresses and names free or same owner",
+    "UID/GID 65532 dedicated QEMU identity when TAP selected"
+  ],
+  "readiness": [
+    "endpoint identity matches",
+    "routes and OVS flows installed",
+    "capture writer owned and ready"
+  ],
+  "resource_intent": {
+    "attachments": [
+      {
+        "address": "10.30.0.10/24",
+        "id": "generator-data",
+        "interface": "gxie97808b5d132",
+        "kind": "container_veth",
+        "mac": "02:30:00:00:00:10",
+        "network": "gx-macvlan-demo",
+        "owner": "generator",
+        "peer": "gxp81b47c06741a",
+        "switch": "gxb9b585f04998d"
+      },
+      {
+        "address": "10.30.0.30/24",
+        "id": "sink-data",
+        "interface": "gxi2579af1fd350",
+        "kind": "container_veth",
+        "mac": "02:30:00:00:00:30",
+        "network": "gx-macvlan-demo",
+        "owner": "sink",
+        "peer": "gxp3d236812dbfd",
+        "switch": "gxb9b585f04998d"
+      },
+      {
+        "address": "10.30.0.20/24",
+        "id": "transform-data",
+        "interface": "gxiaf12fe76da59",
+        "kind": "container_veth",
+        "mac": "02:30:00:00:00:20",
+        "network": "gx-macvlan-demo",
+        "owner": "transform",
+        "peer": "gxpbc1eb43f4782",
+        "switch": "gxb9b585f04998d"
+      }
+    ],
+    "edge_paths": {
+      "samples": [
+        "generator",
+        "gx-macvlan-demo",
+        "transform"
+      ],
+      "transformed": [
+        "transform",
+        "gx-macvlan-demo",
+        "sink"
+      ]
+    },
+    "management_isolation": {
+      "application_bind": "selected-data-address",
+      "ip_forward": false,
+      "ovs_management_acl": "only platform TCP 8080 and UDP 9000; deny node-to-node and forwarding; enforced before release barrier",
+      "per_node_network": true,
+      "platform_routes_data": false
+    },
+    "networks": [
+      {
+        "gateway": "10.30.0.1",
+        "id": "gx-macvlan-demo",
+        "profile": "macvlan",
+        "realization": "ovs",
+        "subnets": [
+          "10.30.0.0/24"
+        ]
+      }
+    ],
+    "switches": [
+      {
+        "datapath": "system",
+        "id": "gxb9b585f04998d",
+        "kind": "openvswitch",
+        "name": "gxb11dd4a8b932d",
+        "ports": []
+      }
+    ]
+  },
+  "stages": [
+    "preflight identity and capabilities",
+    "create containers held at local barrier",
+    "create namespaces bridges veth and TAP",
+    "install routes policies mirrors capture and management ACL",
+    "release application barriers"
+  ],
+  "state_root": "/var/lib/graphx/ownership",
+  "version": 1
+}

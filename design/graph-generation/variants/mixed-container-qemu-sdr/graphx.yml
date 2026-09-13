@@ -1,0 +1,180 @@
+# DESIGN ONLY — not accepted by current GraphX.
+catalog: ../../catalog/lock.json
+connections:
+  control:
+    attachments:
+      from: processor-west-data
+      to: radio-west-data
+    from: processor-west.control
+    security:
+      profile: mtls
+      server_name: radio-west
+    to: radio-west.control
+    transport: tcp
+  control-east:
+    attachments:
+      from: processor-east-data
+      to: radio-east-data
+    from: processor-east.control
+    security:
+      profile: mtls
+      server_name: radio-east
+    to: radio-east.control
+    transport: tcp
+  iq:
+    attachments:
+      from: radio-west-data
+      to: processor-west-data
+    from: radio-west.samples
+    to: processor-west.samples
+    transport: udp
+  iq-east:
+    attachments:
+      from: radio-east-data
+      to: processor-east-data
+    from: radio-east.samples
+    to: processor-east.samples
+    transport: udp
+  results:
+    attachments:
+      from: processor-west-data
+      to: sink-west-data
+    from: processor-west.results
+    to: sink-west.results
+    transport: tcp
+  results-east:
+    attachments:
+      from: processor-east-data
+      to: sink-east-data
+    from: processor-east.results
+    to: sink-east.results
+    transport: tcp
+credentials:
+  processor-east:
+    identity: processor-east
+    members:
+    - ca.pem
+    - cert.pem
+    - key.pem
+    provider: lab-generated
+  processor-west:
+    identity: processor-west
+    members:
+    - ca.pem
+    - cert.pem
+    - key.pem
+    provider: lab-generated
+  radio-east:
+    identity: radio-east
+    members:
+    - ca.pem
+    - cert.pem
+    - key.pem
+    provider: lab-generated
+  radio-west:
+    identity: radio-west
+    members:
+    - ca.pem
+    - cert.pem
+    - key.pem
+    provider: lab-generated
+graph:
+  id: mixed-container-qemu-sdr
+network:
+  attachments:
+  - address: 10.65.0.10/24
+    id: processor-east-data
+    kind: container_veth
+    mac: 02:65:00:00:00:0a
+    network: radio-lan
+    owner: processor-east
+    switch: radio-switch
+  - address: 10.65.0.11/24
+    id: processor-west-data
+    kind: container_veth
+    mac: 02:65:00:00:00:0b
+    network: radio-lan
+    owner: processor-west
+    switch: radio-switch
+  - address: 10.65.0.12/24
+    id: radio-east-data
+    kind: qemu_tap
+    mac: 02:65:00:00:00:0c
+    network: radio-lan
+    owner: radio-east
+    switch: radio-switch
+    tap_gid: 65532
+    tap_uid: 65532
+  - address: 10.65.0.13/24
+    id: radio-west-data
+    kind: container_veth
+    mac: 02:65:00:00:00:0d
+    network: radio-lan
+    owner: radio-west
+    switch: radio-switch
+  - address: 10.65.0.14/24
+    id: sink-east-data
+    kind: container_veth
+    mac: 02:65:00:00:00:0e
+    network: radio-lan
+    owner: sink-east
+    switch: radio-switch
+  - address: 10.65.0.15/24
+    id: sink-west-data
+    kind: container_veth
+    mac: 02:65:00:00:00:0f
+    network: radio-lan
+    owner: sink-west
+    switch: radio-switch
+  networks:
+  - gateway: 10.65.0.1
+    id: radio-lan
+    profile: macvlan
+    realization: ovs
+    subnets:
+    - 10.65.0.0/24
+  switches:
+  - datapath: system
+    id: radio-switch
+    kind: openvswitch
+    ports: []
+nodes:
+  processor-east:
+    credentials:
+      control: processor-east
+    execution:
+      kind: container
+    type: sdr.processor
+  processor-west:
+    credentials:
+      control: processor-west
+    execution:
+      kind: container
+    type: sdr.processor
+  radio-east:
+    credentials:
+      control: radio-east
+    execution:
+      accelerator: tcg
+      architecture: x86_64
+      guest: radio-x86
+      kind: qemu
+    observation:
+    - packet
+    - external-status
+    type: sdr.radio
+  radio-west:
+    credentials:
+      control: radio-west
+    execution:
+      kind: container
+    type: sdr.simulator
+  sink-east:
+    execution:
+      kind: container
+    type: sdr.result-sink
+  sink-west:
+    execution:
+      kind: container
+    type: sdr.result-sink
+version: 3

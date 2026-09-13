@@ -1,0 +1,42 @@
+{
+  "catalog_digest": "d984d3c04c8ac657407f9c704a3f3a3760a352e348fb0a32616077b2caba5cff",
+  "compiler": "proposed-graphx-v3-design-1",
+  "files": [
+    {
+      "path": "credentials.json",
+      "sha256": "01087ba294b6ac1ad0f2517e809fa2d3c78ddb3dd6778964bfa1496b89343ed7"
+    },
+    {
+      "path": "execution-plan.json",
+      "sha256": "21f1c2c3e61f37a9a1db9744283ef25a8609017246a75bb5100e65254944fb05"
+    },
+    {
+      "path": "native-plan.json",
+      "sha256": "90361de6c4e2d77fab29a0cbfc84e27181a1928bf082197cb39d5fd1d9f0928f"
+    },
+    {
+      "path": "nodes/publisher.json",
+      "sha256": "d8dda8529db0498911e099d38214591ac08bdce87f54d8e306eb9df109deacf9"
+    },
+    {
+      "path": "nodes/subscriber.json",
+      "sha256": "2713e02e76963172e317407e00450c68494a00d5d5072b38d137cac492cf146f"
+    },
+    {
+      "path": "platform.json",
+      "sha256": "6ae4543fa7057a0d207edd843a9322c8413e822992696d5d713deaea9ede253c"
+    },
+    {
+      "path": "resolved.json",
+      "sha256": "29d9f1f93e5084bde2c7e8f687484bf207c9d5c919e3cd87976996b377badbb8"
+    },
+    {
+      "path": "substitutions.json",
+      "sha256": "d07d023aa616dd710db85c52e8744ab44b18a8667c75ed93eab71a0c9f91ee65"
+    }
+  ],
+  "graph_id": "udp-unicast",
+  "input_digest": "1f903a3a57edee9492918e182cc46e18b44a7c72c0877a61aa76aae779d507ee",
+  "ownership": "invoking UID and graph ID; checked replacement only; no runtime lifecycle records",
+  "version": 1
+}

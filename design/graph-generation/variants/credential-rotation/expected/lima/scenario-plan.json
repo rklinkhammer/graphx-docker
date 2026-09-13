@@ -1,0 +1,43 @@
+{
+  "actions": [
+    {
+      "action": "credential-rotate",
+      "credential": "operator",
+      "grace_seconds": 60,
+      "id": "rollover",
+      "next": "operator-next",
+      "publication": {
+        "destination_bundle": "operator",
+        "reader_protocol": "generation-checked reload; old and new accepted only during declared grace",
+        "scope": "authorized identity only; same per-reference directory mounts",
+        "source_bundle": "operator-next"
+      },
+      "verify": [
+        "old-and-new-during-grace",
+        "old-rejected-after-grace"
+      ]
+    },
+    {
+      "action": "credential-rotate",
+      "credential": "runtime-generator",
+      "grace_seconds": 60,
+      "id": "runtime-rollover",
+      "next": "runtime-generator-next",
+      "publication": {
+        "destination_bundle": "runtime-generator",
+        "reader_protocol": "generation-checked reload; old and new accepted only during declared grace",
+        "scope": "authorized identity only; same per-reference directory mounts",
+        "source_bundle": "runtime-generator-next"
+      },
+      "verify": [
+        "per-node-identity-bound",
+        "old-rejected-after-grace"
+      ]
+    }
+  ],
+  "authorization": "caller grants each action; resolves graph resource IDs only",
+  "baseline_config": "resolved.json",
+  "cleanup": "owned fault clear, route clear or simulator stop; rotation preserves active credentials",
+  "implicit_start": false,
+  "version": 1
+}

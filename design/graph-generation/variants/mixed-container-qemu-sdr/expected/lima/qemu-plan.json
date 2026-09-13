@@ -1,0 +1,109 @@
+{
+  "adapter": "qemu-process-adapter",
+  "failure": "stop owned guest; clean only its new resources; retain mismatch state",
+  "guests": [
+    {
+      "accelerator": "tcg",
+      "architecture": "x86_64",
+      "argv": [
+        "qemu-system-x86_64",
+        "-machine",
+        "q35,accel=tcg",
+        "-m",
+        "256",
+        "-smp",
+        "1",
+        "-kernel",
+        "${GX_RELEASE}/guests/radio-x86/bzImage",
+        "-initrd",
+        "${GX_RELEASE}/guests/radio-x86/rootfs.cpio.gz",
+        "-append",
+        "console=ttyS0 panic=1",
+        "-no-reboot",
+        "-display",
+        "none",
+        "-monitor",
+        "none",
+        "-qmp",
+        "unix:${GX_STATE}/radio-east/qmp.sock,server=on,wait=off",
+        "-netdev",
+        "tap,id=net0,ifname=gxtf319042e9e24,script=no,downscript=no",
+        "-device",
+        "virtio-net-pci,netdev=net0,mac=02:65:00:00:00:0c",
+        "-device",
+        "virtio-serial-pci",
+        "-chardev",
+        "socket,id=config,path=${GX_STATE}/radio-east/config.sock,server=on,wait=off",
+        "-device",
+        "virtserialport,chardev=config,name=org.graphx.config",
+        "-chardev",
+        "socket,id=credentials,path=${GX_STATE}/radio-east/credentials.sock,server=on,wait=off",
+        "-device",
+        "virtserialport,chardev=credentials,name=org.graphx.credentials",
+        "-chardev",
+        "socket,id=ready,path=${GX_STATE}/radio-east/ready.sock,server=on,wait=off",
+        "-device",
+        "virtserialport,chardev=ready,name=org.graphx.ready",
+        "-chardev",
+        "ringbuf,id=serial,size=1048576",
+        "-serial",
+        "chardev:serial"
+      ],
+      "artifact_verification": [
+        {
+          "path": "bzImage",
+          "sha256": "fe4d3c1c6539eee2fbdc61b13598c9f735d36b59dd3bd493f1f87af55d2e4d75"
+        },
+        {
+          "path": "rootfs.cpio.gz",
+          "sha256": "8c6e4209a8396ba27b8e1397f3a2594f15c0bff0d61c651dca75a7caa58d20a7"
+        }
+      ],
+      "channels": {
+        "config": {
+          "guest_name": "org.graphx.config",
+          "host_socket": "${GX_STATE}/radio-east/config.sock"
+        },
+        "credentials": {
+          "guest_name": "org.graphx.credentials",
+          "host_socket": "${GX_STATE}/radio-east/credentials.sock"
+        },
+        "ready": {
+          "guest_name": "org.graphx.ready",
+          "host_socket": "${GX_STATE}/radio-east/ready.sock"
+        }
+      },
+      "cleanup": "owned PID/start-time/executable and QMP identity; remove own channel sockets after stop; TAP via OVS owner",
+      "credentials": {
+        "control": "radio-east"
+      },
+      "gid": 65532,
+      "network": {
+        "address": "10.65.0.12/24",
+        "mac": "02:65:00:00:00:0c",
+        "routes": []
+      },
+      "node": "radio-east",
+      "node_config": "nodes/radio-east.json",
+      "readiness": {
+        "channel": "org.graphx.ready",
+        "message": "node ID + config digest + listeners-bound",
+        "timeout_ms": 120000
+      },
+      "recipe": "radio-x86",
+      "serial_evidence": {
+        "destination": "${GX_STATE}/radio-east/serial.txt",
+        "maximum_bytes": 1048576,
+        "source": "QMP ringbuf-read serial",
+        "when": "explicit status/verify and stop; no perpetual poller"
+      },
+      "uid": 65532
+    }
+  ],
+  "start_after": [
+    "OVS TAP ready",
+    "artifact digests match",
+    "peer local listeners ready"
+  ],
+  "version": 1
+}

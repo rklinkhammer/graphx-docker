@@ -1,0 +1,214 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "credentials": {
+      "items": {
+        "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+        "type": "string"
+      },
+      "maxItems": 4096,
+      "type": "array"
+    },
+    "executable": {
+      "type": "string"
+    },
+    "execution": {
+      "items": {
+        "enum": [
+          "container",
+          "native",
+          "qemu",
+          "external",
+          "namespace"
+        ]
+      },
+      "maxItems": 5,
+      "type": "array"
+    },
+    "id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "image": {
+      "pattern": "^.+@sha256:[a-f0-9]{64}$",
+      "type": "string"
+    },
+    "observation": {
+      "enum": [
+        "graphx",
+        "packet",
+        "none"
+      ]
+    },
+    "parameters": {
+      "additionalProperties": {
+        "additionalProperties": false,
+        "properties": {
+          "default": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maximum": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "minimum": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": {
+            "enum": [
+              "integer"
+            ]
+          }
+        },
+        "required": [
+          "type",
+          "minimum",
+          "maximum",
+          "default"
+        ],
+        "type": "object"
+      },
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+        "type": "string"
+      },
+      "type": "object"
+    },
+    "ports": {
+      "additionalProperties": {
+        "additionalProperties": false,
+        "properties": {
+          "default_port": {
+            "maximum": 65535,
+            "minimum": 1,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "direction": {
+            "enum": [
+              "input",
+              "output"
+            ]
+          },
+          "encoding": {
+            "enum": [
+              "raw",
+              "graphx"
+            ]
+          },
+          "feedback": {
+            "type": "boolean"
+          },
+          "listener": {
+            "type": "boolean"
+          },
+          "max_connections": {
+            "maximum": 4096,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "min_connections": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "schema": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "transports": {
+            "items": {
+              "enum": [
+                "tcp",
+                "udp",
+                "shared_memory"
+              ]
+            },
+            "maxItems": 3,
+            "type": "array"
+          }
+        },
+        "required": [
+          "direction",
+          "schema",
+          "transports",
+          "encoding",
+          "min_connections",
+          "max_connections",
+          "feedback",
+          "listener",
+          "default_port"
+        ],
+        "type": "object"
+      },
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+        "type": "string"
+      },
+      "type": "object"
+    },
+    "readiness": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "local-bound"
+        },
+        "timeout_ms": {
+          "maximum": 120000,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "kind",
+        "timeout_ms"
+      ],
+      "type": "object"
+    },
+    "resources": {
+      "additionalProperties": false,
+      "properties": {
+        "memory_bytes": {
+          "maximum": 4294967296,
+          "minimum": 1048576,
+          "type": "integer"
+        },
+        "pids": {
+          "maximum": 1024,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "pids",
+        "memory_bytes"
+      ],
+      "type": "object"
+    },
+    "revision": {
+      "const": 1
+    },
+    "template": {
+      "const": "node-v1"
+    }
+  },
+  "required": [
+    "id",
+    "revision",
+    "template",
+    "image",
+    "executable",
+    "execution",
+    "ports",
+    "parameters",
+    "observation",
+    "readiness",
+    "credentials",
+    "resources"
+  ],
+  "type": "object"
+}

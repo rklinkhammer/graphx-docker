@@ -1,0 +1,27 @@
+{
+  "actions": [
+    {
+      "action": "traffic",
+      "connections": [
+        "peer-qemu-tcp",
+        "peer-qemu-udp",
+        "qemu-peer-tcp",
+        "qemu-peer-udp"
+      ],
+      "expect": [
+        "bidirectional-tcp-udp",
+        "broadcast-echo-10.0.2.255:18001",
+        "multicast-observed-239.1.2.3:18001",
+        "vlan-43-isolated",
+        "capture-nonempty",
+        "qmp-pause-resume"
+      ],
+      "id": "verify-guest"
+    }
+  ],
+  "authorization": "caller grants each action; resolves graph resource IDs only",
+  "baseline_config": "resolved.json",
+  "cleanup": "owned fault clear, route clear or simulator stop; rotation preserves active credentials",
+  "implicit_start": false,
+  "version": 1
+}

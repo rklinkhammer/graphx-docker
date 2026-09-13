@@ -1,0 +1,276 @@
+{
+  "catalog_digest": "d984d3c04c8ac657407f9c704a3f3a3760a352e348fb0a32616077b2caba5cff",
+  "connections": [
+    {
+      "attachments": {},
+      "destination_address": "172.31.91.20",
+      "encoding": "graphx",
+      "from": {
+        "node": "publisher",
+        "port": "out"
+      },
+      "id": "messages",
+      "listener": "subscriber.in",
+      "schema": "Discovery",
+      "security": {
+        "profile": "none"
+      },
+      "settings": {
+        "bind": "0.0.0.0",
+        "destination": "172.31.91.255",
+        "framing": "u32be",
+        "interface": "172.31.91.10",
+        "loopback": true,
+        "max_datagram_bytes": 1400,
+        "mode": "broadcast",
+        "port": 47102,
+        "receive_buffer_bytes": 65536,
+        "reuse_address": false,
+        "send_buffer_bytes": 65536,
+        "ttl": 1
+      },
+      "source_address": "172.31.91.10",
+      "to": {
+        "node": "subscriber",
+        "port": "in"
+      },
+      "transport": "udp"
+    }
+  ],
+  "contract_version": 2,
+  "credential_references": [
+    "observer",
+    "runtime-publisher",
+    "runtime-subscriber"
+  ],
+  "execution_values": [
+    "GX_STATE",
+    "GX_CREDENTIALS",
+    "GX_OUTPUT",
+    "GX_RELEASE",
+    "GX_OWNER"
+  ],
+  "graph_id": "udp-broadcast",
+  "graph_version": 3,
+  "input_digest": "95d3b08adcc5cc29acfcb8971c1c1333e4a2eac241960c14d9febba658af8b24",
+  "network": {
+    "management_isolation": {
+      "application_bind": "selected-data-address",
+      "ip_forward": false,
+      "ovs_management_acl": "only platform TCP 8080 and UDP 9000; deny node-to-node and forwarding; enforced before release barrier",
+      "per_node_network": true,
+      "platform_routes_data": false
+    }
+  },
+  "nodes": [
+    {
+      "bindings": {
+        "out": [
+          {
+            "attachments": {},
+            "connection": "messages",
+            "destination_address": "172.31.91.20",
+            "encoding": "graphx",
+            "role": "connect",
+            "schema": "Discovery",
+            "security": {
+              "profile": "none"
+            },
+            "settings": {
+              "bind": "0.0.0.0",
+              "destination": "172.31.91.255",
+              "framing": "u32be",
+              "interface": "172.31.91.10",
+              "loopback": true,
+              "max_datagram_bytes": 1400,
+              "mode": "broadcast",
+              "port": 47102,
+              "receive_buffer_bytes": 65536,
+              "reuse_address": false,
+              "send_buffer_bytes": 65536,
+              "ttl": 1
+            },
+            "source_address": "172.31.91.10",
+            "transport": "udp"
+          }
+        ]
+      },
+      "capture": {
+        "directory": "/captures",
+        "enabled": false,
+        "max_file_bytes": 67108864,
+        "max_files": 2,
+        "max_packets": 100000,
+        "provider": "application",
+        "retention_seconds": 86400
+      },
+      "contract_version": 2,
+      "credentials": {},
+      "execution": {
+        "kind": "container"
+      },
+      "graph_id": "udp-broadcast",
+      "graph_version": 3,
+      "node_id": "publisher",
+      "observation": [
+        "graphx"
+      ],
+      "parameters": {
+        "max_messages": 20
+      },
+      "readiness": {
+        "kind": "local-bound",
+        "timeout_ms": 30000
+      },
+      "startup": {
+        "bind_before_connect": true,
+        "max_wait_ms": 30000,
+        "release_barrier": true
+      },
+      "telemetry": {
+        "credential": "runtime-publisher",
+        "host": "platform",
+        "port": 9000
+      },
+      "type": "discovery.publisher",
+      "type_revision": 1
+    },
+    {
+      "bindings": {
+        "in": [
+          {
+            "attachments": {},
+            "connection": "messages",
+            "destination_address": "172.31.91.20",
+            "encoding": "graphx",
+            "role": "listen",
+            "schema": "Discovery",
+            "security": {
+              "profile": "none"
+            },
+            "settings": {
+              "bind": "0.0.0.0",
+              "destination": "172.31.91.255",
+              "framing": "u32be",
+              "interface": "172.31.91.10",
+              "loopback": true,
+              "max_datagram_bytes": 1400,
+              "mode": "broadcast",
+              "port": 47102,
+              "receive_buffer_bytes": 65536,
+              "reuse_address": false,
+              "send_buffer_bytes": 65536,
+              "ttl": 1
+            },
+            "source_address": "172.31.91.10",
+            "transport": "udp"
+          }
+        ]
+      },
+      "capture": {
+        "directory": "/captures",
+        "enabled": false,
+        "max_file_bytes": 67108864,
+        "max_files": 2,
+        "max_packets": 100000,
+        "provider": "application",
+        "retention_seconds": 86400
+      },
+      "contract_version": 2,
+      "credentials": {},
+      "execution": {
+        "kind": "container"
+      },
+      "graph_id": "udp-broadcast",
+      "graph_version": 3,
+      "node_id": "subscriber",
+      "observation": [
+        "graphx"
+      ],
+      "parameters": {
+        "max_messages": 20
+      },
+      "readiness": {
+        "kind": "local-bound",
+        "timeout_ms": 30000
+      },
+      "startup": {
+        "bind_before_connect": true,
+        "max_wait_ms": 30000,
+        "release_barrier": true
+      },
+      "telemetry": {
+        "credential": "runtime-subscriber",
+        "host": "platform",
+        "port": 9000
+      },
+      "type": "discovery.subscriber",
+      "type_revision": 1
+    }
+  ],
+  "ordering": "lexicographic-ascii",
+  "platform": {
+    "capture": {
+      "directory": "/captures",
+      "enabled": false,
+      "max_file_bytes": 67108864,
+      "max_files": 2,
+      "max_packets": 100000,
+      "provider": "application",
+      "retention_seconds": 86400
+    },
+    "console": {
+      "bind": "127.0.0.1",
+      "port": 8080
+    },
+    "control": {
+      "allowed_origins": [
+        "http://127.0.0.1:8080"
+      ],
+      "enabled": false,
+      "grants": [],
+      "idempotency_ttl_seconds": 3600,
+      "max_audit_records": 4096,
+      "max_request_bytes": 4096
+    },
+    "credential_manifest": "credentials.json",
+    "extensions": [],
+    "history": {
+      "backend": "sqlite",
+      "batch_size": 100,
+      "database_file": "/var/lib/graphx/history/history.sqlite",
+      "enabled": true,
+      "flush_interval_ms": 250,
+      "max_database_bytes": 268435456,
+      "max_pending_queries": 16,
+      "max_queue_bytes": 8388608,
+      "max_records": 100000,
+      "query_limit": 200,
+      "query_timeout_ms": 2000,
+      "queue_capacity": 4096,
+      "retention_seconds": 604800,
+      "shutdown_timeout_ms": 2000
+    },
+    "image": "graphx-design/platform@sha256:41b3db89b6ec78cab84b29c12a1af5024ba670b44463edc40d887cad8b952ba4",
+    "normalization": "resolved.json",
+    "otlp": {
+      "enabled": false
+    },
+    "telemetry": {
+      "authentication": "per-node-hmac",
+      "heartbeat_interval_ms": 1000,
+      "heartbeat_timeout_ms": 5000,
+      "host": "platform",
+      "port": 9000
+    },
+    "template": "platform-v1"
+  },
+  "portable_network": {
+    "addresses": {
+      "publisher": "172.31.91.10",
+      "subscriber": "172.31.91.20"
+    },
+    "subnet": "172.31.91.0/24"
+  },
+  "target": "orbstack"
+}

@@ -1,0 +1,68 @@
+{
+  "bindings": {
+    "samples": [
+      {
+        "attachments": {},
+        "connection": "samples",
+        "destination_address": "127.0.0.1",
+        "encoding": "graphx",
+        "role": "connect",
+        "schema": "Sample",
+        "security": {
+          "profile": "none"
+        },
+        "settings": {
+          "backpressure": "block",
+          "capacity": 8,
+          "connect_timeout_ms": 5000,
+          "max_message_bytes": 4096,
+          "segment": "gx-shm-samples",
+          "send_timeout_ms": 2000
+        },
+        "source_address": "127.0.0.1",
+        "transport": "shared_memory"
+      }
+    ]
+  },
+  "capture": {
+    "directory": "${GX_STATE}/captures/generator",
+    "enabled": false,
+    "max_file_bytes": 67108864,
+    "max_files": 2,
+    "max_packets": 100000,
+    "provider": "application",
+    "retention_seconds": 86400
+  },
+  "contract_version": 2,
+  "credentials": {},
+  "execution": {
+    "ipc_domain": "local",
+    "kind": "native"
+  },
+  "graph_id": "shared-memory",
+  "graph_version": 3,
+  "node_id": "generator",
+  "observation": [
+    "graphx"
+  ],
+  "parameters": {
+    "interval_ms": 50,
+    "max_messages": 20
+  },
+  "readiness": {
+    "kind": "local-bound",
+    "timeout_ms": 30000
+  },
+  "startup": {
+    "bind_before_connect": true,
+    "max_wait_ms": 30000,
+    "release_barrier": true
+  },
+  "telemetry": {
+    "credential": "runtime-generator",
+    "host": "127.0.0.1",
+    "port": 9000
+  },
+  "type": "sample.source",
+  "type_revision": 1
+}

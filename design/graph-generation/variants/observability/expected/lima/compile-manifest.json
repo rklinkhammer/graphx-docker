@@ -1,0 +1,62 @@
+{
+  "catalog_digest": "d984d3c04c8ac657407f9c704a3f3a3760a352e348fb0a32616077b2caba5cff",
+  "compiler": "proposed-graphx-v3-design-1",
+  "files": [
+    {
+      "path": "access-plan.json",
+      "sha256": "b63f1f98b6d6a1c4ce601255e5db83c76eed5f3df8750d25d0af8b03bb546be6"
+    },
+    {
+      "path": "compose.yaml",
+      "sha256": "dc001a315a81fd3f5d95a71c93b04b7929492ec6c3a92468f6df248fb7073386"
+    },
+    {
+      "path": "credentials.json",
+      "sha256": "4e5f42b6cfda03ba8603226d34273f397d7de09db81aae3f25db898b898ff45e"
+    },
+    {
+      "path": "execution-plan.json",
+      "sha256": "56b504470fcfe47370ddc8329eb68c95bd0af8cfb4985f8b525ae4650b07840f"
+    },
+    {
+      "path": "grafana-datasources.yml",
+      "sha256": "48b7f8bda76a20c4886832309f27dbabbf2a9495638865e6e35d5e8e9cac40dc"
+    },
+    {
+      "path": "grafana.ini",
+      "sha256": "62c26c5d33c8a842f73ec6ffb45a6394e8e508cbaffc4700d3ae74273a630a34"
+    },
+    {
+      "path": "nodes/generator.json",
+      "sha256": "c5eccaf7414b8c8732b829dc59e08a8d14dcb2abccb1fe387f5b1735de0e0610"
+    },
+    {
+      "path": "nodes/sink.json",
+      "sha256": "02c5d74459e3fd07c70d0456b46bd2a55adb296d9ee9aa145cb418a104fb6c92"
+    },
+    {
+      "path": "nodes/transform.json",
+      "sha256": "964cab0074390bd59eb2c4679ddaa6343e2318101eaace96e8dea721685c9ec0"
+    },
+    {
+      "path": "platform.json",
+      "sha256": "d905c055ab58e09486cf89d51dcc4db4af78a4ade7eea0020e146e6227981598"
+    },
+    {
+      "path": "prometheus.yml",
+      "sha256": "dfa3e99beec4cadf3c1ece4fd24c5318b9e7cda309335ee8219327445944ddba"
+    },
+    {
+      "path": "resolved.json",
+      "sha256": "81583db8ded5837f6e83b4c7c0ce025dc5ca4b278cc33a15381bc6d069d807f5"
+    },
+    {
+      "path": "substitutions.json",
+      "sha256": "490d9a9abfd34bb38e090d901a3a371c5107043bfc2c7fa9b0cf342311f09dc0"
+    }
+  ],
+  "graph_id": "variant-observability",
+  "input_digest": "0547a413fa85408dd1804eb0cf414be9343d7cacff8708c55cbc2824a40db615",
+  "ownership": "invoking UID and graph ID; checked replacement only; no runtime lifecycle records",
+  "version": 1
+}

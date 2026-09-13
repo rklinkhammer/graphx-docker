@@ -1,0 +1,61 @@
+{
+  "Discovery": {
+    "encoding": "graphx",
+    "maximum_bytes": 1400,
+    "wire_version": 2
+  },
+  "RawDiagnosticDatagram": {
+    "encoding": "raw",
+    "maximum_bytes": 512
+  },
+  "RawIqSamples": {
+    "count_max": 256,
+    "count_min": 1,
+    "encoding": "raw",
+    "frequency_max": 6000000000,
+    "frequency_min": 1000000,
+    "layout": "SDR1 + uint32 sequence + uint64 frequency_hz + uint16 count + count pairs int16 I,Q; all big endian",
+    "maximum_bytes": 1042
+  },
+  "RawPowerResult": {
+    "encoding": "raw",
+    "layout": "one UTF-8 JSON object plus LF per TCP connection",
+    "maximum_bytes": 4096
+  },
+  "RawSdrControl": {
+    "actions": [
+      "status",
+      "set_frequency",
+      "pause",
+      "resume"
+    ],
+    "encoding": "raw",
+    "layout": "one UTF-8 JSON object plus LF per TLS connection",
+    "maximum_bytes": 4096
+  },
+  "RawTcpBytes": {
+    "encoding": "raw",
+    "maximum_bytes": 4096
+  },
+  "RawUdpDatagram": {
+    "encoding": "raw",
+    "maximum_bytes": 1400
+  },
+  "Sample": {
+    "encoding": "graphx",
+    "maximum_bytes": 4096,
+    "payload": "positive decimal integer UTF-8",
+    "wire_version": 2
+  },
+  "TransformedSample": {
+    "encoding": "graphx",
+    "maximum_bytes": 4096,
+    "payload": "decimal integer UTF-8; input times factor",
+    "wire_version": 2
+  },
+  "UdpExample": {
+    "encoding": "graphx",
+    "maximum_bytes": 1400,
+    "wire_version": 2
+  }
+}

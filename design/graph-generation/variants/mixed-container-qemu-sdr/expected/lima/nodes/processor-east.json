@@ -1,0 +1,139 @@
+{
+  "bindings": {
+    "control": [
+      {
+        "attachments": {
+          "from": "processor-east-data",
+          "to": "radio-east-data"
+        },
+        "connection": "control-east",
+        "destination_address": "10.65.0.12",
+        "encoding": "raw",
+        "role": "connect",
+        "schema": "RawSdrControl",
+        "security": {
+          "profile": "mtls",
+          "server_name": "radio-east"
+        },
+        "settings": {
+          "bind": "10.65.0.12",
+          "connect_timeout_ms": 5000,
+          "framing": "none",
+          "host": "10.65.0.12",
+          "port": 18401,
+          "reconnect": true,
+          "retry": {
+            "initial_backoff_ms": 100,
+            "max_attempts": 60,
+            "max_backoff_ms": 2000
+          },
+          "send_timeout_ms": 5000
+        },
+        "source_address": "10.65.0.10",
+        "transport": "tcp"
+      }
+    ],
+    "results": [
+      {
+        "attachments": {
+          "from": "processor-east-data",
+          "to": "sink-east-data"
+        },
+        "connection": "results-east",
+        "destination_address": "10.65.0.14",
+        "encoding": "raw",
+        "role": "connect",
+        "schema": "RawPowerResult",
+        "security": {
+          "profile": "none"
+        },
+        "settings": {
+          "bind": "10.65.0.14",
+          "connect_timeout_ms": 5000,
+          "framing": "none",
+          "host": "10.65.0.14",
+          "port": 18402,
+          "reconnect": true,
+          "retry": {
+            "initial_backoff_ms": 100,
+            "max_attempts": 60,
+            "max_backoff_ms": 2000
+          },
+          "send_timeout_ms": 5000
+        },
+        "source_address": "10.65.0.10",
+        "transport": "tcp"
+      }
+    ],
+    "samples": [
+      {
+        "attachments": {
+          "from": "radio-east-data",
+          "to": "processor-east-data"
+        },
+        "connection": "iq-east",
+        "destination_address": "10.65.0.10",
+        "encoding": "raw",
+        "role": "listen",
+        "schema": "RawIqSamples",
+        "security": {
+          "profile": "none"
+        },
+        "settings": {
+          "bind": "10.65.0.10",
+          "destination": "10.65.0.10",
+          "framing": "none",
+          "loopback": true,
+          "max_datagram_bytes": 1400,
+          "mode": "unicast",
+          "port": 18400,
+          "receive_buffer_bytes": 65536,
+          "reuse_address": false,
+          "send_buffer_bytes": 65536,
+          "ttl": 1
+        },
+        "source_address": "10.65.0.12",
+        "transport": "udp"
+      }
+    ]
+  },
+  "capture": {
+    "directory": "/captures",
+    "enabled": false,
+    "max_file_bytes": 67108864,
+    "max_files": 2,
+    "max_packets": 100000,
+    "provider": "ovs-span",
+    "retention_seconds": 86400
+  },
+  "contract_version": 2,
+  "credentials": {
+    "control": "processor-east"
+  },
+  "execution": {
+    "kind": "container"
+  },
+  "graph_id": "mixed-container-qemu-sdr",
+  "graph_version": 3,
+  "node_id": "processor-east",
+  "observation": [
+    "graphx"
+  ],
+  "parameters": {},
+  "readiness": {
+    "kind": "local-bound",
+    "timeout_ms": 30000
+  },
+  "startup": {
+    "bind_before_connect": true,
+    "max_wait_ms": 30000,
+    "release_barrier": true
+  },
+  "telemetry": {
+    "credential": "runtime-processor-east",
+    "host": "platform",
+    "port": 9000
+  },
+  "type": "sdr.processor",
+  "type_revision": 1
+}

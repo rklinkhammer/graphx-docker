@@ -1,0 +1,8 @@
+{
+  "code": "E_IPC_PLACEMENT",
+  "message": "Shared memory endpoints must share the same named native IPC domain",
+  "no_artifacts": true,
+  "path": "connections.samples",
+  "phase": "compile",
+  "severity": "error"
+}

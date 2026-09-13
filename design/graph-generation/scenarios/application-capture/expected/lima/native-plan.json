@@ -1,0 +1,119 @@
+{
+  "owner_api": "owned-process-adapter",
+  "processes": [
+    {
+      "argv": [
+        "${GX_RELEASE}/bin/graphx-generator",
+        "--node",
+        "generator",
+        "--config",
+        "${GX_OUTPUT}/nodes/generator.json"
+      ],
+      "credentials": [
+        "runtime-generator"
+      ],
+      "cwd": "${GX_OUTPUT}",
+      "environment": {
+        "GRAPHX_CREDENTIALS": "${GX_CREDENTIALS}"
+      },
+      "id": "generator",
+      "kind": "native",
+      "limits": {
+        "log_bytes": 2097152,
+        "memory_bytes": 134217728
+      },
+      "log": "${GX_STATE}/logs/generator.log",
+      "namespace": null,
+      "readiness": {
+        "local": "bound-listeners",
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "argv": [
+        "${GX_RELEASE}/bin/graphx-platform",
+        "--config",
+        "${GX_OUTPUT}/platform.json"
+      ],
+      "credentials": [
+        "observer",
+        "runtime-generator",
+        "runtime-sink",
+        "runtime-transform"
+      ],
+      "cwd": "${GX_OUTPUT}",
+      "environment": {},
+      "id": "platform",
+      "kind": "native",
+      "limits": {
+        "log_bytes": 2097152,
+        "memory_bytes": 268435456
+      },
+      "log": "${GX_STATE}/logs/platform.log",
+      "readiness": {
+        "http": "http://127.0.0.1:8080/api/ready",
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "argv": [
+        "${GX_RELEASE}/bin/graphx-sink",
+        "--node",
+        "sink",
+        "--config",
+        "${GX_OUTPUT}/nodes/sink.json"
+      ],
+      "credentials": [
+        "runtime-sink"
+      ],
+      "cwd": "${GX_OUTPUT}",
+      "environment": {
+        "GRAPHX_CREDENTIALS": "${GX_CREDENTIALS}"
+      },
+      "id": "sink",
+      "kind": "native",
+      "limits": {
+        "log_bytes": 2097152,
+        "memory_bytes": 134217728
+      },
+      "log": "${GX_STATE}/logs/sink.log",
+      "namespace": null,
+      "readiness": {
+        "local": "bound-listeners",
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "argv": [
+        "${GX_RELEASE}/bin/graphx-transform",
+        "--node",
+        "transform",
+        "--config",
+        "${GX_OUTPUT}/nodes/transform.json"
+      ],
+      "credentials": [
+        "runtime-transform"
+      ],
+      "cwd": "${GX_OUTPUT}",
+      "environment": {
+        "GRAPHX_CREDENTIALS": "${GX_CREDENTIALS}"
+      },
+      "id": "transform",
+      "kind": "native",
+      "limits": {
+        "log_bytes": 2097152,
+        "memory_bytes": 134217728
+      },
+      "log": "${GX_STATE}/logs/transform.log",
+      "namespace": null,
+      "readiness": {
+        "local": "bound-listeners",
+        "timeout_ms": 30000
+      }
+    }
+  ],
+  "start": "platform-ready then bind-all then release-connectors",
+  "state": "existing ownership store; no plan ledger",
+  "stop": "reverse creation order, verified PID/start-time/executable; TERM 5s then KILL; retain mismatched ownership",
+  "version": 1
+}

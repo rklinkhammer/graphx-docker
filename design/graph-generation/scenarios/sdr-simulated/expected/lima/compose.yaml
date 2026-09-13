@@ -1,0 +1,223 @@
+# DESIGN ONLY — proposed credential-scoped read-only mounts.
+name: sdr-simulated
+networks:
+  data:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+      - subnet: 172.30.13.0/24
+  mg-processor:
+    driver: bridge
+    internal: true
+  mg-radio:
+    driver: bridge
+    internal: true
+  mg-sink:
+    driver: bridge
+    internal: true
+services:
+  platform:
+    cap_drop:
+    - ALL
+    command:
+    - --config
+    - /run/graphx/platform.json
+    entrypoint:
+    - graphx-platform
+    environment:
+      GX_CREDENTIALS: /run/secrets
+      GX_STATE: /var/lib/graphx
+    healthcheck:
+      interval: 2s
+      retries: 15
+      test:
+      - CMD
+      - graphx-platform
+      - health
+      - --url
+      - http://127.0.0.1:8080/api/ready
+      timeout: 2s
+    image: graphx-design/platform@sha256:41b3db89b6ec78cab84b29c12a1af5024ba670b44463edc40d887cad8b952ba4
+    logging:
+      driver: json-file
+      options:
+        max-file: '2'
+        max-size: 1m
+    mem_limit: 128m
+    networks:
+      mg-processor:
+        aliases:
+        - platform
+      mg-radio:
+        aliases:
+        - platform
+      mg-sink:
+        aliases:
+        - platform
+    pids_limit: 64
+    ports:
+    - 127.0.0.1:8080:8080
+    read_only: true
+    restart: 'no'
+    security_opt:
+    - no-new-privileges:true
+    tmpfs:
+    - /tmp:rw,nosuid,nodev,size=16m
+    user: 65532:65532
+    volumes:
+    - ./resolved.json:/run/graphx/resolved.json:ro
+    - ./platform.json:/run/graphx/platform.json:ro
+    - ./credentials.json:/run/graphx/credentials.json:ro
+    - ${GX_STATE}/history:/var/lib/graphx/history
+    - ${GX_STATE}/handoff:/captures:ro
+    - ${GX_CREDENTIALS}/observer:/run/secrets/observer:ro
+    - ${GX_CREDENTIALS}/runtime-processor:/run/secrets/runtime-processor:ro
+    - ${GX_CREDENTIALS}/runtime-radio:/run/secrets/runtime-radio:ro
+    - ${GX_CREDENTIALS}/runtime-sink:/run/secrets/runtime-sink:ro
+  processor:
+    cap_drop:
+    - ALL
+    command:
+    - --node
+    - processor
+    - --config
+    - /run/graphx/node.json
+    entrypoint:
+    - graphx-sdr-processor
+    environment:
+      GRAPHX_CREDENTIALS: /run/secrets
+    healthcheck:
+      interval: 2s
+      retries: 15
+      test:
+      - CMD
+      - graphx-sdr-processor
+      - --node
+      - processor
+      - --config
+      - /run/graphx/node.json
+      - --check-local-ready
+      timeout: 2s
+    image: graphx-design/sdr@sha256:928533888c6b3ecff6123dd69342931275216f99fce32367d76a000ba4a5dd82
+    logging:
+      driver: json-file
+      options:
+        max-file: '2'
+        max-size: 1m
+    mem_limit: 128m
+    networks:
+      data:
+        ipv4_address: 172.30.13.20
+      mg-processor: {}
+    pids_limit: 64
+    read_only: true
+    restart: 'no'
+    security_opt:
+    - no-new-privileges:true
+    tmpfs:
+    - /tmp:rw,nosuid,nodev,size=16m
+    user: 65532:65532
+    volumes:
+    - ./nodes/processor.json:/run/graphx/node.json:ro
+    - ${GX_STATE}/captures/processor:/captures
+    - ${GX_STATE}/barriers:/run/graphx/barriers:ro
+    - ${GX_CREDENTIALS}/lab-processor:/run/secrets/lab-processor:ro
+    - ${GX_CREDENTIALS}/runtime-processor:/run/secrets/runtime-processor:ro
+  radio:
+    cap_drop:
+    - ALL
+    command:
+    - --node
+    - radio
+    - --config
+    - /run/graphx/node.json
+    entrypoint:
+    - graphx-sdr-radio
+    environment:
+      GRAPHX_CREDENTIALS: /run/secrets
+    healthcheck:
+      interval: 2s
+      retries: 15
+      test:
+      - CMD
+      - graphx-sdr-radio
+      - --node
+      - radio
+      - --config
+      - /run/graphx/node.json
+      - --check-local-ready
+      timeout: 2s
+    image: graphx-design/sdr@sha256:928533888c6b3ecff6123dd69342931275216f99fce32367d76a000ba4a5dd82
+    logging:
+      driver: json-file
+      options:
+        max-file: '2'
+        max-size: 1m
+    mem_limit: 128m
+    networks:
+      data:
+        ipv4_address: 172.30.13.10
+      mg-radio: {}
+    pids_limit: 64
+    read_only: true
+    restart: 'no'
+    security_opt:
+    - no-new-privileges:true
+    tmpfs:
+    - /tmp:rw,nosuid,nodev,size=16m
+    user: 65532:65532
+    volumes:
+    - ./nodes/radio.json:/run/graphx/node.json:ro
+    - ${GX_STATE}/captures/radio:/captures
+    - ${GX_STATE}/barriers:/run/graphx/barriers:ro
+    - ${GX_CREDENTIALS}/lab-radio:/run/secrets/lab-radio:ro
+    - ${GX_CREDENTIALS}/runtime-radio:/run/secrets/runtime-radio:ro
+  sink:
+    cap_drop:
+    - ALL
+    command:
+    - --node
+    - sink
+    - --config
+    - /run/graphx/node.json
+    entrypoint:
+    - graphx-sdr-sink
+    environment:
+      GRAPHX_CREDENTIALS: /run/secrets
+    healthcheck:
+      interval: 2s
+      retries: 15
+      test:
+      - CMD
+      - graphx-sdr-sink
+      - --node
+      - sink
+      - --config
+      - /run/graphx/node.json
+      - --check-local-ready
+      timeout: 2s
+    image: graphx-design/sdr@sha256:928533888c6b3ecff6123dd69342931275216f99fce32367d76a000ba4a5dd82
+    logging:
+      driver: json-file
+      options:
+        max-file: '2'
+        max-size: 1m
+    mem_limit: 128m
+    networks:
+      data:
+        ipv4_address: 172.30.13.30
+      mg-sink: {}
+    pids_limit: 64
+    read_only: true
+    restart: 'no'
+    security_opt:
+    - no-new-privileges:true
+    tmpfs:
+    - /tmp:rw,nosuid,nodev,size=16m
+    user: 65532:65532
+    volumes:
+    - ./nodes/sink.json:/run/graphx/node.json:ro
+    - ${GX_STATE}/captures/sink:/captures
+    - ${GX_STATE}/barriers:/run/graphx/barriers:ro
+    - ${GX_CREDENTIALS}/runtime-sink:/run/secrets/runtime-sink:ro

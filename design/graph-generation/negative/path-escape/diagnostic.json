@@ -1,0 +1,8 @@
+{
+  "code": "E_PATH_ESCAPE",
+  "message": "Catalog must resolve under explicit catalog root",
+  "no_artifacts": true,
+  "path": "catalog",
+  "phase": "compile",
+  "severity": "error"
+}

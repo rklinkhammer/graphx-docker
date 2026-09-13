@@ -1,0 +1,483 @@
+{
+  "cases": [
+    {
+      "diagnostic": "negative/ambiguous-endpoint/diagnostic.json",
+      "id": "N01",
+      "input": "negative/ambiguous-endpoint/graphx.yml",
+      "kind": "negative",
+      "path": "negative/ambiguous-endpoint",
+      "status": "static-design",
+      "target": "native-linux"
+    },
+    {
+      "diagnostic": "negative/invalid-port/diagnostic.json",
+      "id": "N02",
+      "input": "negative/invalid-port/graphx.yml",
+      "kind": "negative",
+      "path": "negative/invalid-port",
+      "status": "static-design",
+      "target": "native-linux"
+    },
+    {
+      "diagnostic": "negative/invalid-schema/diagnostic.json",
+      "id": "N03",
+      "input": "negative/invalid-schema/graphx.yml",
+      "kind": "negative",
+      "path": "negative/invalid-schema",
+      "status": "static-design",
+      "target": "native-linux"
+    },
+    {
+      "diagnostic": "negative/unsupported-fanin/diagnostic.json",
+      "id": "N04",
+      "input": "negative/unsupported-fanin/graphx.yml",
+      "kind": "negative",
+      "path": "negative/unsupported-fanin",
+      "status": "static-design",
+      "target": "native-linux"
+    },
+    {
+      "diagnostic": "negative/unsupported-feedback/diagnostic.json",
+      "id": "N05",
+      "input": "negative/unsupported-feedback/graphx.yml",
+      "kind": "negative",
+      "path": "negative/unsupported-feedback",
+      "status": "static-design",
+      "target": "native-linux"
+    },
+    {
+      "diagnostic": "negative/incompatible-ipc/diagnostic.json",
+      "id": "N06",
+      "input": "negative/incompatible-ipc/graphx.yml",
+      "kind": "negative",
+      "path": "negative/incompatible-ipc",
+      "status": "static-design",
+      "target": "native-linux"
+    },
+    {
+      "diagnostic": "negative/name-conflict/diagnostic.json",
+      "id": "N07",
+      "input": "negative/name-conflict/graphx.yml",
+      "kind": "negative",
+      "path": "negative/name-conflict",
+      "status": "static-design",
+      "target": "native-linux"
+    },
+    {
+      "diagnostic": "negative/address-conflict/diagnostic.json",
+      "id": "N08",
+      "input": "negative/address-conflict/graphx.yml",
+      "kind": "negative",
+      "path": "negative/address-conflict",
+      "status": "static-design",
+      "target": "native-linux"
+    },
+    {
+      "diagnostic": "negative/port-conflict/diagnostic.json",
+      "id": "N09",
+      "input": "negative/port-conflict/graphx.yml",
+      "kind": "negative",
+      "path": "negative/port-conflict",
+      "status": "static-design",
+      "target": "native-linux"
+    },
+    {
+      "diagnostic": "negative/missing-guest/diagnostic.json",
+      "id": "N10",
+      "input": "negative/missing-guest/graphx.yml",
+      "kind": "negative",
+      "path": "negative/missing-guest",
+      "status": "static-design",
+      "target": "native-linux"
+    },
+    {
+      "diagnostic": "negative/unsupported-target/diagnostic.json",
+      "id": "N11",
+      "input": "negative/unsupported-target/graphx.yml",
+      "kind": "negative",
+      "path": "negative/unsupported-target",
+      "status": "static-design",
+      "target": "native-macos"
+    },
+    {
+      "diagnostic": "negative/sdr-shared-sink/diagnostic.json",
+      "id": "N12",
+      "input": "negative/sdr-shared-sink/graphx.yml",
+      "kind": "negative",
+      "path": "negative/sdr-shared-sink",
+      "status": "static-design",
+      "target": "native-linux"
+    },
+    {
+      "diagnostic": "negative/unsupported-fanout/diagnostic.json",
+      "id": "N13",
+      "input": "negative/unsupported-fanout/graphx.yml",
+      "kind": "negative",
+      "path": "negative/unsupported-fanout",
+      "status": "static-design",
+      "target": "native-linux"
+    },
+    {
+      "diagnostic": "negative/path-escape/diagnostic.json",
+      "id": "N14",
+      "input": "negative/path-escape/graphx.yml",
+      "kind": "negative",
+      "path": "negative/path-escape",
+      "status": "static-design",
+      "target": "native-linux"
+    },
+    {
+      "diagnostic": "negative/unsupported-accelerator/diagnostic.json",
+      "id": "N15",
+      "input": "negative/unsupported-accelerator/graphx.yml",
+      "kind": "negative",
+      "path": "negative/unsupported-accelerator",
+      "status": "static-design",
+      "target": "lima"
+    },
+    {
+      "expected_inventory": "scenarios/sample-pipeline/expected/inventory.json",
+      "id": "S01",
+      "input": "scenarios/sample-pipeline/graphx.yml",
+      "kind": "scenario",
+      "path": "scenarios/sample-pipeline",
+      "status": "static-design"
+    },
+    {
+      "expected_inventory": "scenarios/shared-memory/expected/inventory.json",
+      "id": "S02",
+      "input": "scenarios/shared-memory/graphx.yml",
+      "kind": "scenario",
+      "path": "scenarios/shared-memory",
+      "status": "static-design"
+    },
+    {
+      "expected_inventory": "scenarios/udp-unicast/expected/inventory.json",
+      "id": "S03",
+      "input": "scenarios/udp-unicast/graphx.yml",
+      "kind": "scenario",
+      "path": "scenarios/udp-unicast",
+      "status": "static-design"
+    },
+    {
+      "expected_inventory": "scenarios/udp-multicast/expected/inventory.json",
+      "id": "S04",
+      "input": "scenarios/udp-multicast/graphx.yml",
+      "kind": "scenario",
+      "path": "scenarios/udp-multicast",
+      "status": "static-design"
+    },
+    {
+      "expected_inventory": "scenarios/udp-broadcast/expected/inventory.json",
+      "id": "S05",
+      "input": "scenarios/udp-broadcast/graphx.yml",
+      "kind": "scenario",
+      "path": "scenarios/udp-broadcast",
+      "status": "static-design"
+    },
+    {
+      "expected_inventory": "scenarios/application-capture/expected/inventory.json",
+      "id": "S06",
+      "input": "scenarios/application-capture/graphx.yml",
+      "kind": "scenario",
+      "path": "scenarios/application-capture",
+      "status": "static-design"
+    },
+    {
+      "expected_inventory": "scenarios/macvlan/expected/inventory.json",
+      "id": "S07",
+      "input": "scenarios/macvlan/graphx.yml",
+      "kind": "scenario",
+      "path": "scenarios/macvlan",
+      "status": "static-design"
+    },
+    {
+      "expected_inventory": "scenarios/ipvlan-l2/expected/inventory.json",
+      "id": "S08",
+      "input": "scenarios/ipvlan-l2/graphx.yml",
+      "kind": "scenario",
+      "path": "scenarios/ipvlan-l2",
+      "status": "static-design"
+    },
+    {
+      "expected_inventory": "scenarios/ipvlan-l3/expected/inventory.json",
+      "id": "S09",
+      "input": "scenarios/ipvlan-l3/graphx.yml",
+      "kind": "scenario",
+      "path": "scenarios/ipvlan-l3",
+      "status": "static-design"
+    },
+    {
+      "expected_inventory": "scenarios/mixed-network/expected/inventory.json",
+      "id": "S10",
+      "input": "scenarios/mixed-network/graphx.yml",
+      "kind": "scenario",
+      "path": "scenarios/mixed-network",
+      "status": "static-design"
+    },
+    {
+      "expected_inventory": "scenarios/network-observation/expected/inventory.json",
+      "id": "S11",
+      "input": "scenarios/network-observation/graphx.yml",
+      "kind": "scenario",
+      "path": "scenarios/network-observation",
+      "status": "static-design"
+    },
+    {
+      "expected_inventory": "scenarios/static-route-policy/expected/inventory.json",
+      "id": "S12",
+      "input": "scenarios/static-route-policy/graphx.yml",
+      "kind": "scenario",
+      "path": "scenarios/static-route-policy",
+      "status": "static-design"
+    },
+    {
+      "expected_inventory": "scenarios/sdr-simulated/expected/inventory.json",
+      "id": "S13",
+      "input": "scenarios/sdr-simulated/graphx.yml",
+      "kind": "scenario",
+      "path": "scenarios/sdr-simulated",
+      "status": "static-design"
+    },
+    {
+      "expected_inventory": "scenarios/sdr-external/expected/inventory.json",
+      "id": "S14",
+      "input": "scenarios/sdr-external/graphx.yml",
+      "kind": "scenario",
+      "path": "scenarios/sdr-external",
+      "status": "static-design"
+    },
+    {
+      "expected_inventory": "scenarios/qemu-tap/expected/inventory.json",
+      "id": "S15",
+      "input": "scenarios/qemu-tap/graphx.yml",
+      "kind": "scenario",
+      "path": "scenarios/qemu-tap",
+      "status": "static-design"
+    },
+    {
+      "expected_inventory": "variants/renamed-multi-source/expected/inventory.json",
+      "id": "T01",
+      "input": "variants/renamed-multi-source/graphx.yml",
+      "kind": "topology",
+      "path": "variants/renamed-multi-source",
+      "status": "static-design"
+    },
+    {
+      "expected_inventory": "variants/multi-radio/expected/inventory.json",
+      "id": "T02",
+      "input": "variants/multi-radio/graphx.yml",
+      "kind": "topology",
+      "path": "variants/multi-radio",
+      "status": "static-design"
+    },
+    {
+      "expected_inventory": "variants/mixed-container-qemu-sdr/expected/inventory.json",
+      "id": "T03",
+      "input": "variants/mixed-container-qemu-sdr/graphx.yml",
+      "kind": "topology",
+      "path": "variants/mixed-container-qemu-sdr",
+      "status": "static-design"
+    },
+    {
+      "expected_inventory": "variants/history/expected/inventory.json",
+      "id": "V01",
+      "input": "variants/history/graphx.yml",
+      "kind": "variant",
+      "path": "variants/history",
+      "status": "static-design"
+    },
+    {
+      "expected_inventory": "variants/observability/expected/inventory.json",
+      "id": "V02",
+      "input": "variants/observability/graphx.yml",
+      "kind": "variant",
+      "path": "variants/observability",
+      "status": "static-design"
+    },
+    {
+      "expected_inventory": "variants/control/expected/inventory.json",
+      "id": "V03",
+      "input": "variants/control/graphx.yml",
+      "kind": "variant",
+      "path": "variants/control",
+      "status": "static-design"
+    },
+    {
+      "expected_inventory": "variants/credential-rotation/expected/inventory.json",
+      "id": "V04",
+      "input": "variants/credential-rotation/graphx.yml",
+      "kind": "variant",
+      "path": "variants/credential-rotation",
+      "status": "static-design"
+    },
+    {
+      "expected_inventory": "variants/secure-otlp/expected/inventory.json",
+      "id": "V05",
+      "input": "variants/secure-otlp/graphx.yml",
+      "kind": "variant",
+      "path": "variants/secure-otlp",
+      "status": "static-design"
+    },
+    {
+      "expected_inventory": "variants/otlp-mtls/expected/inventory.json",
+      "id": "V06",
+      "input": "variants/otlp-mtls/graphx.yml",
+      "kind": "variant",
+      "path": "variants/otlp-mtls",
+      "status": "static-design"
+    }
+  ],
+  "design_only": true,
+  "shared_files": [
+    {
+      "format": "md",
+      "path": "README.md"
+    },
+    {
+      "format": "md",
+      "path": "architecture.md"
+    },
+    {
+      "format": "md",
+      "path": "catalog/README.md"
+    },
+    {
+      "format": "json",
+      "path": "catalog/graph.schema.json"
+    },
+    {
+      "format": "json",
+      "path": "catalog/guests/echo-x86.json"
+    },
+    {
+      "format": "json",
+      "path": "catalog/guests/radio-x86.json"
+    },
+    {
+      "format": "json",
+      "path": "catalog/lock.json"
+    },
+    {
+      "format": "json",
+      "path": "catalog/normalized.schema.json"
+    },
+    {
+      "format": "json",
+      "path": "catalog/platform.json"
+    },
+    {
+      "format": "json",
+      "path": "catalog/sources.json"
+    },
+    {
+      "format": "json",
+      "path": "catalog/targets.json"
+    },
+    {
+      "format": "json",
+      "path": "catalog/templates.json"
+    },
+    {
+      "format": "json",
+      "path": "catalog/type.schema.json"
+    },
+    {
+      "format": "json",
+      "path": "catalog/types/diagnostic.left.json"
+    },
+    {
+      "format": "json",
+      "path": "catalog/types/diagnostic.middle.json"
+    },
+    {
+      "format": "json",
+      "path": "catalog/types/diagnostic.peer.json"
+    },
+    {
+      "format": "json",
+      "path": "catalog/types/diagnostic.right.json"
+    },
+    {
+      "format": "json",
+      "path": "catalog/types/discovery.publisher.json"
+    },
+    {
+      "format": "json",
+      "path": "catalog/types/discovery.subscriber.json"
+    },
+    {
+      "format": "json",
+      "path": "catalog/types/external.packet-source.json"
+    },
+    {
+      "format": "json",
+      "path": "catalog/types/guest.echo.json"
+    },
+    {
+      "format": "json",
+      "path": "catalog/types/sample.sink.json"
+    },
+    {
+      "format": "json",
+      "path": "catalog/types/sample.source.json"
+    },
+    {
+      "format": "json",
+      "path": "catalog/types/sample.transform.json"
+    },
+    {
+      "format": "json",
+      "path": "catalog/types/sdr.processor.json"
+    },
+    {
+      "format": "json",
+      "path": "catalog/types/sdr.radio.json"
+    },
+    {
+      "format": "json",
+      "path": "catalog/types/sdr.result-sink.json"
+    },
+    {
+      "format": "json",
+      "path": "catalog/types/sdr.simulator.json"
+    },
+    {
+      "format": "json",
+      "path": "catalog/types/udp.publisher.json"
+    },
+    {
+      "format": "json",
+      "path": "catalog/types/udp.subscriber.json"
+    },
+    {
+      "format": "json",
+      "path": "catalog/wire-schemas.json"
+    },
+    {
+      "format": "py",
+      "path": "check_package.py"
+    },
+    {
+      "format": "txt",
+      "path": "evidence/current-results.txt"
+    },
+    {
+      "format": "json",
+      "path": "evidence/static-results.json"
+    },
+    {
+      "format": "md",
+      "path": "implementation-plan.md"
+    },
+    {
+      "format": "json",
+      "path": "inventory.json"
+    },
+    {
+      "format": "md",
+      "path": "verification.md"
+    }
+  ],
+  "version": 1
+}

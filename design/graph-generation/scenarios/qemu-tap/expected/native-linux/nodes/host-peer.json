@@ -1,0 +1,168 @@
+{
+  "bindings": {
+    "tcp_in": [
+      {
+        "attachments": {
+          "from": "qemu-data",
+          "to": "peer-data"
+        },
+        "connection": "qemu-peer-tcp",
+        "destination_address": "10.0.2.2",
+        "encoding": "raw",
+        "role": "listen",
+        "schema": "RawTcpBytes",
+        "security": {
+          "profile": "none"
+        },
+        "settings": {
+          "bind": "10.0.2.2",
+          "connect_timeout_ms": 5000,
+          "framing": "none",
+          "host": "10.0.2.2",
+          "port": 19001,
+          "reconnect": true,
+          "retry": {
+            "initial_backoff_ms": 100,
+            "max_attempts": 60,
+            "max_backoff_ms": 2000
+          },
+          "send_timeout_ms": 5000
+        },
+        "source_address": "10.0.2.15",
+        "transport": "tcp"
+      }
+    ],
+    "tcp_out": [
+      {
+        "attachments": {
+          "from": "peer-data",
+          "to": "qemu-data"
+        },
+        "connection": "peer-qemu-tcp",
+        "destination_address": "10.0.2.15",
+        "encoding": "raw",
+        "role": "connect",
+        "schema": "RawTcpBytes",
+        "security": {
+          "profile": "none"
+        },
+        "settings": {
+          "bind": "10.0.2.15",
+          "connect_timeout_ms": 5000,
+          "framing": "none",
+          "host": "10.0.2.15",
+          "port": 18001,
+          "reconnect": true,
+          "retry": {
+            "initial_backoff_ms": 100,
+            "max_attempts": 60,
+            "max_backoff_ms": 2000
+          },
+          "send_timeout_ms": 5000
+        },
+        "source_address": "10.0.2.2",
+        "transport": "tcp"
+      }
+    ],
+    "udp_in": [
+      {
+        "attachments": {
+          "from": "qemu-data",
+          "to": "peer-data"
+        },
+        "connection": "qemu-peer-udp",
+        "destination_address": "10.0.2.2",
+        "encoding": "raw",
+        "role": "listen",
+        "schema": "RawUdpDatagram",
+        "security": {
+          "profile": "none"
+        },
+        "settings": {
+          "bind": "10.0.2.2",
+          "destination": "10.0.2.2",
+          "framing": "none",
+          "loopback": true,
+          "max_datagram_bytes": 1400,
+          "mode": "unicast",
+          "port": 19001,
+          "receive_buffer_bytes": 65536,
+          "reuse_address": false,
+          "send_buffer_bytes": 65536,
+          "ttl": 1
+        },
+        "source_address": "10.0.2.15",
+        "transport": "udp"
+      }
+    ],
+    "udp_out": [
+      {
+        "attachments": {
+          "from": "peer-data",
+          "to": "qemu-data"
+        },
+        "connection": "peer-qemu-udp",
+        "destination_address": "10.0.2.15",
+        "encoding": "raw",
+        "role": "connect",
+        "schema": "RawUdpDatagram",
+        "security": {
+          "profile": "none"
+        },
+        "settings": {
+          "bind": "10.0.2.15",
+          "destination": "10.0.2.15",
+          "framing": "none",
+          "loopback": true,
+          "max_datagram_bytes": 1400,
+          "mode": "unicast",
+          "port": 18001,
+          "receive_buffer_bytes": 65536,
+          "reuse_address": false,
+          "send_buffer_bytes": 65536,
+          "ttl": 1
+        },
+        "source_address": "10.0.2.2",
+        "transport": "udp"
+      }
+    ]
+  },
+  "capture": {
+    "directory": "/captures",
+    "enabled": true,
+    "max_file_bytes": 67108864,
+    "max_files": 2,
+    "max_packets": 100000,
+    "provider": "ovs-span",
+    "retention_seconds": 86400
+  },
+  "contract_version": 2,
+  "credentials": {},
+  "execution": {
+    "kind": "namespace",
+    "namespace": "qemu-peer"
+  },
+  "graph_id": "qemu-tap",
+  "graph_version": 3,
+  "node_id": "host-peer",
+  "observation": [
+    "packet"
+  ],
+  "parameters": {},
+  "readiness": {
+    "kind": "local-bound",
+    "timeout_ms": 30000
+  },
+  "startup": {
+    "bind_before_connect": true,
+    "max_wait_ms": 30000,
+    "release_barrier": true
+  },
+  "telemetry": {
+    "credential": null,
+    "host": "platform",
+    "port": 9000
+  },
+  "type": "diagnostic.peer",
+  "type_revision": 1
+}

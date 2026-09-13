@@ -1,0 +1,297 @@
+{
+  "artifact_sets": [
+    {
+      "application_placement": "native processes on native-linux",
+      "completeness": "complete-illustrative",
+      "counts": {
+        "application_services": 0,
+        "auxiliary_services": 0,
+        "capture_processes": 0,
+        "external_managed_processes": 0,
+        "handoff_processes": 0,
+        "host_forward_processes": 0,
+        "native_application_processes": 3,
+        "native_platform_processes": 1,
+        "optional_scenario_processes": 0,
+        "platform_services": 0,
+        "qemu_processes": 0,
+        "transient_build_processes": 0,
+        "transient_execution_adapter_processes": 1
+      },
+      "files": [
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/native-linux/compile-manifest.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/native-linux/credentials.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/native-linux/execution-plan.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/native-linux/native-plan.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/native-linux/nodes/generator.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/native-linux/nodes/sink.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/native-linux/nodes/transform.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/native-linux/platform.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/native-linux/resolved.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/native-linux/substitutions.json",
+          "status": "static-design"
+        }
+      ],
+      "platform_placement": "native Node.js process on native-linux",
+      "status": "static-design",
+      "target": "native-linux"
+    },
+    {
+      "application_placement": "native processes on native-macos",
+      "completeness": "complete-illustrative",
+      "counts": {
+        "application_services": 0,
+        "auxiliary_services": 0,
+        "capture_processes": 0,
+        "external_managed_processes": 0,
+        "handoff_processes": 0,
+        "host_forward_processes": 0,
+        "native_application_processes": 3,
+        "native_platform_processes": 1,
+        "optional_scenario_processes": 0,
+        "platform_services": 0,
+        "qemu_processes": 0,
+        "transient_build_processes": 0,
+        "transient_execution_adapter_processes": 1
+      },
+      "files": [
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/native-macos/compile-manifest.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/native-macos/credentials.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/native-macos/execution-plan.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/native-macos/native-plan.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/native-macos/nodes/generator.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/native-macos/nodes/sink.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/native-macos/nodes/transform.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/native-macos/platform.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/native-macos/resolved.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/native-macos/substitutions.json",
+          "status": "static-design"
+        }
+      ],
+      "platform_placement": "native Node.js process on native-macos",
+      "status": "static-design",
+      "target": "native-macos"
+    },
+    {
+      "application_placement": "native processes on lima",
+      "completeness": "complete-illustrative",
+      "counts": {
+        "application_services": 0,
+        "auxiliary_services": 0,
+        "capture_processes": 0,
+        "external_managed_processes": 0,
+        "handoff_processes": 0,
+        "host_forward_processes": 1,
+        "native_application_processes": 3,
+        "native_platform_processes": 1,
+        "optional_scenario_processes": 0,
+        "platform_services": 0,
+        "qemu_processes": 0,
+        "transient_build_processes": 0,
+        "transient_execution_adapter_processes": 1
+      },
+      "files": [
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/lima/access-plan.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/lima/compile-manifest.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/lima/credentials.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/lima/execution-plan.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/lima/native-plan.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/lima/nodes/generator.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/lima/nodes/sink.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/lima/nodes/transform.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/lima/platform.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/lima/resolved.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/lima/substitutions.json",
+          "status": "static-design"
+        }
+      ],
+      "platform_placement": "native Node.js process on lima",
+      "status": "static-design",
+      "target": "lima"
+    }
+  ],
+  "capabilities": {
+    "lima": {
+      "artifact_set": "lima",
+      "cell": "supported placement",
+      "reason": "native processes on lima; native Node.js process on lima",
+      "rule": "C-NATIVE",
+      "status": "static-design",
+      "support": "proposed generation; preserved application/network semantics where current source cited"
+    },
+    "native-linux": {
+      "artifact_set": "native-linux",
+      "cell": "supported placement",
+      "reason": "native processes on native-linux; native Node.js process on native-linux",
+      "rule": "C-NATIVE",
+      "status": "static-design",
+      "support": "proposed generation; preserved application/network semantics where current source cited"
+    },
+    "native-macos": {
+      "artifact_set": "native-macos",
+      "cell": "supported placement",
+      "reason": "native processes on native-macos; native Node.js process on native-macos",
+      "rule": "C-NATIVE",
+      "status": "static-design",
+      "support": "proposed generation; preserved application/network semantics where current source cited"
+    },
+    "orbstack": {
+      "cell": "unsupported",
+      "diagnostic": "expected/orbstack/diagnostic.json",
+      "reason": "authored execution cannot be silently moved to another environment",
+      "rule": "C-NATIVE",
+      "status": "static-design"
+    }
+  },
+  "case_id": "S06",
+  "status": "static-design"
+}

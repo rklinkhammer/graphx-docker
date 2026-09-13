@@ -1,0 +1,109 @@
+{
+  "bindings": {
+    "control": [
+      {
+        "attachments": {
+          "from": "processor-data",
+          "to": "sdr-node-data"
+        },
+        "connection": "control",
+        "destination_address": "10.63.0.10",
+        "encoding": "raw",
+        "role": "listen",
+        "schema": "RawSdrControl",
+        "security": {
+          "profile": "mtls",
+          "server_name": "sdr-node"
+        },
+        "settings": {
+          "bind": "10.63.0.10",
+          "connect_timeout_ms": 5000,
+          "framing": "none",
+          "host": "10.63.0.10",
+          "port": 18401,
+          "reconnect": true,
+          "retry": {
+            "initial_backoff_ms": 100,
+            "max_attempts": 60,
+            "max_backoff_ms": 2000
+          },
+          "send_timeout_ms": 5000
+        },
+        "source_address": "10.63.0.20",
+        "transport": "tcp"
+      }
+    ],
+    "samples": [
+      {
+        "attachments": {
+          "from": "sdr-node-data",
+          "to": "processor-data"
+        },
+        "connection": "iq",
+        "destination_address": "10.63.0.20",
+        "encoding": "raw",
+        "role": "connect",
+        "schema": "RawIqSamples",
+        "security": {
+          "profile": "none"
+        },
+        "settings": {
+          "bind": "10.63.0.20",
+          "destination": "10.63.0.20",
+          "framing": "none",
+          "loopback": true,
+          "max_datagram_bytes": 1400,
+          "mode": "unicast",
+          "port": 18400,
+          "receive_buffer_bytes": 65536,
+          "reuse_address": false,
+          "send_buffer_bytes": 65536,
+          "ttl": 1
+        },
+        "source_address": "10.63.0.10",
+        "transport": "udp"
+      }
+    ]
+  },
+  "capture": {
+    "directory": "/captures",
+    "enabled": true,
+    "max_file_bytes": 67108864,
+    "max_files": 2,
+    "max_packets": 100000,
+    "provider": "ovs-span",
+    "retention_seconds": 86400
+  },
+  "contract_version": 2,
+  "credentials": {
+    "control": "lab-radio"
+  },
+  "execution": {
+    "address": "10.63.0.10",
+    "kind": "external"
+  },
+  "graph_id": "sdr-external",
+  "graph_version": 3,
+  "node_id": "radio",
+  "observation": [
+    "packet",
+    "external-status"
+  ],
+  "parameters": {},
+  "readiness": {
+    "kind": "local-bound",
+    "timeout_ms": 30000
+  },
+  "startup": {
+    "bind_before_connect": true,
+    "max_wait_ms": 30000,
+    "release_barrier": false
+  },
+  "telemetry": {
+    "credential": null,
+    "host": "platform",
+    "port": 9000
+  },
+  "type": "sdr.radio",
+  "type_revision": 1
+}

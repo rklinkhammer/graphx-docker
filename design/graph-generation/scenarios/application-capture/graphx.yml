@@ -1,0 +1,37 @@
+# DESIGN ONLY — preserve current native launcher limits.
+catalog: ../../catalog/lock.json
+connections:
+  samples:
+    from: generator.samples
+    to: transform.samples
+    transport: tcp
+  transformed:
+    from: transform.transformed
+    to: sink.transformed
+    transport: tcp
+graph:
+  id: application-capture
+nodes:
+  generator:
+    execution:
+      kind: native
+    parameters:
+      interval_ms: 20
+      max_messages: 10
+    type: sample.source
+  sink:
+    execution:
+      kind: native
+    parameters:
+      max_messages: 10
+    type: sample.sink
+  transform:
+    execution:
+      kind: native
+    parameters:
+      max_messages: 10
+    type: sample.transform
+platform:
+  capture:
+    enabled: true
+version: 3

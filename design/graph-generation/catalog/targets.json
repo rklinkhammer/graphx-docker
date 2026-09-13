@@ -1,0 +1,36 @@
+{
+  "lima": {
+    "application": "guest-native-or-guest-docker-as-authored",
+    "architecture": "arm64",
+    "docker": true,
+    "os": "linux",
+    "ovs": true,
+    "platform_native": true,
+    "privileged_requires_authorization": true
+  },
+  "native-linux": {
+    "application": "native-or-docker-as-authored",
+    "architecture": "x86_64",
+    "docker": true,
+    "os": "linux",
+    "ovs": true,
+    "platform_native": true,
+    "privileged_requires_authorization": true
+  },
+  "native-macos": {
+    "application": "native",
+    "architecture": "arm64",
+    "docker": false,
+    "os": "darwin",
+    "ovs": false,
+    "platform_native": true
+  },
+  "orbstack": {
+    "application": "container",
+    "architecture": "arm64",
+    "docker": true,
+    "os": "linux",
+    "ovs": false,
+    "platform_native": false
+  }
+}

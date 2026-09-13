@@ -1,0 +1,218 @@
+# DESIGN ONLY — proposed credential-scoped read-only mounts.
+name: sample-pipeline
+networks:
+  data:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+      - subnet: 172.28.73.0/24
+  mg-generator:
+    driver: bridge
+    internal: true
+  mg-sink:
+    driver: bridge
+    internal: true
+  mg-transform:
+    driver: bridge
+    internal: true
+services:
+  generator:
+    cap_drop:
+    - ALL
+    command:
+    - --node
+    - generator
+    - --config
+    - /run/graphx/node.json
+    entrypoint:
+    - graphx-generator
+    environment:
+      GRAPHX_CREDENTIALS: /run/secrets
+    healthcheck:
+      interval: 2s
+      retries: 15
+      test:
+      - CMD
+      - graphx-generator
+      - --node
+      - generator
+      - --config
+      - /run/graphx/node.json
+      - --check-local-ready
+      timeout: 2s
+    image: graphx-design/runtime@sha256:09486a2ac3d5398b1bb25e807db55c4954971f306b94e55498ee30b6f02cda8c
+    logging:
+      driver: json-file
+      options:
+        max-file: '2'
+        max-size: 1m
+    mem_limit: 128m
+    networks:
+      data:
+        ipv4_address: 172.28.73.10
+      mg-generator: {}
+    pids_limit: 64
+    read_only: true
+    restart: 'no'
+    security_opt:
+    - no-new-privileges:true
+    tmpfs:
+    - /tmp:rw,nosuid,nodev,size=16m
+    user: 65532:65532
+    volumes:
+    - ./nodes/generator.json:/run/graphx/node.json:ro
+    - ${GX_STATE}/barriers:/run/graphx/barriers:ro
+    - ${GX_CREDENTIALS}/runtime-generator:/run/secrets/runtime-generator:ro
+  platform:
+    cap_drop:
+    - ALL
+    command:
+    - --config
+    - /run/graphx/platform.json
+    entrypoint:
+    - graphx-platform
+    environment:
+      GX_CREDENTIALS: /run/secrets
+      GX_STATE: /var/lib/graphx
+    healthcheck:
+      interval: 2s
+      retries: 15
+      test:
+      - CMD
+      - graphx-platform
+      - health
+      - --url
+      - http://127.0.0.1:8080/api/ready
+      timeout: 2s
+    image: graphx-design/platform@sha256:41b3db89b6ec78cab84b29c12a1af5024ba670b44463edc40d887cad8b952ba4
+    logging:
+      driver: json-file
+      options:
+        max-file: '2'
+        max-size: 1m
+    mem_limit: 128m
+    networks:
+      mg-generator:
+        aliases:
+        - platform
+      mg-sink:
+        aliases:
+        - platform
+      mg-transform:
+        aliases:
+        - platform
+    pids_limit: 64
+    ports:
+    - 127.0.0.1:8080:8080
+    read_only: true
+    restart: 'no'
+    security_opt:
+    - no-new-privileges:true
+    tmpfs:
+    - /tmp:rw,nosuid,nodev,size=16m
+    user: 65532:65532
+    volumes:
+    - ./resolved.json:/run/graphx/resolved.json:ro
+    - ./platform.json:/run/graphx/platform.json:ro
+    - ./credentials.json:/run/graphx/credentials.json:ro
+    - ${GX_STATE}/history:/var/lib/graphx/history
+    - ${GX_STATE}/handoff:/captures:ro
+    - ${GX_CREDENTIALS}/observer:/run/secrets/observer:ro
+    - ${GX_CREDENTIALS}/runtime-generator:/run/secrets/runtime-generator:ro
+    - ${GX_CREDENTIALS}/runtime-sink:/run/secrets/runtime-sink:ro
+    - ${GX_CREDENTIALS}/runtime-transform:/run/secrets/runtime-transform:ro
+  sink:
+    cap_drop:
+    - ALL
+    command:
+    - --node
+    - sink
+    - --config
+    - /run/graphx/node.json
+    entrypoint:
+    - graphx-sink
+    environment:
+      GRAPHX_CREDENTIALS: /run/secrets
+    healthcheck:
+      interval: 2s
+      retries: 15
+      test:
+      - CMD
+      - graphx-sink
+      - --node
+      - sink
+      - --config
+      - /run/graphx/node.json
+      - --check-local-ready
+      timeout: 2s
+    image: graphx-design/runtime@sha256:09486a2ac3d5398b1bb25e807db55c4954971f306b94e55498ee30b6f02cda8c
+    logging:
+      driver: json-file
+      options:
+        max-file: '2'
+        max-size: 1m
+    mem_limit: 128m
+    networks:
+      data:
+        ipv4_address: 172.28.73.11
+      mg-sink: {}
+    pids_limit: 64
+    read_only: true
+    restart: 'no'
+    security_opt:
+    - no-new-privileges:true
+    tmpfs:
+    - /tmp:rw,nosuid,nodev,size=16m
+    user: 65532:65532
+    volumes:
+    - ./nodes/sink.json:/run/graphx/node.json:ro
+    - ${GX_STATE}/barriers:/run/graphx/barriers:ro
+    - ${GX_CREDENTIALS}/runtime-sink:/run/secrets/runtime-sink:ro
+  transform:
+    cap_drop:
+    - ALL
+    command:
+    - --node
+    - transform
+    - --config
+    - /run/graphx/node.json
+    entrypoint:
+    - graphx-transform
+    environment:
+      GRAPHX_CREDENTIALS: /run/secrets
+    healthcheck:
+      interval: 2s
+      retries: 15
+      test:
+      - CMD
+      - graphx-transform
+      - --node
+      - transform
+      - --config
+      - /run/graphx/node.json
+      - --check-local-ready
+      timeout: 2s
+    image: graphx-design/runtime@sha256:09486a2ac3d5398b1bb25e807db55c4954971f306b94e55498ee30b6f02cda8c
+    logging:
+      driver: json-file
+      options:
+        max-file: '2'
+        max-size: 1m
+    mem_limit: 128m
+    networks:
+      data:
+        ipv4_address: 172.28.73.12
+      mg-transform: {}
+    pids_limit: 64
+    read_only: true
+    restart: 'no'
+    security_opt:
+    - no-new-privileges:true
+    tmpfs:
+    - /tmp:rw,nosuid,nodev,size=16m
+    user: 65532:65532
+    volumes:
+    - ./nodes/transform.json:/run/graphx/node.json:ro
+    - ${GX_STATE}/barriers:/run/graphx/barriers:ro
+    - ${GX_CREDENTIALS}/runtime-transform:/run/secrets/runtime-transform:ro

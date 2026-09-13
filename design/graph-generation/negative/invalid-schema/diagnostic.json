@@ -1,0 +1,8 @@
+{
+  "code": "E_SCHEMA_MISMATCH",
+  "message": "Sample cannot connect to TransformedSample; no implicit conversion",
+  "no_artifacts": true,
+  "path": "connections.samples",
+  "phase": "compile",
+  "severity": "error"
+}

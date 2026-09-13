@@ -1,0 +1,101 @@
+# DESIGN ONLY — not accepted by current GraphX.
+catalog: ../../catalog/lock.json
+connections:
+  samples:
+    attachments:
+      from: generator-data
+      to: transform-data
+    from: generator.samples
+    settings:
+      bind: 0.0.0.0
+      connect_timeout_ms: 1000
+      framing: u32be
+      host: 10.30.0.20
+      port: 7001
+      reconnect: true
+      retry:
+        initial_backoff_ms: 100
+        max_attempts: 60
+        max_backoff_ms: 2000
+      send_timeout_ms: 5000
+    to: transform.samples
+    transport: tcp
+  transformed:
+    attachments:
+      from: transform-data
+      to: sink-data
+    from: transform.transformed
+    settings:
+      bind: 0.0.0.0
+      connect_timeout_ms: 1000
+      framing: u32be
+      host: 10.30.0.30
+      port: 7002
+      reconnect: true
+      retry:
+        initial_backoff_ms: 100
+        max_attempts: 60
+        max_backoff_ms: 2000
+      send_timeout_ms: 5000
+    to: sink.transformed
+    transport: tcp
+graph:
+  id: macvlan
+network:
+  attachments:
+  - address: 10.30.0.10/24
+    id: generator-data
+    kind: container_veth
+    mac: 02:30:00:00:00:10
+    network: gx-macvlan-demo
+    owner: generator
+    switch: gxb9b585f04998d
+  - address: 10.30.0.20/24
+    id: transform-data
+    kind: container_veth
+    mac: 02:30:00:00:00:20
+    network: gx-macvlan-demo
+    owner: transform
+    switch: gxb9b585f04998d
+  - address: 10.30.0.30/24
+    id: sink-data
+    kind: container_veth
+    mac: 02:30:00:00:00:30
+    network: gx-macvlan-demo
+    owner: sink
+    switch: gxb9b585f04998d
+  edge_paths:
+    samples:
+    - generator
+    - gx-macvlan-demo
+    - transform
+    transformed:
+    - transform
+    - gx-macvlan-demo
+    - sink
+  networks:
+  - gateway: 10.30.0.1
+    id: gx-macvlan-demo
+    profile: macvlan
+    realization: ovs
+    subnets:
+    - 10.30.0.0/24
+  switches:
+  - datapath: system
+    id: gxb9b585f04998d
+    kind: openvswitch
+    ports: []
+nodes:
+  generator:
+    execution:
+      kind: container
+    type: sample.source
+  sink:
+    execution:
+      kind: container
+    type: sample.sink
+  transform:
+    execution:
+      kind: container
+    type: sample.transform
+version: 3

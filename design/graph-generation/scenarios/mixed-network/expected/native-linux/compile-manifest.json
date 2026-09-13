@@ -1,0 +1,54 @@
+{
+  "catalog_digest": "d984d3c04c8ac657407f9c704a3f3a3760a352e348fb0a32616077b2caba5cff",
+  "compiler": "proposed-graphx-v3-design-1",
+  "files": [
+    {
+      "path": "capture-handoff.json",
+      "sha256": "94a3ee092f72540e61267c5c113d08a0dc70aa121aaa6ba4ea2263eacb6fb009"
+    },
+    {
+      "path": "compose.yaml",
+      "sha256": "dc7f00194286536542c963d9dafb43192e725377bc1da02304a881cfd5b79558"
+    },
+    {
+      "path": "credentials.json",
+      "sha256": "2d8195f2d8743b7deaf22967744056904794f7083364070d08f984f146d0f4fa"
+    },
+    {
+      "path": "execution-plan.json",
+      "sha256": "f6e62c16f1ad9b7293522fe1df61407f5296993850d0015ca6647bb04d4724c4"
+    },
+    {
+      "path": "nodes/generator.json",
+      "sha256": "ab890534da6349c5505c596bb0f2d2483edcc03f9806782fdaf1457118dc8501"
+    },
+    {
+      "path": "nodes/sink.json",
+      "sha256": "a5b5b1b759677c4ecb1a94ceb1d0aa4600e274b1bbf2d26755016650a722aabf"
+    },
+    {
+      "path": "nodes/transform.json",
+      "sha256": "7df2f1e128756c961f7ccccf14177f5c5bf13605b064332d2ad39e4150f188d5"
+    },
+    {
+      "path": "ovs-plan.json",
+      "sha256": "36bda99d5719c76f2c80540019747728d05c4c038e7fc68d3cf94825e03b530b"
+    },
+    {
+      "path": "platform.json",
+      "sha256": "016517d3f6a4660ee3b1fee9222c0e894cd53e81b084bf4e954399fb3ec1d8bc"
+    },
+    {
+      "path": "resolved.json",
+      "sha256": "177c0cdc29dd4f9bf7f41f7bd3169912d4eba2fee0ea5dd2c3b6763223781cf2"
+    },
+    {
+      "path": "substitutions.json",
+      "sha256": "2571fd602688e333308cb52b67d48d13544c77985868700f232523ddc4cc8853"
+    }
+  ],
+  "graph_id": "mixed-network",
+  "input_digest": "ea6e148d81b6d4e2d4ecfc64dc61a3db4454535628b095ea9ef878b3ec4a03ff",
+  "ownership": "invoking UID and graph ID; checked replacement only; no runtime lifecycle records",
+  "version": 1
+}

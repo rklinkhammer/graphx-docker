@@ -1,0 +1,107 @@
+{
+  "api": "execute_ovs_lifecycle",
+  "capture_process_count": 1,
+  "cleanup": "execute_ovs_lifecycle destroy; external devices untouched",
+  "config": "resolved.json",
+  "on_failure": "reverse newly owned resources only; preserve state on cleanup failure",
+  "preflight": [
+    "Linux system OVS available",
+    "explicit execution authorization",
+    "container IDs checked against graph labels",
+    "addresses and names free or same owner",
+    "UID/GID 65532 dedicated QEMU identity when TAP selected"
+  ],
+  "readiness": [
+    "endpoint identity matches",
+    "routes and OVS flows installed",
+    "capture writer owned and ready"
+  ],
+  "resource_intent": {
+    "attachments": [
+      {
+        "id": "observed-span",
+        "interface": "gxid84e76591114",
+        "kind": "mirror",
+        "owner": "br-gx-observe",
+        "peer": "gxp7d44c4d27fc7",
+        "port": "capture",
+        "switch": "br-gx-observe"
+      },
+      {
+        "address": "10.77.0.2/24",
+        "id": "source-data",
+        "interface": "gxtbbc5ec8e6b98",
+        "kind": "qemu_tap",
+        "network": "observed-lan",
+        "owner": "packet-source",
+        "port": "source",
+        "switch": "br-gx-observe",
+        "tap_gid": 65532,
+        "tap_uid": 65532
+      }
+    ],
+    "captures": [
+      {
+        "attachment": "observed-span",
+        "directory": "/var/lib/graphx/captures/network-observation/ethernet-span",
+        "id": "ethernet-span",
+        "max_file_bytes": 1048576,
+        "max_files": 4,
+        "retention_seconds": 3600,
+        "rotation_seconds": 60,
+        "snaplen": 65535
+      }
+    ],
+    "management_isolation": {
+      "application_bind": "selected-data-address",
+      "ip_forward": false,
+      "ovs_management_acl": "only platform TCP 8080 and UDP 9000; deny node-to-node and forwarding; enforced before release barrier",
+      "per_node_network": true,
+      "platform_routes_data": false
+    },
+    "networks": [
+      {
+        "gateway": "10.77.0.1",
+        "id": "observed-lan",
+        "profile": "ethernet",
+        "realization": "ovs",
+        "subnets": [
+          "10.77.0.0/24"
+        ]
+      }
+    ],
+    "switches": [
+      {
+        "datapath": "system",
+        "id": "br-gx-observe",
+        "kind": "openvswitch",
+        "mirror": {
+          "id": "observed-span",
+          "output_port": "capture",
+          "select_all": true
+        },
+        "name": "gxb7d367259e7c5",
+        "ports": [
+          {
+            "id": "capture",
+            "interface": "gxid84e76591114",
+            "peer": "gxp7d44c4d27fc7"
+          },
+          {
+            "id": "source",
+            "interface": "gxtbbc5ec8e6b98"
+          }
+        ]
+      }
+    ]
+  },
+  "stages": [
+    "preflight identity and capabilities",
+    "create containers held at local barrier",
+    "create namespaces bridges veth and TAP",
+    "install routes policies mirrors capture and management ACL",
+    "release application barriers"
+  ],
+  "state_root": "/var/lib/graphx/ownership",
+  "version": 1
+}

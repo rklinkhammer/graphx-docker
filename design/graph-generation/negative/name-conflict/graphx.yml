@@ -1,0 +1,31 @@
+# DESIGN ONLY — not accepted by current GraphX.
+catalog: ../../catalog/lock.json
+connections:
+  samples:
+    from: generator.samples
+    to: transform.samples
+    transport: tcp
+  transformed:
+    from: transform.transformed
+    to: sink.transformed
+    transport: tcp
+graph:
+  id: name-conflict
+nodes:
+  generator:
+    execution:
+      kind: container
+    type: sample.source
+  platform:
+    execution:
+      kind: container
+    type: sample.sink
+  sink:
+    execution:
+      kind: container
+    type: sample.sink
+  transform:
+    execution:
+      kind: container
+    type: sample.transform
+version: 3

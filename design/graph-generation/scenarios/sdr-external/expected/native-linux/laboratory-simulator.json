@@ -1,0 +1,37 @@
+{
+  "activation": [
+    "verify physical absence and owned attachment",
+    "stop only owned processor",
+    "stage test-processor into lab-processor bundle preserving external reference for restoration",
+    "start laboratory radio with test-radio",
+    "restart owned processor and verify mTLS using same test CA"
+  ],
+  "address": "10.63.0.10/24",
+  "attachment": "sdr-node-data",
+  "baseline": false,
+  "cleanup": "external-ovs-boundary helper with common ownership identity",
+  "client_credentials": {
+    "processor": "test-processor"
+  },
+  "command": [
+    "${GX_RELEASE}/bin/graphx-sdr-radio",
+    "--node",
+    "radio",
+    "--config",
+    "${GX_OUTPUT}/nodes/radio.json",
+    "--laboratory-substitute"
+  ],
+  "credentials": "test-radio",
+  "execution": "namespace",
+  "node": "radio",
+  "precondition": "physical device disconnected and address unused; reject otherwise",
+  "processes": 1,
+  "restore": [
+    "stop owned lab simulator and processor",
+    "restore external lab-processor bundle",
+    "restart processor only when external readiness is explicitly satisfied"
+  ],
+  "telemetry": "test fixture identity radio-lab, never physical radio health",
+  "type": "sdr.simulator",
+  "version": 1
+}

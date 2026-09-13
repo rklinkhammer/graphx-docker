@@ -1,0 +1,62 @@
+{
+  "catalog_digest": "d984d3c04c8ac657407f9c704a3f3a3760a352e348fb0a32616077b2caba5cff",
+  "compiler": "proposed-graphx-v3-design-1",
+  "files": [
+    {
+      "path": "capture-handoff.json",
+      "sha256": "9dfe3f32221132c4746ec98baff66ae3ce03ab9bfa7ed8524c09f2c5cb769eb1"
+    },
+    {
+      "path": "compose.yaml",
+      "sha256": "283fca21aeeb402250f2e0ec80a9a3ee53415cf8cf737c5afe49ff508a3bbff4"
+    },
+    {
+      "path": "credentials.json",
+      "sha256": "23d9724b94f1aa0b16db909fcd27961d14457e404af89d7ecb54e4b2660fff93"
+    },
+    {
+      "path": "execution-plan.json",
+      "sha256": "f6e62c16f1ad9b7293522fe1df61407f5296993850d0015ca6647bb04d4724c4"
+    },
+    {
+      "path": "laboratory-simulator.json",
+      "sha256": "8346792a84ba00fc48dad8653173f32e6241f74ebc5b77f31803b536ebf5e044"
+    },
+    {
+      "path": "nodes/processor.json",
+      "sha256": "fe1f8abd1da558de31b24027fc75ebf871c25e71aa8091a3fb5b0ab5badd996a"
+    },
+    {
+      "path": "nodes/radio.json",
+      "sha256": "fae88e746ac3f5a2cd4f15c2ebc3f3f483ccea2c1bb65713d6a88d0d175c2563"
+    },
+    {
+      "path": "nodes/sink.json",
+      "sha256": "1b4d37053eae22ae51b5eb9bf6435455a3854983aaec17cafe49bb1bc67604b7"
+    },
+    {
+      "path": "ovs-plan.json",
+      "sha256": "192ea7ea2b0452100c60beb5cc9f0b0620fe6386b185d70b19161e3a165e8bfc"
+    },
+    {
+      "path": "platform.json",
+      "sha256": "016517d3f6a4660ee3b1fee9222c0e894cd53e81b084bf4e954399fb3ec1d8bc"
+    },
+    {
+      "path": "resolved.json",
+      "sha256": "ed0050195eb559cf9ce8f5a5239499e04bcefa9a97f11bd9a4e75f183b040b9b"
+    },
+    {
+      "path": "scenario-plan.json",
+      "sha256": "acf5a9afe6d1eee25f229d26798d88ec180498b51307d04c0b1fb6c6b16a178d"
+    },
+    {
+      "path": "substitutions.json",
+      "sha256": "3aa1bbf4647a7c36ee133eaa793bf6549f18cb52783c9afc7fd0a7bebaa153b9"
+    }
+  ],
+  "graph_id": "sdr-external",
+  "input_digest": "0fd08f2836be3ea13420e0c23f29a3221949f3eea5d0373e2ed9e4684d2792f0",
+  "ownership": "invoking UID and graph ID; checked replacement only; no runtime lifecycle records",
+  "version": 1
+}

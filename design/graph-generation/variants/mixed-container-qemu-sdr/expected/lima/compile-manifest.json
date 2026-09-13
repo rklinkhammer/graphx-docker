@@ -1,0 +1,74 @@
+{
+  "catalog_digest": "d984d3c04c8ac657407f9c704a3f3a3760a352e348fb0a32616077b2caba5cff",
+  "compiler": "proposed-graphx-v3-design-1",
+  "files": [
+    {
+      "path": "access-plan.json",
+      "sha256": "b63f1f98b6d6a1c4ce601255e5db83c76eed5f3df8750d25d0af8b03bb546be6"
+    },
+    {
+      "path": "compose.yaml",
+      "sha256": "5602b041ee4c7a7024cde2ba07e9a0f26b6de74f6bf1dbba6ad8c0dc2bf6c3aa"
+    },
+    {
+      "path": "credentials.json",
+      "sha256": "0dea267f6f805d4f4d17912d87e1e587410d2e3ca956470fa940f758d703219f"
+    },
+    {
+      "path": "execution-plan.json",
+      "sha256": "8bfec0e8819e0ddc51a94d7d49827d0ae80cb98e3f3bfd9faa179f2b51994507"
+    },
+    {
+      "path": "guest-build/radio-x86.json",
+      "sha256": "6df63c4597d500ddc91ea6bec433d29eb04208a5b6e75f8c0b8317538d74b9de"
+    },
+    {
+      "path": "nodes/processor-east.json",
+      "sha256": "5c4f580a01c6ea9ab3fcef098011fb877883c8a6bbc26a472a91dbdb6e0cdefd"
+    },
+    {
+      "path": "nodes/processor-west.json",
+      "sha256": "adbf41cd8244e442c6fabc119de1b022ba932c639061895e0418de5792bff4f8"
+    },
+    {
+      "path": "nodes/radio-east.json",
+      "sha256": "cbdb1248cc29c8252870fd01c4ad75fda0fdb59087431538cb0b5028b7d0d3d3"
+    },
+    {
+      "path": "nodes/radio-west.json",
+      "sha256": "1442f8a43c591ed03f18f9f0e7cb8d9594892621eb0ad81b4d3a8e07be582eea"
+    },
+    {
+      "path": "nodes/sink-east.json",
+      "sha256": "bd1fad660d6697c917741904b63882f12d9e58ea054e962b735a6470e813b3ab"
+    },
+    {
+      "path": "nodes/sink-west.json",
+      "sha256": "753c168de26ea9ba7ce82b35e134881542a850e6000d0a248c6dabac09426cca"
+    },
+    {
+      "path": "ovs-plan.json",
+      "sha256": "daaf82888d5133a5cf85e09615360519e45ecc68a2eb15b400fb689e83bc4cb6"
+    },
+    {
+      "path": "platform.json",
+      "sha256": "f29b6b2c3c614c059d16dbd558e0a0633db5a332a3dfe970ea21bdb3871f353c"
+    },
+    {
+      "path": "qemu-plan.json",
+      "sha256": "2425eccb13cf30f45a7a1f8a51c3b64efdcbfa8934d0f920cd8fcee733fff615"
+    },
+    {
+      "path": "resolved.json",
+      "sha256": "b014f560749e4bfd1bd791815ce077b7f9165841c6bffe0f1bfc9a35d07ba410"
+    },
+    {
+      "path": "substitutions.json",
+      "sha256": "0a03edeee189742ee06568f3d87c5f507acb112fbe519198c174702a98943cb4"
+    }
+  ],
+  "graph_id": "mixed-container-qemu-sdr",
+  "input_digest": "6a2f029326bd940741cff31a5ae8ab81e8fe9834ce0d8c2f6b426d48685b4a1d",
+  "ownership": "invoking UID and graph ID; checked replacement only; no runtime lifecycle records",
+  "version": 1
+}

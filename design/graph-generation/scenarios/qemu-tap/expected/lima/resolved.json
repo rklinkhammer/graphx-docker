@@ -1,0 +1,750 @@
+{
+  "catalog_digest": "d984d3c04c8ac657407f9c704a3f3a3760a352e348fb0a32616077b2caba5cff",
+  "connections": [
+    {
+      "attachments": {
+        "from": "peer-data",
+        "to": "qemu-data"
+      },
+      "destination_address": "10.0.2.15",
+      "encoding": "raw",
+      "from": {
+        "node": "host-peer",
+        "port": "tcp_out"
+      },
+      "id": "peer-qemu-tcp",
+      "listener": "qemu-node.tcp_in",
+      "schema": "RawTcpBytes",
+      "security": {
+        "profile": "none"
+      },
+      "settings": {
+        "bind": "10.0.2.15",
+        "connect_timeout_ms": 5000,
+        "framing": "none",
+        "host": "10.0.2.15",
+        "port": 18001,
+        "reconnect": true,
+        "retry": {
+          "initial_backoff_ms": 100,
+          "max_attempts": 60,
+          "max_backoff_ms": 2000
+        },
+        "send_timeout_ms": 5000
+      },
+      "source_address": "10.0.2.2",
+      "to": {
+        "node": "qemu-node",
+        "port": "tcp_in"
+      },
+      "transport": "tcp"
+    },
+    {
+      "attachments": {
+        "from": "peer-data",
+        "to": "qemu-data"
+      },
+      "destination_address": "10.0.2.15",
+      "encoding": "raw",
+      "from": {
+        "node": "host-peer",
+        "port": "udp_out"
+      },
+      "id": "peer-qemu-udp",
+      "listener": "qemu-node.udp_in",
+      "schema": "RawUdpDatagram",
+      "security": {
+        "profile": "none"
+      },
+      "settings": {
+        "bind": "10.0.2.15",
+        "destination": "10.0.2.15",
+        "framing": "none",
+        "loopback": true,
+        "max_datagram_bytes": 1400,
+        "mode": "unicast",
+        "port": 18001,
+        "receive_buffer_bytes": 65536,
+        "reuse_address": false,
+        "send_buffer_bytes": 65536,
+        "ttl": 1
+      },
+      "source_address": "10.0.2.2",
+      "to": {
+        "node": "qemu-node",
+        "port": "udp_in"
+      },
+      "transport": "udp"
+    },
+    {
+      "attachments": {
+        "from": "qemu-data",
+        "to": "peer-data"
+      },
+      "destination_address": "10.0.2.2",
+      "encoding": "raw",
+      "from": {
+        "node": "qemu-node",
+        "port": "tcp_out"
+      },
+      "id": "qemu-peer-tcp",
+      "listener": "host-peer.tcp_in",
+      "schema": "RawTcpBytes",
+      "security": {
+        "profile": "none"
+      },
+      "settings": {
+        "bind": "10.0.2.2",
+        "connect_timeout_ms": 5000,
+        "framing": "none",
+        "host": "10.0.2.2",
+        "port": 19001,
+        "reconnect": true,
+        "retry": {
+          "initial_backoff_ms": 100,
+          "max_attempts": 60,
+          "max_backoff_ms": 2000
+        },
+        "send_timeout_ms": 5000
+      },
+      "source_address": "10.0.2.15",
+      "to": {
+        "node": "host-peer",
+        "port": "tcp_in"
+      },
+      "transport": "tcp"
+    },
+    {
+      "attachments": {
+        "from": "qemu-data",
+        "to": "peer-data"
+      },
+      "destination_address": "10.0.2.2",
+      "encoding": "raw",
+      "from": {
+        "node": "qemu-node",
+        "port": "udp_out"
+      },
+      "id": "qemu-peer-udp",
+      "listener": "host-peer.udp_in",
+      "schema": "RawUdpDatagram",
+      "security": {
+        "profile": "none"
+      },
+      "settings": {
+        "bind": "10.0.2.2",
+        "destination": "10.0.2.2",
+        "framing": "none",
+        "loopback": true,
+        "max_datagram_bytes": 1400,
+        "mode": "unicast",
+        "port": 19001,
+        "receive_buffer_bytes": 65536,
+        "reuse_address": false,
+        "send_buffer_bytes": 65536,
+        "ttl": 1
+      },
+      "source_address": "10.0.2.15",
+      "to": {
+        "node": "host-peer",
+        "port": "udp_in"
+      },
+      "transport": "udp"
+    }
+  ],
+  "contract_version": 2,
+  "credential_references": [
+    "observer"
+  ],
+  "execution_values": [
+    "GX_STATE",
+    "GX_CREDENTIALS",
+    "GX_OUTPUT",
+    "GX_RELEASE",
+    "GX_OWNER"
+  ],
+  "graph_id": "qemu-tap",
+  "graph_version": 3,
+  "input_digest": "7e7480994de3bee91be68e3e0eb6de16ec104f629a877a75bf78d603fd1908ea",
+  "network": {
+    "attachments": [
+      {
+        "address": "10.0.2.99/24",
+        "id": "isolated-data",
+        "interface": "gxiba48fd31b4a0",
+        "kind": "namespace_veth",
+        "network": "qemu-lan",
+        "owner": "qemu-peer",
+        "peer": "gxpc7681ae553ac",
+        "switch": "br-qemu-tap",
+        "vlan": {
+          "access_tag": 43
+        }
+      },
+      {
+        "address": "10.0.2.2/24",
+        "id": "peer-data",
+        "interface": "gxi3438299613b0",
+        "kind": "namespace_veth",
+        "network": "qemu-lan",
+        "owner": "qemu-peer",
+        "peer": "gxp1a63919aa9a2",
+        "switch": "br-qemu-tap",
+        "vlan": {
+          "access_tag": 42
+        }
+      },
+      {
+        "address": "10.0.2.15/24",
+        "id": "qemu-data",
+        "interface": "gxt1d74459f2b59",
+        "kind": "qemu_tap",
+        "mac": "02:00:00:00:02:15",
+        "network": "qemu-lan",
+        "owner": "qemu-node",
+        "port": "qemu",
+        "switch": "br-qemu-tap",
+        "tap_gid": 65532,
+        "tap_uid": 65532,
+        "vlan": {
+          "access_tag": 42
+        }
+      },
+      {
+        "id": "qemu-span",
+        "interface": "gxidea2c6fc571d",
+        "kind": "mirror",
+        "owner": "br-qemu-tap",
+        "peer": "gxpaddcd7b1543a",
+        "port": "capture",
+        "switch": "br-qemu-tap"
+      }
+    ],
+    "captures": [
+      {
+        "attachment": "qemu-span",
+        "directory": "/var/lib/graphx/captures/qemu-tap/qemu-span",
+        "id": "qemu-span",
+        "max_file_bytes": 67108864,
+        "max_files": 2,
+        "retention_seconds": 86400,
+        "rotation_seconds": 300,
+        "snaplen": 65535
+      }
+    ],
+    "edge_paths": {
+      "peer-qemu-tcp": [
+        "host-peer",
+        "qemu-lan",
+        "br-qemu-tap",
+        "qemu-node"
+      ],
+      "peer-qemu-udp": [
+        "host-peer",
+        "qemu-lan",
+        "br-qemu-tap",
+        "qemu-node"
+      ],
+      "qemu-peer-tcp": [
+        "qemu-node",
+        "br-qemu-tap",
+        "qemu-lan",
+        "host-peer"
+      ],
+      "qemu-peer-udp": [
+        "qemu-node",
+        "br-qemu-tap",
+        "qemu-lan",
+        "host-peer"
+      ]
+    },
+    "management_isolation": {
+      "application_bind": "selected-data-address",
+      "ip_forward": false,
+      "ovs_management_acl": "only platform TCP 8080 and UDP 9000; deny node-to-node and forwarding; enforced before release barrier",
+      "per_node_network": true,
+      "platform_routes_data": false
+    },
+    "networks": [
+      {
+        "gateway": "10.0.2.2",
+        "id": "qemu-lan",
+        "profile": "ethernet",
+        "realization": "ovs",
+        "subnets": [
+          "10.0.2.0/24"
+        ]
+      }
+    ],
+    "routers": [
+      {
+        "forwarding": false,
+        "id": "qemu-peer",
+        "interfaces": [
+          {
+            "address": "10.0.2.2/24",
+            "attachment_id": "peer-data",
+            "device": "gxi3438299613b0",
+            "id": "data",
+            "network": "qemu-lan",
+            "peer": "gxp1a63919aa9a2",
+            "switch": "br-qemu-tap"
+          },
+          {
+            "address": "10.0.2.99/24",
+            "attachment_id": "isolated-data",
+            "device": "gxiba48fd31b4a0",
+            "id": "isolated",
+            "network": "qemu-lan",
+            "peer": "gxpc7681ae553ac",
+            "switch": "br-qemu-tap"
+          }
+        ],
+        "kind": "linux_namespace",
+        "namespace": "gxn941f715557a0"
+      }
+    ],
+    "switches": [
+      {
+        "datapath": "system",
+        "id": "br-qemu-tap",
+        "kind": "openvswitch",
+        "mirror": {
+          "id": "qemu-span",
+          "output_port": "capture",
+          "select_all": true
+        },
+        "name": "gxbd9319cd909c4",
+        "ports": [
+          {
+            "id": "capture",
+            "interface": "gxidea2c6fc571d",
+            "peer": "gxpaddcd7b1543a"
+          },
+          {
+            "id": "isolated",
+            "interface": "gxpc7681ae553ac",
+            "peer": "gxiba48fd31b4a0",
+            "vlan": {
+              "access_tag": 43
+            }
+          },
+          {
+            "id": "peer",
+            "interface": "gxp1a63919aa9a2",
+            "peer": "gxi3438299613b0",
+            "vlan": {
+              "access_tag": 42
+            }
+          },
+          {
+            "id": "qemu",
+            "interface": "gxt1d74459f2b59",
+            "vlan": {
+              "access_tag": 42
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "nodes": [
+    {
+      "bindings": {
+        "tcp_in": [
+          {
+            "attachments": {
+              "from": "qemu-data",
+              "to": "peer-data"
+            },
+            "connection": "qemu-peer-tcp",
+            "destination_address": "10.0.2.2",
+            "encoding": "raw",
+            "role": "listen",
+            "schema": "RawTcpBytes",
+            "security": {
+              "profile": "none"
+            },
+            "settings": {
+              "bind": "10.0.2.2",
+              "connect_timeout_ms": 5000,
+              "framing": "none",
+              "host": "10.0.2.2",
+              "port": 19001,
+              "reconnect": true,
+              "retry": {
+                "initial_backoff_ms": 100,
+                "max_attempts": 60,
+                "max_backoff_ms": 2000
+              },
+              "send_timeout_ms": 5000
+            },
+            "source_address": "10.0.2.15",
+            "transport": "tcp"
+          }
+        ],
+        "tcp_out": [
+          {
+            "attachments": {
+              "from": "peer-data",
+              "to": "qemu-data"
+            },
+            "connection": "peer-qemu-tcp",
+            "destination_address": "10.0.2.15",
+            "encoding": "raw",
+            "role": "connect",
+            "schema": "RawTcpBytes",
+            "security": {
+              "profile": "none"
+            },
+            "settings": {
+              "bind": "10.0.2.15",
+              "connect_timeout_ms": 5000,
+              "framing": "none",
+              "host": "10.0.2.15",
+              "port": 18001,
+              "reconnect": true,
+              "retry": {
+                "initial_backoff_ms": 100,
+                "max_attempts": 60,
+                "max_backoff_ms": 2000
+              },
+              "send_timeout_ms": 5000
+            },
+            "source_address": "10.0.2.2",
+            "transport": "tcp"
+          }
+        ],
+        "udp_in": [
+          {
+            "attachments": {
+              "from": "qemu-data",
+              "to": "peer-data"
+            },
+            "connection": "qemu-peer-udp",
+            "destination_address": "10.0.2.2",
+            "encoding": "raw",
+            "role": "listen",
+            "schema": "RawUdpDatagram",
+            "security": {
+              "profile": "none"
+            },
+            "settings": {
+              "bind": "10.0.2.2",
+              "destination": "10.0.2.2",
+              "framing": "none",
+              "loopback": true,
+              "max_datagram_bytes": 1400,
+              "mode": "unicast",
+              "port": 19001,
+              "receive_buffer_bytes": 65536,
+              "reuse_address": false,
+              "send_buffer_bytes": 65536,
+              "ttl": 1
+            },
+            "source_address": "10.0.2.15",
+            "transport": "udp"
+          }
+        ],
+        "udp_out": [
+          {
+            "attachments": {
+              "from": "peer-data",
+              "to": "qemu-data"
+            },
+            "connection": "peer-qemu-udp",
+            "destination_address": "10.0.2.15",
+            "encoding": "raw",
+            "role": "connect",
+            "schema": "RawUdpDatagram",
+            "security": {
+              "profile": "none"
+            },
+            "settings": {
+              "bind": "10.0.2.15",
+              "destination": "10.0.2.15",
+              "framing": "none",
+              "loopback": true,
+              "max_datagram_bytes": 1400,
+              "mode": "unicast",
+              "port": 18001,
+              "receive_buffer_bytes": 65536,
+              "reuse_address": false,
+              "send_buffer_bytes": 65536,
+              "ttl": 1
+            },
+            "source_address": "10.0.2.2",
+            "transport": "udp"
+          }
+        ]
+      },
+      "capture": {
+        "directory": "/captures",
+        "enabled": true,
+        "max_file_bytes": 67108864,
+        "max_files": 2,
+        "max_packets": 100000,
+        "provider": "ovs-span",
+        "retention_seconds": 86400
+      },
+      "contract_version": 2,
+      "credentials": {},
+      "execution": {
+        "kind": "namespace",
+        "namespace": "qemu-peer"
+      },
+      "graph_id": "qemu-tap",
+      "graph_version": 3,
+      "node_id": "host-peer",
+      "observation": [
+        "packet"
+      ],
+      "parameters": {},
+      "readiness": {
+        "kind": "local-bound",
+        "timeout_ms": 30000
+      },
+      "startup": {
+        "bind_before_connect": true,
+        "max_wait_ms": 30000,
+        "release_barrier": true
+      },
+      "telemetry": {
+        "credential": null,
+        "host": "platform",
+        "port": 9000
+      },
+      "type": "diagnostic.peer",
+      "type_revision": 1
+    },
+    {
+      "bindings": {
+        "tcp_in": [
+          {
+            "attachments": {
+              "from": "peer-data",
+              "to": "qemu-data"
+            },
+            "connection": "peer-qemu-tcp",
+            "destination_address": "10.0.2.15",
+            "encoding": "raw",
+            "role": "listen",
+            "schema": "RawTcpBytes",
+            "security": {
+              "profile": "none"
+            },
+            "settings": {
+              "bind": "10.0.2.15",
+              "connect_timeout_ms": 5000,
+              "framing": "none",
+              "host": "10.0.2.15",
+              "port": 18001,
+              "reconnect": true,
+              "retry": {
+                "initial_backoff_ms": 100,
+                "max_attempts": 60,
+                "max_backoff_ms": 2000
+              },
+              "send_timeout_ms": 5000
+            },
+            "source_address": "10.0.2.2",
+            "transport": "tcp"
+          }
+        ],
+        "tcp_out": [
+          {
+            "attachments": {
+              "from": "qemu-data",
+              "to": "peer-data"
+            },
+            "connection": "qemu-peer-tcp",
+            "destination_address": "10.0.2.2",
+            "encoding": "raw",
+            "role": "connect",
+            "schema": "RawTcpBytes",
+            "security": {
+              "profile": "none"
+            },
+            "settings": {
+              "bind": "10.0.2.2",
+              "connect_timeout_ms": 5000,
+              "framing": "none",
+              "host": "10.0.2.2",
+              "port": 19001,
+              "reconnect": true,
+              "retry": {
+                "initial_backoff_ms": 100,
+                "max_attempts": 60,
+                "max_backoff_ms": 2000
+              },
+              "send_timeout_ms": 5000
+            },
+            "source_address": "10.0.2.15",
+            "transport": "tcp"
+          }
+        ],
+        "udp_in": [
+          {
+            "attachments": {
+              "from": "peer-data",
+              "to": "qemu-data"
+            },
+            "connection": "peer-qemu-udp",
+            "destination_address": "10.0.2.15",
+            "encoding": "raw",
+            "role": "listen",
+            "schema": "RawUdpDatagram",
+            "security": {
+              "profile": "none"
+            },
+            "settings": {
+              "bind": "10.0.2.15",
+              "destination": "10.0.2.15",
+              "framing": "none",
+              "loopback": true,
+              "max_datagram_bytes": 1400,
+              "mode": "unicast",
+              "port": 18001,
+              "receive_buffer_bytes": 65536,
+              "reuse_address": false,
+              "send_buffer_bytes": 65536,
+              "ttl": 1
+            },
+            "source_address": "10.0.2.2",
+            "transport": "udp"
+          }
+        ],
+        "udp_out": [
+          {
+            "attachments": {
+              "from": "qemu-data",
+              "to": "peer-data"
+            },
+            "connection": "qemu-peer-udp",
+            "destination_address": "10.0.2.2",
+            "encoding": "raw",
+            "role": "connect",
+            "schema": "RawUdpDatagram",
+            "security": {
+              "profile": "none"
+            },
+            "settings": {
+              "bind": "10.0.2.2",
+              "destination": "10.0.2.2",
+              "framing": "none",
+              "loopback": true,
+              "max_datagram_bytes": 1400,
+              "mode": "unicast",
+              "port": 19001,
+              "receive_buffer_bytes": 65536,
+              "reuse_address": false,
+              "send_buffer_bytes": 65536,
+              "ttl": 1
+            },
+            "source_address": "10.0.2.15",
+            "transport": "udp"
+          }
+        ]
+      },
+      "capture": {
+        "directory": "/captures",
+        "enabled": true,
+        "max_file_bytes": 67108864,
+        "max_files": 2,
+        "max_packets": 100000,
+        "provider": "ovs-span",
+        "retention_seconds": 86400
+      },
+      "contract_version": 2,
+      "credentials": {},
+      "execution": {
+        "accelerator": "tcg",
+        "architecture": "x86_64",
+        "guest": "echo-x86",
+        "kind": "qemu"
+      },
+      "graph_id": "qemu-tap",
+      "graph_version": 3,
+      "node_id": "qemu-node",
+      "observation": [
+        "packet"
+      ],
+      "parameters": {},
+      "readiness": {
+        "kind": "local-bound",
+        "timeout_ms": 30000
+      },
+      "startup": {
+        "bind_before_connect": true,
+        "max_wait_ms": 30000,
+        "release_barrier": true
+      },
+      "telemetry": {
+        "credential": null,
+        "host": "platform",
+        "port": 9000
+      },
+      "type": "guest.echo",
+      "type_revision": 1
+    }
+  ],
+  "ordering": "lexicographic-ascii",
+  "platform": {
+    "capture": {
+      "directory": "/captures",
+      "enabled": true,
+      "max_file_bytes": 67108864,
+      "max_files": 2,
+      "max_packets": 100000,
+      "provider": "ovs-span",
+      "retention_seconds": 86400
+    },
+    "console": {
+      "bind": "127.0.0.1",
+      "port": 8080
+    },
+    "control": {
+      "allowed_origins": [
+        "http://127.0.0.1:8080"
+      ],
+      "enabled": false,
+      "grants": [],
+      "idempotency_ttl_seconds": 3600,
+      "max_audit_records": 4096,
+      "max_request_bytes": 4096
+    },
+    "credential_manifest": "credentials.json",
+    "extensions": [],
+    "history": {
+      "backend": "sqlite",
+      "batch_size": 100,
+      "database_file": "/var/lib/graphx/history/history.sqlite",
+      "enabled": true,
+      "flush_interval_ms": 250,
+      "max_database_bytes": 268435456,
+      "max_pending_queries": 16,
+      "max_queue_bytes": 8388608,
+      "max_records": 100000,
+      "query_limit": 200,
+      "query_timeout_ms": 2000,
+      "queue_capacity": 4096,
+      "retention_seconds": 604800,
+      "shutdown_timeout_ms": 2000
+    },
+    "image": "graphx-design/platform@sha256:41b3db89b6ec78cab84b29c12a1af5024ba670b44463edc40d887cad8b952ba4",
+    "normalization": "resolved.json",
+    "otlp": {
+      "enabled": false
+    },
+    "telemetry": {
+      "authentication": "per-node-hmac",
+      "heartbeat_interval_ms": 1000,
+      "heartbeat_timeout_ms": 5000,
+      "host": "platform",
+      "port": 9000
+    },
+    "template": "platform-v1"
+  },
+  "portable_network": null,
+  "target": "lima"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "E_PORT_UNKNOWN",
+  "message": "Type sample.transform has no port missing",
+  "no_artifacts": true,
+  "path": "connections.samples.to",
+  "phase": "compile",
+  "severity": "error"
+}

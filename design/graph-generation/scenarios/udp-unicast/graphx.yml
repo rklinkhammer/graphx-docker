@@ -1,0 +1,28 @@
+# DESIGN ONLY — not accepted by current GraphX.
+catalog: ../../catalog/lock.json
+connections:
+  messages:
+    from: publisher.out
+    settings:
+      bind: 127.0.0.1
+      destination: 127.0.0.1
+      framing: u32be
+      max_datagram_bytes: 1400
+      mode: unicast
+      port: 47101
+      receive_buffer_bytes: 65536
+      send_buffer_bytes: 65536
+    to: subscriber.in
+    transport: udp
+graph:
+  id: udp-unicast
+nodes:
+  publisher:
+    execution:
+      kind: native
+    type: udp.publisher
+  subscriber:
+    execution:
+      kind: native
+    type: udp.subscriber
+version: 3

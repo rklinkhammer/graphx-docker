@@ -1,0 +1,8 @@
+{
+  "code": "E_TARGET_CAPABILITY",
+  "message": "C-OVS requires Linux system OVS; native macOS cannot realize it",
+  "no_artifacts": true,
+  "path": "target",
+  "phase": "compile",
+  "severity": "error"
+}

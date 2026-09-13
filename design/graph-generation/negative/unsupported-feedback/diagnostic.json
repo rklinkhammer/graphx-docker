@@ -1,0 +1,8 @@
+{
+  "code": "E_FEEDBACK_UNSUPPORTED",
+  "message": "udp.publisher.out and udp.subscriber.in do not support feedback",
+  "no_artifacts": true,
+  "path": "connections.loop.feedback",
+  "phase": "compile",
+  "severity": "error"
+}

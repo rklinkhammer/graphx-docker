@@ -1,0 +1,729 @@
+{
+  "catalog_digest": "d984d3c04c8ac657407f9c704a3f3a3760a352e348fb0a32616077b2caba5cff",
+  "connections": [
+    {
+      "attachments": {
+        "from": "generator-data",
+        "to": "transform-data"
+      },
+      "destination_address": "10.41.2.20",
+      "encoding": "graphx",
+      "from": {
+        "node": "generator",
+        "port": "samples"
+      },
+      "id": "samples",
+      "listener": "transform.samples",
+      "schema": "Sample",
+      "security": {
+        "profile": "none"
+      },
+      "settings": {
+        "bind": "10.41.2.20",
+        "connect_timeout_ms": 1000,
+        "framing": "u32be",
+        "host": "10.41.2.20",
+        "port": 7001,
+        "reconnect": true,
+        "retry": {
+          "initial_backoff_ms": 100,
+          "max_attempts": 60,
+          "max_backoff_ms": 2000
+        },
+        "send_timeout_ms": 5000
+      },
+      "source_address": "10.41.1.10",
+      "to": {
+        "node": "transform",
+        "port": "samples"
+      },
+      "transport": "tcp"
+    },
+    {
+      "attachments": {
+        "from": "transform-data",
+        "to": "sink-data"
+      },
+      "destination_address": "10.41.3.30",
+      "encoding": "graphx",
+      "from": {
+        "node": "transform",
+        "port": "transformed"
+      },
+      "id": "transformed",
+      "listener": "sink.transformed",
+      "schema": "TransformedSample",
+      "security": {
+        "profile": "none"
+      },
+      "settings": {
+        "bind": "10.41.3.30",
+        "connect_timeout_ms": 1000,
+        "framing": "u32be",
+        "host": "10.41.3.30",
+        "port": 7002,
+        "reconnect": true,
+        "retry": {
+          "initial_backoff_ms": 100,
+          "max_attempts": 60,
+          "max_backoff_ms": 2000
+        },
+        "send_timeout_ms": 5000
+      },
+      "source_address": "10.41.2.20",
+      "to": {
+        "node": "sink",
+        "port": "transformed"
+      },
+      "transport": "tcp"
+    }
+  ],
+  "contract_version": 2,
+  "credential_references": [
+    "observer",
+    "runtime-generator",
+    "runtime-sink",
+    "runtime-transform"
+  ],
+  "execution_values": [
+    "GX_STATE",
+    "GX_CREDENTIALS",
+    "GX_OUTPUT",
+    "GX_RELEASE",
+    "GX_OWNER"
+  ],
+  "graph_id": "ipvlan-l2",
+  "graph_version": 3,
+  "input_digest": "ca169ca0848d1017620d8bb380a1130ff349b66bfd523a4f928cee74696b5efc",
+  "network": {
+    "attachments": [
+      {
+        "address": "10.41.1.10/24",
+        "id": "generator-data",
+        "interface": "gxi301c528f0b0b",
+        "kind": "container_veth",
+        "mac": "02:41:00:00:00:01",
+        "network": "gx-ipvl2-generator",
+        "owner": "generator",
+        "peer": "gxp2ffcc421d501",
+        "routes": [
+          {
+            "destination": "10.41.2.0/24",
+            "via": "10.41.1.1"
+          }
+        ],
+        "switch": "br-l2-gen"
+      },
+      {
+        "address": "10.41.1.1/24",
+        "id": "ipvlan-l2-router-generator",
+        "interface": "gxidecd5fafd93f",
+        "kind": "namespace_veth",
+        "mac": "02:41:00:00:00:01",
+        "network": "gx-ipvl2-generator",
+        "owner": "ipvlan-l2-router",
+        "peer": "gxp12531b271922",
+        "switch": "br-l2-gen"
+      },
+      {
+        "address": "10.41.3.1/24",
+        "id": "ipvlan-l2-router-sink",
+        "interface": "gxif9654d7bc9c3",
+        "kind": "namespace_veth",
+        "mac": "02:41:00:00:00:01",
+        "network": "gx-ipvl2-sink",
+        "owner": "ipvlan-l2-router",
+        "peer": "gxp64e6a303bf6d",
+        "switch": "br-l2-sink"
+      },
+      {
+        "address": "10.41.2.1/24",
+        "id": "ipvlan-l2-router-transform",
+        "interface": "gxi072d86c266a6",
+        "kind": "namespace_veth",
+        "mac": "02:41:00:00:00:01",
+        "network": "gx-ipvl2-transform",
+        "owner": "ipvlan-l2-router",
+        "peer": "gxp9c0ec1a85301",
+        "switch": "br-l2-xform"
+      },
+      {
+        "id": "mirror-l2-gen",
+        "interface": "gxi86ae2dc0aa16",
+        "kind": "mirror",
+        "owner": "br-l2-gen",
+        "peer": "gxp5c6dfe2f6a2f",
+        "port": "capture",
+        "switch": "br-l2-gen"
+      },
+      {
+        "id": "mirror-l2-sink",
+        "interface": "gxi95bc90937f3d",
+        "kind": "mirror",
+        "owner": "br-l2-sink",
+        "peer": "gxp7025dde54e51",
+        "port": "capture",
+        "switch": "br-l2-sink"
+      },
+      {
+        "id": "mirror-l2-xform",
+        "interface": "gxi568e06dc4eb6",
+        "kind": "mirror",
+        "owner": "br-l2-xform",
+        "peer": "gxp2b777a2d0d78",
+        "port": "capture",
+        "switch": "br-l2-xform"
+      },
+      {
+        "address": "10.41.3.30/24",
+        "id": "sink-data",
+        "interface": "gxia9e37ac279bb",
+        "kind": "container_veth",
+        "mac": "02:41:00:00:00:01",
+        "network": "gx-ipvl2-sink",
+        "owner": "sink",
+        "peer": "gxp8ab109f062da",
+        "routes": [
+          {
+            "destination": "10.41.2.0/24",
+            "via": "10.41.3.1"
+          }
+        ],
+        "switch": "br-l2-sink"
+      },
+      {
+        "address": "10.41.2.20/24",
+        "id": "transform-data",
+        "interface": "gxi51439e4c7686",
+        "kind": "container_veth",
+        "mac": "02:41:00:00:00:01",
+        "network": "gx-ipvl2-transform",
+        "owner": "transform",
+        "peer": "gxp161b627838ae",
+        "routes": [
+          {
+            "destination": "10.41.1.0/24",
+            "via": "10.41.2.1"
+          },
+          {
+            "destination": "10.41.3.0/24",
+            "via": "10.41.2.1"
+          }
+        ],
+        "switch": "br-l2-xform"
+      }
+    ],
+    "captures": [
+      {
+        "attachment": "mirror-l2-gen",
+        "directory": "/var/lib/graphx/captures/ipvlan-l2/mirror-l2-gen",
+        "id": "mirror-l2-gen",
+        "max_file_bytes": 67108864,
+        "max_files": 2,
+        "retention_seconds": 86400,
+        "rotation_seconds": 300,
+        "snaplen": 65535
+      },
+      {
+        "attachment": "mirror-l2-sink",
+        "directory": "/var/lib/graphx/captures/ipvlan-l2/mirror-l2-sink",
+        "id": "mirror-l2-sink",
+        "max_file_bytes": 67108864,
+        "max_files": 2,
+        "retention_seconds": 86400,
+        "rotation_seconds": 300,
+        "snaplen": 65535
+      },
+      {
+        "attachment": "mirror-l2-xform",
+        "directory": "/var/lib/graphx/captures/ipvlan-l2/mirror-l2-xform",
+        "id": "mirror-l2-xform",
+        "max_file_bytes": 67108864,
+        "max_files": 2,
+        "retention_seconds": 86400,
+        "rotation_seconds": 300,
+        "snaplen": 65535
+      }
+    ],
+    "edge_paths": {
+      "samples": [
+        "generator",
+        "gx-ipvl2-generator",
+        "br-l2-gen",
+        "ipvlan-l2-router",
+        "br-l2-xform",
+        "gx-ipvl2-transform",
+        "transform"
+      ],
+      "transformed": [
+        "transform",
+        "gx-ipvl2-transform",
+        "br-l2-xform",
+        "ipvlan-l2-router",
+        "br-l2-sink",
+        "gx-ipvl2-sink",
+        "sink"
+      ]
+    },
+    "management_isolation": {
+      "application_bind": "selected-data-address",
+      "ip_forward": false,
+      "ovs_management_acl": "only platform TCP 8080 and UDP 9000; deny node-to-node and forwarding; enforced before release barrier",
+      "per_node_network": true,
+      "platform_routes_data": false
+    },
+    "networks": [
+      {
+        "gateway": "10.41.1.1",
+        "id": "gx-ipvl2-generator",
+        "profile": "ipvlan-l2",
+        "realization": "ovs",
+        "subnets": [
+          "10.41.1.0/24"
+        ]
+      },
+      {
+        "gateway": "10.41.3.1",
+        "id": "gx-ipvl2-sink",
+        "profile": "ipvlan-l2",
+        "realization": "ovs",
+        "subnets": [
+          "10.41.3.0/24"
+        ]
+      },
+      {
+        "gateway": "10.41.2.1",
+        "id": "gx-ipvl2-transform",
+        "profile": "ipvlan-l2",
+        "realization": "ovs",
+        "subnets": [
+          "10.41.2.0/24"
+        ]
+      }
+    ],
+    "routers": [
+      {
+        "forwarding": true,
+        "id": "ipvlan-l2-router",
+        "interfaces": [
+          {
+            "address": "10.41.1.1/24",
+            "device": "gxidecd5fafd93f",
+            "id": "generator",
+            "network": "gx-ipvl2-generator",
+            "peer": "gxp12531b271922",
+            "switch": "br-l2-gen"
+          },
+          {
+            "address": "10.41.3.1/24",
+            "device": "gxif9654d7bc9c3",
+            "id": "sink",
+            "network": "gx-ipvl2-sink",
+            "peer": "gxp64e6a303bf6d",
+            "switch": "br-l2-sink"
+          },
+          {
+            "address": "10.41.2.1/24",
+            "device": "gxi072d86c266a6",
+            "id": "transform",
+            "network": "gx-ipvl2-transform",
+            "peer": "gxp9c0ec1a85301",
+            "switch": "br-l2-xform"
+          }
+        ],
+        "kind": "linux_namespace",
+        "namespace": "gxn3adaae783c76",
+        "policies": [
+          {
+            "action": "accept",
+            "destination": "10.41.2.0/24",
+            "id": "generator-to-transform",
+            "source": "10.41.1.0/24"
+          },
+          {
+            "action": "accept",
+            "destination": "10.41.3.0/24",
+            "id": "transform-to-sink",
+            "source": "10.41.2.0/24"
+          }
+        ]
+      }
+    ],
+    "switches": [
+      {
+        "datapath": "system",
+        "id": "br-l2-gen",
+        "kind": "openvswitch",
+        "mirror": {
+          "id": "mirror-l2-gen",
+          "output_port": "capture",
+          "select_all": true
+        },
+        "name": "gxb76893ae7d5e8",
+        "ports": [
+          {
+            "id": "capture",
+            "interface": "gxi86ae2dc0aa16",
+            "peer": "gxp5c6dfe2f6a2f"
+          }
+        ]
+      },
+      {
+        "datapath": "system",
+        "id": "br-l2-sink",
+        "kind": "openvswitch",
+        "mirror": {
+          "id": "mirror-l2-sink",
+          "output_port": "capture",
+          "select_all": true
+        },
+        "name": "gxb9b9c6974977e",
+        "ports": [
+          {
+            "id": "capture",
+            "interface": "gxi95bc90937f3d",
+            "peer": "gxp7025dde54e51"
+          }
+        ]
+      },
+      {
+        "datapath": "system",
+        "id": "br-l2-xform",
+        "kind": "openvswitch",
+        "mirror": {
+          "id": "mirror-l2-xform",
+          "output_port": "capture",
+          "select_all": true
+        },
+        "name": "gxba0e273fbc094",
+        "ports": [
+          {
+            "id": "capture",
+            "interface": "gxi568e06dc4eb6",
+            "peer": "gxp2b777a2d0d78"
+          }
+        ]
+      }
+    ]
+  },
+  "nodes": [
+    {
+      "bindings": {
+        "samples": [
+          {
+            "attachments": {
+              "from": "generator-data",
+              "to": "transform-data"
+            },
+            "connection": "samples",
+            "destination_address": "10.41.2.20",
+            "encoding": "graphx",
+            "role": "connect",
+            "schema": "Sample",
+            "security": {
+              "profile": "none"
+            },
+            "settings": {
+              "bind": "10.41.2.20",
+              "connect_timeout_ms": 1000,
+              "framing": "u32be",
+              "host": "10.41.2.20",
+              "port": 7001,
+              "reconnect": true,
+              "retry": {
+                "initial_backoff_ms": 100,
+                "max_attempts": 60,
+                "max_backoff_ms": 2000
+              },
+              "send_timeout_ms": 5000
+            },
+            "source_address": "10.41.1.10",
+            "transport": "tcp"
+          }
+        ]
+      },
+      "capture": {
+        "directory": "/captures",
+        "enabled": true,
+        "max_file_bytes": 67108864,
+        "max_files": 2,
+        "max_packets": 100000,
+        "provider": "ovs-span",
+        "retention_seconds": 86400
+      },
+      "contract_version": 2,
+      "credentials": {},
+      "execution": {
+        "kind": "container"
+      },
+      "graph_id": "ipvlan-l2",
+      "graph_version": 3,
+      "node_id": "generator",
+      "observation": [
+        "graphx"
+      ],
+      "parameters": {
+        "interval_ms": 500,
+        "max_messages": 20
+      },
+      "readiness": {
+        "kind": "local-bound",
+        "timeout_ms": 30000
+      },
+      "startup": {
+        "bind_before_connect": true,
+        "max_wait_ms": 30000,
+        "release_barrier": true
+      },
+      "telemetry": {
+        "credential": "runtime-generator",
+        "host": "platform",
+        "port": 9000
+      },
+      "type": "sample.source",
+      "type_revision": 1
+    },
+    {
+      "bindings": {
+        "transformed": [
+          {
+            "attachments": {
+              "from": "transform-data",
+              "to": "sink-data"
+            },
+            "connection": "transformed",
+            "destination_address": "10.41.3.30",
+            "encoding": "graphx",
+            "role": "listen",
+            "schema": "TransformedSample",
+            "security": {
+              "profile": "none"
+            },
+            "settings": {
+              "bind": "10.41.3.30",
+              "connect_timeout_ms": 1000,
+              "framing": "u32be",
+              "host": "10.41.3.30",
+              "port": 7002,
+              "reconnect": true,
+              "retry": {
+                "initial_backoff_ms": 100,
+                "max_attempts": 60,
+                "max_backoff_ms": 2000
+              },
+              "send_timeout_ms": 5000
+            },
+            "source_address": "10.41.2.20",
+            "transport": "tcp"
+          }
+        ]
+      },
+      "capture": {
+        "directory": "/captures",
+        "enabled": true,
+        "max_file_bytes": 67108864,
+        "max_files": 2,
+        "max_packets": 100000,
+        "provider": "ovs-span",
+        "retention_seconds": 86400
+      },
+      "contract_version": 2,
+      "credentials": {},
+      "execution": {
+        "kind": "container"
+      },
+      "graph_id": "ipvlan-l2",
+      "graph_version": 3,
+      "node_id": "sink",
+      "observation": [
+        "graphx"
+      ],
+      "parameters": {
+        "max_messages": 20
+      },
+      "readiness": {
+        "kind": "local-bound",
+        "timeout_ms": 30000
+      },
+      "startup": {
+        "bind_before_connect": true,
+        "max_wait_ms": 30000,
+        "release_barrier": true
+      },
+      "telemetry": {
+        "credential": "runtime-sink",
+        "host": "platform",
+        "port": 9000
+      },
+      "type": "sample.sink",
+      "type_revision": 1
+    },
+    {
+      "bindings": {
+        "samples": [
+          {
+            "attachments": {
+              "from": "generator-data",
+              "to": "transform-data"
+            },
+            "connection": "samples",
+            "destination_address": "10.41.2.20",
+            "encoding": "graphx",
+            "role": "listen",
+            "schema": "Sample",
+            "security": {
+              "profile": "none"
+            },
+            "settings": {
+              "bind": "10.41.2.20",
+              "connect_timeout_ms": 1000,
+              "framing": "u32be",
+              "host": "10.41.2.20",
+              "port": 7001,
+              "reconnect": true,
+              "retry": {
+                "initial_backoff_ms": 100,
+                "max_attempts": 60,
+                "max_backoff_ms": 2000
+              },
+              "send_timeout_ms": 5000
+            },
+            "source_address": "10.41.1.10",
+            "transport": "tcp"
+          }
+        ],
+        "transformed": [
+          {
+            "attachments": {
+              "from": "transform-data",
+              "to": "sink-data"
+            },
+            "connection": "transformed",
+            "destination_address": "10.41.3.30",
+            "encoding": "graphx",
+            "role": "connect",
+            "schema": "TransformedSample",
+            "security": {
+              "profile": "none"
+            },
+            "settings": {
+              "bind": "10.41.3.30",
+              "connect_timeout_ms": 1000,
+              "framing": "u32be",
+              "host": "10.41.3.30",
+              "port": 7002,
+              "reconnect": true,
+              "retry": {
+                "initial_backoff_ms": 100,
+                "max_attempts": 60,
+                "max_backoff_ms": 2000
+              },
+              "send_timeout_ms": 5000
+            },
+            "source_address": "10.41.2.20",
+            "transport": "tcp"
+          }
+        ]
+      },
+      "capture": {
+        "directory": "/captures",
+        "enabled": true,
+        "max_file_bytes": 67108864,
+        "max_files": 2,
+        "max_packets": 100000,
+        "provider": "ovs-span",
+        "retention_seconds": 86400
+      },
+      "contract_version": 2,
+      "credentials": {},
+      "execution": {
+        "kind": "container"
+      },
+      "graph_id": "ipvlan-l2",
+      "graph_version": 3,
+      "node_id": "transform",
+      "observation": [
+        "graphx"
+      ],
+      "parameters": {
+        "factor": 2,
+        "max_messages": 20
+      },
+      "readiness": {
+        "kind": "local-bound",
+        "timeout_ms": 30000
+      },
+      "startup": {
+        "bind_before_connect": true,
+        "max_wait_ms": 30000,
+        "release_barrier": true
+      },
+      "telemetry": {
+        "credential": "runtime-transform",
+        "host": "platform",
+        "port": 9000
+      },
+      "type": "sample.transform",
+      "type_revision": 1
+    }
+  ],
+  "ordering": "lexicographic-ascii",
+  "platform": {
+    "capture": {
+      "directory": "/captures",
+      "enabled": true,
+      "max_file_bytes": 67108864,
+      "max_files": 2,
+      "max_packets": 100000,
+      "provider": "ovs-span",
+      "retention_seconds": 86400
+    },
+    "console": {
+      "bind": "127.0.0.1",
+      "port": 8080
+    },
+    "control": {
+      "allowed_origins": [
+        "http://127.0.0.1:8080"
+      ],
+      "enabled": false,
+      "grants": [],
+      "idempotency_ttl_seconds": 3600,
+      "max_audit_records": 4096,
+      "max_request_bytes": 4096
+    },
+    "credential_manifest": "credentials.json",
+    "extensions": [],
+    "history": {
+      "backend": "sqlite",
+      "batch_size": 100,
+      "database_file": "/var/lib/graphx/history/history.sqlite",
+      "enabled": true,
+      "flush_interval_ms": 250,
+      "max_database_bytes": 268435456,
+      "max_pending_queries": 16,
+      "max_queue_bytes": 8388608,
+      "max_records": 100000,
+      "query_limit": 200,
+      "query_timeout_ms": 2000,
+      "queue_capacity": 4096,
+      "retention_seconds": 604800,
+      "shutdown_timeout_ms": 2000
+    },
+    "image": "graphx-design/platform@sha256:41b3db89b6ec78cab84b29c12a1af5024ba670b44463edc40d887cad8b952ba4",
+    "normalization": "resolved.json",
+    "otlp": {
+      "enabled": false
+    },
+    "telemetry": {
+      "authentication": "per-node-hmac",
+      "heartbeat_interval_ms": 1000,
+      "heartbeat_timeout_ms": 5000,
+      "host": "platform",
+      "port": 9000
+    },
+    "template": "platform-v1"
+  },
+  "portable_network": null,
+  "target": "native-linux"
+}

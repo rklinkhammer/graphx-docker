@@ -1,0 +1,35 @@
+{
+  "owner_api": "owned-process-adapter",
+  "processes": [
+    {
+      "argv": [
+        "${GX_RELEASE}/bin/graphx-packet-peer",
+        "--node",
+        "host-peer",
+        "--config",
+        "${GX_OUTPUT}/nodes/host-peer.json"
+      ],
+      "credentials": [],
+      "cwd": "${GX_OUTPUT}",
+      "environment": {
+        "GRAPHX_CREDENTIALS": "${GX_CREDENTIALS}"
+      },
+      "id": "host-peer",
+      "kind": "namespace",
+      "limits": {
+        "log_bytes": 2097152,
+        "memory_bytes": 134217728
+      },
+      "log": "${GX_STATE}/logs/host-peer.log",
+      "namespace": "gxn941f715557a0",
+      "readiness": {
+        "local": "bound-listeners",
+        "timeout_ms": 30000
+      }
+    }
+  ],
+  "start": "platform-ready then bind-all then release-connectors",
+  "state": "existing ownership store; no plan ledger",
+  "stop": "reverse creation order, verified PID/start-time/executable; TERM 5s then KILL; retain mismatched ownership",
+  "version": 1
+}

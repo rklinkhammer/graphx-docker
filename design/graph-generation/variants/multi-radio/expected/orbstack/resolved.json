@@ -1,0 +1,921 @@
+{
+  "catalog_digest": "d984d3c04c8ac657407f9c704a3f3a3760a352e348fb0a32616077b2caba5cff",
+  "connections": [
+    {
+      "attachments": {},
+      "destination_address": "172.28.13.13",
+      "encoding": "raw",
+      "from": {
+        "node": "processor-west",
+        "port": "control"
+      },
+      "id": "control",
+      "listener": "radio-west.control",
+      "schema": "RawSdrControl",
+      "security": {
+        "profile": "mtls",
+        "server_name": "radio-west"
+      },
+      "settings": {
+        "bind": "172.28.13.13",
+        "connect_timeout_ms": 5000,
+        "framing": "none",
+        "host": "172.28.13.13",
+        "port": 18401,
+        "reconnect": true,
+        "retry": {
+          "initial_backoff_ms": 100,
+          "max_attempts": 60,
+          "max_backoff_ms": 2000
+        },
+        "send_timeout_ms": 5000
+      },
+      "source_address": "172.28.13.11",
+      "to": {
+        "node": "radio-west",
+        "port": "control"
+      },
+      "transport": "tcp"
+    },
+    {
+      "attachments": {},
+      "destination_address": "172.28.13.12",
+      "encoding": "raw",
+      "from": {
+        "node": "processor-east",
+        "port": "control"
+      },
+      "id": "control-east",
+      "listener": "radio-east.control",
+      "schema": "RawSdrControl",
+      "security": {
+        "profile": "mtls",
+        "server_name": "radio-east"
+      },
+      "settings": {
+        "bind": "172.28.13.12",
+        "connect_timeout_ms": 5000,
+        "framing": "none",
+        "host": "172.28.13.12",
+        "port": 18401,
+        "reconnect": true,
+        "retry": {
+          "initial_backoff_ms": 100,
+          "max_attempts": 60,
+          "max_backoff_ms": 2000
+        },
+        "send_timeout_ms": 5000
+      },
+      "source_address": "172.28.13.10",
+      "to": {
+        "node": "radio-east",
+        "port": "control"
+      },
+      "transport": "tcp"
+    },
+    {
+      "attachments": {},
+      "destination_address": "172.28.13.11",
+      "encoding": "raw",
+      "from": {
+        "node": "radio-west",
+        "port": "samples"
+      },
+      "id": "iq",
+      "listener": "processor-west.samples",
+      "schema": "RawIqSamples",
+      "security": {
+        "profile": "none"
+      },
+      "settings": {
+        "bind": "172.28.13.11",
+        "destination": "172.28.13.11",
+        "framing": "none",
+        "loopback": true,
+        "max_datagram_bytes": 1400,
+        "mode": "unicast",
+        "port": 18400,
+        "receive_buffer_bytes": 65536,
+        "reuse_address": false,
+        "send_buffer_bytes": 65536,
+        "ttl": 1
+      },
+      "source_address": "172.28.13.13",
+      "to": {
+        "node": "processor-west",
+        "port": "samples"
+      },
+      "transport": "udp"
+    },
+    {
+      "attachments": {},
+      "destination_address": "172.28.13.10",
+      "encoding": "raw",
+      "from": {
+        "node": "radio-east",
+        "port": "samples"
+      },
+      "id": "iq-east",
+      "listener": "processor-east.samples",
+      "schema": "RawIqSamples",
+      "security": {
+        "profile": "none"
+      },
+      "settings": {
+        "bind": "172.28.13.10",
+        "destination": "172.28.13.10",
+        "framing": "none",
+        "loopback": true,
+        "max_datagram_bytes": 1400,
+        "mode": "unicast",
+        "port": 18400,
+        "receive_buffer_bytes": 65536,
+        "reuse_address": false,
+        "send_buffer_bytes": 65536,
+        "ttl": 1
+      },
+      "source_address": "172.28.13.12",
+      "to": {
+        "node": "processor-east",
+        "port": "samples"
+      },
+      "transport": "udp"
+    },
+    {
+      "attachments": {},
+      "destination_address": "172.28.13.15",
+      "encoding": "raw",
+      "from": {
+        "node": "processor-west",
+        "port": "results"
+      },
+      "id": "results",
+      "listener": "sink-west.results",
+      "schema": "RawPowerResult",
+      "security": {
+        "profile": "none"
+      },
+      "settings": {
+        "bind": "172.28.13.15",
+        "connect_timeout_ms": 5000,
+        "framing": "none",
+        "host": "172.28.13.15",
+        "port": 18402,
+        "reconnect": true,
+        "retry": {
+          "initial_backoff_ms": 100,
+          "max_attempts": 60,
+          "max_backoff_ms": 2000
+        },
+        "send_timeout_ms": 5000
+      },
+      "source_address": "172.28.13.11",
+      "to": {
+        "node": "sink-west",
+        "port": "results"
+      },
+      "transport": "tcp"
+    },
+    {
+      "attachments": {},
+      "destination_address": "172.28.13.14",
+      "encoding": "raw",
+      "from": {
+        "node": "processor-east",
+        "port": "results"
+      },
+      "id": "results-east",
+      "listener": "sink-east.results",
+      "schema": "RawPowerResult",
+      "security": {
+        "profile": "none"
+      },
+      "settings": {
+        "bind": "172.28.13.14",
+        "connect_timeout_ms": 5000,
+        "framing": "none",
+        "host": "172.28.13.14",
+        "port": 18402,
+        "reconnect": true,
+        "retry": {
+          "initial_backoff_ms": 100,
+          "max_attempts": 60,
+          "max_backoff_ms": 2000
+        },
+        "send_timeout_ms": 5000
+      },
+      "source_address": "172.28.13.10",
+      "to": {
+        "node": "sink-east",
+        "port": "results"
+      },
+      "transport": "tcp"
+    }
+  ],
+  "contract_version": 2,
+  "credential_references": [
+    "observer",
+    "processor-east",
+    "processor-west",
+    "radio-east",
+    "radio-west",
+    "runtime-processor-east",
+    "runtime-processor-west",
+    "runtime-radio-east",
+    "runtime-radio-west",
+    "runtime-sink-east",
+    "runtime-sink-west"
+  ],
+  "execution_values": [
+    "GX_STATE",
+    "GX_CREDENTIALS",
+    "GX_OUTPUT",
+    "GX_RELEASE",
+    "GX_OWNER"
+  ],
+  "graph_id": "multi-radio",
+  "graph_version": 3,
+  "input_digest": "0a417a07e71cf79ebd6a9f699d39547e3d2bb7f9424f0f164784d04cd9dee2da",
+  "network": {
+    "management_isolation": {
+      "application_bind": "selected-data-address",
+      "ip_forward": false,
+      "ovs_management_acl": "only platform TCP 8080 and UDP 9000; deny node-to-node and forwarding; enforced before release barrier",
+      "per_node_network": true,
+      "platform_routes_data": false
+    }
+  },
+  "nodes": [
+    {
+      "bindings": {
+        "control": [
+          {
+            "attachments": {},
+            "connection": "control-east",
+            "destination_address": "172.28.13.12",
+            "encoding": "raw",
+            "role": "connect",
+            "schema": "RawSdrControl",
+            "security": {
+              "profile": "mtls",
+              "server_name": "radio-east"
+            },
+            "settings": {
+              "bind": "172.28.13.12",
+              "connect_timeout_ms": 5000,
+              "framing": "none",
+              "host": "172.28.13.12",
+              "port": 18401,
+              "reconnect": true,
+              "retry": {
+                "initial_backoff_ms": 100,
+                "max_attempts": 60,
+                "max_backoff_ms": 2000
+              },
+              "send_timeout_ms": 5000
+            },
+            "source_address": "172.28.13.10",
+            "transport": "tcp"
+          }
+        ],
+        "results": [
+          {
+            "attachments": {},
+            "connection": "results-east",
+            "destination_address": "172.28.13.14",
+            "encoding": "raw",
+            "role": "connect",
+            "schema": "RawPowerResult",
+            "security": {
+              "profile": "none"
+            },
+            "settings": {
+              "bind": "172.28.13.14",
+              "connect_timeout_ms": 5000,
+              "framing": "none",
+              "host": "172.28.13.14",
+              "port": 18402,
+              "reconnect": true,
+              "retry": {
+                "initial_backoff_ms": 100,
+                "max_attempts": 60,
+                "max_backoff_ms": 2000
+              },
+              "send_timeout_ms": 5000
+            },
+            "source_address": "172.28.13.10",
+            "transport": "tcp"
+          }
+        ],
+        "samples": [
+          {
+            "attachments": {},
+            "connection": "iq-east",
+            "destination_address": "172.28.13.10",
+            "encoding": "raw",
+            "role": "listen",
+            "schema": "RawIqSamples",
+            "security": {
+              "profile": "none"
+            },
+            "settings": {
+              "bind": "172.28.13.10",
+              "destination": "172.28.13.10",
+              "framing": "none",
+              "loopback": true,
+              "max_datagram_bytes": 1400,
+              "mode": "unicast",
+              "port": 18400,
+              "receive_buffer_bytes": 65536,
+              "reuse_address": false,
+              "send_buffer_bytes": 65536,
+              "ttl": 1
+            },
+            "source_address": "172.28.13.12",
+            "transport": "udp"
+          }
+        ]
+      },
+      "capture": {
+        "directory": "/captures",
+        "enabled": false,
+        "max_file_bytes": 67108864,
+        "max_files": 2,
+        "max_packets": 100000,
+        "provider": "application",
+        "retention_seconds": 86400
+      },
+      "contract_version": 2,
+      "credentials": {
+        "control": "processor-east"
+      },
+      "execution": {
+        "kind": "container"
+      },
+      "graph_id": "multi-radio",
+      "graph_version": 3,
+      "node_id": "processor-east",
+      "observation": [
+        "graphx"
+      ],
+      "parameters": {},
+      "readiness": {
+        "kind": "local-bound",
+        "timeout_ms": 30000
+      },
+      "startup": {
+        "bind_before_connect": true,
+        "max_wait_ms": 30000,
+        "release_barrier": true
+      },
+      "telemetry": {
+        "credential": "runtime-processor-east",
+        "host": "platform",
+        "port": 9000
+      },
+      "type": "sdr.processor",
+      "type_revision": 1
+    },
+    {
+      "bindings": {
+        "control": [
+          {
+            "attachments": {},
+            "connection": "control",
+            "destination_address": "172.28.13.13",
+            "encoding": "raw",
+            "role": "connect",
+            "schema": "RawSdrControl",
+            "security": {
+              "profile": "mtls",
+              "server_name": "radio-west"
+            },
+            "settings": {
+              "bind": "172.28.13.13",
+              "connect_timeout_ms": 5000,
+              "framing": "none",
+              "host": "172.28.13.13",
+              "port": 18401,
+              "reconnect": true,
+              "retry": {
+                "initial_backoff_ms": 100,
+                "max_attempts": 60,
+                "max_backoff_ms": 2000
+              },
+              "send_timeout_ms": 5000
+            },
+            "source_address": "172.28.13.11",
+            "transport": "tcp"
+          }
+        ],
+        "results": [
+          {
+            "attachments": {},
+            "connection": "results",
+            "destination_address": "172.28.13.15",
+            "encoding": "raw",
+            "role": "connect",
+            "schema": "RawPowerResult",
+            "security": {
+              "profile": "none"
+            },
+            "settings": {
+              "bind": "172.28.13.15",
+              "connect_timeout_ms": 5000,
+              "framing": "none",
+              "host": "172.28.13.15",
+              "port": 18402,
+              "reconnect": true,
+              "retry": {
+                "initial_backoff_ms": 100,
+                "max_attempts": 60,
+                "max_backoff_ms": 2000
+              },
+              "send_timeout_ms": 5000
+            },
+            "source_address": "172.28.13.11",
+            "transport": "tcp"
+          }
+        ],
+        "samples": [
+          {
+            "attachments": {},
+            "connection": "iq",
+            "destination_address": "172.28.13.11",
+            "encoding": "raw",
+            "role": "listen",
+            "schema": "RawIqSamples",
+            "security": {
+              "profile": "none"
+            },
+            "settings": {
+              "bind": "172.28.13.11",
+              "destination": "172.28.13.11",
+              "framing": "none",
+              "loopback": true,
+              "max_datagram_bytes": 1400,
+              "mode": "unicast",
+              "port": 18400,
+              "receive_buffer_bytes": 65536,
+              "reuse_address": false,
+              "send_buffer_bytes": 65536,
+              "ttl": 1
+            },
+            "source_address": "172.28.13.13",
+            "transport": "udp"
+          }
+        ]
+      },
+      "capture": {
+        "directory": "/captures",
+        "enabled": false,
+        "max_file_bytes": 67108864,
+        "max_files": 2,
+        "max_packets": 100000,
+        "provider": "application",
+        "retention_seconds": 86400
+      },
+      "contract_version": 2,
+      "credentials": {
+        "control": "processor-west"
+      },
+      "execution": {
+        "kind": "container"
+      },
+      "graph_id": "multi-radio",
+      "graph_version": 3,
+      "node_id": "processor-west",
+      "observation": [
+        "graphx"
+      ],
+      "parameters": {},
+      "readiness": {
+        "kind": "local-bound",
+        "timeout_ms": 30000
+      },
+      "startup": {
+        "bind_before_connect": true,
+        "max_wait_ms": 30000,
+        "release_barrier": true
+      },
+      "telemetry": {
+        "credential": "runtime-processor-west",
+        "host": "platform",
+        "port": 9000
+      },
+      "type": "sdr.processor",
+      "type_revision": 1
+    },
+    {
+      "bindings": {
+        "control": [
+          {
+            "attachments": {},
+            "connection": "control-east",
+            "destination_address": "172.28.13.12",
+            "encoding": "raw",
+            "role": "listen",
+            "schema": "RawSdrControl",
+            "security": {
+              "profile": "mtls",
+              "server_name": "radio-east"
+            },
+            "settings": {
+              "bind": "172.28.13.12",
+              "connect_timeout_ms": 5000,
+              "framing": "none",
+              "host": "172.28.13.12",
+              "port": 18401,
+              "reconnect": true,
+              "retry": {
+                "initial_backoff_ms": 100,
+                "max_attempts": 60,
+                "max_backoff_ms": 2000
+              },
+              "send_timeout_ms": 5000
+            },
+            "source_address": "172.28.13.10",
+            "transport": "tcp"
+          }
+        ],
+        "samples": [
+          {
+            "attachments": {},
+            "connection": "iq-east",
+            "destination_address": "172.28.13.10",
+            "encoding": "raw",
+            "role": "connect",
+            "schema": "RawIqSamples",
+            "security": {
+              "profile": "none"
+            },
+            "settings": {
+              "bind": "172.28.13.10",
+              "destination": "172.28.13.10",
+              "framing": "none",
+              "loopback": true,
+              "max_datagram_bytes": 1400,
+              "mode": "unicast",
+              "port": 18400,
+              "receive_buffer_bytes": 65536,
+              "reuse_address": false,
+              "send_buffer_bytes": 65536,
+              "ttl": 1
+            },
+            "source_address": "172.28.13.12",
+            "transport": "udp"
+          }
+        ]
+      },
+      "capture": {
+        "directory": "/captures",
+        "enabled": false,
+        "max_file_bytes": 67108864,
+        "max_files": 2,
+        "max_packets": 100000,
+        "provider": "application",
+        "retention_seconds": 86400
+      },
+      "contract_version": 2,
+      "credentials": {
+        "control": "radio-east"
+      },
+      "execution": {
+        "kind": "container"
+      },
+      "graph_id": "multi-radio",
+      "graph_version": 3,
+      "node_id": "radio-east",
+      "observation": [
+        "graphx"
+      ],
+      "parameters": {},
+      "readiness": {
+        "kind": "local-bound",
+        "timeout_ms": 30000
+      },
+      "startup": {
+        "bind_before_connect": true,
+        "max_wait_ms": 30000,
+        "release_barrier": true
+      },
+      "telemetry": {
+        "credential": "runtime-radio-east",
+        "host": "platform",
+        "port": 9000
+      },
+      "type": "sdr.simulator",
+      "type_revision": 1
+    },
+    {
+      "bindings": {
+        "control": [
+          {
+            "attachments": {},
+            "connection": "control",
+            "destination_address": "172.28.13.13",
+            "encoding": "raw",
+            "role": "listen",
+            "schema": "RawSdrControl",
+            "security": {
+              "profile": "mtls",
+              "server_name": "radio-west"
+            },
+            "settings": {
+              "bind": "172.28.13.13",
+              "connect_timeout_ms": 5000,
+              "framing": "none",
+              "host": "172.28.13.13",
+              "port": 18401,
+              "reconnect": true,
+              "retry": {
+                "initial_backoff_ms": 100,
+                "max_attempts": 60,
+                "max_backoff_ms": 2000
+              },
+              "send_timeout_ms": 5000
+            },
+            "source_address": "172.28.13.11",
+            "transport": "tcp"
+          }
+        ],
+        "samples": [
+          {
+            "attachments": {},
+            "connection": "iq",
+            "destination_address": "172.28.13.11",
+            "encoding": "raw",
+            "role": "connect",
+            "schema": "RawIqSamples",
+            "security": {
+              "profile": "none"
+            },
+            "settings": {
+              "bind": "172.28.13.11",
+              "destination": "172.28.13.11",
+              "framing": "none",
+              "loopback": true,
+              "max_datagram_bytes": 1400,
+              "mode": "unicast",
+              "port": 18400,
+              "receive_buffer_bytes": 65536,
+              "reuse_address": false,
+              "send_buffer_bytes": 65536,
+              "ttl": 1
+            },
+            "source_address": "172.28.13.13",
+            "transport": "udp"
+          }
+        ]
+      },
+      "capture": {
+        "directory": "/captures",
+        "enabled": false,
+        "max_file_bytes": 67108864,
+        "max_files": 2,
+        "max_packets": 100000,
+        "provider": "application",
+        "retention_seconds": 86400
+      },
+      "contract_version": 2,
+      "credentials": {
+        "control": "radio-west"
+      },
+      "execution": {
+        "kind": "container"
+      },
+      "graph_id": "multi-radio",
+      "graph_version": 3,
+      "node_id": "radio-west",
+      "observation": [
+        "graphx"
+      ],
+      "parameters": {},
+      "readiness": {
+        "kind": "local-bound",
+        "timeout_ms": 30000
+      },
+      "startup": {
+        "bind_before_connect": true,
+        "max_wait_ms": 30000,
+        "release_barrier": true
+      },
+      "telemetry": {
+        "credential": "runtime-radio-west",
+        "host": "platform",
+        "port": 9000
+      },
+      "type": "sdr.simulator",
+      "type_revision": 1
+    },
+    {
+      "bindings": {
+        "results": [
+          {
+            "attachments": {},
+            "connection": "results-east",
+            "destination_address": "172.28.13.14",
+            "encoding": "raw",
+            "role": "listen",
+            "schema": "RawPowerResult",
+            "security": {
+              "profile": "none"
+            },
+            "settings": {
+              "bind": "172.28.13.14",
+              "connect_timeout_ms": 5000,
+              "framing": "none",
+              "host": "172.28.13.14",
+              "port": 18402,
+              "reconnect": true,
+              "retry": {
+                "initial_backoff_ms": 100,
+                "max_attempts": 60,
+                "max_backoff_ms": 2000
+              },
+              "send_timeout_ms": 5000
+            },
+            "source_address": "172.28.13.10",
+            "transport": "tcp"
+          }
+        ]
+      },
+      "capture": {
+        "directory": "/captures",
+        "enabled": false,
+        "max_file_bytes": 67108864,
+        "max_files": 2,
+        "max_packets": 100000,
+        "provider": "application",
+        "retention_seconds": 86400
+      },
+      "contract_version": 2,
+      "credentials": {},
+      "execution": {
+        "kind": "container"
+      },
+      "graph_id": "multi-radio",
+      "graph_version": 3,
+      "node_id": "sink-east",
+      "observation": [
+        "graphx"
+      ],
+      "parameters": {},
+      "readiness": {
+        "kind": "local-bound",
+        "timeout_ms": 30000
+      },
+      "startup": {
+        "bind_before_connect": true,
+        "max_wait_ms": 30000,
+        "release_barrier": true
+      },
+      "telemetry": {
+        "credential": "runtime-sink-east",
+        "host": "platform",
+        "port": 9000
+      },
+      "type": "sdr.result-sink",
+      "type_revision": 1
+    },
+    {
+      "bindings": {
+        "results": [
+          {
+            "attachments": {},
+            "connection": "results",
+            "destination_address": "172.28.13.15",
+            "encoding": "raw",
+            "role": "listen",
+            "schema": "RawPowerResult",
+            "security": {
+              "profile": "none"
+            },
+            "settings": {
+              "bind": "172.28.13.15",
+              "connect_timeout_ms": 5000,
+              "framing": "none",
+              "host": "172.28.13.15",
+              "port": 18402,
+              "reconnect": true,
+              "retry": {
+                "initial_backoff_ms": 100,
+                "max_attempts": 60,
+                "max_backoff_ms": 2000
+              },
+              "send_timeout_ms": 5000
+            },
+            "source_address": "172.28.13.11",
+            "transport": "tcp"
+          }
+        ]
+      },
+      "capture": {
+        "directory": "/captures",
+        "enabled": false,
+        "max_file_bytes": 67108864,
+        "max_files": 2,
+        "max_packets": 100000,
+        "provider": "application",
+        "retention_seconds": 86400
+      },
+      "contract_version": 2,
+      "credentials": {},
+      "execution": {
+        "kind": "container"
+      },
+      "graph_id": "multi-radio",
+      "graph_version": 3,
+      "node_id": "sink-west",
+      "observation": [
+        "graphx"
+      ],
+      "parameters": {},
+      "readiness": {
+        "kind": "local-bound",
+        "timeout_ms": 30000
+      },
+      "startup": {
+        "bind_before_connect": true,
+        "max_wait_ms": 30000,
+        "release_barrier": true
+      },
+      "telemetry": {
+        "credential": "runtime-sink-west",
+        "host": "platform",
+        "port": 9000
+      },
+      "type": "sdr.result-sink",
+      "type_revision": 1
+    }
+  ],
+  "ordering": "lexicographic-ascii",
+  "platform": {
+    "capture": {
+      "directory": "/captures",
+      "enabled": false,
+      "max_file_bytes": 67108864,
+      "max_files": 2,
+      "max_packets": 100000,
+      "provider": "application",
+      "retention_seconds": 86400
+    },
+    "console": {
+      "bind": "127.0.0.1",
+      "port": 8080
+    },
+    "control": {
+      "allowed_origins": [
+        "http://127.0.0.1:8080"
+      ],
+      "enabled": false,
+      "grants": [],
+      "idempotency_ttl_seconds": 3600,
+      "max_audit_records": 4096,
+      "max_request_bytes": 4096
+    },
+    "credential_manifest": "credentials.json",
+    "extensions": [],
+    "history": {
+      "backend": "sqlite",
+      "batch_size": 100,
+      "database_file": "/var/lib/graphx/history/history.sqlite",
+      "enabled": true,
+      "flush_interval_ms": 250,
+      "max_database_bytes": 268435456,
+      "max_pending_queries": 16,
+      "max_queue_bytes": 8388608,
+      "max_records": 100000,
+      "query_limit": 200,
+      "query_timeout_ms": 2000,
+      "queue_capacity": 4096,
+      "retention_seconds": 604800,
+      "shutdown_timeout_ms": 2000
+    },
+    "image": "graphx-design/platform@sha256:41b3db89b6ec78cab84b29c12a1af5024ba670b44463edc40d887cad8b952ba4",
+    "normalization": "resolved.json",
+    "otlp": {
+      "enabled": false
+    },
+    "telemetry": {
+      "authentication": "per-node-hmac",
+      "heartbeat_interval_ms": 1000,
+      "heartbeat_timeout_ms": 5000,
+      "host": "platform",
+      "port": 9000
+    },
+    "template": "platform-v1"
+  },
+  "portable_network": {
+    "addresses": {
+      "processor-east": "172.28.13.10",
+      "processor-west": "172.28.13.11",
+      "radio-east": "172.28.13.12",
+      "radio-west": "172.28.13.13",
+      "sink-east": "172.28.13.14",
+      "sink-west": "172.28.13.15"
+    },
+    "subnet": "172.28.13.0/24"
+  },
+  "target": "orbstack"
+}

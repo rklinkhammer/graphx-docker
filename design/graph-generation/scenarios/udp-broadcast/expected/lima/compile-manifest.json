@@ -1,0 +1,46 @@
+{
+  "catalog_digest": "d984d3c04c8ac657407f9c704a3f3a3760a352e348fb0a32616077b2caba5cff",
+  "compiler": "proposed-graphx-v3-design-1",
+  "files": [
+    {
+      "path": "access-plan.json",
+      "sha256": "b63f1f98b6d6a1c4ce601255e5db83c76eed5f3df8750d25d0af8b03bb546be6"
+    },
+    {
+      "path": "compose.yaml",
+      "sha256": "c5dfe5c572de29664a771f44b2e406565422160e84ee31c3c7553b250aaffd10"
+    },
+    {
+      "path": "credentials.json",
+      "sha256": "01087ba294b6ac1ad0f2517e809fa2d3c78ddb3dd6778964bfa1496b89343ed7"
+    },
+    {
+      "path": "execution-plan.json",
+      "sha256": "56b504470fcfe47370ddc8329eb68c95bd0af8cfb4985f8b525ae4650b07840f"
+    },
+    {
+      "path": "nodes/publisher.json",
+      "sha256": "427e0a6f6e9acb08ee2a54d5e4eedbc4954859e801f3f71efaf109e399eae579"
+    },
+    {
+      "path": "nodes/subscriber.json",
+      "sha256": "40df130fac6c3f13dbf5ca50e493c86b8337c3c828c62524d4b3e6bd4b657135"
+    },
+    {
+      "path": "platform.json",
+      "sha256": "ff184b1490a5b971e4f30e16eac32e690ec97e9bdaaf612f8c2a35fea45f8b30"
+    },
+    {
+      "path": "resolved.json",
+      "sha256": "5eb15053a65f480fb95ad6fa3ebc19e1c18bc731e50030884bd515777d5ec84e"
+    },
+    {
+      "path": "substitutions.json",
+      "sha256": "9b451bf878b806a7f2e5f0a79d78a2d3a2ef71a2b173e5270c96b4970771e074"
+    }
+  ],
+  "graph_id": "udp-broadcast",
+  "input_digest": "95d3b08adcc5cc29acfcb8971c1c1333e4a2eac241960c14d9febba658af8b24",
+  "ownership": "invoking UID and graph ID; checked replacement only; no runtime lifecycle records",
+  "version": 1
+}

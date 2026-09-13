@@ -1,0 +1,47 @@
+# DESIGN ONLY — not accepted by current GraphX.
+catalog: ../../catalog/lock.json
+connections:
+  east-iq:
+    from: source-east.samples
+    to: processor-east.samples
+    transport: tcp
+  east-result:
+    from: processor-east.transformed
+    to: recorder-east.transformed
+    transport: tcp
+  west-iq:
+    from: source-west.samples
+    to: processor-west.samples
+    transport: tcp
+  west-result:
+    from: processor-west.transformed
+    to: recorder-west.transformed
+    transport: tcp
+graph:
+  id: renamed-multi-source
+nodes:
+  processor-east:
+    execution:
+      kind: container
+    type: sample.transform
+  processor-west:
+    execution:
+      kind: container
+    type: sample.transform
+  recorder-east:
+    execution:
+      kind: container
+    type: sample.sink
+  recorder-west:
+    execution:
+      kind: container
+    type: sample.sink
+  source-east:
+    execution:
+      kind: container
+    type: sample.source
+  source-west:
+    execution:
+      kind: container
+    type: sample.source
+version: 3

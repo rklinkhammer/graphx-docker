@@ -1,0 +1,46 @@
+{
+  "catalog_digest": "d984d3c04c8ac657407f9c704a3f3a3760a352e348fb0a32616077b2caba5cff",
+  "compiler": "proposed-graphx-v3-design-1",
+  "files": [
+    {
+      "path": "compose.yaml",
+      "sha256": "b1256fb0b0bf77ece7320efff7f78c315c3abe1f22f73ad2e9fd8d8636ebcb78"
+    },
+    {
+      "path": "credentials.json",
+      "sha256": "de7fcea9a884ac37d5f56a45ff0fefb2d38b9836ec644d60673fed94113ea694"
+    },
+    {
+      "path": "execution-plan.json",
+      "sha256": "56b504470fcfe47370ddc8329eb68c95bd0af8cfb4985f8b525ae4650b07840f"
+    },
+    {
+      "path": "nodes/generator.json",
+      "sha256": "f37d43fb0ba76399683545acfc04375d5c172fa2b2d4743dd03eff9c6c851835"
+    },
+    {
+      "path": "nodes/sink.json",
+      "sha256": "e783192859cc03e7ec886a870f6d95978b5c683660fc39e39a7f3b2ba345ed6a"
+    },
+    {
+      "path": "nodes/transform.json",
+      "sha256": "d871016600a6c5c44a4d02b6da31232d751836e239b44c30d6d3ad8c64760dea"
+    },
+    {
+      "path": "platform.json",
+      "sha256": "0e0020b2d94297d6b4780866fcfdf705c56c2ec9f6c1812d33fae1a9beda461b"
+    },
+    {
+      "path": "resolved.json",
+      "sha256": "1e9e7d5c29aff04ea9b96075870ee50fd82607bf2d3c24464248b80cc46ff1a8"
+    },
+    {
+      "path": "substitutions.json",
+      "sha256": "6ffe875550d247367a01df50346c97e0f3ca9b18f6295ef040dd77eb40af5e19"
+    }
+  ],
+  "graph_id": "variant-secure-otlp",
+  "input_digest": "602c7814839bf3e09223d163b71b19c9810f66044bb43861984260f8f584ed1e",
+  "ownership": "invoking UID and graph ID; checked replacement only; no runtime lifecycle records",
+  "version": 1
+}

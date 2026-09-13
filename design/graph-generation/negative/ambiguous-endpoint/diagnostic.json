@@ -1,0 +1,8 @@
+{
+  "code": "E_ENDPOINT_AMBIGUOUS",
+  "message": "Both portable and OVS paths exist; select source and destination attachment IDs",
+  "no_artifacts": true,
+  "path": "connections.samples.attachments",
+  "phase": "compile",
+  "severity": "error"
+}

@@ -1,0 +1,56 @@
+{
+  "capture": {
+    "directory": "/captures",
+    "enabled": true,
+    "max_file_bytes": 67108864,
+    "max_files": 2,
+    "max_packets": 100000,
+    "provider": "application",
+    "retention_seconds": 86400
+  },
+  "console": {
+    "bind": "127.0.0.1",
+    "port": 8080
+  },
+  "control": {
+    "allowed_origins": [
+      "http://127.0.0.1:8080"
+    ],
+    "enabled": false,
+    "grants": [],
+    "idempotency_ttl_seconds": 3600,
+    "max_audit_records": 4096,
+    "max_request_bytes": 4096
+  },
+  "credential_manifest": "credentials.json",
+  "extensions": [],
+  "history": {
+    "backend": "sqlite",
+    "batch_size": 100,
+    "database_file": "/var/lib/graphx/history/history.sqlite",
+    "enabled": true,
+    "flush_interval_ms": 250,
+    "max_database_bytes": 67108864,
+    "max_pending_queries": 16,
+    "max_queue_bytes": 8388608,
+    "max_records": 50000,
+    "query_limit": 200,
+    "query_timeout_ms": 2000,
+    "queue_capacity": 4096,
+    "retention_seconds": 86400,
+    "shutdown_timeout_ms": 2000
+  },
+  "image": "graphx-design/platform@sha256:41b3db89b6ec78cab84b29c12a1af5024ba670b44463edc40d887cad8b952ba4",
+  "normalization": "resolved.json",
+  "otlp": {
+    "enabled": false
+  },
+  "telemetry": {
+    "authentication": "per-node-hmac",
+    "heartbeat_interval_ms": 1000,
+    "heartbeat_timeout_ms": 5000,
+    "host": "platform",
+    "port": 9000
+  },
+  "template": "platform-v1"
+}

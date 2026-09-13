@@ -1,0 +1,8 @@
+{
+  "code": "E_ADDRESS_CONFLICT",
+  "message": "Duplicate address in the same segment and VLAN",
+  "no_artifacts": true,
+  "path": "network.attachments[1].address",
+  "phase": "compile",
+  "severity": "error"
+}

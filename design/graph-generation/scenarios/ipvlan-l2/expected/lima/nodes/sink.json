@@ -1,0 +1,75 @@
+{
+  "bindings": {
+    "transformed": [
+      {
+        "attachments": {
+          "from": "transform-data",
+          "to": "sink-data"
+        },
+        "connection": "transformed",
+        "destination_address": "10.41.3.30",
+        "encoding": "graphx",
+        "role": "listen",
+        "schema": "TransformedSample",
+        "security": {
+          "profile": "none"
+        },
+        "settings": {
+          "bind": "10.41.3.30",
+          "connect_timeout_ms": 1000,
+          "framing": "u32be",
+          "host": "10.41.3.30",
+          "port": 7002,
+          "reconnect": true,
+          "retry": {
+            "initial_backoff_ms": 100,
+            "max_attempts": 60,
+            "max_backoff_ms": 2000
+          },
+          "send_timeout_ms": 5000
+        },
+        "source_address": "10.41.2.20",
+        "transport": "tcp"
+      }
+    ]
+  },
+  "capture": {
+    "directory": "/captures",
+    "enabled": true,
+    "max_file_bytes": 67108864,
+    "max_files": 2,
+    "max_packets": 100000,
+    "provider": "ovs-span",
+    "retention_seconds": 86400
+  },
+  "contract_version": 2,
+  "credentials": {},
+  "execution": {
+    "kind": "container"
+  },
+  "graph_id": "ipvlan-l2",
+  "graph_version": 3,
+  "node_id": "sink",
+  "observation": [
+    "graphx"
+  ],
+  "parameters": {
+    "max_messages": 20
+  },
+  "readiness": {
+    "kind": "local-bound",
+    "timeout_ms": 30000
+  },
+  "startup": {
+    "bind_before_connect": true,
+    "max_wait_ms": 30000,
+    "release_barrier": true
+  },
+  "telemetry": {
+    "credential": "runtime-sink",
+    "host": "platform",
+    "port": 9000
+  },
+  "type": "sample.sink",
+  "type_revision": 1
+}

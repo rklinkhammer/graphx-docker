@@ -1,0 +1,8 @@
+{
+  "code": "E_PORT_CONFLICT",
+  "message": "Two TCP listeners share native namespace, 127.0.0.1 and port 20000",
+  "no_artifacts": true,
+  "path": "connections.transformed.settings.port",
+  "phase": "compile",
+  "severity": "error"
+}

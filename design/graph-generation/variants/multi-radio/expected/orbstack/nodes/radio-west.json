@@ -1,0 +1,101 @@
+{
+  "bindings": {
+    "control": [
+      {
+        "attachments": {},
+        "connection": "control",
+        "destination_address": "172.28.13.13",
+        "encoding": "raw",
+        "role": "listen",
+        "schema": "RawSdrControl",
+        "security": {
+          "profile": "mtls",
+          "server_name": "radio-west"
+        },
+        "settings": {
+          "bind": "172.28.13.13",
+          "connect_timeout_ms": 5000,
+          "framing": "none",
+          "host": "172.28.13.13",
+          "port": 18401,
+          "reconnect": true,
+          "retry": {
+            "initial_backoff_ms": 100,
+            "max_attempts": 60,
+            "max_backoff_ms": 2000
+          },
+          "send_timeout_ms": 5000
+        },
+        "source_address": "172.28.13.11",
+        "transport": "tcp"
+      }
+    ],
+    "samples": [
+      {
+        "attachments": {},
+        "connection": "iq",
+        "destination_address": "172.28.13.11",
+        "encoding": "raw",
+        "role": "connect",
+        "schema": "RawIqSamples",
+        "security": {
+          "profile": "none"
+        },
+        "settings": {
+          "bind": "172.28.13.11",
+          "destination": "172.28.13.11",
+          "framing": "none",
+          "loopback": true,
+          "max_datagram_bytes": 1400,
+          "mode": "unicast",
+          "port": 18400,
+          "receive_buffer_bytes": 65536,
+          "reuse_address": false,
+          "send_buffer_bytes": 65536,
+          "ttl": 1
+        },
+        "source_address": "172.28.13.13",
+        "transport": "udp"
+      }
+    ]
+  },
+  "capture": {
+    "directory": "/captures",
+    "enabled": false,
+    "max_file_bytes": 67108864,
+    "max_files": 2,
+    "max_packets": 100000,
+    "provider": "application",
+    "retention_seconds": 86400
+  },
+  "contract_version": 2,
+  "credentials": {
+    "control": "radio-west"
+  },
+  "execution": {
+    "kind": "container"
+  },
+  "graph_id": "multi-radio",
+  "graph_version": 3,
+  "node_id": "radio-west",
+  "observation": [
+    "graphx"
+  ],
+  "parameters": {},
+  "readiness": {
+    "kind": "local-bound",
+    "timeout_ms": 30000
+  },
+  "startup": {
+    "bind_before_connect": true,
+    "max_wait_ms": 30000,
+    "release_barrier": true
+  },
+  "telemetry": {
+    "credential": "runtime-radio-west",
+    "host": "platform",
+    "port": 9000
+  },
+  "type": "sdr.simulator",
+  "type_revision": 1
+}

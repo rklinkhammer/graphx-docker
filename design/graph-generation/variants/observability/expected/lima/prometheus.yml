@@ -1,0 +1,8 @@
+# DESIGN ONLY — proposed version 3; not accepted by current GraphX.
+global:
+  scrape_interval: 5s
+scrape_configs:
+- job_name: graphx
+  static_configs:
+  - targets:
+    - platform:8080

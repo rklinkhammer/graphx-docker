@@ -1,0 +1,70 @@
+{
+  "config": "resolved.json",
+  "external_lifecycle": "untouched",
+  "on_failure": "reverse newly owned resources; retain mismatch evidence; never delete history",
+  "owner": "narrow CLI adapter; existing ownership store",
+  "scenario_actions": "never implicit",
+  "stages": [
+    {
+      "checks": [
+        "output manifest hashes",
+        "catalog release identities",
+        "target capability",
+        "port/address/root availability",
+        "credential references"
+      ],
+      "operation": "preflight"
+    },
+    {
+      "operation": "stage-credentials",
+      "plan": "credentials.json"
+    },
+    {
+      "config": "platform.json",
+      "operation": "start-platform",
+      "owner": "compose.yaml"
+    },
+    {
+      "operation": "await-platform",
+      "timeout_ms": 30000
+    },
+    {
+      "operation": "start-applications-held",
+      "owner": "native-plan.json"
+    },
+    {
+      "authorization": "explicit Linux/Lima permission required",
+      "operation": "realize-ovs",
+      "plan": "ovs-plan.json"
+    },
+    {
+      "operation": "boot-guests",
+      "plan": "qemu-plan.json",
+      "timeout_ms": 120000
+    },
+    {
+      "excludes": [
+        "external unobserved source",
+        "communication edges"
+      ],
+      "operation": "await-local-listeners",
+      "timeout_ms": 30000
+    },
+    {
+      "barrier_root": "${GX_STATE}/barriers",
+      "operation": "release-connectors"
+    },
+    {
+      "continuous_supervision": false,
+      "operation": "return"
+    }
+  ],
+  "stop_order": [
+    "managed applications and guests",
+    "handoff and live capture",
+    "OVS endpoints/namespaces/bridges",
+    "platform",
+    "ephemeral credential staging"
+  ],
+  "version": 1
+}

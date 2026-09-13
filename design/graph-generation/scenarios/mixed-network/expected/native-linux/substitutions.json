@@ -1,0 +1,31 @@
+{
+  "secrets_in_values": false,
+  "syntax": "${GX_NAME}",
+  "values": {
+    "GX_CREDENTIALS": {
+      "execution": "owner-checked mode 0700 credential staging root",
+      "review_value": "/tmp/graphx-design-credentials/mixed-network",
+      "type": "absolute-directory"
+    },
+    "GX_OUTPUT": {
+      "execution": "owned compiled artifact root",
+      "review_value": "/tmp/graphx-design/mixed-network/native-linux",
+      "type": "absolute-directory"
+    },
+    "GX_OWNER": {
+      "execution": "random token allocated only by existing ownership store",
+      "review_value": "review-owner-only",
+      "type": "identity-token"
+    },
+    "GX_RELEASE": {
+      "execution": "checksum-verified release root",
+      "review_value": "/opt/graphx/design-release",
+      "type": "absolute-directory"
+    },
+    "GX_STATE": {
+      "execution": "target local graph state root, no symlink",
+      "review_value": "/var/lib/graphx/runtime/mixed-network",
+      "type": "absolute-directory"
+    }
+  }
+}

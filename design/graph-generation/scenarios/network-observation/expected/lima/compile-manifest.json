@@ -1,0 +1,54 @@
+{
+  "catalog_digest": "d984d3c04c8ac657407f9c704a3f3a3760a352e348fb0a32616077b2caba5cff",
+  "compiler": "proposed-graphx-v3-design-1",
+  "files": [
+    {
+      "path": "access-plan.json",
+      "sha256": "b63f1f98b6d6a1c4ce601255e5db83c76eed5f3df8750d25d0af8b03bb546be6"
+    },
+    {
+      "path": "capture-handoff.json",
+      "sha256": "60e9a904a4c316645ee8b419206e1536afe7a5c398b088903f2d31ee1595307e"
+    },
+    {
+      "path": "compose.yaml",
+      "sha256": "de53e118abd822f879098e8398598b7f1a079058b4ab9451b877ff3e1b79881d"
+    },
+    {
+      "path": "credentials.json",
+      "sha256": "c73a78500470a6a5ef386c1084d903da11655463e20d1a5e2abe5a0f2ac63ebb"
+    },
+    {
+      "path": "execution-plan.json",
+      "sha256": "edb79e7adad92a1fb39e49afbddaf55514ae14644cd337e817e00dfb19d2edf4"
+    },
+    {
+      "path": "nodes/packet-source.json",
+      "sha256": "ce1a1bb37358c457885de6fd2432fbf69a3e0995eeaf114c955d8a1fbaade006"
+    },
+    {
+      "path": "ovs-plan.json",
+      "sha256": "9d46dde275691c7870a6fb8fa604c60a77dee8c4e7cb5f39252912d3539bf277"
+    },
+    {
+      "path": "platform.json",
+      "sha256": "016517d3f6a4660ee3b1fee9222c0e894cd53e81b084bf4e954399fb3ec1d8bc"
+    },
+    {
+      "path": "resolved.json",
+      "sha256": "7883798b16f480f77769e341a7109c9b35c37a1c3c71d947ed91b0464da37944"
+    },
+    {
+      "path": "scenario-plan.json",
+      "sha256": "24113b6799162a3ce28e7eb7c9f8a0189de1bb2252a26977956c492bbbd03fc4"
+    },
+    {
+      "path": "substitutions.json",
+      "sha256": "dffff1a9b644485da829861297b76b1e5258fabc109d920e0f5c4b3d96ef2814"
+    }
+  ],
+  "graph_id": "network-observation",
+  "input_digest": "3c43621b5df2ca47d724ff916a5e6df696b1a8f78d21c2e2ed8466d0e2cb2f60",
+  "ownership": "invoking UID and graph ID; checked replacement only; no runtime lifecycle records",
+  "version": 1
+}

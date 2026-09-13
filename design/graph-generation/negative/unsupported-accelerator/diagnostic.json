@@ -1,0 +1,8 @@
+{
+  "code": "E_TARGET_CAPABILITY",
+  "message": "Catalog baseline permits TCG only; KVM requires a separately validated capability",
+  "no_artifacts": true,
+  "path": "nodes.qemu-node.execution.accelerator",
+  "phase": "compile",
+  "severity": "error"
+}

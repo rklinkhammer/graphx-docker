@@ -1,0 +1,8 @@
+{
+  "code": "E_NAME_RESERVED",
+  "message": "platform is a reserved generated service ID",
+  "no_artifacts": true,
+  "path": "nodes.platform",
+  "phase": "compile",
+  "severity": "error"
+}

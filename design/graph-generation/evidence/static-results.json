@@ -1,0 +1,25 @@
+{
+  "command": "/tmp/graphx-design-validation-venv/bin/python design/graph-generation/check_package.py --compose",
+  "compose_config_checks": 51,
+  "environment": {
+    "architecture": "arm64",
+    "compose": "v5.1.2",
+    "engine_access": false,
+    "python": "3.13.5",
+    "system": "Darwin"
+  },
+  "limitations": [
+    "no production compiler or negative diagnostic execution",
+    "normalized schema checks outer shape only",
+    "no runtime, isolation, rendering determinism or guest boot evidence"
+  ],
+  "negative_inputs": 15,
+  "parsed_yaml_json": 865,
+  "positive_cases": 24,
+  "relative_links": 485,
+  "result": "pass",
+  "result_scope": "Static proposed package checks only; no production generation, deployment or privileged execution.",
+  "status": "static-design",
+  "target_sets": 63,
+  "unsupported_target_diagnostics": 33
+}

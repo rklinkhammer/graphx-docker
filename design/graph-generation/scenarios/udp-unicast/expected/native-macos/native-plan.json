@@ -1,0 +1,90 @@
+{
+  "owner_api": "owned-process-adapter",
+  "processes": [
+    {
+      "argv": [
+        "${GX_RELEASE}/bin/graphx-platform",
+        "--config",
+        "${GX_OUTPUT}/platform.json"
+      ],
+      "credentials": [
+        "observer",
+        "runtime-publisher",
+        "runtime-subscriber"
+      ],
+      "cwd": "${GX_OUTPUT}",
+      "environment": {},
+      "id": "platform",
+      "kind": "native",
+      "limits": {
+        "log_bytes": 2097152,
+        "memory_bytes": 268435456
+      },
+      "log": "${GX_STATE}/logs/platform.log",
+      "readiness": {
+        "http": "http://127.0.0.1:8080/api/ready",
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "argv": [
+        "${GX_RELEASE}/bin/graphx-udp-publisher",
+        "--node",
+        "publisher",
+        "--config",
+        "${GX_OUTPUT}/nodes/publisher.json"
+      ],
+      "credentials": [
+        "runtime-publisher"
+      ],
+      "cwd": "${GX_OUTPUT}",
+      "environment": {
+        "GRAPHX_CREDENTIALS": "${GX_CREDENTIALS}"
+      },
+      "id": "publisher",
+      "kind": "native",
+      "limits": {
+        "log_bytes": 2097152,
+        "memory_bytes": 134217728
+      },
+      "log": "${GX_STATE}/logs/publisher.log",
+      "namespace": null,
+      "readiness": {
+        "local": "bound-listeners",
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "argv": [
+        "${GX_RELEASE}/bin/graphx-udp-subscriber",
+        "--node",
+        "subscriber",
+        "--config",
+        "${GX_OUTPUT}/nodes/subscriber.json"
+      ],
+      "credentials": [
+        "runtime-subscriber"
+      ],
+      "cwd": "${GX_OUTPUT}",
+      "environment": {
+        "GRAPHX_CREDENTIALS": "${GX_CREDENTIALS}"
+      },
+      "id": "subscriber",
+      "kind": "native",
+      "limits": {
+        "log_bytes": 2097152,
+        "memory_bytes": 134217728
+      },
+      "log": "${GX_STATE}/logs/subscriber.log",
+      "namespace": null,
+      "readiness": {
+        "local": "bound-listeners",
+        "timeout_ms": 30000
+      }
+    }
+  ],
+  "start": "platform-ready then bind-all then release-connectors",
+  "state": "existing ownership store; no plan ledger",
+  "stop": "reverse creation order, verified PID/start-time/executable; TERM 5s then KILL; retain mismatched ownership",
+  "version": 1
+}

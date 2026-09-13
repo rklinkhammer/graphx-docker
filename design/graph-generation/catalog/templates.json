@@ -1,0 +1,40 @@
+{
+  "node-v1": {
+    "allowed_slots": [
+      "executable",
+      "node.id",
+      "node.file"
+    ],
+    "arbitrary_compose": false,
+    "argv": [
+      "executable",
+      "--node",
+      "node.id",
+      "--config",
+      "node.file"
+    ],
+    "security": {
+      "cap_drop": [
+        "ALL"
+      ],
+      "read_only": true,
+      "restart": "no",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "user": "65532:65532"
+    }
+  },
+  "platform-v1": {
+    "allowed_slots": [
+      "platform.file"
+    ],
+    "arbitrary_compose": false,
+    "argv": [
+      "graphx-platform",
+      "--config",
+      "platform.file"
+    ]
+  },
+  "version": 1
+}

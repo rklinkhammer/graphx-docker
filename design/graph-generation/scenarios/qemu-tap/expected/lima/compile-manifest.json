@@ -1,0 +1,70 @@
+{
+  "catalog_digest": "d984d3c04c8ac657407f9c704a3f3a3760a352e348fb0a32616077b2caba5cff",
+  "compiler": "proposed-graphx-v3-design-1",
+  "files": [
+    {
+      "path": "access-plan.json",
+      "sha256": "b63f1f98b6d6a1c4ce601255e5db83c76eed5f3df8750d25d0af8b03bb546be6"
+    },
+    {
+      "path": "capture-handoff.json",
+      "sha256": "0e20f61c061575b2a0c56517b33f2de00d8171d46fb1146de16eecccee19c413"
+    },
+    {
+      "path": "compose.yaml",
+      "sha256": "1467be4941868518da4e8df3474b9c7bbacdc9f2022b1a3831d19f1b4e685db4"
+    },
+    {
+      "path": "credentials.json",
+      "sha256": "c73a78500470a6a5ef386c1084d903da11655463e20d1a5e2abe5a0f2ac63ebb"
+    },
+    {
+      "path": "execution-plan.json",
+      "sha256": "38d87b14cc04140f74878433af19a8cb5f2591882574ef93670854d5312cfd16"
+    },
+    {
+      "path": "guest-build/echo-x86.json",
+      "sha256": "9ed63f3f98dc8cb293f17aeb6e513ae91347c1943bded92f2e4dc22451201d30"
+    },
+    {
+      "path": "native-plan.json",
+      "sha256": "007207294d25c596c90c510c76f63a24cf4f760dc3a362d1836ac66530fffe8f"
+    },
+    {
+      "path": "nodes/host-peer.json",
+      "sha256": "212cb015b86e1f59f566a39f0ba0e28f8af15fb089ae6160c5271caa6e39503e"
+    },
+    {
+      "path": "nodes/qemu-node.json",
+      "sha256": "d7bf6fc64684fa37c0430fc3961dc94fc3f62acf3a399cfb88f806bc6ca0a574"
+    },
+    {
+      "path": "ovs-plan.json",
+      "sha256": "f54c5fdc44e57f7368a9321e7ad8dfabcc9585f0fc652c0804c96b9c7c866627"
+    },
+    {
+      "path": "platform.json",
+      "sha256": "016517d3f6a4660ee3b1fee9222c0e894cd53e81b084bf4e954399fb3ec1d8bc"
+    },
+    {
+      "path": "qemu-plan.json",
+      "sha256": "84ed4c647992d15188ac339c949767cfb0b5ece53b04f6e49dbc617415d26258"
+    },
+    {
+      "path": "resolved.json",
+      "sha256": "cd8cfa2274ac1afa74dd2e8acaa9e019d865359d2e7e3c9d71aeef090347d939"
+    },
+    {
+      "path": "scenario-plan.json",
+      "sha256": "1b1de48fc3a2427a57031854ee8629c1c5649b365c62d690b630ae5a50a0560b"
+    },
+    {
+      "path": "substitutions.json",
+      "sha256": "c45527726e7aaad66047a3ea866f64ef00b0c426bb658ae942c9b3a230fe53b2"
+    }
+  ],
+  "graph_id": "qemu-tap",
+  "input_digest": "7e7480994de3bee91be68e3e0eb6de16ec104f629a877a75bf78d603fd1908ea",
+  "ownership": "invoking UID and graph ID; checked replacement only; no runtime lifecycle records",
+  "version": 1
+}

@@ -1,0 +1,260 @@
+{
+  "artifact_sets": [
+    {
+      "application_placement": "Docker containers and declared namespace/QEMU/external endpoints on native-linux",
+      "completeness": "complete-illustrative",
+      "counts": {
+        "application_services": 2,
+        "auxiliary_services": 0,
+        "capture_processes": 1,
+        "external_managed_processes": 0,
+        "handoff_processes": 1,
+        "host_forward_processes": 0,
+        "native_application_processes": 0,
+        "native_platform_processes": 0,
+        "optional_scenario_processes": 1,
+        "platform_services": 1,
+        "qemu_processes": 0,
+        "transient_build_processes": 0,
+        "transient_execution_adapter_processes": 1
+      },
+      "files": [
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/native-linux/capture-handoff.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/native-linux/compile-manifest.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "yaml",
+          "path": "expected/native-linux/compose.yaml",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/native-linux/credentials.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/native-linux/execution-plan.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/native-linux/laboratory-simulator.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/native-linux/nodes/processor.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/native-linux/nodes/radio.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/native-linux/nodes/sink.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/native-linux/ovs-plan.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/native-linux/platform.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/native-linux/resolved.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/native-linux/scenario-plan.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/native-linux/substitutions.json",
+          "status": "static-design"
+        }
+      ],
+      "platform_placement": "unprivileged container on native-linux",
+      "status": "static-design",
+      "target": "native-linux"
+    },
+    {
+      "application_placement": "Docker containers and declared namespace/QEMU/external endpoints on lima",
+      "completeness": "complete-illustrative",
+      "counts": {
+        "application_services": 2,
+        "auxiliary_services": 0,
+        "capture_processes": 1,
+        "external_managed_processes": 0,
+        "handoff_processes": 1,
+        "host_forward_processes": 1,
+        "native_application_processes": 0,
+        "native_platform_processes": 0,
+        "optional_scenario_processes": 1,
+        "platform_services": 1,
+        "qemu_processes": 0,
+        "transient_build_processes": 0,
+        "transient_execution_adapter_processes": 1
+      },
+      "files": [
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/lima/access-plan.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/lima/capture-handoff.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/lima/compile-manifest.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "yaml",
+          "path": "expected/lima/compose.yaml",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/lima/credentials.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/lima/execution-plan.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/lima/laboratory-simulator.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/lima/nodes/processor.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/lima/nodes/radio.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/lima/nodes/sink.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/lima/ovs-plan.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/lima/platform.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/lima/resolved.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/lima/scenario-plan.json",
+          "status": "static-design"
+        },
+        {
+          "completeness": "complete-illustrative",
+          "format": "json",
+          "path": "expected/lima/substitutions.json",
+          "status": "static-design"
+        }
+      ],
+      "platform_placement": "unprivileged container on lima",
+      "status": "static-design",
+      "target": "lima"
+    }
+  ],
+  "capabilities": {
+    "lima": {
+      "artifact_set": "lima",
+      "cell": "supported placement",
+      "reason": "Docker containers and declared namespace/QEMU/external endpoints on lima; unprivileged container on lima",
+      "rule": "C-OVS",
+      "status": "static-design",
+      "support": "proposed generation; preserved application/network semantics where current source cited"
+    },
+    "native-linux": {
+      "artifact_set": "native-linux",
+      "cell": "supported placement",
+      "reason": "Docker containers and declared namespace/QEMU/external endpoints on native-linux; unprivileged container on native-linux",
+      "rule": "C-OVS",
+      "status": "static-design",
+      "support": "proposed generation; preserved application/network semantics where current source cited"
+    },
+    "native-macos": {
+      "cell": "unsupported",
+      "diagnostic": "expected/native-macos/diagnostic.json",
+      "reason": "authored execution cannot be silently moved to another environment",
+      "rule": "C-OVS",
+      "status": "static-design"
+    },
+    "orbstack": {
+      "cell": "unsupported",
+      "diagnostic": "expected/orbstack/diagnostic.json",
+      "reason": "authored execution cannot be silently moved to another environment",
+      "rule": "C-OVS",
+      "status": "static-design"
+    }
+  },
+  "case_id": "S14",
+  "status": "static-design"
+}

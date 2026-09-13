@@ -1,0 +1,130 @@
+{
+  "bindings": {
+    "control": [
+      {
+        "attachments": {},
+        "connection": "control",
+        "destination_address": "172.30.13.10",
+        "encoding": "raw",
+        "role": "connect",
+        "schema": "RawSdrControl",
+        "security": {
+          "profile": "mtls",
+          "server_name": "radio"
+        },
+        "settings": {
+          "bind": "172.30.13.10",
+          "connect_timeout_ms": 5000,
+          "framing": "none",
+          "host": "172.30.13.10",
+          "port": 18401,
+          "reconnect": true,
+          "retry": {
+            "initial_backoff_ms": 100,
+            "max_attempts": 60,
+            "max_backoff_ms": 2000
+          },
+          "send_timeout_ms": 5000
+        },
+        "source_address": "172.30.13.20",
+        "transport": "tcp"
+      }
+    ],
+    "results": [
+      {
+        "attachments": {},
+        "connection": "results",
+        "destination_address": "172.30.13.30",
+        "encoding": "raw",
+        "role": "connect",
+        "schema": "RawPowerResult",
+        "security": {
+          "profile": "none"
+        },
+        "settings": {
+          "bind": "172.30.13.30",
+          "connect_timeout_ms": 5000,
+          "framing": "none",
+          "host": "172.30.13.30",
+          "port": 18402,
+          "reconnect": true,
+          "retry": {
+            "initial_backoff_ms": 100,
+            "max_attempts": 60,
+            "max_backoff_ms": 2000
+          },
+          "send_timeout_ms": 5000
+        },
+        "source_address": "172.30.13.20",
+        "transport": "tcp"
+      }
+    ],
+    "samples": [
+      {
+        "attachments": {},
+        "connection": "iq",
+        "destination_address": "172.30.13.20",
+        "encoding": "raw",
+        "role": "listen",
+        "schema": "RawIqSamples",
+        "security": {
+          "profile": "none"
+        },
+        "settings": {
+          "bind": "172.30.13.20",
+          "destination": "172.30.13.20",
+          "framing": "none",
+          "loopback": true,
+          "max_datagram_bytes": 1400,
+          "mode": "unicast",
+          "port": 18400,
+          "receive_buffer_bytes": 65536,
+          "reuse_address": false,
+          "send_buffer_bytes": 65536,
+          "ttl": 1
+        },
+        "source_address": "172.30.13.10",
+        "transport": "udp"
+      }
+    ]
+  },
+  "capture": {
+    "directory": "/captures",
+    "enabled": true,
+    "max_file_bytes": 67108864,
+    "max_files": 2,
+    "max_packets": 100000,
+    "provider": "application",
+    "retention_seconds": 86400
+  },
+  "contract_version": 2,
+  "credentials": {
+    "control": "lab-processor"
+  },
+  "execution": {
+    "kind": "container"
+  },
+  "graph_id": "sdr-simulated",
+  "graph_version": 3,
+  "node_id": "processor",
+  "observation": [
+    "graphx"
+  ],
+  "parameters": {},
+  "readiness": {
+    "kind": "local-bound",
+    "timeout_ms": 30000
+  },
+  "startup": {
+    "bind_before_connect": true,
+    "max_wait_ms": 30000,
+    "release_barrier": true
+  },
+  "telemetry": {
+    "credential": "runtime-processor",
+    "host": "platform",
+    "port": 9000
+  },
+  "type": "sdr.processor",
+  "type_revision": 1
+}

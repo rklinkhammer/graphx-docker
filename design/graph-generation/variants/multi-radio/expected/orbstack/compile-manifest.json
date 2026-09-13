@@ -1,0 +1,58 @@
+{
+  "catalog_digest": "d984d3c04c8ac657407f9c704a3f3a3760a352e348fb0a32616077b2caba5cff",
+  "compiler": "proposed-graphx-v3-design-1",
+  "files": [
+    {
+      "path": "compose.yaml",
+      "sha256": "0fb22afee532c44f394f9b7fccfcba95e2d0c6651fda9b28947cc80305872dd2"
+    },
+    {
+      "path": "credentials.json",
+      "sha256": "1fb7a41ce4f9349ede53434e1958420ef4c707dd44a63c75bba64cd5172507ad"
+    },
+    {
+      "path": "execution-plan.json",
+      "sha256": "56b504470fcfe47370ddc8329eb68c95bd0af8cfb4985f8b525ae4650b07840f"
+    },
+    {
+      "path": "nodes/processor-east.json",
+      "sha256": "09eca1d8979701587b9ef2bbcb456e64d5b20cb750f2a5a5b056eb12b01c8ec9"
+    },
+    {
+      "path": "nodes/processor-west.json",
+      "sha256": "d9b54d8a5dc02b314750deeeb1a2fc5b4efae9519cf086f6bb444daa58bff65d"
+    },
+    {
+      "path": "nodes/radio-east.json",
+      "sha256": "6648179b1567e3a046cd25544ee4c8496a6096b7db8f841115ba708f01a2e621"
+    },
+    {
+      "path": "nodes/radio-west.json",
+      "sha256": "c993ca3f222a91b67a32ad650808ecfb9f765c65f3e0243c9277fd4ed5b72b23"
+    },
+    {
+      "path": "nodes/sink-east.json",
+      "sha256": "32e690e1062be0a3e403124bfc5c721298c1a9a18979baf064771c2a8accfe65"
+    },
+    {
+      "path": "nodes/sink-west.json",
+      "sha256": "289f3fbb59db46802c5d28ea25e2f09ab6c7f8862bad6b88e91bd754b88eac5b"
+    },
+    {
+      "path": "platform.json",
+      "sha256": "ff184b1490a5b971e4f30e16eac32e690ec97e9bdaaf612f8c2a35fea45f8b30"
+    },
+    {
+      "path": "resolved.json",
+      "sha256": "1fc47b052eceec9ee404d68152ac0a2ed6e109ea40eab778d67428e81a065a13"
+    },
+    {
+      "path": "substitutions.json",
+      "sha256": "ffbbccbaf698f3c28a24c7a1896733769d7fa5c24cec321f9c05f4fc5c19f92a"
+    }
+  ],
+  "graph_id": "multi-radio",
+  "input_digest": "0a417a07e71cf79ebd6a9f699d39547e3d2bb7f9424f0f164784d04cd9dee2da",
+  "ownership": "invoking UID and graph ID; checked replacement only; no runtime lifecycle records",
+  "version": 1
+}

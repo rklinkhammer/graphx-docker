@@ -1,0 +1,27 @@
+{
+  "api": "export_owned_network_capture",
+  "captures": [
+    {
+      "destination": "${GX_STATE}/handoff/mirror-l2-gen.pcapng",
+      "id": "mirror-l2-gen",
+      "interval_seconds": 5,
+      "max_bytes": 67108864
+    },
+    {
+      "destination": "${GX_STATE}/handoff/mirror-l2-sink.pcapng",
+      "id": "mirror-l2-sink",
+      "interval_seconds": 5,
+      "max_bytes": 67108864
+    },
+    {
+      "destination": "${GX_STATE}/handoff/mirror-l2-xform.pcapng",
+      "id": "mirror-l2-xform",
+      "interval_seconds": 5,
+      "max_bytes": 67108864
+    }
+  ],
+  "execution": "single bounded handoff worker owned with process identity",
+  "permissions": "root-owned live ring; sealed read-only file to platform group 65532",
+  "platform_ingestion": "packet decoder in platform reads sealed snapshots; no fabricated node heartbeats",
+  "version": 1
+}

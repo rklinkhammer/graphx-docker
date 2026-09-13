@@ -1,0 +1,73 @@
+{
+  "bindings": {
+    "results": [
+      {
+        "attachments": {
+          "from": "processor-east-data",
+          "to": "sink-east-data"
+        },
+        "connection": "results-east",
+        "destination_address": "10.65.0.14",
+        "encoding": "raw",
+        "role": "listen",
+        "schema": "RawPowerResult",
+        "security": {
+          "profile": "none"
+        },
+        "settings": {
+          "bind": "10.65.0.14",
+          "connect_timeout_ms": 5000,
+          "framing": "none",
+          "host": "10.65.0.14",
+          "port": 18402,
+          "reconnect": true,
+          "retry": {
+            "initial_backoff_ms": 100,
+            "max_attempts": 60,
+            "max_backoff_ms": 2000
+          },
+          "send_timeout_ms": 5000
+        },
+        "source_address": "10.65.0.10",
+        "transport": "tcp"
+      }
+    ]
+  },
+  "capture": {
+    "directory": "/captures",
+    "enabled": false,
+    "max_file_bytes": 67108864,
+    "max_files": 2,
+    "max_packets": 100000,
+    "provider": "ovs-span",
+    "retention_seconds": 86400
+  },
+  "contract_version": 2,
+  "credentials": {},
+  "execution": {
+    "kind": "container"
+  },
+  "graph_id": "mixed-container-qemu-sdr",
+  "graph_version": 3,
+  "node_id": "sink-east",
+  "observation": [
+    "graphx"
+  ],
+  "parameters": {},
+  "readiness": {
+    "kind": "local-bound",
+    "timeout_ms": 30000
+  },
+  "startup": {
+    "bind_before_connect": true,
+    "max_wait_ms": 30000,
+    "release_barrier": true
+  },
+  "telemetry": {
+    "credential": "runtime-sink-east",
+    "host": "platform",
+    "port": 9000
+  },
+  "type": "sdr.result-sink",
+  "type_revision": 1
+}

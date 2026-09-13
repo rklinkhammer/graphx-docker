@@ -1,0 +1,126 @@
+{
+  "api": "execute_ovs_lifecycle",
+  "capture_process_count": 0,
+  "cleanup": "execute_ovs_lifecycle destroy; external devices untouched",
+  "config": "resolved.json",
+  "on_failure": "reverse newly owned resources only; preserve state on cleanup failure",
+  "preflight": [
+    "Linux system OVS available",
+    "explicit execution authorization",
+    "container IDs checked against graph labels",
+    "addresses and names free or same owner",
+    "UID/GID 65532 dedicated QEMU identity when TAP selected"
+  ],
+  "readiness": [
+    "endpoint identity matches",
+    "routes and OVS flows installed",
+    "capture writer owned and ready"
+  ],
+  "resource_intent": {
+    "attachments": [
+      {
+        "address": "10.65.0.10/24",
+        "id": "processor-east-data",
+        "interface": "gxi2af4667acff1",
+        "kind": "container_veth",
+        "mac": "02:65:00:00:00:0a",
+        "network": "radio-lan",
+        "owner": "processor-east",
+        "peer": "gxp80cade36169b",
+        "switch": "radio-switch"
+      },
+      {
+        "address": "10.65.0.11/24",
+        "id": "processor-west-data",
+        "interface": "gxi735392539bfc",
+        "kind": "container_veth",
+        "mac": "02:65:00:00:00:0b",
+        "network": "radio-lan",
+        "owner": "processor-west",
+        "peer": "gxpb6e2b92d1ec9",
+        "switch": "radio-switch"
+      },
+      {
+        "address": "10.65.0.12/24",
+        "id": "radio-east-data",
+        "interface": "gxtf319042e9e24",
+        "kind": "qemu_tap",
+        "mac": "02:65:00:00:00:0c",
+        "network": "radio-lan",
+        "owner": "radio-east",
+        "switch": "radio-switch",
+        "tap_gid": 65532,
+        "tap_uid": 65532
+      },
+      {
+        "address": "10.65.0.13/24",
+        "id": "radio-west-data",
+        "interface": "gxid8c85c255dbc",
+        "kind": "container_veth",
+        "mac": "02:65:00:00:00:0d",
+        "network": "radio-lan",
+        "owner": "radio-west",
+        "peer": "gxp6f2f9a908d22",
+        "switch": "radio-switch"
+      },
+      {
+        "address": "10.65.0.14/24",
+        "id": "sink-east-data",
+        "interface": "gxi0fead31b8f78",
+        "kind": "container_veth",
+        "mac": "02:65:00:00:00:0e",
+        "network": "radio-lan",
+        "owner": "sink-east",
+        "peer": "gxp7d4aff6c0e45",
+        "switch": "radio-switch"
+      },
+      {
+        "address": "10.65.0.15/24",
+        "id": "sink-west-data",
+        "interface": "gxi200a30d5f042",
+        "kind": "container_veth",
+        "mac": "02:65:00:00:00:0f",
+        "network": "radio-lan",
+        "owner": "sink-west",
+        "peer": "gxp9c9c1d895d4f",
+        "switch": "radio-switch"
+      }
+    ],
+    "management_isolation": {
+      "application_bind": "selected-data-address",
+      "ip_forward": false,
+      "ovs_management_acl": "only platform TCP 8080 and UDP 9000; deny node-to-node and forwarding; enforced before release barrier",
+      "per_node_network": true,
+      "platform_routes_data": false
+    },
+    "networks": [
+      {
+        "gateway": "10.65.0.1",
+        "id": "radio-lan",
+        "profile": "macvlan",
+        "realization": "ovs",
+        "subnets": [
+          "10.65.0.0/24"
+        ]
+      }
+    ],
+    "switches": [
+      {
+        "datapath": "system",
+        "id": "radio-switch",
+        "kind": "openvswitch",
+        "name": "gxbaa2f7899faf2",
+        "ports": []
+      }
+    ]
+  },
+  "stages": [
+    "preflight identity and capabilities",
+    "create containers held at local barrier",
+    "create namespaces bridges veth and TAP",
+    "install routes policies mirrors capture and management ACL",
+    "release application barriers"
+  ],
+  "state_root": "/var/lib/graphx/ownership",
+  "version": 1
+}
