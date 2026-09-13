@@ -1,4 +1,5 @@
 #include "graphx/compile.hpp"
+#include "graphx/platform_assets.hpp"
 #include "graphx/config_schemas.hpp"
 #include "graphx/version.hpp"
 #include "config_document.hpp"
@@ -67,8 +68,18 @@ Value credential_plan(const GraphConfig& graph) {
   for (const auto& node : graph.resolved.at("nodes").array()) {
     const auto id = node.at("node_id").text();
     for (const auto& [port, ref] : node.at("credentials").object()) {
-      (void)port;
       allow(ref.text(), id);
+      if (entries.at(ref.text()).at("provider") == Value("lab-generated")) {
+        auto& roles = entries.at(ref.text())["tls_roles"];
+        if (roles.is_null()) roles = Array{};
+        for (const auto& peer : node.at("bindings").at(port).array()) {
+          const Value role = peer.at("role") == Value("listen") ? "serverAuth" : "clientAuth";
+          if (std::ranges::find(roles.array(), role) == roles.array().end())
+            roles.array().push_back(role);
+        }
+        std::ranges::sort(roles.array(),
+                          [](const Value& a, const Value& b) { return a.text() < b.text(); });
+      }
     }
     const auto& ref = node.at("telemetry").at("credential");
     if (!ref.is_null()) {
@@ -90,11 +101,20 @@ Value credential_plan(const GraphConfig& graph) {
       files[name] = "${GX_CREDENTIALS}/" + id + "/" + name;
     }
     declaration["files"] = files;
+    if (!consumers.contains(id)) consumers[id] = Array{};
     // Platform only receives runtime HMACs, the observer token, grants and OTLP.
     if (id == "observer" || declaration.at("provider") == Value("runtime-generated"))
       allow(id, "platform");
   }
   const auto& platform = graph.resolved.at("platform");
+  for (const auto& extension : platform.at("extensions").array()) {
+    if (extension == Value("prometheus")) allow("observer", "prometheus");
+    if (extension == Value("grafana")) {
+      if (!entries.contains("grafana-admin"))
+        reject("E_CREDENTIAL", "grafana-admin", "Grafana requires an external password reference");
+      allow("grafana-admin", "grafana");
+    }
+  }
   for (const auto& grant : platform.at("control").at("grants").array())
     allow(grant.at("credential").text(), "platform");
   if (platform.at("otlp").at("enabled").boolean())
@@ -115,8 +135,7 @@ Value credential_plan(const GraphConfig& graph) {
               {"directory_mode", "0500"},
               {"file_mode", "0400"},
               {"publication", "atomic member replacement inside stable credential directory"},
-              {"rotation",
-               "current and previous members with bounded monotonic grace; P5 staging required"}}}};
+              {"rotation", "current and previous members with bounded monotonic grace"}}}};
 }
 Array credential_refs(const Value& plan, const std::string& consumer) {
   Array result;
@@ -370,10 +389,13 @@ CompiledGraph compile_graph(const GraphConfig& graph) {
   }
   if (!native) {
     auto service = service_base(platform.at("image"));
+    service["mem_limit"] = std::max<std::int64_t>(
+        536870912, platform.at("history").at("max_database_bytes").integer() / 2 + 268435456);
     service["entrypoint"] = strings({"graphx-platform"});
     service["command"] = strings({"--config", "/run/graphx/platform.json"});
-    service["environment"] =
-        Object{{"GX_CREDENTIALS", "/run/secrets"}, {"GX_STATE", "/var/lib/graphx"}};
+    service["environment"] = Object{{"GX_CREDENTIALS", "/run/secrets"},
+                                    {"GX_STATE", "/var/lib/graphx"},
+                                    {"GX_OWNER", "${GX_OWNER}"}};
     Array volumes =
         strings({"./resolved.json:/run/graphx/resolved.json:ro",
                  "./platform.json:/run/graphx/platform.json:ro",
@@ -388,12 +410,85 @@ CompiledGraph compile_graph(const GraphConfig& graph) {
       networks["mg-platform"] = Object{{"driver", "bridge"}, {"internal", true}};
       platform_networks["mg-platform"] = Object{};
     }
-    service["networks"] = platform_networks;
+    // Internal application networks have no published host ports. A separate
+    // console bridge carries loopback HTTP publication and platform OTLP egress.
+    networks["mg-console"] = Object{{"driver", "bridge"}};
+    auto console_networks = platform_networks;
+    console_networks["mg-console"] = Object{};
+    service["networks"] = console_networks;
     service["ports"] =
         Array{Value(platform.at("console").at("bind").text() + ":" +
                     std::to_string(platform.at("console").at("port").integer()) + ":" +
                     std::to_string(platform.at("console").at("port").integer()))};
     services["platform"] = service;
+    for (const auto& extension : platform.at("extensions").array()) {
+      const auto& id = extension.text();
+      // Reviewed fixed extension recipes; never accept arbitrary Compose service data.
+      auto extra = service_base(
+          id == "prometheus"
+              ? Value("prom/"
+                      "prometheus:v3.13.0@sha256:"
+                      "c6b27ea434f8389bfe233fbc7be381cf50587c286e871bc842008f5a1b1908a7")
+              : Value("grafana/"
+                      "grafana:13.2.0@sha256:"
+                      "3fd54ae1214669f8355f065ec9f6445d5279a3d77095ab048ca045685272429b"));
+      extra["networks"] = console_networks;
+      extra["mem_limit"] = 536870912;
+      extra["pids_limit"] = 128;
+      if (id == "prometheus") {
+        put("prometheus-alerts.json", parse_document(kPrometheusAlerts));
+        const auto endpoint =
+            "platform:" + std::to_string(platform.at("console").at("port").integer());
+        const Object target{{"targets", Array{Value(endpoint)}}};
+        const Object scrape{
+            {"job_name", "graphx"},
+            {"authorization", Object{{"credentials_file", "/run/secrets/observer/token"}}},
+            {"static_configs", Array{Value(target)}}};
+        put("prometheus.json", Object{{"rule_files", strings({"/etc/prometheus/alerts.json"})},
+                                      {"global", Object{{"scrape_interval", "5s"}}},
+                                      {"scrape_configs", Array{Value(scrape)}}});
+        extra["command"] = strings(
+            {"--config.file=/etc/prometheus/graphx.json", "--storage.tsdb.path=/prometheus/data",
+             "--storage.tsdb.retention.time=24h", "--storage.tsdb.retention.size=128MB"});
+        extra["volumes"] = strings({"./prometheus.json:/etc/prometheus/graphx.json:ro",
+                                    "./prometheus-alerts.json:/etc/prometheus/alerts.json:ro",
+                                    "${GX_CREDENTIALS}/observer:/run/secrets/observer:ro"});
+        extra["tmpfs"] =
+            strings({"/prometheus:rw,nosuid,nodev,noexec,size=256m,uid=65532,gid=65532,mode=0700"});
+        extra["ports"] = strings({"127.0.0.1:9090:9090"});
+      } else {
+        extra["pids_limit"] = 256;
+        put("grafana-dashboard.json", parse_document(kGrafanaDashboard));
+        const Object provider{
+            {"name", "GraphX"},  {"folder", "GraphX"},
+            {"type", "file"},    {"disableDeletion", true},
+            {"editable", false}, {"options", Object{{"path", "/etc/graphx-dashboards"}}}};
+        put("grafana-dashboards.json",
+            Object{{"apiVersion", 1}, {"providers", Array{Value(provider)}}});
+        put("grafana-datasources.json",
+            Object{{"apiVersion", 1},
+                   {"datasources", Array{Object{{"name", "GraphX"},
+                                                {"type", "prometheus"},
+                                                {"access", "proxy"},
+                                                {"url", "http://prometheus:9090"},
+                                                {"isDefault", true}}}}});
+        extra["environment"] =
+            Object{{"GOMAXPROCS", "2"},
+                   {"GF_SECURITY_ADMIN_PASSWORD__FILE", "/run/secrets/grafana-admin/password"},
+                   {"GF_USERS_ALLOW_SIGN_UP", "false"},
+                   {"GF_AUTH_ANONYMOUS_ENABLED", "false"}};
+        extra["volumes"] = strings(
+            {"./grafana-datasources.json:/etc/grafana/provisioning/datasources/graphx.yaml:ro",
+             "./grafana-dashboards.json:/etc/grafana/provisioning/dashboards/graphx.yaml:ro",
+             "./grafana-dashboard.json:/etc/graphx-dashboards/graphx.json:ro",
+             "${GX_CREDENTIALS}/grafana-admin:/run/secrets/grafana-admin:ro"});
+        extra["tmpfs"] =
+            strings({"/tmp:rw,nosuid,nodev,size=16m",
+                     "/var/lib/grafana:rw,nosuid,nodev,size=128m,uid=65532,gid=65532,mode=0700"});
+        extra["ports"] = strings({"127.0.0.1:3000:3000"});
+      }
+      services[id] = extra;
+    }
   }
   if (!services.empty()) {
     // JSON is a YAML 1.2 subset: one canonical serializer, quoted scalars, no aliases.

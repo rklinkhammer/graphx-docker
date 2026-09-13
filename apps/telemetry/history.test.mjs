@@ -240,7 +240,7 @@ test('SQLite write failure degrades history and discards queued work without blo
 
 test('history rejects an existing database above a reduced main-file limit', async () => {
   const temporary = temporaryHistory()
-  let store = new HistoryStore(config(temporary.file, { max_database_bytes: 4 * 1024 * 1024,
+  let store = new HistoryStore(config(temporary.file, { max_database_bytes: 16 * 1024 * 1024,
     max_records: 1000, queue_capacity: 300, max_queue_bytes: 4 * 1024 * 1024,
     batch_size: 100 }), 'graphx')
   try {
@@ -256,7 +256,7 @@ test('history rejects an existing database above a reduced main-file limit', asy
 
     store = new HistoryStore(config(temporary.file, { max_database_bytes: 1024 * 1024,
       max_records: 1000 }), 'graphx')
-    await assert.rejects(store.waitUntilReady(), /exceeding configured main-file limit/)
+    await assert.rejects(store.waitUntilReady(), /aggregate database bound|exceeding configured main-file limit/)
     assert.equal(store.stats.status, 'degraded')
   } finally { await store.close().catch(() => {}); temporary.remove() }
 })
@@ -418,3 +418,58 @@ test('authenticated history API survives abrupt restart and degrades independent
       temporary.remove()
     }
   })
+
+test('aggregate DB, WAL and SHM remain bounded under write pressure', async () => {
+  const temporary = temporaryHistory()
+  const settings = config(temporary.file, {max_records:10000, batch_size:1, queue_capacity:128})
+  const store = new HistoryStore(settings, 'graphx')
+  try {
+    await store.waitUntilReady()
+    const now = Date.now(), record = {graphId:'graphx', recordedAtMs:now, eventAtMs:now,
+      kind:'telemetry', event:'send', nodeId:'generator', edgeId:'samples', json:JSON.stringify({message:'x'.repeat(14000)})}
+    for (let i = 0; i < 128; i++) {
+      store.enqueue(record)
+      await new Promise(resolveWait => setTimeout(resolveWait, 2))
+      const bytes = ['', '-wal', '-shm'].reduce((total, suffix) => total +
+        (existsSync(temporary.file + suffix) ? statSync(temporary.file + suffix).size : 0), 0)
+      assert.ok(bytes <= settings.maxDatabaseBytes, `aggregate bytes ${bytes}`)
+    }
+    assert.equal(store.stats.status, 'degraded')
+    assert.ok(store.stats.dropped + store.stats.failed > 0)
+  } finally { await store.close().catch(() => {}); temporary.remove() }
+})
+
+test('query timeout degrades only history and cannot refill an unbounded worker request queue', async () => {
+  const temporary = temporaryHistory()
+  const settings = config(temporary.file, {batch_size:1, query_timeout_ms:100, shutdown_timeout_ms:1000, max_pending_queries:1})
+  const store = new HistoryStore(settings, 'graphx')
+  let writer
+  try {
+    await store.waitUntilReady()
+    writer = new DatabaseSync(temporary.file); writer.exec('BEGIN IMMEDIATE')
+    store.enqueue(telemetryHistoryRecord({kind:'trace',event:'send',timestamp:Date.now()}, 'graphx'))
+    await new Promise(resolveWait => setTimeout(resolveWait, 30))
+    const query = store.query({limit:1})
+    await assert.rejects(store.query({limit:1}), /capacity/)
+    await assert.rejects(query, /deadline/)
+    assert.equal(store.stats.status, 'degraded')
+    await assert.rejects(store.query({limit:1}), /degraded/)
+  } finally { writer?.exec('ROLLBACK'); writer?.close(); await store.close().catch(() => {}); temporary.remove() }
+})
+
+test('a reader pinning WAL causes bounded backpressure without losing committed-row accounting', async () => {
+  const temporary = temporaryHistory()
+  const settings = config(temporary.file, {batch_size:1, shutdown_timeout_ms:100})
+  const store = new HistoryStore(settings, 'graphx'); let reader
+  try {
+    await store.waitUntilReady()
+    reader = new DatabaseSync(temporary.file, {readOnly:true})
+    reader.exec('BEGIN'); reader.prepare('SELECT count(*) FROM history_records').get()
+    store.enqueue(telemetryHistoryRecord({kind:'trace',event:'send',timestamp:Date.now()},'graphx'))
+    for (let i=0; i<100 && store.stats.status==='ready'; i++) await new Promise(resolveWait=>setTimeout(resolveWait,10))
+    assert.equal(store.stats.status,'degraded')
+    assert.equal(store.stats.written,1)
+    assert.equal(store.enqueue(telemetryHistoryRecord({kind:'trace',event:'send',timestamp:Date.now()},'graphx')),false)
+    assert.ok(store.stats.databaseBytes<=settings.maxDatabaseBytes)
+  } finally { reader?.exec('ROLLBACK'); reader?.close(); await store.close().catch(()=>{}); temporary.remove() }
+})

@@ -26,7 +26,7 @@ images. Keep signing credentials outside the repository.
 ## Shared images and catalog pins
 
 The runtime, telemetry and SDR images have one software recipe each:
-`Dockerfile`, `docker/telemetry.Dockerfile` and `docker/sdr.Dockerfile`. They use
+`Dockerfile` targets `runtime`, `telemetry` and `sdr`. They use
 the two fixed catalog templates, `node-v1` and `platform-v1`. No graph generates a
 Dockerfile or selects a build context. Runtime packaging has no sample graph or
 generator entrypoint. The SDR image installs the three catalog executable names;
@@ -67,16 +67,32 @@ self-test fixtures are recognized only inside `libgnutls`. This is a bounded
 content check, not a claim to detect every possible encoding of a secret.
 
 The generated `catalog/` is a release-specific copy of the authoritative catalog,
-with image pins, container type revisions and lock hashes updated together.
+with image pins, container type revisions and lock hashes updated together. Release
+image builds set `GRAPHX_RELEASE_IMAGE_TYPES=ON` to embed those exact container
+type revisions in the authoritative node reader. Ordinary development builds
+retain source catalog revisions.
 Author a graph with a relative path to that lock and pass its directory as
 `--catalog-root` when compiling. The source catalog remains an explicitly
 unverified development input. Offline OCI digests do not imply registry
 availability; publishing requires preserving or independently verifying the
 registry manifest. The compiler still marks execution unavailable. P5 supplies
-the resolved platform configuration adapter; native platform packaging and guest
-execution remain their separate phase gates.
+the resolved platform configuration adapter and native companion packaging.
+Application orchestration and guest execution retain their later phase gates.
 
 The release workflow builds, attests, validates SPDX inventories and promotes
 all three shared registry images together. It refuses existing version tags and
 includes SDR in compensating cleanup. Running the local commands above does not
 invoke that publication workflow.
+
+
+Native releases include a separately verified platform companion archive. Build it
+with `python3 scripts/release/platform_bundle.py --output FRESH_DIRECTORY --epoch EPOCH`.
+The builder verifies the reviewed Node archive pins in `scripts/release/node-runtime.json`,
+installs locked dependencies, builds web assets and emits deterministic archive
+bytes, an SPDX inventory and a file-hash/mode manifest. `--node-archive FILE` permits
+an already downloaded archive with the same required checksum. Builds require a
+clean worktree; `--allow-dirty` marks a local candidate that the publication
+verifier rejects. Install the companion
+alongside the corresponding C++ archive; its launcher uses the bundled Node binary.
+The release workflow verifies commit/version/platform/epoch for both artifacts
+before publication. The lab credential provider also requires OpenSSL.

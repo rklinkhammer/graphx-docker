@@ -2,6 +2,7 @@
 
 #include "graphx/framing.hpp"
 #include "socket_utils.hpp"
+#include "config_document.hpp"
 
 #include <algorithm>
 #include <arpa/inet.h>
@@ -34,6 +35,8 @@ struct TcpTlsState {
   std::unique_ptr<SSL_CTX, ContextDeleter> context;
   std::unique_ptr<SSL, SessionDeleter> session;
   std::mutex mutex;
+  std::int64_t generation{};
+  std::string generation_text;
 };
 
 namespace {
@@ -337,10 +340,28 @@ TcpTransport::TcpTransport(int socket, int listener, Endpoint endpoint, std::str
 
 void TcpTransport::secure_connection(int socket, bool server) {
   if (!tls_) return;
-  if (!tls_->context) {
+  std::string generation_text;
+  std::int64_t generation{};
+  if (!options_.tls.generation_file.empty()) {
+    using namespace config_internal;
+    generation_text = read_document(options_.tls.generation_file, 8192);
+    const auto metadata = parse_document(generation_text);
+    generation = metadata.at("generation").integer();
+    if (metadata.at("version") != ConfigValue(1) || generation < 1 ||
+        generation < tls_->generation ||
+        (generation == tls_->generation && generation_text != tls_->generation_text))
+      throw std::runtime_error("TLS credential generation is invalid or stale");
+    for (const auto& path :
+         {options_.tls.ca_file, options_.tls.certificate_file, options_.tls.private_key_file}) {
+      const auto filename = std::filesystem::path(path).filename().string();
+      if (sha256(read_document(path, 65536)) != metadata.at("members").at(filename).text())
+        throw std::runtime_error("TLS credential generation is incomplete");
+    }
+  }
+  if (!tls_->context || generation_text != tls_->generation_text) {
     auto* raw = SSL_CTX_new(server ? TLS_server_method() : TLS_client_method());
     if (!raw) throw tls_error("create TLS context");
-    tls_->context.reset(raw);
+    std::unique_ptr<SSL_CTX, TcpTlsState::ContextDeleter> next_context(raw);
     if (SSL_CTX_set_min_proto_version(raw, TLS1_3_VERSION) != 1)
       throw tls_error("set TLS 1.3 minimum");
     SSL_CTX_set_options(raw, SSL_OP_NO_COMPRESSION);
@@ -366,6 +387,12 @@ void TcpTransport::secure_connection(int socket, bool server) {
     if (server && options_.tls.require_client_certificate)
       verify |= SSL_VERIFY_FAIL_IF_NO_PEER_CERT;
     SSL_CTX_set_verify(raw, verify, nullptr);
+    if (!options_.tls.generation_file.empty() &&
+        generation_text != config_internal::read_document(options_.tls.generation_file, 8192))
+      throw std::runtime_error("TLS credential generation changed while loading");
+    tls_->context = std::move(next_context);
+    tls_->generation = generation;
+    tls_->generation_text = generation_text;
   }
 
   auto* raw_session = SSL_new(tls_->context.get());

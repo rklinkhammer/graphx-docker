@@ -272,8 +272,13 @@ export class HistoryStore {
     const requestId = ++this.requestId
     return new Promise((resolveRequest, rejectRequest) => {
       const timer = setTimeout(() => {
+        const error = new Error(`history ${type} deadline exceeded`)
         this.pending.delete(requestId)
-        rejectRequest(new Error(`history ${type} deadline exceeded`))
+        rejectRequest(error)
+        if (type === 'query') {
+          this.#degrade(error)
+          void this.worker.terminate()
+        }
       }, timeoutMs)
       this.pending.set(requestId, { resolve: resolveRequest, reject: rejectRequest, timer })
       this.worker.postMessage({ type, requestId, ...data })

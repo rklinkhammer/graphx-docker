@@ -82,6 +82,10 @@ jobs:
       - name: Install release tools on macOS
         if: runner.os == 'macOS'
         run: brew install ninja openssl@3 wireshark
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.20.0
+          package-manager-cache: false
       - name: Build, test, and package release candidate
         run: >-
           python3 scripts/release/build_release.py
@@ -90,6 +94,10 @@ jobs:
           --tag "${GITHUB_REF_NAME}"
       - name: Verify release candidate
         run: python3 scripts/release/verify_release.py outputs/release --source .
+      - name: Package pinned native platform companion
+        run: |
+          python3 scripts/release/platform_bundle.py --output outputs/platform-bundle --epoch "$(git show -s --format=%ct HEAD)"
+          cp outputs/platform-bundle/* outputs/release/
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: graphx-${{ matrix.platform }}
@@ -130,6 +138,7 @@ jobs:
         with:
           context: .
           file: Dockerfile
+          target: runtime
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ghcr.io/${{ steps.version.outputs.owner }}/graphx-runtime:staging-${{ github.run_id }}-${{ github.run_attempt }}
@@ -138,6 +147,7 @@ jobs:
           build-args: |
             GRAPHX_VERSION=${{ steps.version.outputs.version }}
             GRAPHX_REVISION=${{ github.sha }}
+            GRAPHX_RELEASE_IMAGE_TYPES=ON
       - name: Attest runtime image
         uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
         with:
@@ -149,7 +159,8 @@ jobs:
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
-          file: docker/telemetry.Dockerfile
+          file: Dockerfile
+          target: telemetry
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ghcr.io/${{ steps.version.outputs.owner }}/graphx-telemetry:staging-${{ github.run_id }}-${{ github.run_attempt }}
@@ -158,6 +169,7 @@ jobs:
           build-args: |
             GRAPHX_VERSION=${{ steps.version.outputs.version }}
             GRAPHX_REVISION=${{ github.sha }}
+            GRAPHX_RELEASE_IMAGE_TYPES=ON
       - name: Attest telemetry image
         uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
         with:
@@ -169,7 +181,8 @@ jobs:
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
-          file: docker/sdr.Dockerfile
+          file: Dockerfile
+          target: sdr
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ghcr.io/${{ steps.version.outputs.owner }}/graphx-sdr:staging-${{ github.run_id }}-${{ github.run_attempt }}
@@ -178,6 +191,7 @@ jobs:
           build-args: |
             GRAPHX_VERSION=${{ steps.version.outputs.version }}
             GRAPHX_REVISION=${{ github.sha }}
+            GRAPHX_RELEASE_IMAGE_TYPES=ON
       - name: Attest sdr image
         uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
         with:
@@ -281,11 +295,20 @@ jobs:
             release-assets/graphx-darwin-aarch64 \
             --expected-tag "v${version}" --expected-commit "${{ github.sha }}" \
             --expected-platform darwin-aarch64 --expected-epoch "$epoch"
+      - name: Verify native platform companions
+        run: |
+          version="$(tr -d '\n' < VERSION)"
+          epoch="$(git show -s --format=%ct HEAD)"
+          for platform in linux-x86_64 darwin-aarch64; do
+            stem="release-assets/graphx-$platform/graphx-platform-$version-$platform"
+            python3 scripts/release/platform_bundle.py --verify "$stem.tar.gz" --manifest "$stem.manifest.json" \
+              --expected-commit "${{ github.sha }}" --expected-platform "$platform" --expected-version "$version" --expected-epoch "$epoch"
+          done
       - name: Stage uniquely named release assets
         run: |
           mkdir release-upload
           find release-assets -type f -exec cp {} release-upload/ \;
-          test "$(find release-upload -type f | wc -l)" -eq 8
+          test "$(find release-upload -type f | wc -l)" -eq 12
       - name: Attest native archives
         uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
         with:

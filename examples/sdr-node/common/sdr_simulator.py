@@ -12,6 +12,7 @@ import threading
 import time
 
 from protocol import configure_telemetry, encode_samples, publish_heartbeat, recv_line
+from credential_files import tls_context
 from node_settings import arguments, binding, release
 
 stop = threading.Event()
@@ -22,11 +23,8 @@ MAX_CONTROL_BYTES = 4096
 
 def control_server(listener: socket.socket | None = None,
                    ready: threading.Event | None = None) -> None:
-    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-    context.minimum_version = ssl.TLSVersion.TLSv1_3
-    context.load_cert_chain(os.environ["SDR_TLS_CERT"], os.environ["SDR_TLS_KEY"])
-    context.load_verify_locations(os.environ["SDR_TLS_CLIENT_CA"])
-    context.verify_mode = ssl.CERT_REQUIRED
+    files = {key: os.environ[key] for key in ('SDR_TLS_CERT', 'SDR_TLS_KEY', 'SDR_TLS_CLIENT_CA', 'GRAPHX_CREDENTIALS') if key in os.environ}
+    context = tls_context(True, files)
     if listener is None:
         listener = socket.socket()
         listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -44,6 +42,7 @@ def control_server(listener: socket.socket | None = None,
             with connection:
                 connection.settimeout(2)
                 try:
+                    context = tls_context(True, files)
                     with context.wrap_socket(connection, server_side=True) as secure:
                         secure.settimeout(2)
                         request = recv_line(secure, MAX_CONTROL_BYTES)

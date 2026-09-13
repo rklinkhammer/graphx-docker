@@ -1,3 +1,4 @@
+# Application startup remains gated for P6; normalization is supplied by graphx compile.
 name: graphx-sdr-simulated
 x-logging: &bounded-logging
   driver: json-file
@@ -13,26 +14,9 @@ x-sdr-service: &sdr-service
   init: true
   logging: *bounded-logging
 x-sdr-environment: &sdr-environment
-  GRAPHX_NORMALIZED_CONFIG: /run/graphx/normalized.json
+  GRAPHX_NORMALIZED_CONFIG: /run/graphx/resolved.json
   GRAPHX_TELEMETRY_SHARED_SECRET: ${GRAPHX_TELEMETRY_SHARED_SECRET:-}
 services:
-  normalize-config:
-    image: graphx-demo:latest
-    user: "0:0"
-    entrypoint: ["/bin/sh", "-ec"]
-    command:
-      - >-
-        umask 022;
-        /usr/local/bin/graphx config normalize /config/graphx.yml > /run/graphx/normalized.json.tmp;
-        chmod 0444 /run/graphx/normalized.json.tmp;
-        mv /run/graphx/normalized.json.tmp /run/graphx/normalized.json
-    volumes: [./graphx.yml:/config/graphx.yml:ro, normalized-config:/run/graphx]
-    read_only: true
-    tmpfs: [/tmp]
-    cap_drop: [ALL]
-    security_opt: [no-new-privileges:true]
-    pids_limit: 32
-    restart: "no"
   sdr-node:
     <<: *sdr-service
     command: ["python3", "common/sdr_simulator.py"]
@@ -44,7 +28,7 @@ services:
       SDR_TLS_CLIENT_CA: /run/sdr-tls/ca.pem
     volumes:
       - "${GRAPHX_SDR_TLS_DIR:?set by demo.sh}:/run/sdr-tls:ro"
-      - normalized-config:/run/graphx:ro
+      - "${GX_OUTPUT:?Set GX_OUTPUT to compiled artifacts}:/run/graphx:ro"
     depends_on: [telemetry]
     networks:
       sdr-ethernet: { ipv4_address: 172.30.13.10 }
@@ -63,7 +47,7 @@ services:
       SDR_TLS_SERVER_NAME: sdr-node
     volumes:
       - "${GRAPHX_SDR_TLS_DIR:?set by demo.sh}:/run/sdr-tls:ro"
-      - normalized-config:/run/graphx:ro
+      - "${GX_OUTPUT:?Set GX_OUTPUT to compiled artifacts}:/run/graphx:ro"
     depends_on: [sdr-node, sink, telemetry]
     networks:
       sdr-ethernet: { ipv4_address: 172.30.13.20 }
@@ -71,7 +55,7 @@ services:
     <<: *sdr-service
     command: ["python3", "common/sink.py"]
     environment: *sdr-environment
-    volumes: [normalized-config:/run/graphx:ro]
+    volumes: ["${GX_OUTPUT:?Set GX_OUTPUT to compiled artifacts}:/run/graphx:ro"]
     depends_on: [telemetry]
     networks:
       sdr-ethernet: { ipv4_address: 172.30.13.30 }
@@ -91,19 +75,19 @@ services:
       GRAPHX_PACKET_CAPTURE_SESSION: ${GRAPHX_SDR_RUN_ID:?set by demo.sh}
       GRAPHX_PACKET_OBSERVATION_SOURCE: ethernet-pcap
       GRAPHX_PACKET_RULES: '${GRAPHX_SDR_PACKET_RULES:?set by demo.sh}'
-      GRAPHX_NORMALIZED_CONFIG: /run/graphx/normalized.json
+      GRAPHX_NORMALIZED_CONFIG: /run/graphx/resolved.json
       GRAPHX_CAPTURE_ENABLED: ${GRAPHX_CAPTURE_ENABLED:-true}
       GRAPHX_PACKET_HISTORY_ENABLED: ${GRAPHX_HISTORY_ENABLED:-true}
     volumes:
       - "${GRAPHX_SDR_RUN_DIR:?set by demo.sh}:/captures"
-      - normalized-config:/run/graphx:ro
+      - "${GX_OUTPUT:?Set GX_OUTPUT to compiled artifacts}:/run/graphx:ro"
     depends_on: [packet-capture, telemetry]
     networks: [sdr-ethernet]
   telemetry:
     image: graphx-telemetry:latest
     ports: ["127.0.0.1:${GRAPHX_SDR_GUI_PORT:-8080}:8080"]
     environment:
-      GRAPHX_NORMALIZED_CONFIG: /run/graphx/normalized.json
+      GRAPHX_NORMALIZED_CONFIG: /run/graphx/resolved.json
       GRAPHX_CONFIG_DIRECTORY: /app
       GRAPHX_HTTP_BIND: 0.0.0.0
       GRAPHX_TELEMETRY_BIND: 0.0.0.0
@@ -118,10 +102,8 @@ services:
       GRAPHX_HISTORY_DATABASE_FILE: /var/lib/graphx/history/history.sqlite
     volumes:
       - "${GRAPHX_SDR_RUN_DIR:?set by demo.sh}:/captures:ro"
-      - normalized-config:/run/graphx:ro
+      - "${GX_OUTPUT:?Set GX_OUTPUT to compiled artifacts}:/run/graphx:ro"
       - sdr-history:/var/lib/graphx/history
-    depends_on:
-      normalize-config: { condition: service_completed_successfully }
     networks:
       sdr-ethernet: { ipv4_address: 172.30.13.40 }
     read_only: true
@@ -138,7 +120,6 @@ networks:
       config: [{ subnet: 172.30.13.0/24, gateway: 172.30.13.1 }]
 volumes:
   sdr-history:
-  normalized-config:
 secrets:
   graphx_ca:
     file: ${GRAPHX_CA_CERT:-/dev/null}

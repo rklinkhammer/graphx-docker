@@ -357,6 +357,7 @@ export class OtlpHttpExporter {
     })
   }
   #send(item) {
+    const credentials = this.config.credentials ? this.config.credentials() : this.config
     return new Promise((resolve, reject) => {
       let settled = false
       let request
@@ -373,8 +374,8 @@ export class OtlpHttpExporter {
         protocol: this.config.endpoint.protocol, hostname: this.config.endpoint.hostname,
         port: this.config.endpoint.port || (secure ? 443 : 80), path: item.path, method: 'POST',
         headers: { 'content-type': 'application/json', 'content-length': item.body.length,
-          ...(this.config.token ? { authorization: `Bearer ${this.config.token}` } : {}) },
-        ca: this.config.ca, cert: this.config.cert, key: this.config.key,
+          ...(credentials.token ? { authorization: `Bearer ${credentials.token}` } : {}) },
+        servername: credentials.servername, ca: credentials.ca, cert: credentials.cert, key: credentials.key,
       }, response => {
         let bytes = 0
         const chunks = []

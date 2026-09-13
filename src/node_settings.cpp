@@ -1,4 +1,5 @@
 #include "graphx/node_settings.hpp"
+#include <cstdlib>
 #include "config_document.hpp"
 #include "graphx/config_schemas.hpp"
 
@@ -111,6 +112,18 @@ NodeSettings load_node_settings(const std::filesystem::path& file, std::string_v
       edge.transport = resolved_transport(peer);
       if (auto* tcp = std::get_if<TcpTransportConfig>(&edge.transport))
         tcp->source_address = peer.at("source_address").text();
+      if (auto* tcp = std::get_if<TcpTransportConfig>(&edge.transport); tcp && tcp->tls.enabled) {
+        const auto* root = std::getenv("GRAPHX_CREDENTIALS");
+        // Settings inspection stays pure; transport realization requires these files.
+        const std::filesystem::path directory =
+            std::filesystem::path(root ? root : "${GX_CREDENTIALS}") /
+            value.at("credentials").at(name).text();
+        tcp->tls.generation_file = (directory / "generation.json").string();
+        tcp->tls.ca_file = (directory / "ca.pem").string();
+        tcp->tls.certificate_file = (directory / "cert.pem").string();
+        tcp->tls.private_key_file = (directory / "key.pem").string();
+        tcp->tls.server_name = peer.at("security").at("server_name").text();
+      }
       edge.data_plane = peer.at("encoding") == Value("graphx") ? "graphx" : "external";
       // A UDP sender binds its own resolved interface/address, not the listener's bind address.
       if (auto* udp = std::get_if<UdpTransportConfig>(&edge.transport);

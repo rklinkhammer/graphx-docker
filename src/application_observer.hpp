@@ -1,6 +1,7 @@
 #pragma once
 
 #include "graphx/capture.hpp"
+#include "config_document.hpp"
 #include "graphx/config.hpp"
 #include "graphx/framing.hpp"
 #include "graphx/observability.hpp"
@@ -50,9 +51,18 @@ inline std::string secret_env(const char* name) {
   std::string value;
   if (has_inline_value) value = inline_value;
   if (has_file_value) {
-    std::ifstream input(file_value, std::ios::binary);
-    if (!input) throw std::runtime_error("cannot read secret file for " + std::string(name));
-    value.assign(std::istreambuf_iterator<char>(input), {});
+    value = graphx::config_internal::read_document(file_value, 4096);
+    if (std::getenv("GRAPHX_CREDENTIALS")) {
+      const auto metadata = std::filesystem::path(file_value).parent_path() / "generation.json";
+      const auto before = graphx::config_internal::read_document(metadata, 8192);
+      const auto generation = graphx::config_internal::parse_document(before);
+      value = graphx::config_internal::read_document(file_value, 4096);
+      if (generation.at("members")
+                  .at(std::filesystem::path(file_value).filename().string())
+                  .text() != graphx::config_internal::sha256(value) ||
+          before != graphx::config_internal::read_document(metadata, 8192))
+        throw std::runtime_error("credential generation is incomplete");
+    }
     if (!value.empty() && value.back() == '\n') value.pop_back();
     if (!value.empty() && value.back() == '\r') value.pop_back();
   }
@@ -119,7 +129,8 @@ class RuntimeTraceSink final : public graphx::TraceSink {
         contains(config.observability.tracing, "udp-json")) {
       telemetry_ = std::make_unique<graphx::UdpJsonTraceSink>(
           node_id_, config.observability.telemetry.host, config.observability.telemetry.port,
-          secret_env("GRAPHX_TELEMETRY_SHARED_SECRET"));
+          secret_env("GRAPHX_TELEMETRY_SHARED_SECRET"),
+          [] { return secret_env("GRAPHX_TELEMETRY_SHARED_SECRET"); });
       composite_.add(*telemetry_);
     }
     if (contains(config.observability.tracing, "otlp-http")) {

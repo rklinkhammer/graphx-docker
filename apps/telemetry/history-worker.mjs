@@ -1,7 +1,8 @@
-import { mkdirSync, statSync } from 'node:fs'
+import { mkdirSync, statSync, existsSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { parentPort, workerData } from 'node:worker_threads'
 import { DatabaseSync } from 'node:sqlite'
+import { safePath } from './credentials.mjs'
 
 const SCHEMA_VERSION = 1
 let database
@@ -18,12 +19,20 @@ function databaseBytes() {
 
 function initializeDatabase() {
   mkdirSync(dirname(workerData.databaseFile), { recursive: true, mode: 0o750 })
+  if (workerData.owner) safePath(dirname(workerData.databaseFile))
+  for (const suffix of ['', '-wal', '-shm'])
+    if (workerData.owner && existsSync(`${workerData.databaseFile}${suffix}`)) safePath(`${workerData.databaseFile}${suffix}`)
+  if (databaseBytes() > workerData.maxDatabaseBytes) throw new Error('history aggregate database bound exceeded')
   database = new DatabaseSync(workerData.databaseFile)
   database.exec(`PRAGMA busy_timeout=${Math.min(2000, workerData.shutdownTimeoutMs)};
     PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON;`)
   const version = Number(database.prepare('PRAGMA user_version').get().user_version)
   if (version > SCHEMA_VERSION)
     throw new Error(`history schema version ${version} is newer than supported version ${SCHEMA_VERSION}`)
+  if (version !== 0 && workerData.owner) {
+    const owner = database.prepare('SELECT value FROM history_metadata WHERE key=?').get('owner')?.value
+    if (owner !== workerData.owner) throw new Error('history ownership mismatch')
+  }
   if (version === 0) {
     database.exec('PRAGMA auto_vacuum=INCREMENTAL; VACUUM; BEGIN IMMEDIATE;')
     try {
@@ -50,7 +59,7 @@ function initializeDatabase() {
   }
   database.exec('PRAGMA journal_mode=WAL;')
   const pageSize = Number(database.prepare('PRAGMA page_size').get().page_size)
-  const maxPages = Math.max(1, Math.floor((workerData.maxDatabaseBytes - 65536) / pageSize))
+  const maxPages = Math.max(1, Math.floor((workerData.maxDatabaseBytes - 131072) / (4 * (pageSize + 24))))
   const currentPages = Number(database.prepare('PRAGMA page_count').get().page_count)
   if (currentPages > maxPages)
     throw new Error(`history database uses ${currentPages * pageSize} bytes, exceeding configured ` +
@@ -59,6 +68,7 @@ function initializeDatabase() {
   if (effectiveMaxPages > maxPages)
     throw new Error(`history database effective page limit ${effectiveMaxPages * pageSize} bytes exceeds ` +
       `configured main-file limit ${maxPages * pageSize} bytes`)
+  database.exec('PRAGMA cache_spill=OFF;')
   database.exec(`PRAGMA journal_size_limit=${Math.min(16777216,
     Math.floor(workerData.maxDatabaseBytes / 4))};`)
   database.prepare('INSERT OR IGNORE INTO history_metadata(key,value) VALUES (?,?)')
@@ -66,28 +76,45 @@ function initializeDatabase() {
   const storedGraph = database.prepare('SELECT value FROM history_metadata WHERE key=?').get('graph_id')?.value
   if (storedGraph !== workerData.graphId)
     throw new Error(`history database belongs to graph '${storedGraph}', not '${workerData.graphId}'`)
+  if (workerData.owner) database.prepare('INSERT OR IGNORE INTO history_metadata(key,value) VALUES (?,?)')
+    .run('owner', workerData.owner)
+  checkpoint()
   insertRecord = database.prepare(`INSERT INTO history_records
     (graph_id,recorded_at_ms,event_at_ms,kind,event,node_id,edge_id,data_json)
     VALUES (?,?,?,?,?,?,?,?)`)
 }
 
+// No new write is accepted while another reader prevents reclaiming WAL space.
+// Page allocation reserves room for the main file, WAL frames and SHM together.
+function checkpoint() {
+  const result = database.prepare('PRAGMA wal_checkpoint(TRUNCATE)').get()
+  if (Number(result.busy) || databaseBytes() > workerData.maxDatabaseBytes)
+    throw new Error('history backpressure: busy checkpoint or aggregate storage cannot be reclaimed')
+}
 function maintain(now = Date.now()) {
+  checkpoint()
+  database.exec('BEGIN IMMEDIATE')
   let pruned = 0
+  try {
   pruned += Number(database.prepare('DELETE FROM history_records WHERE recorded_at_ms < ?')
     .run(now - workerData.retentionSeconds * 1000).changes)
   const count = Number(database.prepare('SELECT count(*) AS count FROM history_records').get().count)
   if (count > workerData.maxRecords)
     pruned += Number(database.prepare(`DELETE FROM history_records WHERE id IN
       (SELECT id FROM history_records ORDER BY id ASC LIMIT ?)`).run(count - workerData.maxRecords).changes)
-  if (pruned) database.exec('PRAGMA wal_checkpoint(TRUNCATE); PRAGMA incremental_vacuum(1024);')
+  database.exec('COMMIT')
+  } catch (error) { try { database.exec('ROLLBACK') } catch {} ; throw error }
+  checkpoint()
+  if (pruned) { database.exec('PRAGMA incremental_vacuum(1024)'); checkpoint() }
   return pruned
 }
 
 function writeBatch(records) {
   let written = 0
-  let pruned = maintain()
-  database.exec('BEGIN IMMEDIATE')
+  let pruned = 0
   try {
+    pruned = maintain()
+    database.exec('BEGIN IMMEDIATE')
     for (const record of records) {
       insertRecord.run(record.graphId, record.recordedAtMs, record.eventAtMs, record.kind,
         record.event, record.nodeId, record.edgeId, record.json)
@@ -99,9 +126,14 @@ function writeBatch(records) {
     return { written: 0, failed: records.length, pruned, databaseBytes: databaseBytes(),
       error: String(error?.message || error).slice(0, 256) }
   }
-  pruned += maintain()
-  database.exec('PRAGMA wal_checkpoint(TRUNCATE)')
-  return { written, failed: 0, pruned, databaseBytes: databaseBytes() }
+  try {
+    pruned += maintain()
+    checkpoint()
+    return { written, failed: 0, pruned, databaseBytes: databaseBytes() }
+  } catch (error) {
+    // The transaction committed; account for its durable rows even when reclamation stalls.
+    return { written, failed: 0, pruned, databaseBytes: databaseBytes(), error: String(error.message).slice(0, 256) }
+  }
 }
 
 function queryHistory(query) {
@@ -138,11 +170,9 @@ function runMaintenance() {
     parentPort.postMessage({ type: 'maintenance', pruned: maintain(),
       databaseBytes: databaseBytes() })
   } catch (error) {
-    clearInterval(maintenanceTimer)
     parentPort.postMessage({ type: 'maintenance', error: String(error?.message || error).slice(0, 256),
       databaseBytes: databaseBytes() })
-    try { database.close() } catch { /* The failed operation may already have closed SQLite. */ }
-    parentPort.close()
+    // Retry at the next bounded maintenance interval.
   }
 }
 
@@ -161,7 +191,9 @@ try {
 
 parentPort.on('message', message => {
   if (message.type === 'batch') {
-    parentPort.postMessage({ type: 'batch', ...writeBatch(message.records) })
+    try { parentPort.postMessage({ type: 'batch', ...writeBatch(message.records) }) }
+    catch (error) { parentPort.postMessage({ type: 'batch', written: 0, failed: message.records.length,
+      pruned: 0, databaseBytes: databaseBytes(), error: String(error.message).slice(0, 256) }) }
     return
   }
   if (message.type === 'query') {

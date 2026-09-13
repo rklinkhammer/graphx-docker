@@ -1,0 +1,6 @@
+#pragma once
+
+namespace graphx {
+inline constexpr auto kGrafanaDashboard = R"gxasset(@GRAPHX_GRAFANA_DASHBOARD@)gxasset";
+inline constexpr auto kPrometheusAlerts = R"gxasset(@GRAPHX_PROMETHEUS_ALERTS@)gxasset";
+}  // namespace graphx

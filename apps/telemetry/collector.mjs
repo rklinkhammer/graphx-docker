@@ -32,15 +32,18 @@ const nodeIds = new Set(Object.keys(nodes))
 const edgeIds = new Set(Object.keys(edges))
 const controllableNodeIds = new Set(graph.nodes.filter(node =>
   node.control === 'origin' || node.control === 'graphx').map(node => node.id))
-const runtimeIdentities = new RuntimeIdentityStore({ manifestFile: runtimeIdentityFile, nodeIds })
-const controlAuthorizer = new ControlAuthorizer({ policyFile: controlPolicyFile,
+const stagedCredentials = options.stagedCredentials
+const runtimeIdentities = stagedCredentials?.runtime || new RuntimeIdentityStore({ manifestFile: runtimeIdentityFile, nodeIds })
+const controlAuthorizer = stagedCredentials?.control || new ControlAuthorizer({ policyFile: controlPolicyFile,
   staticToken: controlToken, nodeIds })
-const previousCredentials = new PreviousCredentialStore({ manifestFile: previousCredentialFile })
+const previousCredentials = stagedCredentials?.previous || new PreviousCredentialStore({ manifestFile: previousCredentialFile })
 const credentialRegistry = new CredentialRegistry({ observationToken, telemetrySecret,
   controlAuthorizer, runtimeIdentities, previousCredentials })
 let reportedCredentialError = null
 function refreshCredentials(force = false) {
-  const valid = credentialRegistry.reload(force)
+  const stagedValid = !stagedCredentials || stagedCredentials.reload()
+  if (stagedCredentials) credentialRegistry.observationToken = stagedCredentials.observation[0] || ''
+  const valid = credentialRegistry.reload(force) && stagedValid
   if (credentialRegistry.lastError !== reportedCredentialError) {
     if (credentialRegistry.lastError) {
       controlEndpoints.clear()
@@ -145,6 +148,8 @@ function json(response, status, value, extra = {}) {
 }
 
 function authorized(request, token) {
+  if (stagedCredentials) return refreshCredentials(true) &&
+    requestOriginAllowed(request) && stagedCredentials.observe(request.headers.authorization || '')
   return tokenMatches(token, request.headers.authorization || '')
 }
 
@@ -283,7 +288,8 @@ function authorizeWebSocket(request) {
   const supplied = webSocketBearer(protocols, observationToken)
   return url.pathname === websocketPath && requestOriginAllowed(request) &&
     withinRateLimit(request, 120) &&
-    (!observationToken || tokenMatches(observationToken, `Bearer ${supplied}`))
+    (stagedCredentials ? refreshCredentials(true) && stagedCredentials.observe(`Bearer ${supplied}`) :
+      (!observationToken || tokenMatches(observationToken, `Bearer ${supplied}`)))
 }
 
 const rateLimits = {
@@ -449,8 +455,12 @@ function prometheus() {
       const claimedNode = envelope?.payload?.nodeId
       const nodeSecret = runtimeIdentities.available
         ? runtimeIdentities.secretFor(claimedNode, false) : telemetrySecret
-      if (runtimeIdentityFile && !nodeSecret) return
-      const verifiedEvent = verifyEnvelope(envelope, nodeSecret, replayCache)
+      if ((runtimeIdentityFile || stagedCredentials) && !nodeSecret) return
+      let verifiedEvent = null
+      for (const secret of stagedCredentials?.runtimeTokens.get(claimedNode) || [nodeSecret]) {
+        verifiedEvent = verifyEnvelope(envelope, secret, replayCache)
+        if (verifiedEvent) break
+      }
       if (!validateTelemetryEvent(verifiedEvent, nodeIds, edgeIds)) return
       if (!refreshCredentials(true)) return
       const event = sanitizeTelemetryEvent(sanitizeControlAcknowledgement(verifiedEvent),

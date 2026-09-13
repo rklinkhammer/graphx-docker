@@ -37,6 +37,7 @@ TransportPtr TransportFactory::create(const EdgeConfig& edge, ConnectionMode mod
       options.tls.certificate_file = transport.tls.certificate_file;
       options.tls.private_key_file = transport.tls.private_key_file;
       options.tls.server_name = transport.tls.server_name;
+      options.tls.generation_file = transport.tls.generation_file;
       if (mode == ConnectionMode::connect)
         return std::make_unique<TcpTransport>(
             TcpTransport::connect(endpoint, edge.edge.id, trace_sink, options));

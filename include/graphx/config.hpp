@@ -38,6 +38,7 @@ struct TlsConfig {
   std::string certificate_file;
   std::string private_key_file;
   std::string server_name;
+  std::string generation_file;
 };
 
 struct TcpTransportConfig {

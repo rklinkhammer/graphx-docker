@@ -1,5 +1,7 @@
 #pragma once
 
+#include <functional>
+
 #include "graphx/envelope.hpp"
 
 #include <chrono>
@@ -118,7 +120,7 @@ class CompositeTraceSink final : public TraceSink {
 class UdpJsonTraceSink final : public TraceSink {
  public:
   UdpJsonTraceSink(std::string node_id, std::string host, std::uint16_t port,
-                   std::string shared_secret = {});
+                   std::string shared_secret = {}, std::function<std::string()> secret_reader = {});
   ~UdpJsonTraceSink() override;
   UdpJsonTraceSink(const UdpJsonTraceSink&) = delete;
   UdpJsonTraceSink& operator=(const UdpJsonTraceSink&) = delete;

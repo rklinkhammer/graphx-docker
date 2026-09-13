@@ -2,6 +2,7 @@
 #include "graphx/compile.hpp"
 #include "graphx/node_settings.hpp"
 #include "graphx/normalized_config.hpp"
+#include "graphx/ownership.hpp"
 #include "graphx/version.hpp"
 
 #include <filesystem>
@@ -35,6 +36,11 @@ int main(int argc, char** argv) {
   }
   try {
     const std::string command = argv[1];
+    if (command == "platform-lock") {
+      if (argc < 6 || std::string_view(argv[2]) != "--lock" || std::string_view(argv[4]) != "--")
+        throw std::invalid_argument("platform-lock requires --lock FILE -- PROGRAM [ARGS]");
+      return graphx::execute_with_ownership_lock(argv[3], argv + 5);
+    }
     if (command == "node-settings") {
       const auto args = graphx::node_arguments(argc - 1, argv + 1, false);
       std::cout << graphx::config_value_json(

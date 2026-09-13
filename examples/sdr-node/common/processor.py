@@ -12,7 +12,8 @@ import ssl
 import threading
 import time
 
-from protocol import configure_telemetry, decode_samples, recv_line, signed, telemetry_endpoint, verified
+from protocol import configure_telemetry, decode_samples, recv_line, signed, telemetry_endpoint, telemetry_secret, verified
+from credential_files import tls_context
 from node_settings import arguments, binding, release
 
 stop = threading.Event()
@@ -42,7 +43,7 @@ def decode_sample_datagram(payload: bytes, peer: tuple[str, int], source: str):
 def telemetry_control() -> None:
     """Register this controller with telemetry and relay GUI control to the SDR."""
     host, port = telemetry_endpoint()
-    secret = os.environ.get("GRAPHX_TELEMETRY_SHARED_SECRET", "")
+    nonces = {}
     sequence = 0
     last_heartbeat = 0.0
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as endpoint:
@@ -50,6 +51,12 @@ def telemetry_control() -> None:
         endpoint.settimeout(0.2)
         while not stop.is_set():
             now = time.monotonic()
+            try:
+                secret = telemetry_secret()
+            except (OSError, ValueError):
+                stop.wait(0.2)
+                continue
+            nonces = {key: expiry for key, expiry in nonces.items() if expiry > now}
             if now - last_heartbeat >= 1:
                 sequence += 1
                 event = {"kind": "trace", "event": "heartbeat", "nodeId": node_settings["node_id"],
@@ -67,6 +74,10 @@ def telemetry_control() -> None:
             if not command or command.get("kind") != "control" or \
                     command.get("targetNode") != node_settings["node_id"]:
                 continue
+            nonce = json.loads(packet)['auth']['nonce']
+            if nonce in nonces or len(nonces) >= 4096:
+                continue
+            nonces[nonce] = now + 60
             action = command.get("action")
             accepted = action in ("pause", "resume") and \
                 type(command.get("expiresAt")) is int and \
@@ -92,10 +103,7 @@ def telemetry_control() -> None:
 
 
 def control(action: str, frequency_hz: int | None = None) -> dict[str, object]:
-    context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH,
-                                         cafile=os.environ["SDR_TLS_CA"])
-    context.minimum_version = ssl.TLSVersion.TLSv1_3
-    context.load_cert_chain(os.environ["SDR_TLS_CERT"], os.environ["SDR_TLS_KEY"])
+    context = tls_context(False)
     request = {"action": action}
     if frequency_hz is not None:
         request["frequency_hz"] = frequency_hz

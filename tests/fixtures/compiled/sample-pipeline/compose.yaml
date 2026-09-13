@@ -12,6 +12,9 @@
         ]
       }
     },
+    "mg-console": {
+      "driver": "bridge"
+    },
     "mg-generator": {
       "driver": "bridge",
       "internal": true
@@ -96,6 +99,7 @@
       ],
       "environment": {
         "GX_CREDENTIALS": "/run/secrets",
+        "GX_OWNER": "${GX_OWNER}",
         "GX_STATE": "/var/lib/graphx"
       },
       "image": "graphx-design/platform@sha256:41b3db89b6ec78cab84b29c12a1af5024ba670b44463edc40d887cad8b952ba4",
@@ -106,8 +110,9 @@
           "max-size": "1m"
         }
       },
-      "mem_limit": 134217728,
+      "mem_limit": 536870912,
       "networks": {
+        "mg-console": {},
         "mg-generator": {
           "aliases": [
             "platform"

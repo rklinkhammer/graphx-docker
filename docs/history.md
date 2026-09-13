@@ -13,3 +13,7 @@ not rewrite an unsupported schema.
 History degradation does not stop live telemetry; readiness reports the history
 failure independently. Back up the database only while the service is stopped or by
 using SQLite's online backup facilities.
+
+The compiled platform holds the common writer lock and records owner identity.
+Stop preserves the store; explicit owner-checked deletion and aggregate storage
+bounds are described in [the platform lifecycle](platform.md).

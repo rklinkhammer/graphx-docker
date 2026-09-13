@@ -488,6 +488,15 @@ void CompositeTraceSink::on_heartbeat(std::string_view node_id, double cpu_perce
 struct UdpJsonTraceSink::Impl {
   std::string node_id;
   std::string shared_secret;
+  std::function<std::string()> secret_reader;
+  std::string secret() const { return secret_reader ? secret_reader() : shared_secret; }
+  std::string sign(std::string_view payload) const {
+    try {
+      return signed_datagram(payload, secret());
+    } catch (...) {
+      return {};
+    }  // Failed credential reload drops telemetry, never emits unsigned data.
+  }
   int socket{-1};
   std::atomic_bool paused{};
   std::atomic_bool stopping{};
@@ -495,10 +504,12 @@ struct UdpJsonTraceSink::Impl {
 };
 
 UdpJsonTraceSink::UdpJsonTraceSink(std::string node_id, std::string host, std::uint16_t port,
-                                   std::string shared_secret)
+                                   std::string shared_secret,
+                                   std::function<std::string()> secret_reader)
     : impl_(std::make_unique<Impl>()) {
   impl_->node_id = std::move(node_id);
   impl_->shared_secret = std::move(shared_secret);
+  impl_->secret_reader = std::move(secret_reader);
   addrinfo hints{};
   hints.ai_family = AF_UNSPEC;
   hints.ai_socktype = SOCK_DGRAM;
@@ -526,7 +537,11 @@ UdpJsonTraceSink::UdpJsonTraceSink(std::string node_id, std::string host, std::u
         const auto count = ::recv(state->socket, buffer.data(), buffer.size(), 0);
         if (count <= 0) continue;
         const std::string_view command(buffer.data(), static_cast<std::size_t>(count));
-        if (!authenticate_command(command, state->shared_secret, nonces)) continue;
+        try {
+          if (!authenticate_command(command, state->secret(), nonces)) continue;
+        } catch (...) {
+          continue;
+        }
         const auto payload = command_payload(command);
         const auto kind = json_string_field(payload, "kind", 16);
         const auto command_id = json_string_field(payload, "commandId", 36);
@@ -554,8 +569,7 @@ UdpJsonTraceSink::UdpJsonTraceSink(std::string node_id, std::string host, std::u
               "\",\"action\":\"" + std::string(action) + "\",\"commandId\":\"" +
               std::string(command_id) + "\",\"accepted\":true,\"state\":\"" +
               (state->paused.load(std::memory_order_relaxed) ? "paused" : "running") + "\"}";
-          const auto acknowledgement =
-              signed_datagram(acknowledgement_payload, state->shared_secret);
+          const auto acknowledgement = state->sign(acknowledgement_payload);
           ::send(state->socket, acknowledgement.data(), acknowledgement.size(), 0);
         }
       }
@@ -627,7 +641,7 @@ void UdpJsonTraceSink::on_capture(std::string_view edge_id, const Envelope& enve
        << "\",\"traceId\":\"" << escape_json(envelope.trace_id) << "\",\"direction\":\""
        << escape_json(direction) << "\",\"captureFile\":\"" << escape_json(file)
        << "\",\"capturePacket\":" << packet_index << ",\"captureOffset\":" << file_offset << '}';
-  const auto value = signed_datagram(json.str(), impl_->shared_secret);
+  const auto value = impl_->sign(json.str());
   ::send(impl_->socket, value.data(), value.size(), 0);
 }
 
@@ -656,7 +670,7 @@ void UdpJsonTraceSink::emit(std::string_view event, std::string_view edge_id,
   if (!message.empty()) json << ",\"message\":\"" << escape_json(message) << '"';
   if (cpu_percent >= 0.0) json << ",\"cpuPercent\":" << std::setprecision(15) << cpu_percent;
   json << '}';
-  const auto value = signed_datagram(json.str(), impl_->shared_secret);
+  const auto value = impl_->sign(json.str());
   ::send(impl_->socket, value.data(), value.size(), 0);
 }
 

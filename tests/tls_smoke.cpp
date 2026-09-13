@@ -27,10 +27,11 @@ graphx::TcpOptions tls_options(const char* certificate, const char* key, const c
 }  // namespace
 
 int main(int argc, char** argv) {
-  if (argc != 6) return 64;
+  if (argc != 6 && argc != 7) return 64;
   try {
     const auto port = static_cast<std::uint16_t>(std::stoi(argv[4]));
     auto options = tls_options(argv[1], argv[2], argv[3]);
+    if (argc == 7) options.tls.generation_file = argv[6];
     auto listener =
         graphx::TcpTransport::listen({"127.0.0.1", port}, "tls-smoke", nullptr, options);
     auto received =
@@ -85,6 +86,7 @@ int main(int argc, char** argv) {
     });
     auto untrusted_options = options;
     untrusted_options.tls.ca_file = argv[5];
+    untrusted_options.tls.generation_file.clear();
     rejected = false;
     try {
       auto invalid = graphx::TcpTransport::connect({"127.0.0.1", untrusted_port}, "tls-untrusted",
@@ -109,6 +111,7 @@ int main(int argc, char** argv) {
     });
     auto no_client_options = options;
     no_client_options.tls.certificate_file.clear();
+    no_client_options.tls.generation_file.clear();
     no_client_options.tls.private_key_file.clear();
     try {
       auto invalid = graphx::TcpTransport::connect({"127.0.0.1", no_client_port}, "tls-no-client",

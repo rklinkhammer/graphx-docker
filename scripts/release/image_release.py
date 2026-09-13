@@ -28,8 +28,8 @@ from release_common import ReleaseError, sha256_file, source_version, validate_c
 RECIPES = {
     "runtime": ("Dockerfile", ["graphx", "graphx-generator", "graphx-transform", "graphx-sink",
                               "graphx-udp-publisher", "graphx-udp-subscriber"]),
-    "telemetry": ("docker/telemetry.Dockerfile", []),
-    "sdr": ("docker/sdr.Dockerfile", ["graphx-sdr-radio", "graphx-sdr-processor", "graphx-sdr-sink"]),
+    "telemetry": ("Dockerfile", ["graphx", "graphx-platform"]),
+    "sdr": ("Dockerfile", ["graphx", "graphx-sdr-radio", "graphx-sdr-processor", "graphx-sdr-sink"]),
 }
 MAX_IMAGE = 2 * 1024**3
 MAX_JSON = 4 * 1024**2
@@ -182,7 +182,7 @@ def inspect_image(path: Path, role: str, version: str, commit: str, platform: st
         require(settings.get("User") == "65532:65532" and not settings.get("Entrypoint"),
                 "shared image requires UID 65532 and no implicit entrypoint")
         expected_cmd = {"runtime": ["/usr/local/bin/graphx", "--help"],
-                        "telemetry": ["node", "server.mjs"],
+                        "telemetry": ["graphx-platform", "--help"],
                         "sdr": ["/usr/local/bin/graphx-sdr", "--help"]}[role]
         require(settings.get("Cmd") == expected_cmd, "unexpected shared image command")
         require(not any(v.startswith("GRAPHX_CONFIG=") for v in settings.get("Env", [])),
@@ -258,7 +258,7 @@ def inspect_image(path: Path, role: str, version: str, commit: str, platform: st
                 package = json.loads(data)
                 if isinstance(package.get("name"), str) and isinstance(package.get("version"), str):
                     packages[(package["name"], package["version"])] = "NOASSERTION"
-        if role == "runtime":
+        if role in RECIPES:
             metadata = captured.get("usr/local/share/graphx/build-dependencies.json")
             require(metadata is not None, "runtime build dependency metadata missing")
             dependencies = json.loads(metadata)
@@ -446,9 +446,10 @@ def build(args):
         try:
             for attempt in range(2):
                 command = ["docker", "buildx", "build", "--platform", args.platform,
-                           "--file", dockerfile, "--tag", tag, "--provenance=false",
+                           "--file", dockerfile, "--target", role, "--tag", tag, "--provenance=false",
                            "--build-arg", "GRAPHX_VERSION=" + version,
                            "--build-arg", "GRAPHX_REVISION=" + commit,
+                           "--build-arg", "GRAPHX_RELEASE_IMAGE_TYPES=ON",
                            "--build-arg", "SOURCE_DATE_EPOCH=" + str(epoch),
                            "--output", "type=image,rewrite-timestamp=true"]
                 if args.no_cache:

@@ -11,6 +11,8 @@ import secrets
 import socket
 import struct
 import time
+from pathlib import Path
+from credential_files import member, configure_tls
 
 MAGIC = b"SDR1"
 HEADER = struct.Struct("!4sIQH")
@@ -24,8 +26,24 @@ _telemetry = None
 def configure_telemetry(node):
     global _telemetry
     _telemetry = node['telemetry']
-    if _telemetry['credential'] is not None and not os.environ.get('GRAPHX_TELEMETRY_SHARED_SECRET'):
-        raise ValueError('E_PHASE_UNAVAILABLE: telemetry credential staging requires P5 or an explicit runtime secret')
+    configure_tls(node)
+    if _telemetry['credential'] is not None and not telemetry_secret():
+        raise ValueError('telemetry requires a staged HMAC credential')
+
+
+def telemetry_secret() -> str:
+    path = os.environ.get('GRAPHX_TELEMETRY_SHARED_SECRET_FILE')
+    root = os.environ.get('GRAPHX_CREDENTIALS')
+    if root and _telemetry and _telemetry['credential']:
+        path = str(Path(root) / _telemetry['credential'] / 'hmac')
+    if path:
+        if os.environ.get('GRAPHX_TELEMETRY_SHARED_SECRET'):
+            raise ValueError('inline and file telemetry credentials are mutually exclusive')
+        value = member(Path(path)).decode().rstrip('\r\n')
+        if not 32 <= len(value.encode()) <= 4096:
+            raise ValueError('invalid telemetry credential length')
+        return value
+    return os.environ.get('GRAPHX_TELEMETRY_SHARED_SECRET', '')
 
 
 def telemetry_endpoint() -> tuple[str, int]:
@@ -112,7 +130,7 @@ def publish_heartbeat(node_id: str, sequence: int) -> None:
     if _telemetry is None or _telemetry["credential"] is None:
         return
     host, port = telemetry_endpoint()
-    secret = os.environ.get("GRAPHX_TELEMETRY_SHARED_SECRET", "")
+    secret = telemetry_secret()
     event = {"kind": "trace", "event": "heartbeat", "nodeId": node_id,
              "timestamp": int(time.time() * 1000), "sequence": sequence}
     try:

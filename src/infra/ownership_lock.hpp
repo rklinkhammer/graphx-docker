@@ -11,6 +11,7 @@ class OwnershipLock {
   static OwnershipLock open_existing(const std::filesystem::path& path, OwnershipLockMode mode);
   static OwnershipLock open_or_create(const std::filesystem::path& path, OwnershipLockMode mode);
 
+  [[nodiscard]] int descriptor() const noexcept { return descriptor_; }
   ~OwnershipLock();
   OwnershipLock(const OwnershipLock&) = delete;
   OwnershipLock& operator=(const OwnershipLock&) = delete;

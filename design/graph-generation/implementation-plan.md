@@ -5,7 +5,9 @@
 [P2 verification](p2-verification.md). P3 deterministic compilation is complete;
 see [P3 verification](p3-verification.md). P4 shared packaging and release-specific
 catalog pinning are complete; see [P4 verification](p4-verification.md).
-P5–P10 remain future changes. The original
+P5 platform and credential implementation is complete with native macOS and
+OrbStack evidence; see [P5 verification](p5-verification.md) for results and
+unrun environment/manual checks. P6–P10 remain future changes. The original
 design review did not authorize implementation, guest builds, infrastructure
 mutation or privileged tests. I-01–I-11 are accepted; no compatibility parser, second source manifest,
 deployment daemon, generic plugin system or per-topology image build is planned.

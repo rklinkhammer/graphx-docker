@@ -57,7 +57,11 @@ def verify(output):
         for name, service in compose['services'].items():
             assert '@sha256:' in service['image'] and 'build' not in service and not service.get('privileged')
             assert service['cap_drop'] == ['ALL'] and service['read_only'] is True
-            if name != 'platform':
+            for mount in service.get('volumes', []):
+                if mount.startswith('./'):
+                    assert mount.split(':')[0][2:] in content, mount
+            if name not in {'platform', 'prometheus', 'grafana'}:
+                assert 'mg-console' not in service.get('networks', [])
                 assert '--release-token' in service['command'] and '--node' in service['command']
                 assert 'healthcheck' not in service, 'P2 readiness uses stdout, not an unsupported CLI probe'
                 node = next(n for n in resolved['nodes'] if n['node_id'] == name)

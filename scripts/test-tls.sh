@@ -21,3 +21,19 @@ openssl req -x509 -newkey rsa:2048 -nodes -days 1 -sha256 \
 port=$((20000 + ($$ % 20000)))
 "$SMOKE" "$TMP_DIR/peer.pem" "$TMP_DIR/peer.key" "$TMP_DIR/ca.pem" "$port" \
   "$TMP_DIR/untrusted-ca.pem"
+
+python3 - "$TMP_DIR" <<'PY'
+import hashlib, json, pathlib, sys
+root = pathlib.Path(sys.argv[1])
+(root / 'generation.json').write_text(json.dumps({'version':1,'generation':1,
+    'members':{name:hashlib.sha256((root/name).read_bytes()).hexdigest()
+               for name in ['peer.pem','peer.key','ca.pem']}}))
+PY
+"$SMOKE" "$TMP_DIR/peer.pem" "$TMP_DIR/peer.key" "$TMP_DIR/ca.pem" "$port" \
+  "$TMP_DIR/untrusted-ca.pem" "$TMP_DIR/generation.json"
+printf '%s\n' '{"version":1,"publishing":true}' > "$TMP_DIR/generation.json"
+if "$SMOKE" "$TMP_DIR/peer.pem" "$TMP_DIR/peer.key" "$TMP_DIR/ca.pem" "$port" \
+  "$TMP_DIR/untrusted-ca.pem" "$TMP_DIR/generation.json" > "$TMP_DIR/rejected.log" 2>&1; then
+  echo 'incomplete TLS credential generation was accepted' >&2
+  exit 1
+fi

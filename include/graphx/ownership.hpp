@@ -52,6 +52,10 @@ int export_owned_network_capture(const GraphConfig& config,
                                  const std::filesystem::path& state_root,
                                  const std::filesystem::path& destination, std::ostream& output);
 
+// Hold the common exclusive lock across exec; the replacement process owns its lifetime.
+// This primitive does not start infrastructure or create a separate ownership ledger.
+int execute_with_ownership_lock(const std::filesystem::path& path, char* const arguments[]);
+
 [[nodiscard]] std::filesystem::path default_ownership_state_root();
 
 }  // namespace graphx

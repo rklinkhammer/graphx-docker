@@ -1,3 +1,4 @@
+# Application startup remains gated for P6; normalization is supplied by graphx compile.
 name: graphx
 
 x-node-environment: &node-environment
@@ -20,27 +21,6 @@ x-node-service: &node-service
   init: true
 
 services:
-  normalize-config:
-    image: graphx-demo:latest
-    user: "0:0"
-    entrypoint: ["/bin/sh", "-ec"]
-    command:
-      - >-
-        umask 022;
-        /usr/local/bin/graphx config normalize /config/graphx.yml > /run/graphx/normalized.json.tmp;
-        chmod 0444 /run/graphx/normalized.json.tmp;
-        mv /run/graphx/normalized.json.tmp /run/graphx/normalized.json
-    environment:
-      GRAPHX_OVERRIDES: ${GRAPHX_OVERRIDES:-}
-    volumes:
-      - ${GRAPHX_CONFIG_FILE:-./graphx.yml}:/config/graphx.yml:ro
-      - normalized-config:/run/graphx
-    read_only: true
-    tmpfs: [/tmp]
-    cap_drop: [ALL]
-    security_opt: [no-new-privileges:true]
-    pids_limit: 32
-    restart: "no"
   sink:
     <<: *node-service
     entrypoint: ["/usr/local/bin/graphx-sink"]
@@ -71,7 +51,7 @@ services:
       retries: 6
       start_period: 5s
     environment:
-      GRAPHX_NORMALIZED_CONFIG: /run/graphx/normalized.json
+      GRAPHX_NORMALIZED_CONFIG: /run/graphx/resolved.json
       GRAPHX_CONFIG_DIRECTORY: /app
       GRAPHX_CAPTURE_ENABLED: ${GRAPHX_CAPTURE_ENABLED:-false}
       GRAPHX_CAPTURE_DIR: /captures
@@ -90,9 +70,7 @@ services:
       GRAPHX_OTLP_CA_FILE: ${GRAPHX_OTLP_CA_FILE:-}
       GRAPHX_HISTORY_ENABLED: ${GRAPHX_HISTORY_ENABLED:-}
       GRAPHX_HISTORY_DATABASE_FILE: ${GRAPHX_HISTORY_DATABASE_FILE:-}
-    volumes: [captures:/captures:ro, normalized-config:/run/graphx:ro]
-    depends_on:
-      normalize-config: { condition: service_completed_successfully }
+    volumes: [captures:/captures:ro, "${GX_OUTPUT:?Set GX_OUTPUT to compiled artifacts}:/run/graphx:ro"]
     networks: [graphx]
     read_only: true
     tmpfs: [/tmp]
@@ -107,7 +85,6 @@ networks:
 
 volumes:
   captures:
-  normalized-config:
 
 secrets:
   graphx_ca:

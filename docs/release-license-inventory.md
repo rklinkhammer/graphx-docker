@@ -152,7 +152,7 @@ docker build --build-arg GRAPHX_VERSION=1.1.0 \
   --tag graphx-license-audit-runtime:1.1.0 --file Dockerfile .
 docker build --build-arg GRAPHX_VERSION=1.1.0 \
   --tag graphx-license-audit-telemetry:1.1.0 \
-  --file docker/telemetry.Dockerfile .
+  --file Dockerfile --target telemetry .
 docker scout sbom --format spdx local://graphx-license-audit-runtime:1.1.0
 docker scout sbom --format spdx local://graphx-license-audit-telemetry:1.1.0
 ```

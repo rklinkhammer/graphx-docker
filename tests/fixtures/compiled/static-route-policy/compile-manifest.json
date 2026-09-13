@@ -15,11 +15,11 @@
     },
     {
       "path": "compose.yaml",
-      "sha256": "2c05b6c13f34a12b998775259659e99ff4308abe282bd93ee08d9abaf1951d82"
+      "sha256": "ba98c1b3b4b5f9f4cf7b112c2ecc82393d2773fa61d016ff80ed3fae9779be56"
     },
     {
       "path": "credentials.json",
-      "sha256": "78bec4a948065366a5ce20ceffcf051a6120497aec574ac7ad9b08f2d4d4db98"
+      "sha256": "df41428533aae3f3d4658ba73038f34c660529402c7a051c89e386520802c023"
     },
     {
       "path": "execution-plan.json",

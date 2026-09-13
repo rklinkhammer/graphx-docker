@@ -36,7 +36,7 @@ archive with its build environment.
 
 ## Optional operations images
 
-The optional `examples/sample-pipeline/compose.observability.yaml` projection uses immutable image
+The optional compiler-generated Prometheus/Grafana projection uses immutable image
 digests in addition to human-readable version tags:
 
 - Prometheus 3.13.0, Apache-2.0,

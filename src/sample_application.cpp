@@ -15,23 +15,14 @@ int run_sample_application(int argc, char** argv, std::string_view type) {
     const auto execution = node.at("execution").at("kind").text();
     if (execution != "native" && execution != "container" && execution != "namespace")
       throw std::runtime_error("E_EXECUTION: this executable requires a managed process instance");
-    for (const auto& [name, peers] : node.at("bindings").object()) {
-      (void)name;
-      for (const auto& peer : peers.array())
-        if (peer.at("security").at("profile") != ConfigValue("none"))
-          throw std::runtime_error(
-              "E_PHASE_UNAVAILABLE: GraphX TLS credential staging requires P5");
-    }
     const auto telemetry_secret = demo::secret_env("GRAPHX_TELEMETRY_SHARED_SECRET");
     if (!node.at("telemetry").at("credential").is_null() && telemetry_secret.empty())
       throw std::runtime_error(
-          "E_PHASE_UNAVAILABLE: telemetry credential staging requires P5 or an explicit runtime "
+          "E_CREDENTIAL: telemetry requires a staged reference or an explicit runtime "
           "secret");
     GraphConfig observer;
     observer.observability.metrics.exporters = {"console"};
     observer.observability.tracing.exporters = {"console"};
-    // Credential staging and graph-level platform configuration belong to P5.
-    // Explicit runtime credentials enable the existing authenticated exporter.
     if (!node.at("telemetry").at("credential").is_null()) {
       observer.observability.metrics.exporters.push_back("udp-json");
       observer.observability.telemetry.host = node.at("telemetry").at("host").text();

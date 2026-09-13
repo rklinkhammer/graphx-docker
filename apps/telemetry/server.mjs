@@ -1,8 +1,10 @@
 import dgram from 'node:dgram'
+import { validateInheritedLock } from './credentials.mjs'
+import { loadPlatform, PlatformCredentials } from './platform-config.mjs'
 import { readFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { createServer as createSecureServer } from 'node:https'
-import { join, normalize, resolve } from 'node:path'
+import { dirname, join, normalize, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { WebSocketServer } from 'ws'
 import { loadTelemetryConfiguration, applicationGraph } from './normalized-config.mjs'
@@ -15,12 +17,19 @@ import { createRuntimeEvidence } from './runtime-evidence.mjs'
 import { createHttpRequestHandler } from './http-routes.mjs'
 import { createTelemetryCollector } from './collector.mjs'
 
+const platformArgument = process.argv.indexOf('--config')
+if (platformArgument > -1) for (const key of Object.keys(process.env))
+  if ((key.startsWith('GRAPHX_') && !['GRAPHX_WEB_ROOT', 'GRAPHX_VERSION', 'GRAPHX_PLATFORM_LOCK', 'GRAPHX_PLATFORM_LOCK_FD'].includes(key)) || key === 'PORT')
+    delete process.env[key]
+const resolvedPlatform = platformArgument > -1 ? loadPlatform(process.argv[platformArgument + 1]) : null
+if (resolvedPlatform) validateInheritedLock(join(dirname(resolve(resolvedPlatform.history.database_file)), '.lock'))
+const stagedCredentials = resolvedPlatform ? new PlatformCredentials(resolvedPlatform) : null
 const root = normalize(process.env.GRAPHX_WEB_ROOT || join(fileURLToPath(new URL('.', import.meta.url)), '../../web/dist'))
-const port = Number(process.env.PORT || 8080)
-const udpPort = Number(process.env.GRAPHX_TELEMETRY_PORT || 9000)
-const httpBind = process.env.GRAPHX_HTTP_BIND || '127.0.0.1'
-const udpBind = process.env.GRAPHX_TELEMETRY_BIND || '127.0.0.1'
-const loadedConfiguration = loadTelemetryConfiguration()
+const port = Number(resolvedPlatform?.platform.console.port || process.env.PORT || 8080)
+const udpPort = Number(resolvedPlatform?.platform.telemetry.port || process.env.GRAPHX_TELEMETRY_PORT || 9000)
+const httpBind = resolvedPlatform ? (resolvedPlatform.platform.telemetry.host === 'platform' ? '0.0.0.0' : resolvedPlatform.platform.console.bind) : process.env.GRAPHX_HTTP_BIND || '127.0.0.1'
+const udpBind = resolvedPlatform ? (resolvedPlatform.platform.telemetry.host === 'platform' ? '0.0.0.0' : '127.0.0.1') : process.env.GRAPHX_TELEMETRY_BIND || '127.0.0.1'
+const loadedConfiguration = resolvedPlatform || loadTelemetryConfiguration()
 const config = loadedConfiguration.config
 const graph = applicationGraph(config)
 const packetHistoryUrl = process.env.GRAPHX_PACKET_HISTORY_URL || ''
@@ -28,7 +37,7 @@ const qemuEvidenceFile = process.env.GRAPHX_QEMU_EVIDENCE_FILE || ''
 const networkDiagnosticFile = process.env.GRAPHX_NETWORK_DIAGNOSTIC_FILE || ''
 const heartbeatTimeout = config.platform.telemetry.heartbeat_timeout_ms
 const websocketPath = config.platform?.telemetry?.websocket || '/ws'
-const configuredCapture = { ...config.platform.capture, provider: config.platform.capture.provider === 'application' ? 'pcapng' : config.platform.capture.provider }
+const configuredCapture = { ...(resolvedPlatform?.capture || config.platform.capture), provider: config.platform.capture.provider === 'application' ? 'pcapng' : config.platform.capture.provider }
 function captureInteger(name, configured, fallback, minimum, maximum) {
   const fromEnvironment = process.env[name]
   const candidate = fromEnvironment ?? configured ?? fallback
@@ -50,13 +59,15 @@ function deploymentBoolean(name, configured) {
   throw new Error(`${name} must be one of true, false, 1, 0, yes, no, on, or off`)
 }
 const sloEvaluator = new SloEvaluator(config.platform?.slos)
-const configuredOtlp = otlpConfig(config.platform?.otlp)
+const configuredOtlp = { ...otlpConfig(config.platform?.otlp, resolvedPlatform ? {} : process.env), ...stagedCredentials?.otlp(),
+  ...(stagedCredentials ? { credentials: () => stagedCredentials.otlp() } : {}) }
 const otlpExporter = new OtlpHttpExporter(configuredOtlp)
-const configuredHistory = historyConfig(config.platform?.history, process.env,
+const configuredHistory = historyConfig(resolvedPlatform?.history || config.platform?.history, resolvedPlatform ? {} : process.env,
   loadedConfiguration.baseDirectory)
+if (resolvedPlatform) configuredHistory.owner = process.env.GX_OWNER
 const historyStore = new HistoryStore(configuredHistory, graph.id)
 const { enabled: graphControlEnabled, grants, allowed_origins: graphOrigins, ...controlLimits } = config.platform.control
-if (graphControlEnabled || grants.length) throw new Error('E_PHASE_UNAVAILABLE: graph credential and control grant staging requires P5')
+if (!resolvedPlatform && (graphControlEnabled || grants.length)) throw new Error('E_PHASE_UNAVAILABLE: graph credential and control grant staging requires P5')
 const configuredControl = controlConfig(controlLimits)
 const captureConfig = { ...configuredCapture,
   enabled: deploymentBoolean('GRAPHX_CAPTURE_ENABLED', configuredCapture.enabled),
@@ -79,7 +90,7 @@ const controlToken = readSecret('GRAPHX_CONTROL_TOKEN')
 const controlPolicyFile = process.env.GRAPHX_CONTROL_POLICY_FILE || ''
 const runtimeIdentityFile = process.env.GRAPHX_RUNTIME_IDENTITY_FILE || ''
 const previousCredentialFile = process.env.GRAPHX_PREVIOUS_CREDENTIALS_FILE || ''
-const observationToken = readSecret('GRAPHX_OBSERVATION_TOKEN')
+const observationToken = stagedCredentials ? stagedCredentials.observation[0] : readSecret('GRAPHX_OBSERVATION_TOKEN')
 const telemetrySecret = readSecret('GRAPHX_TELEMETRY_SHARED_SECRET')
 const tlsCertificateFile = process.env.GRAPHX_TLS_CERT_FILE || ''
 const tlsPrivateKeyFile = process.env.GRAPHX_TLS_KEY_FILE || ''
@@ -94,13 +105,13 @@ if (controlPolicyFile && !runtimeIdentityFile)
   throw new Error('GRAPHX_RUNTIME_IDENTITY_FILE is required with GRAPHX_CONTROL_POLICY_FILE')
 if (controlToken && !telemetrySecret)
   throw new Error('GRAPHX_TELEMETRY_SHARED_SECRET is required with direct token control')
-if (!tlsCertificateFile && !isLoopback(httpBind) && process.env.GRAPHX_ALLOW_INSECURE_REMOTE !== 'true')
+if (!tlsCertificateFile && !isLoopback(httpBind) && !resolvedPlatform && process.env.GRAPHX_ALLOW_INSECURE_REMOTE !== 'true')
   throw new Error('plaintext telemetry may bind only to loopback; use TLS or explicitly set GRAPHX_ALLOW_INSECURE_REMOTE=true')
-const allowedOrigins = new Set((process.env.GRAPHX_ALLOWED_ORIGINS || '').split(',').map(v => v.trim()).filter(Boolean))
+const allowedOrigins = new Set(resolvedPlatform ? graphOrigins : (process.env.GRAPHX_ALLOWED_ORIGINS || '').split(',').map(v => v.trim()).filter(Boolean))
 const topology = createTopology(config)
 const runtimeEvidence = createRuntimeEvidence({ qemuEvidenceFile, networkDiagnosticFile, topology })
 let udp
-const collector = createTelemetryCollector({ graph, topology, websocketPath, heartbeatTimeout,
+const collector = createTelemetryCollector({ stagedCredentials, graph, topology, websocketPath, heartbeatTimeout,
   configuredOtlp, otlpExporter, configuredHistory, historyStore, configuredControl, sloEvaluator,
   captureConfig, captureDirectory, captureCatalogMaxFiles, captureCatalogMaxEntries,
   packetHistoryUrl, ...runtimeEvidence, runtimeIdentityFile, controlPolicyFile,

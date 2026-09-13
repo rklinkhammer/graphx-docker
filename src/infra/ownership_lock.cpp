@@ -1,4 +1,6 @@
 #include "infra/ownership_lock.hpp"
+#include "graphx/ownership.hpp"
+#include <cstdlib>
 
 #include <cerrno>
 #include <fcntl.h>
@@ -18,7 +20,8 @@ int open_lock(const std::filesystem::path& path, OwnershipLockMode mode, bool cr
     throw std::system_error(errno, std::generic_category(), "cannot open ownership lock");
 
   struct stat metadata{};
-  if (::fstat(descriptor, &metadata) != 0 || !S_ISREG(metadata.st_mode) || metadata.st_size != 0) {
+  if (::fstat(descriptor, &metadata) != 0 || !S_ISREG(metadata.st_mode) || metadata.st_size != 0 ||
+      metadata.st_nlink != 1) {
     ::close(descriptor);
     throw std::runtime_error("ownership lock must be a zero-byte regular file");
   }
@@ -69,3 +72,26 @@ OwnershipLock& OwnershipLock::operator=(OwnershipLock&& other) noexcept {
 }
 
 }  // namespace graphx::infra::detail
+
+namespace graphx {
+int execute_with_ownership_lock(const std::filesystem::path& path, char* const arguments[]) {
+  if (!path.is_absolute()) throw std::invalid_argument("platform lock requires an absolute path");
+  auto current = path.root_path();
+  for (const auto& part : path.relative_path().parent_path()) {
+    current /= part;
+    if (std::filesystem::is_symlink(std::filesystem::symlink_status(current)) ||
+        !std::filesystem::is_directory(current))
+      throw std::invalid_argument("platform lock parent must be a real directory");
+  }
+  auto lock = infra::detail::OwnershipLock::open_or_create(
+      path, infra::detail::OwnershipLockMode::exclusive);
+  // OwnershipLock deliberately opens without CLOEXEC. No supervisor or PID ledger is needed.
+  if (::setenv("GRAPHX_PLATFORM_LOCK", path.c_str(), 1) != 0)
+    throw std::system_error(errno, std::generic_category(), "cannot set platform lock path");
+  const auto descriptor = std::to_string(lock.descriptor());
+  if (::setenv("GRAPHX_PLATFORM_LOCK_FD", descriptor.c_str(), 1) != 0)
+    throw std::system_error(errno, std::generic_category(), "cannot pass platform lock descriptor");
+  ::execvp(arguments[0], arguments);
+  throw std::system_error(errno, std::generic_category(), "cannot execute platform operation");
+}
+}  // namespace graphx

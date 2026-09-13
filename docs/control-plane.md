@@ -8,7 +8,9 @@ must match the same origin or the configured allowlist. An optional
 one for each command. Fault injection uses the privileged Linux infrastructure
 CLI on native Linux or inside Lima, not the telemetry control API.
 
-Production policy mode uses `GRAPHX_CONTROL_POLICY_FILE` together with
+Compiled platform mode derives policy directly from graph credential/action/node grants; see [platform staging](platform.md).
+
+The direct telemetry module policy interface uses `GRAPHX_CONTROL_POLICY_FILE` together with
 `GRAPHX_RUNTIME_IDENTITY_FILE`. A policy names principals, token files, permissions,
 and allowed nodes. Runtime identities bind commands to the process or QMP endpoint
 that may execute them. Files are bounded, permission-checked, and re-read for safe

@@ -9,7 +9,7 @@ application verification. P3 implements deterministic compilation; see
 catalog pins from verified OCI bytes; see [P4 verification](p4-verification.md).
 This review package retains illustrative
 expected artifacts; maintained compiler goldens live under `tests/fixtures/compiled`.
-Later execution phases are not implemented.
+P5 adds the default platform and credential staging; see [P5 verification](p5-verification.md). Later execution phases are not implemented.
 
 The design meets the simplification objective if the binding and execution
 boundaries in [architecture.md](architecture.md) land together. A topology change

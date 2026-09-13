@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 
 const directory = dirname(fileURLToPath(import.meta.url))
 const serverSource = readFileSync(resolve(directory, 'server.mjs'), 'utf8')
-const imageSource = readFileSync(resolve(directory, '../../docker/telemetry.Dockerfile'), 'utf8')
+const imageSource = readFileSync(resolve(directory, '../../Dockerfile'), 'utf8')
 
 test('server remains a configuration and transport wiring boundary', () => {
   assert.match(serverSource, /createTelemetryCollector/)
@@ -20,5 +20,8 @@ test('server remains a configuration and transport wiring boundary', () => {
 
 test('telemetry image packages every runtime module', () => {
   for (const module of ['collector.mjs', 'http-routes.mjs', 'metric-store.mjs',
-    'runtime-evidence.mjs', 'topology.mjs']) assert.match(imageSource, new RegExp(module))
+    'runtime-evidence.mjs', 'topology.mjs', 'platform.mjs', 'credentials.mjs'])
+    assert.match(imageSource, new RegExp(module))
+  assert.doesNotMatch(imageSource, /COPY apps\/telemetry\/\*\.mjs/)
+
 })

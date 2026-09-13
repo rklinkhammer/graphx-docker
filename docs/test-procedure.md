@@ -1,5 +1,12 @@
 # Test procedure
 
+P5 platform verification uses `node --test apps/telemetry/platform.test.mjs` with
+Node 24 and a current `build/dev/graphx`. After engine readiness checks, run
+`python3 tests/test_platform_docker.py VERIFIED_IMAGE_RELEASE --output FRESH_EVIDENCE_DIR`
+for unprivileged platform, history and observability service checks. This is not
+P6 application orchestration or privileged Linux/Lima acceptance. See
+[P5 verification](../design/graph-generation/p5-verification.md).
+
 P1–P4 support v3 validation, normalized consumers, direct application bindings
 and deterministic artifact compilation. P4 adds shared image packaging and offline
 release-pin verification; see [P4 evidence](../design/graph-generation/p4-verification.md).

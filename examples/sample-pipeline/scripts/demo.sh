@@ -11,7 +11,7 @@ ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)
 source "$ROOT/scripts/configure-build-trust.sh"
 # shellcheck source=scripts/lib/demo-runtime.sh
 source "$ROOT/scripts/lib/demo-runtime.sh"
-COMPOSE=(docker compose -f "$ROOT/examples/sample-pipeline/compose.yaml" -f "$ROOT/examples/sample-pipeline/compose.history.yaml")
+COMPOSE=(docker compose -f "$ROOT/examples/sample-pipeline/compose.yaml")
 PUBLISHED_HTTP_PORT=$(graphx_demo_port GRAPHX_PUBLISHED_HTTP_PORT "${GRAPHX_PUBLISHED_HTTP_PORT:-8080}")
 LOCAL_URL="http://127.0.0.1:$PUBLISHED_HTTP_PORT"
 URL=${GRAPHX_DEMO_URL:-$LOCAL_URL}
@@ -236,7 +236,6 @@ case "$demo_command" in
     configure_demo_features
     if test "$disable_capture" = true; then export GRAPHX_CAPTURE_ENABLED=false; fi
     if test "$disable_history" = true; then export GRAPHX_HISTORY_ENABLED=false; fi
-    "${COMPOSE[@]}" up --build --force-recreate normalize-config
     "${COMPOSE[@]}" up -d --build
     verify
     echo

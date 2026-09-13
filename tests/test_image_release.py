@@ -37,7 +37,7 @@ def tar_bytes(files, timestamp=0):
 def image(role, *, platform="arm64", user="65532:65532", extra=None, corrupt=False, timestamp=0):
     files = {"usr/local/bin/" + name: b"test executable" for name in RECIPES[role][1]}
     files.update({"lib/apk/db/installed": b"P:libc\nV:1.0\nL:MIT\n"})
-    if role == "runtime":
+    if role in RECIPES:
         files["usr/local/share/graphx/build-dependencies.json"] = b'{"yamlCpp":"0.9.0","openssl":"3.0.0"}'
     if role == "telemetry":
         files.update({name: b"{}" for name in ("app/server.mjs", "app/web/dist/index.html",
@@ -51,7 +51,7 @@ def image(role, *, platform="arm64", user="65532:65532", extra=None, corrupt=Fal
                       "config": {"User": user, "Labels": {"org.opencontainers.image.version": "1.1.0",
                                  "org.opencontainers.image.revision": COMMIT},
                                  "Cmd": {"runtime": ["/usr/local/bin/graphx", "--help"],
-                                         "telemetry": ["node", "server.mjs"],
+                                         "telemetry": ["graphx-platform", "--help"],
                                          "sdr": ["/usr/local/bin/graphx-sdr", "--help"]}[role]}})
     def descriptor(data, media):
         return {"digest": digest(data), "size": len(data), "mediaType": media}
@@ -137,7 +137,7 @@ for role, (name, _) in RECIPES.items():
     assert all(line == "ENTRYPOINT []" for line in text.splitlines() if line.startswith("ENTRYPOINT"))
     for line in text.splitlines():
         if line.startswith("FROM "):
-            assert "@sha256:" in line
+            assert "@sha256:" in line or line.split()[1] in {"runtime", "web", "build"}
 print("OCI digest, layer, platform, credential, SBOM and catalog boundaries passed")
 
 # A killed attached Docker client must not leave its owned smoke container alive.
