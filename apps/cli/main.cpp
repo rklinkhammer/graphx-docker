@@ -1,5 +1,6 @@
 #include "graphx/config.hpp"
 #include "graphx/compile.hpp"
+#include "graphx/execution.hpp"
 #include "graphx/node_settings.hpp"
 #include "graphx/normalized_config.hpp"
 #include "graphx/ownership.hpp"
@@ -8,6 +9,7 @@
 #include <filesystem>
 #include <iostream>
 #include <string>
+#include <set>
 
 namespace {
 void usage(std::ostream& out) {
@@ -19,8 +21,10 @@ void usage(std::ostream& out) {
       << "                          [--catalog-root DIR]\n"
       << "  graphx compile FILE --output DIR --source-root DIR --credential-root DIR\n"
       << "                        [--target TARGET] [--catalog-root DIR]\n"
+      << "  graphx run <up|status|down> --output DIR --state-root DIR\n"
+      << "             [--release DIR --credentials DIR] [--images DIR] [--external DIR]\n"
       << "Targets: native-linux (validation default), native-macos, orbstack, lima\n"
-      << "Graph execution remains unavailable; compile only writes inspectable artifacts.\n";
+      << "Execution requires verified releases; OVS, namespace and guest adapters remain gated.\n";
 }
 }  // namespace
 
@@ -47,7 +51,26 @@ int main(int argc, char** argv) {
           graphx::load_node_settings(args.config, args.node).resolved);
       return 0;
     }
-    if (command == "infra" || command == "run") {
+    if (command == "run") {
+      if (argc < 3) throw std::invalid_argument("run requires up, down or status");
+      graphx::ExecutionOptions options;
+      options.action = argv[2];
+      std::map<std::string, std::filesystem::path*> fields{
+          {"--output", &options.output},   {"--state-root", &options.state_root},
+          {"--release", &options.release}, {"--credentials", &options.credentials},
+          {"--images", &options.images},   {"--external", &options.external_credentials}};
+      std::set<std::string> seen;
+      for (int i = 3; i < argc; ++i) {
+        const std::string key = argv[i];
+        if (!fields.contains(key) || !seen.insert(key).second || i + 1 == argc)
+          throw std::invalid_argument("unknown, duplicate or incomplete run option");
+        *fields.at(key) = std::filesystem::absolute(argv[++i]).lexically_normal();
+      }
+      if (options.output.empty() || options.state_root.empty())
+        throw std::invalid_argument("run requires --output and --state-root");
+      return graphx::execute_graph(options, std::cout);
+    }
+    if (command == "infra") {
       std::cerr << "E_PHASE_UNAVAILABLE: version 3 execution/artifact adapters are not "
                    "implemented; no action was performed\n";
       return 2;
@@ -79,7 +102,7 @@ int main(int argc, char** argv) {
                                 {graph.input_directory, graph.catalog_directory,
                                  opts.at("--source-root"), opts.at("--credential-root")});
       std::cout << "Compiled " << compiled.files.size()
-                << " artifacts; execution unavailable; release identities unverified\n";
+                << " artifacts; execution requires verified release preflight\n";
       return 0;
     }
     int first = 2;

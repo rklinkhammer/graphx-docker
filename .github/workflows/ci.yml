@@ -152,7 +152,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Validate Compose model
-        run: GX_OUTPUT=/tmp/graphx-compiled docker compose -f examples/sample-pipeline/compose.yaml config --quiet
+        run: GX_OUTPUT="$PWD/tests/fixtures/compiled/sample-pipeline" GX_STATE=/tmp/graphx-state GX_CREDENTIALS=/tmp/graphx-credentials GX_OWNER=0123456789abcdef0123456789abcdef docker compose -f examples/sample-pipeline/compose.yaml config --quiet
       - name: Verify shared OCI image reproducibility and packaging
         run: >-
           python3 scripts/release/image_release.py build

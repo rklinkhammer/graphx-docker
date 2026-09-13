@@ -12,7 +12,7 @@ import ssl
 import threading
 import time
 
-from protocol import configure_telemetry, decode_samples, recv_line, signed, telemetry_endpoint, telemetry_secret, verified
+from protocol import capture_bytes, configure_telemetry, decode_samples, recv_line, signed, telemetry_endpoint, telemetry_secret, verified
 from credential_files import tls_context
 from node_settings import arguments, binding, release
 
@@ -129,6 +129,7 @@ def send_result(result: dict[str, object]) -> None:
                                    result_binding["settings"]["port"]), timeout=2,
                                    source_address=(result_binding["source_address"], 0)) as output:
         output.sendall(payload)
+        capture_bytes(payload, 'send results RawSdrResult')
 
 
 def main() -> None:
@@ -157,6 +158,7 @@ def main() -> None:
             try:
                 payload, peer = source.recvfrom(2048)
                 sequence, frequency, samples = decode_sample_datagram(payload, peer, sample_source)
+                capture_bytes(payload, 'receive samples RawSdrIqFrame')
                 power = sum(i * i + q * q for i, q in samples)
                 send_result({"sequence": sequence, "frequency_hz": frequency,
                              "sample_count": len(samples), "power": power})

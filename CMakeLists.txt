@@ -102,6 +102,9 @@ add_library(graphx
   src/sample_application.cpp
   src/config.cpp
   src/compile.cpp
+  src/execution.cpp
+  src/infra/process_resources.cpp
+  src/infra/compose_execution.cpp
   src/compile_output.cpp
   src/envelope.cpp
   src/framing.cpp

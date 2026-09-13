@@ -158,7 +158,13 @@ class RuntimeTraceSink final : public graphx::TraceSink {
     const auto capture_enabled = config.observability.capture.enabled;
     const auto& capture_provider = config.observability.capture.provider;
     if (capture_enabled && capture_provider == "pcapng") {
-      const auto& directory = config.observability.capture.directory;
+      auto directory = config.observability.capture.directory;
+      if (directory.starts_with("${GX_STATE}/")) {
+        const auto* state = std::getenv("GX_STATE");
+        if (!state || !std::filesystem::path(state).is_absolute())
+          throw std::runtime_error("E_CAPTURE_PATH: GX_STATE must be an absolute runtime root");
+        directory.replace(0, std::string("${GX_STATE}").size(), state);
+      }
       const auto snaplen = config.observability.capture.snaplen;
       const auto max_file_bytes = config.observability.capture.max_file_bytes;
       const auto max_packets = config.observability.capture.max_packets;

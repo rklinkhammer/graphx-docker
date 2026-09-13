@@ -166,3 +166,20 @@ graphx_demo_network_lab() {
       ;;
   esac
 }
+
+# Execution consumes an existing immutable compilation and verified release.
+# Compile separately so up/status/down always refer to the same artifact identity.
+graphx_demo_run() {
+  local action=${1:-status}
+  case "$action" in up|status|down) ;; *) echo "usage: $0 {up|status|down}" >&2; return 64 ;; esac
+  : "${GX_OUTPUT:?Set GX_OUTPUT to an existing compiled output directory}"
+  : "${GX_STATE:?Set GX_STATE to the execution state parent directory}"
+  local graphx=${GRAPHX_BIN:-${GX_RELEASE:-}/bin/graphx}
+  [[ -x $graphx ]] || { echo "Set GRAPHX_BIN or GX_RELEASE to the verified GraphX executable" >&2; return 2; }
+  local -a args=(run "$action" --output "$GX_OUTPUT" --state-root "$GX_STATE")
+  [[ -z ${GX_RELEASE:-} ]] || args+=(--release "$GX_RELEASE")
+  [[ -z ${GX_CREDENTIALS:-} ]] || args+=(--credentials "$GX_CREDENTIALS")
+  [[ -z ${GRAPHX_IMAGE_RELEASE:-} ]] || args+=(--images "$GRAPHX_IMAGE_RELEASE")
+  [[ -z ${GRAPHX_EXTERNAL_CREDENTIALS:-} ]] || args+=(--external "$GRAPHX_EXTERNAL_CREDENTIALS")
+  "$graphx" "${args[@]}"
+}

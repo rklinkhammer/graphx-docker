@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -17,6 +18,9 @@ struct CommandOptions {
   bool capture_output{};
   std::size_t output_limit{default_output_limit};
   bool trim_trailing_newlines{true};
+  std::uint32_t timeout_ms{};
+  std::function<bool()> cancellation_requested;
+  bool merge_standard_error{};
 };
 
 struct CommandResult {
@@ -41,6 +45,8 @@ struct ProcessIdentity {
   std::string start_time;
   std::string command;
   std::string name;
+  std::string executable;
+  bool exited{};
 };
 
 // Executes an argv vector directly. Parent-side setup failures throw

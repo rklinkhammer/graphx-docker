@@ -47,8 +47,10 @@ structured object. Catalog [type definitions](../config/schema/node-type.schema.
 provide port direction, wire schema/encoding, transports, connection cardinality,
 feedback support, defaults, execution kinds and application identity. The catalog
 also owns control capability; telemetry does not infer it from sample node IDs.
-Catalog image identities are currently illustrative pins with execution unavailable
-until release packaging supplies real artifacts.
+The source catalog contains illustrative image pins. Container execution requires
+a release catalog derived from verified OCI archives; native execution requires
+a verified installed release. Mixed native/container applications are rejected
+with `E_EXECUTION_MIX`; use separate graphs.
 
 The default catalog trust root in a development build is `config/catalog` in its
 source checkout. Use `--catalog-root DIR` for a relocated or installed catalog;
@@ -105,7 +107,7 @@ caller. After binding listeners/local resources, each process flushes
 regular, non-symlink release file containing exactly that token, with no newline.
 Connectors and sample traffic stay held until release. SIGINT/SIGTERM interrupts
 the wait; C++ TCP retry and shared-memory connection setup also accept cancellation.
-TCP/UDP senders bind the resolved source address. The eventual P6 adapter owns
+TCP/UDP senders bind the resolved source address. The execution adapter owns
 safe directory staging, ownership checks, readiness collection and release-file
 creation by atomic rename; this application interface does not implement graph orchestration.
 
@@ -141,10 +143,11 @@ OVS/capture/guest/scenario work. Compose is emitted as canonical JSON in
 `compose.yaml`, a valid YAML 1.2 representation. No compiler step invokes runtime
 tools, builds artifacts, provisions credentials or probes infrastructure.
 
-Catalog binary identities are explicitly unverified until P4/P8 packaging. The
-manifest records `execution_available: false` and
-`artifact_identities_verified: false`; the execution plan has `executable: false`.
-These plans are inspectable compiler output, not an enabled launch workflow.
+The manifest's `execution_available` and execution plan's `executable` indicate
+whether the graph uses supported portable/native adapters. This is a capability
+flag, not release verification. `artifact_identities_verified` remains false at
+compilation; `graphx run` verifies actual installed files or OCI archive identities
+before execution. OVS/namespace/guest graphs remain unavailable.
 
 Publication uses private staging, fsync and exclusive atomic rename. An existing
 output is never replaced, even with a matching manifest. Use a fresh output

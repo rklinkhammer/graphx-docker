@@ -480,6 +480,26 @@
     },
     {
       "format": "md",
+      "path": "p2-verification.md"
+    },
+    {
+      "format": "md",
+      "path": "p3-verification.md"
+    },
+    {
+      "format": "md",
+      "path": "p4-verification.md"
+    },
+    {
+      "format": "md",
+      "path": "p5-verification.md"
+    },
+    {
+      "format": "md",
+      "path": "p6-verification.md"
+    },
+    {
+      "format": "md",
       "path": "verification.md"
     }
   ],

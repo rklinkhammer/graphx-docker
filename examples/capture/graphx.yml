@@ -1,4 +1,4 @@
-# GraphX version 3. Validation and compilation available; execution adapters are unavailable.
+# GraphX version 3. Compile and run with a verified portable/native release.
 catalog: ../../config/catalog/lock.json
 connections:
   samples:

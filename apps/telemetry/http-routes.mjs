@@ -1,6 +1,6 @@
 import { closeSync, createReadStream, existsSync } from 'node:fs'
 import { extname, join, normalize, resolve } from 'node:path'
-import { openValidatedCapture } from './capture-files.mjs'
+import { openValidatedCapture, capturePath } from './capture-files.mjs'
 import { parseHistoryQuery } from './history.mjs'
 import { parseRequestUrl } from './security.mjs'
 
@@ -22,7 +22,7 @@ const handleRequest = (request, response) => {
     if (request.method !== 'GET') return json(response, 405, { error: 'method not allowed' }, { allow: 'GET' })
     refreshCredentials()
     const ready = serviceState.httpReady && serviceState.udpReady && !serviceState.shuttingDown &&
-      credentialRegistry.lastError == null
+      credentialRegistry.lastError == null && ['ready', 'disabled'].includes(historyStore.stats.status)
     return json(response, ready ? 200 : 503, { status: ready ? 'ready' : 'not-ready', service: 'graphx-telemetry',
       listeners: { http: serviceState.httpReady, udp: serviceState.udpReady },
       credentialConfiguration: credentialRegistry.lastError == null ? 'valid' : 'invalid',
@@ -192,10 +192,9 @@ const handleRequest = (request, response) => {
     catch { return json(response, 400, { error: 'invalid capture name' }) }
     if (!/^[A-Za-z][A-Za-z0-9_-]{0,63}\.pcapng$/.test(name))
       return json(response, 404, { error: 'capture not found' })
-    const capturePath = join(captureDirectory, name)
     let descriptor
     try {
-      descriptor = openValidatedCapture(capturePath, captureConfig.maxFileBytes,
+      descriptor = openValidatedCapture(capturePath(captureDirectory, name), captureConfig.maxFileBytes,
         captureConfig.maxPackets + 2).descriptor
     } catch {
       if (descriptor != null) closeSync(descriptor)

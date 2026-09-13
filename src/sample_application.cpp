@@ -10,7 +10,12 @@ int run_sample_application(int argc, char** argv, std::string_view type) {
   demo::install_signal_handlers();
   try {
     const auto arguments = node_arguments(argc, argv);
-    const auto settings = load_node_settings(arguments.config, arguments.node, type);
+    const auto settings = load_node_settings(arguments.config, arguments.node);
+    const auto& actual_type = settings.resolved.at("type").text();
+    const bool discovery = (type == "udp.publisher" && actual_type == "discovery.publisher") ||
+                           (type == "udp.subscriber" && actual_type == "discovery.subscriber");
+    if (actual_type != type && !discovery)
+      throw std::runtime_error("E_NODE_TYPE: application type does not match this executable");
     const auto& node = settings.resolved;
     const auto execution = node.at("execution").at("kind").text();
     if (execution != "native" && execution != "container" && execution != "namespace")

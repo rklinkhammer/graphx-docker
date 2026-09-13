@@ -4,6 +4,8 @@
 #include <array>
 #include <cerrno>
 #include <csignal>
+#include <chrono>
+#include <thread>
 #include <fcntl.h>
 #include <fstream>
 #include <poll.h>
@@ -13,6 +15,10 @@
 #include <system_error>
 #include <sys/wait.h>
 #include <unistd.h>
+#if defined(__APPLE__)
+#include <libproc.h>
+#include <sys/proc.h>
+#endif
 
 namespace graphx::infra::detail {
 namespace {
@@ -155,17 +161,22 @@ int read_exec_error(int descriptor) {
 }
 
 void transfer_io(Descriptor& input, std::string_view contents, Descriptor& output,
-                 CommandResult& result, std::size_t limit) {
+                 CommandResult& result, std::size_t limit,
+                 std::chrono::steady_clock::time_point deadline,
+                 const std::function<bool()>& cancelled) {
   std::size_t input_offset{};
   std::array<char, 4096> buffer{};
   while (input.get() >= 0 || output.get() >= 0) {
+    if (cancelled && cancelled()) throw std::runtime_error("E_INTERRUPTED: command interrupted");
+    if (std::chrono::steady_clock::now() >= deadline)
+      throw std::runtime_error("E_COMMAND_TIMEOUT: command exceeded deadline");
     std::array<pollfd, 2> descriptors{{
         {input.get(), static_cast<short>(input.get() >= 0 ? POLLOUT : 0), 0},
         {output.get(), static_cast<short>(output.get() >= 0 ? POLLIN : 0), 0},
     }};
     int ready{};
     do {
-      ready = ::poll(descriptors.data(), descriptors.size(), -1);
+      ready = ::poll(descriptors.data(), descriptors.size(), 50);
     } while (ready < 0 && errno == EINTR);
     if (ready < 0) throw_errno("poll");
 
@@ -275,6 +286,7 @@ CommandResult run_command(const CommandOptions& options) {
       }
       close_descriptor(output_pipe[1]);
     }
+    if (options.merge_standard_error && ::dup2(STDOUT_FILENO, STDERR_FILENO) < 0) ::_exit(126);
     auto argv = argv_for(options.arguments);
     ::execvp(argv.front(), argv.data());
     const auto exec_error = errno;
@@ -290,11 +302,22 @@ CommandResult run_command(const CommandOptions& options) {
   Descriptor output(output_pipe[0]);
   Descriptor exec_status(exec_pipe[0]);
   CommandResult result;
+  const auto deadline = options.timeout_ms ? std::chrono::steady_clock::now() +
+                                                 std::chrono::milliseconds(options.timeout_ms)
+                                           : std::chrono::steady_clock::time_point::max();
   {
     SigpipeBlock blocked_sigpipe(input.get() >= 0);
-    transfer_io(input, options.standard_input, output, result, options.output_limit);
+    transfer_io(input, options.standard_input, output, result, options.output_limit, deadline,
+                options.cancellation_requested);
   }
-  const auto wait_status = wait_for(child);
+  int wait_status{};
+  while ((wait_status = wait_for(child, WNOHANG)) == -1) {
+    if (options.cancellation_requested && options.cancellation_requested())
+      throw std::runtime_error("E_INTERRUPTED: command interrupted");
+    if (std::chrono::steady_clock::now() >= deadline)
+      throw std::runtime_error("E_COMMAND_TIMEOUT: command exceeded deadline");
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  }
   guard.release();
   result.exec_error = read_exec_error(exec_status.get());
   if (options.trim_trailing_newlines)
@@ -352,6 +375,7 @@ ProcessIdentity inspect_process(std::uint32_t pid) {
   std::getline(stat, value);
   const auto close = value.rfind(')');
   if (close != std::string::npos && close + 2 < value.size()) {
+    identity.exited = value[close + 2] == 'Z';
     std::istringstream fields(value.substr(close + 2));
     std::string field;
     for (int index = 0; index <= 19; ++index) {
@@ -368,6 +392,22 @@ ProcessIdentity inspect_process(std::uint32_t pid) {
   std::replace(identity.command.begin(), identity.command.end(), '\0', ' ');
   std::ifstream name("/proc/" + std::to_string(pid) + "/comm");
   std::getline(name, identity.name);
+  std::array<char, 4096> executable{};
+  const auto size = ::readlink(("/proc/" + std::to_string(pid) + "/exe").c_str(), executable.data(),
+                               executable.size());
+  if (size > 0) identity.executable.assign(executable.data(), static_cast<std::size_t>(size));
+#elif defined(__APPLE__)
+  proc_bsdinfo info{};
+  if (::proc_pidinfo(static_cast<int>(pid), PROC_PIDTBSDINFO, 0, &info, sizeof(info)) ==
+      sizeof(info)) {
+    identity.exited = info.pbi_status == SZOMB;
+    identity.start_time =
+        std::to_string(info.pbi_start_tvsec) + ":" + std::to_string(info.pbi_start_tvusec);
+    identity.name = info.pbi_name;
+    std::array<char, PROC_PIDPATHINFO_MAXSIZE> path{};
+    if (::proc_pidpath(static_cast<int>(pid), path.data(), sizeof(path)) > 0)
+      identity.executable = path.data();
+  }
 #else
   (void)pid;
 #endif

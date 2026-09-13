@@ -1,4 +1,5 @@
 #include "graphx/node_settings.hpp"
+#include "bounded_output.hpp"
 #include <cstdlib>
 #include "config_document.hpp"
 #include "graphx/config_schemas.hpp"
@@ -153,6 +154,7 @@ NodeSettings load_node_settings(const std::filesystem::path& file, std::string_v
 }
 
 NodeArguments node_arguments(int argc, char** argv, bool execution) {
+  if (execution) detail::bound_process_output();
   NodeArguments result;
   std::map<std::string, std::string> options;
   for (int i = 1; i < argc; ++i) {

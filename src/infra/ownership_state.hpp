@@ -82,6 +82,8 @@ struct OwnershipState {
   std::vector<OwnedCapture> captures;
   std::vector<ExpectedFault> expected_faults;
   std::vector<OwnedFault> faults;
+  // Portable execution shares this store and its lock with infrastructure.
+  std::vector<OwnedResourceIdentity> processes;
 };
 
 OwnedResourceIdentity bridge_identity(std::string name, std::string uuid,

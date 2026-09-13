@@ -95,6 +95,32 @@ def main() -> int:
     common = root / "examples/sdr-node/common"
     sys.path.insert(0, str(common))
     protocol = import_path("sdr_protocol", common / "protocol.py")
+    from application_capture import ApplicationCapture
+    with tempfile.TemporaryDirectory(prefix="graphx-raw-capture-") as capture_temporary:
+        capture_root = Path(capture_temporary).resolve()
+        node = {"node_id":"radio", "capture":{"directory":str(capture_root),
+                "max_file_bytes":65536,"max_packets":2,"snaplen":64}}
+        capture = ApplicationCapture(node)
+        for _ in range(10): capture.record(b"SDR1" + b"x" * 100, "send samples RawSdrIqFrame")
+        capture.close()
+        data = (capture_root / "radio.pcapng").read_bytes()
+        offset = packets = 0
+        while offset < len(data):
+            kind, size = struct.unpack_from("<II", data, offset)
+            assert size % 4 == 0 and struct.unpack_from("<I", data, offset + size - 4)[0] == size
+            if kind == 1: assert struct.unpack_from("<H", data, offset + 8)[0] == 148
+            if kind == 6:
+                packets += 1
+                assert struct.unpack_from("<I", data, offset + 20)[0] == 64
+                assert data[offset + 28:offset + 32] == b"SDR1"
+            offset += size
+        assert packets == 2 and len(data) <= 65536
+        protected = capture_root / "external"
+        protected.write_bytes(b"preserve")
+        (capture_root / "radio.pcapng").unlink()
+        os.link(protected, capture_root / "radio.pcapng")
+        expect_value_error(lambda: ApplicationCapture(node), "capture accepted a hard link")
+        assert protected.read_bytes() == b"preserve"
     encoded = protocol.encode_samples(7, 915_000_000, 16)
     sequence, frequency, samples = protocol.decode_samples(encoded)
     assert sequence == 7 and frequency == 915_000_000 and len(samples) == 16
@@ -334,12 +360,8 @@ def main() -> int:
     external_script = (root / "examples/sdr-node/external/scripts/demo.sh").read_text()
     simulated_compose = (root / "examples/sdr-node/simulated/compose.yaml").read_text()
     external_compose = (root / "examples/sdr-node/external/compose.yaml").read_text()
-    assert "rolling back owned portable resources" in simulated_script
-    assert "requested_gui_port" in simulated_script and "graphx_sdr_preflight_port" in simulated_script
-    assert 'command: ["tcpdump", "-U"' in simulated_compose
-    assert 'user: "0:0"' in simulated_compose
-    assert "cap_add: [NET_RAW, NET_ADMIN, DAC_OVERRIDE]" in simulated_compose
-    assert "SDR_SAMPLE_SOURCE: 172.30.13.10" in simulated_compose
+    assert 'graphx_demo_run' in simulated_script
+    assert '${GX_OUTPUT:?' in simulated_compose
     assert "SDR_SAMPLE_SOURCE: 10.63.0.10" in external_compose
     for required in ("GRAPHX_EXTERNAL_OWNER", "external-ovs-boundary.sh",
                      "graphx_external_namespace_create",

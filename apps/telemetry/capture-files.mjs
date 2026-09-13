@@ -1,4 +1,4 @@
-import { closeSync, constants as fsConstants, fstatSync, openSync, opendirSync, readSync } from 'node:fs'
+import { closeSync, constants as fsConstants, fstatSync, lstatSync, existsSync, openSync, opendirSync, readSync } from 'node:fs'
 import { join } from 'node:path'
 
 const MAX_INITIAL_BLOCK_BYTES = 256 * 1024
@@ -70,7 +70,7 @@ export function openValidatedCapture(path, maximumBytes, maximumBlocks = 1_000_0
     if (!details.isFile() || details.nlink !== 1 || details.size > maximumBytes)
       throw new Error('invalid capture')
     const linkType = pcapngLinkType(descriptor, details.size, maximumBytes)
-    if (linkType !== 1 && linkType !== 147) throw new Error('invalid capture')
+    if (linkType !== 1 && linkType !== 147 && linkType !== 148) throw new Error('invalid capture')
     if (!completePcapng(descriptor, details.size, maximumBytes, maximumBlocks))
       throw new Error('incomplete capture')
     return { descriptor, details, linkType }
@@ -78,6 +78,21 @@ export function openValidatedCapture(path, maximumBytes, maximumBlocks = 1_000_0
     if (descriptor != null) closeSync(descriptor)
     throw error
   }
+}
+
+// A public basename maps to either a flat sealed handoff or its node-owned directory.
+// No user-supplied path segments or recursive directory traversal are accepted.
+export function capturePath(directory, name) {
+  if (!CAPTURE_NAME.test(name)) throw new Error('invalid capture name')
+  const flat = join(directory, name)
+  const node = join(directory, name.slice(0, -7))
+  if (existsSync(node)) {
+    const metadata = lstatSync(node)
+    if (!metadata.isDirectory() || metadata.isSymbolicLink()) throw new Error('invalid capture directory')
+    if (existsSync(flat)) throw new Error('ambiguous capture name')
+    return join(node, name)
+  }
+  return flat
 }
 
 export function listValidatedCaptures(directory, maximumBytes, { maxFiles, maxEntries, maxBlocks = 1_000_002 }) {
@@ -92,6 +107,7 @@ export function listValidatedCaptures(directory, maximumBytes, { maxFiles, maxEn
       if (!entry) break
       scannedEntries += 1
       if (entry.isFile() && CAPTURE_NAME.test(entry.name)) candidates.push(entry.name)
+      if (entry.isDirectory() && CAPTURE_NAME.test(entry.name + '.pcapng')) candidates.push(entry.name + '.pcapng')
     }
     if (scannedEntries === maxEntries && handle.readSync()) truncated = true
   } catch {
@@ -106,7 +122,7 @@ export function listValidatedCaptures(directory, maximumBytes, { maxFiles, maxEn
     if (captures.length === maxFiles) { truncated = true; break }
     let capture
     try {
-      capture = openValidatedCapture(join(directory, name), maximumBytes, maxBlocks)
+      capture = openValidatedCapture(capturePath(directory, name), maximumBytes, maxBlocks)
       captures.push({ name, details: capture.details, linkType: capture.linkType })
     } catch { /* Ignore invalid or concurrently removed directory entries. */ }
     finally { if (capture) closeSync(capture.descriptor) }

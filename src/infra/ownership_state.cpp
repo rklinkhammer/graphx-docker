@@ -60,6 +60,16 @@ YAML::Node state_node(const OwnershipState& state) {
   root["config_sha256"] = state.config_hash;
   root["owner_token"] = state.owner_token;
   root["status"] = state.status;
+  root["expected_bridges"] = YAML::Node(YAML::NodeType::Sequence);
+  for (const auto& process : state.processes) {
+    YAML::Node item;
+    item["kind"] = process.kind;
+    item["name"] = process.name;
+    item["stable_id"] = process.stable_id;
+    item["secondary_id"] = process.secondary_id;
+    item["process_identity"] = process.process_identity;
+    root["processes"].push_back(item);
+  }
   for (const auto& name : state.expected_bridges) root["expected_bridges"].push_back(name);
   for (const auto& name : state.expected_namespaces) root["expected_namespaces"].push_back(name);
   for (const auto& endpoint : state.expected_endpoints) {
@@ -386,6 +396,30 @@ OwnershipState load_state(const std::filesystem::path& path) {
   state.config_hash = required_scalar(root, "config_sha256");
   state.owner_token = required_scalar(root, "owner_token");
   state.status = required_scalar(root, "status");
+  if (root["processes"]) {
+    if (!root["processes"].IsSequence() || root["processes"].size() > 4096)
+      throw std::runtime_error("invalid owned process inventory");
+    std::unordered_set<std::string> names;
+    for (const auto& item : root["processes"]) {
+      OwnedResourceIdentity process;
+      process.kind = required_scalar(item, "kind");
+      process.name = required_scalar(item, "name");
+      process.stable_id = required_scalar(item, "stable_id");
+      process.secondary_id = required_scalar(item, "secondary_id");
+      process.process_identity = required_scalar(item, "process_identity");
+      if (!names.insert(process.kind + ":" + process.name).second ||
+          (process.kind != "native" && process.kind != "container" && process.kind != "volume" &&
+           process.kind != "network"))
+        throw std::runtime_error("invalid owned process identity");
+      if (process.kind != "native" &&
+          (process.process_identity != state.owner_token ||
+           !process.name.starts_with("graphx-" + state.graph_id + "-") ||
+           process.name.find_first_not_of("abcdefghijklmnopqrstuvwxyz0123456789_-") !=
+               std::string::npos))
+        throw std::runtime_error("invalid owned Docker resource scope");
+      state.processes.push_back(std::move(process));
+    }
+  }
   if (state.config_hash.size() != 64 || !hexadecimal(state.config_hash) ||
       state.owner_token.size() != 32 || !hexadecimal(state.owner_token))
     throw std::runtime_error("invalid ownership state identity");

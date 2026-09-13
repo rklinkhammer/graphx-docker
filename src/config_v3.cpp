@@ -382,6 +382,13 @@ void validate_target(const Value& graph, const Catalog& catalog, const std::stri
     reject("E_TARGET_CAPABILITY", "target", "unknown execution target");
   if (graph.contains("network") && (target == "native-macos" || target == "orbstack"))
     reject("E_TARGET_CAPABILITY", "target", "managed OVS requires Linux or Lima");
+  const auto has_execution = [&](std::string_view kind) {
+    return std::ranges::any_of(graph.at("nodes").object(), [&](const auto& pair) {
+      return pair.second.at("execution").at("kind") == Value(std::string(kind));
+    });
+  };
+  if (has_execution("native") && has_execution("container"))
+    reject("E_EXECUTION_MIX", "nodes", "native and container applications require separate graphs");
   for (const auto& [id, node] : graph.at("nodes").object()) {
     if (id == "platform" || id == "prometheus" || id == "grafana" || id.starts_with("mg-"))
       reject("E_NAME_RESERVED", "nodes." + id, "reserved generated name");

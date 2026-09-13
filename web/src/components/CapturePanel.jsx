@@ -37,7 +37,7 @@ export function CapturePanel({ capture, observationToken }) {
       {files.map(file => <div className="history-row capture-row" role="row" key={file.url}>
         <span>{new Date(file.modifiedAt).toLocaleString()}</span><span>{file.format}</span><span>{file.nodeId}</span>
         <span>{file.linkType}</span><span>{formatBytes(file.size)}</span>
-        <span><button className="history-more capture-download" onClick={() => download(file)}><Download size={13}/> Download {file.format === 'ethernet' ? 'Ethernet' : 'GraphX'}</button></span>
+        <span><button className="history-more capture-download" onClick={() => download(file)}><Download size={13}/> Download {file.format === 'ethernet' ? 'Ethernet' : file.format === 'raw-application' ? 'application bytes' : 'GraphX'}</button></span>
       </div>)}
     </div>}
   </section>

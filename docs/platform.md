@@ -4,8 +4,10 @@ Every compiled graph has one platform configuration. `graphx-platform --config
 <output>/platform.json` consumes that file and the sibling `resolved.json` and
 `credentials.json`. The C++ resolver remains authoritative; the platform verifies
 that its configuration agrees with normalized contract 2. It never normalizes
-YAML at startup. `graphx run` and infrastructure execution remain unavailable
-until their execution phases.
+YAML at startup. `graphx run` stages credentials and starts this platform before releasing native
+or portable container applications; see [execution](execution.md). Infrastructure
+execution remains gated. `/api/ready` requires history to be ready (or disabled),
+as well as HTTP/UDP listeners and valid credentials.
 
 The native platform companion archive installs `bin/graphx-platform`, pinned Node
 24.20.0, telemetry modules, production dependencies and built web assets alongside

@@ -46,6 +46,6 @@ export function EdgeInspector({ edge, networkPath, observationToken }) {
       const url = URL.createObjectURL(await response.blob())
       const link = document.createElement('a')
       link.href = url; link.download = file.name; link.click(); URL.revokeObjectURL(url)
-    }}>Download {file.format === 'ethernet' ? 'Ethernet' : 'GraphX'}</button>) : <button disabled>Capture unavailable</button>}</div>
+    }}>Download {file.format === 'ethernet' ? 'Ethernet' : file.format === 'raw-application' ? 'application bytes' : 'GraphX'}</button>) : <button disabled>Capture unavailable</button>}</div>
   </aside>
 }

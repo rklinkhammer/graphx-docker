@@ -113,6 +113,37 @@ void test_round_trip_and_publication() {
       "failed atomic publication left temporary state");
 }
 
+void test_process_inventory() {
+  TemporaryDirectory temporary;
+  auto state = load_state(secure_fixture_copy(temporary, "current"));
+  state.expected_bridges.clear();
+  state.bridges.clear();
+  OwnedResourceIdentity resource;
+  resource.kind = "container";
+  resource.name = "graphx-" + state.graph_id + "-platform";
+  resource.stable_id = "pending";
+  resource.secondary_id = "sha256:" + std::string(64, 'a');
+  resource.process_identity = state.owner_token;
+  state.processes.push_back(resource);
+  const auto path = temporary.path() / "processes.yaml";
+  save_state(path, state);
+  const auto loaded = load_state(path);
+  require(loaded.expected_bridges.empty() && loaded.processes.size() == 1 &&
+              stable_identity_matches(loaded.processes.front(), resource),
+          "process inventory round trip");
+  for (const auto& invalid :
+       {std::string("owner"), std::string("path"), std::string("kind"), std::string("duplicate")}) {
+    auto changed = state;
+    if (invalid == "owner") changed.processes.front().process_identity = std::string(32, '0');
+    if (invalid == "path") changed.processes.front().name += "/../../foreign";
+    if (invalid == "kind") changed.processes.front().kind = "unknown";
+    if (invalid == "duplicate") changed.processes.push_back(resource);
+    save_state(path, changed);
+    expect_failure([&] { static_cast<void>(load_state(path)); },
+                   "invalid process scope was accepted");
+  }
+}
+
 void test_rejected_state_files() {
   TemporaryDirectory temporary;
   const auto malformed = temporary.path() / "malformed.yaml";
@@ -212,6 +243,7 @@ void test_identity_and_hash_helpers() {
 int main() {
   try {
     test_round_trip_and_publication();
+    test_process_inventory();
     test_rejected_state_files();
     test_state_root_and_lock_security();
     test_identity_and_hash_helpers();

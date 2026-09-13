@@ -9,7 +9,7 @@ import signal
 import socket
 import threading
 
-from protocol import configure_telemetry, publish_heartbeat, recv_line
+from protocol import capture_bytes, configure_telemetry, publish_heartbeat, recv_line
 from node_settings import arguments, binding, release
 
 stop = threading.Event()
@@ -41,6 +41,7 @@ def main() -> None:
                     if peer[0] != result_port["source_address"]:
                         raise ValueError("unexpected result source")
                     payload = recv_line(connection, 4096)
+                    capture_bytes(payload, 'receive results RawSdrResult')
                     result = json.loads(payload)
                     required = {"sequence", "frequency_hz", "sample_count", "power"}
                     if not isinstance(result, dict) or set(result) != required:

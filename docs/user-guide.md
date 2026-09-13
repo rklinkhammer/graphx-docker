@@ -4,7 +4,7 @@ The implemented graph workflow validates an authored v3 graph and produces
 resolved JSON. Start from one of the [24 examples](../examples/README.md), select
 a target, and inspect the normalized model. Direct applications also support
 [resolved node bindings and a local release barrier](configuration.md#application-bindings);
-artifact compilation is available and graph execution adapters remain gated.
+artifact compilation and [native/portable execution](execution.md) are available.
 
 Build and validate from the repository root:
 
@@ -46,12 +46,10 @@ credential material and creating it starts no processes. SQLite history is enabl
 by default with bounded queues, retention and database size. Application capture,
 OVS capture and telemetry defaults are visible in `platform`.
 
-Execution commands and example launchers return `E_PHASE_UNAVAILABLE`. Generic
-application bindings, artifact generation, platform staging, process orchestration
-and OVS/QEMU realization have separate gates in the
-[phased plan](../design/graph-generation/implementation-plan.md). Checked-in Compose
-recipes and shell bodies are not a supported v3 launch path. Do not interpret a
-successful target validation as Linux, OrbStack, Lima or guest execution evidence.
+`graphx run up|status|down` executes native or unprivileged container graphs from
+verified compiled artifacts and releases. See [execution](execution.md) for
+installation, credentials, ownership and cleanup. OVS, namespace, QEMU and scenario
+actions remain gated. Target validation alone is not execution evidence.
 
 Use `scripts/verify.sh quick`, `scripts/verify.sh quality`, and
 `scripts/verify.sh portable` for the implemented contract and reusable modules.
@@ -71,5 +69,6 @@ build/dev/graphx compile examples/sample-pipeline/graphx.yml \
 
 Inspect `compile-manifest.json`, `resolved.json`, `nodes/`, and the emitted plans.
 Compilation starts nothing. Image/release pins remain explicitly unverified until
-packaging, and graph execution stays gated. Recompilation requires a fresh output
+packaging. `graphx run` checks those prerequisites before starting a supported
+native or container graph. Recompilation requires a fresh output
 directory; existing output and unrelated files are preserved.

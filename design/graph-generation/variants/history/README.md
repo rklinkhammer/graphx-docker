@@ -6,7 +6,8 @@ Input: [graphx.yml](graphx.yml). Shared types: [catalog](../../catalog/README.md
 
 Preserved intent and proposed acceptance: Explicit history settings; default platform retained; credentials by reference; variant acceptance defined in verification.md.
 
-Current source evidence: [source](../../../../examples/sample-pipeline/compose.history.yaml). Source inspection establishes the current contract, not that v3 generation works. All expected artifacts have status `static-design`; proposed execution has not run. Native platform packaging and generic bindings are proposed in every set.
+Current source evidence: [source](../../../../examples/variants/history/graphx.yml). These review artifacts retain `static-design` status. Actual source-graph execution
+evidence is recorded separately in [P6 verification](../../p6-verification.md).
 
 | Target | Capability cell | Rule and placement/reason | Evidence |
 |---|---|---|---|

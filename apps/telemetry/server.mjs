@@ -1,4 +1,6 @@
 import dgram from 'node:dgram'
+import { boundOutput } from './output-bound.mjs'
+boundOutput([process.stdout, process.stderr], process.env.GRAPHX_LOG_MAX_BYTES)
 import { validateInheritedLock } from './credentials.mjs'
 import { loadPlatform, PlatformCredentials } from './platform-config.mjs'
 import { readFileSync } from 'node:fs'

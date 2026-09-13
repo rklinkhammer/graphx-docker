@@ -79,7 +79,7 @@ function captureCatalog() {
     files: listed.captures.map(({ name, details, linkType }) => ({
       name, nodeId: name.slice(0, -7), size: details.size,
       modifiedAt: details.mtime.toISOString(), url: `/captures/${encodeURIComponent(name)}`,
-      linkType, format: linkType === 1 ? 'ethernet' : 'graphx-frame',
+      linkType, format: linkType === 1 ? 'ethernet' : linkType === 148 ? 'raw-application' : 'graphx-frame',
     })) }
   captureCatalogCache = { expiresAt: now + 1000, catalog }
   return catalog

@@ -10,4 +10,5 @@ NORMALIZED_CONFIG_CLI="$BUILD_DIR/graphx" without_graphx_environment npm test --
 npm ci --prefix "$ROOT/web" --no-audit --no-fund
 without_graphx_environment npm test --prefix "$ROOT/web"
 npm run build --prefix "$ROOT/web"
-echo "P1 normalized consumers, HTTP integration and web console checks passed"
+python3 "$ROOT/tests/test_execution.py" "$BUILD_DIR" "$ROOT"
+echo "Normalized consumers, HTTP integration, web console and native execution checks passed"

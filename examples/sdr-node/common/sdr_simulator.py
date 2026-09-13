@@ -11,7 +11,7 @@ import ssl
 import threading
 import time
 
-from protocol import configure_telemetry, encode_samples, publish_heartbeat, recv_line
+from protocol import capture_bytes, configure_telemetry, encode_samples, publish_heartbeat, recv_line
 from credential_files import tls_context
 from node_settings import arguments, binding, release
 
@@ -46,6 +46,7 @@ def control_server(listener: socket.socket | None = None,
                     with context.wrap_socket(connection, server_side=True) as secure:
                         secure.settimeout(2)
                         request = recv_line(secure, MAX_CONTROL_BYTES)
+                        capture_bytes(request, 'receive control RawSdrControl')
                         response = apply_command(json.loads(request))
                         secure.sendall(json.dumps(response, separators=(",", ":")).encode() + b"\n")
                 except (OSError, ssl.SSLError, json.JSONDecodeError, TypeError, ValueError) as error:
@@ -109,7 +110,9 @@ def main() -> None:
             with state_lock:
                 running, frequency = state["running"], state["frequency_hz"]
             if running:
-                output.sendto(encode_samples(sequence, frequency), (target, port))
+                payload = encode_samples(sequence, frequency)
+                output.sendto(payload, (target, port))
+                capture_bytes(payload, 'send samples RawSdrIqFrame')
                 sequence = (sequence + 1) & 0xFFFFFFFF
 
 

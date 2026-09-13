@@ -3,18 +3,21 @@
 **Architecture design — I-01 through I-11 accepted.** P1 implements the model cutover and P2 implements generic application bindings;
 P3 implements deterministic artifact compilation; see [P3 verification](p3-verification.md).
 The expected files in this review package remain illustrative. Actual compiler
-goldens live under `tests/fixtures/compiled`; execution remains unavailable.
+goldens live under `tests/fixtures/compiled`. P4–P6 add verified packaging, the
+default platform and finite native/portable execution; see [P6 verification](p6-verification.md).
+Native and container applications require separate graphs (`E_EXECUTION_MIX`).
+OVS, namespace, guest and scenario realization retain their later phase gates.
 
 ## Verdict and evidence
 
-The design meets the simplification objective, subject to implementing the bounded execution adapters. Shared templates do not
+The design meets the simplification objective through fixed bounded execution adapters. Shared templates do not
 look up example IDs. S01 and T01 use identical sample types; T02 and T03 reuse the
 same SDR port contracts. All ordinary topology edits produce no Dockerfile.
 The compiler produces inspectable files, while the existing resource owners
 remain the authority for mutation and cleanup. No new blocking contradiction was
 found; there are no unresolved I-12+ issues.
 
-Current evidence, inspected during this review:
+Current source boundaries:
 
 | Finding | Source evidence | Consequence |
 |---|---|---|
@@ -22,9 +25,9 @@ Current evidence, inspected during this review:
 | Samples use resolved instance identities and type-declared ports | [generator](../../apps/generator/main.cpp), [transform](../../apps/transform/main.cpp), [sink](../../apps/sink/main.cpp) | P2 shares application behavior and uses bound identities for traces/captures |
 | Sample/UDP entrypoints consume mandatory resolved node identities and ports | [publisher](../../apps/udp_publisher/main.cpp), [subscriber](../../apps/udp_subscriber/main.cpp), [shared application](../../src/sample_application.cpp) | P2 removes instance/connection defaults; transport behavior remains shared |
 | Runtime image provides shared binaries with explicit commands | [Dockerfile](../../Dockerfile) | P4 removes graph COPY and default sample execution; reuse one release image |
-| Sample Compose normalizes at startup and overlays repeat platform secrets/settings | [Compose](../../examples/sample-pipeline/compose.yaml), [six overlays](../../examples/sample-pipeline), [telemetry Dockerfile](../../docker/telemetry.Dockerfile) | Compile once; one platform config replaces normalization service and overlays |
+| Sample Compose includes generated services; the compiled platform owns settings | [Compose](../../examples/sample-pipeline/compose.yaml), [authored variants](../../examples/variants), [telemetry Dockerfile](../../Dockerfile) | Compile once; credential staging and graph execution consume that output |
 | Network profiles repeat service names, fixed host endpoints and wrappers | [network Compose](../../examples/network-lab.compose.yaml), [network launcher](../../scripts/network-lab.sh), [OVS launcher](../../examples/network-lab-ovs.sh), [IPVLAN L2](../../examples/ipvlan-l2/graphx.yml) | Derived names and declarative resource references replace per-topology wiring |
-| SDR listeners use validated port bindings; sink accepts one result stream contract | [processor](../../examples/sdr-node/common/processor.py), [protocol](../../examples/sdr-node/common/protocol.py), [sink](../../examples/sdr-node/common/sink.py), [SDR Dockerfile](../../docker/sdr.Dockerfile) | P2 preserves the wire protocol and enforces declared peers through the shared reader |
+| SDR listeners use validated port bindings; sink accepts one result stream contract | [processor](../../examples/sdr-node/common/processor.py), [protocol](../../examples/sdr-node/common/protocol.py), [sink](../../examples/sdr-node/common/sink.py), [SDR Dockerfile](../../Dockerfile) | P2 preserves the wire protocol and enforces declared peers through the shared reader |
 | External namespace ownership and guest startup live outside the core graph | [boundary helper](../../examples/external-ovs-boundary.sh), [route launcher](../../examples/static-route-policy/scripts/demo.sh), [QEMU launcher](../../examples/qemu-node/tap/scripts/ovs-lab.sh) | Fold only these resource kinds into the common identity store; no second ledger |
 | Ownership coordinator already supplies locks, rollback, identity-aware capture and endpoints | [ownership API](../../include/graphx/ownership.hpp), [coordinator](../../src/infra/lifecycle_coordinator.cpp), [endpoint module](../../src/infra/endpoint_resources.cpp) | Extend existing owner instead of replaying unchecked shell commands |
 | Communication cycles require type feedback support | [validation](../../src/config_v3.cpp), [graph tests](../../tests/test_config_graph.cpp) | P1 checks type feedback declarations; readiness remains separate |
@@ -42,12 +45,12 @@ Proposed source layout after authorization:
 
 | Component | Files | Smallest new abstraction and why needed |
 |---|---|---|
-| Authoritative graph model | `include/graphx/config.hpp`, `src/config_*.cpp` | Type/instance/connection structures; P1 resolves catalog types and shared endpoints; execution projections remain gated |
+| Authoritative graph model | `include/graphx/config.hpp`, `src/config_*.cpp` | Type/instance/connection structures; P1 resolves catalog types and shared endpoints; P6 executes supported native/portable projections |
 | Pure compilation | `include/graphx/compile.hpp`, `src/compile.cpp`, `src/compile/{bindings,artifacts}.cpp` | P3 consumes the resolved value and verified catalog snapshot through fixed serializers |
 | Node bindings | `include/graphx/node_settings.hpp`, `src/node_settings.cpp`, reusable application code under `src/`; thin `apps/*` | P2 implements typed per-port bindings and the local-ready/release protocol |
 | Catalog assets | `config/catalog/{types,templates,guests}`, `config/schema/` | Fixed data contracts; no plugins or programmable renderer |
 | Execution adapters | `src/infra/{process_resources,qemu_resources}.cpp`, existing lifecycle coordinator; thin `apps/cli/main.cpp` | Owned process records and bounded startup phases; Compose alone cannot run native/QEMU or attach owned endpoints |
-| Platform | existing `apps/telemetry/`, native release packaging and `docker/telemetry.Dockerfile` | Consume one resolved contract, default history and sealed packet handoff; existing combined service already owns these capabilities |
+| Platform | existing `apps/telemetry/`, native release packaging and `Dockerfile` telemetry target | Consume one resolved contract, default history and sealed packet handoff; existing combined service already owns these capabilities |
 | Examples | `examples/*/graphx.yml`, optional scenario actions and acceptance commands | Replace source Compose/overlays and network wrappers only once converted behavior passes |
 
 The compiler returns a value, never invokes Docker, QEMU, `ip`, `nft`, OVS or a

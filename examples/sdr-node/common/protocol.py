@@ -13,6 +13,7 @@ import struct
 import time
 from pathlib import Path
 from credential_files import member, configure_tls
+from application_capture import ApplicationCapture
 
 MAGIC = b"SDR1"
 HEADER = struct.Struct("!4sIQH")
@@ -21,14 +22,22 @@ MAX_SAMPLES = 256
 
 
 _telemetry = None
+_capture = None
 
 
 def configure_telemetry(node):
-    global _telemetry
+    global _telemetry, _capture
     _telemetry = node['telemetry']
+    if node['capture']['enabled'] and node['capture']['provider'] == 'application':
+        _capture = ApplicationCapture(node)
     configure_tls(node)
     if _telemetry['credential'] is not None and not telemetry_secret():
         raise ValueError('telemetry requires a staged HMAC credential')
+
+
+def capture_bytes(payload, boundary):
+    if _capture is not None:
+        _capture.record(payload, boundary)
 
 
 def telemetry_secret() -> str:

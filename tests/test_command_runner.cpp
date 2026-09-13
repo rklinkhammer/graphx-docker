@@ -1,4 +1,5 @@
 #include "infra/command_runner.hpp"
+#include "bounded_output.hpp"
 
 #include <cerrno>
 #include <csignal>
@@ -22,6 +23,13 @@ extern "C" void alarm_handler(int) {}
 
 int fixture(int argc, char** argv) {
   const std::string mode = argv[2];
+  if (mode == "bounded-output") {
+    ::setenv("GRAPHX_LOG_MAX_BYTES", "4096", 1);
+    graphx::detail::bound_process_output();
+    std::cout << std::string(8192, 'x');
+    std::cerr << std::string(8192, 'y');
+    return 0;
+  }
   if (mode == "arguments") {
     for (int index = 3; index < argc; ++index) std::cout << '[' << argv[index] << ']';
     return 0;
@@ -82,6 +90,22 @@ void tests(const std::string& executable) {
                                     .output_limit = 16});
   expect(bounded.status == 0 && bounded.output.size() == 16 && bounded.output_truncated,
          "captured output was not bounded");
+
+  const auto process_output = run_command({.arguments = {executable, "--fixture", "bounded-output"},
+                                           .capture_output = true,
+                                           .output_limit = 8192,
+                                           .timeout_ms = 2000});
+  expect(process_output.status == 0 && process_output.output.size() == 4096,
+         "application output did not retain its exact bounded prefix");
+  bool deadline_rejected{};
+  try {
+    run_command({.arguments = {executable, "--fixture", "sleep", "2000"},
+                 .capture_output = true,
+                 .timeout_ms = 20});
+  } catch (const std::runtime_error& error) {
+    deadline_rejected = std::string(error.what()).find("E_COMMAND_TIMEOUT") != std::string::npos;
+  }
+  expect(deadline_rejected, "command deadline was not enforced");
 
   const auto missing = run_command({.arguments = {"graphx-s3-command-that-does-not-exist"}});
   const auto exited = run_command({.arguments = {executable, "--fixture", "exit", "127"}});

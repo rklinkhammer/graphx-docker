@@ -50,6 +50,11 @@ def main():
         graph = temp / 'graphx.yml'
         graph.write_text((root / 'examples/sample-pipeline/graphx.yml').read_text().replace(
             '../../config/catalog/lock.json', 'catalog/lock.json'))
+        original = graph.read_text()
+        graph.write_text(original.replace('kind: container', 'kind: native', 1))
+        mixed = subprocess.run([graphx, 'validate', graph, '--catalog-root', catalog],capture_output=True,text=True)
+        assert mixed.returncode and 'E_EXECUTION_MIX' in mixed.stderr
+        graph.write_text(original)
         type_path = catalog / 'types/sample.source.json'
         definition = json.loads(type_path.read_text())
         lock = json.loads((catalog / 'lock.json').read_text())

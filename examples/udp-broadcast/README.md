@@ -1,8 +1,9 @@
 # UDP broadcast example
 
-This authored v3 example is supported for validation and normalization. Graph
-execution is unavailable in P1; its launcher returns `E_PHASE_UNAVAILABLE` before
-performing actions. The retained launch recipes require the later adapters.
+This authored v3 graph supports compilation and owned portable execution.
+Compile it with a verified release, then use `graphx run up|status|down` as
+described in the repository's `docs/execution.md`. The local launcher delegates
+to that adapter and requires explicit compiled output and state roots.
 
 Run from the repository root:
 

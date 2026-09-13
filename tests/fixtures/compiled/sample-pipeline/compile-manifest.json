@@ -3,7 +3,7 @@
   "catalog_digest": "c7173c98503b8f49c5997c6d3429f239b39d502b66b1eb0e7ffb252671788fe1",
   "compiler": "graphx-compiler-1",
   "compiler_version": "1.1.0",
-  "execution_available": false,
+  "execution_available": true,
   "files": [
     {
       "path": "catalog-pins.json",
@@ -19,7 +19,7 @@
     },
     {
       "path": "execution-plan.json",
-      "sha256": "927d00604f28e55d2565eadb7a031fc0f2c1aba75bc5cde364659a4c4e166951"
+      "sha256": "7cc2d0052560b721e459c37f114478f6abed6bbcfe998ee27f79b834493c7393"
     },
     {
       "path": "nodes/generator.json",

@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import test from 'node:test'
-import { listValidatedCaptures, openValidatedCapture } from './capture-files.mjs'
+import { listValidatedCaptures, openValidatedCapture, capturePath } from './capture-files.mjs'
 import { normalizedConfigEnvironment } from './test-config.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -196,7 +196,7 @@ test('capture validation rejects hardlinks and FIFOs without blocking', async t 
   assert.ok(Date.now() - started < 1000, 'FIFO validation must not block')
 
   const unsupported = join(directory, 'unsupported-dlt.pcapng')
-  await writeFile(unsupported, minimalPcapng(148))
+  await writeFile(unsupported, minimalPcapng(149))
   assert.throws(() => openValidatedCapture(unsupported, 65536), /invalid capture/)
 })
 
@@ -275,4 +275,22 @@ test('native normalization rejects unsafe capture types and explicit runtime pat
     await writeFile(config, JSON.stringify({version: 3, catalog: 'unused', graph: {id: 'test'}, nodes: {}, connections: {}, platform: {capture: {[key]: value}}}))
     assert.match(rejectedNormalization(config), /E_SCHEMA.*platform\.capture/)
   }
+})
+
+test('node capture directories expose bounded raw application records without path traversal', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'graphx-node-capture-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  await mkdir(join(directory, 'radio'))
+  await writeFile(join(directory, 'radio/radio.pcapng'), minimalPcapng(148))
+  const listed = listValidatedCaptures(directory, 65536, { maxFiles: 4, maxEntries: 4 })
+  assert.equal(listed.captures.length, 1)
+  assert.equal(listed.captures[0].name, 'radio.pcapng')
+  assert.equal(listed.captures[0].linkType, 148)
+  const opened = openValidatedCapture(capturePath(directory, 'radio.pcapng'), 65536)
+  closeSync(opened.descriptor)
+  assert.throws(() => capturePath(directory, '../radio.pcapng'), /invalid/)
+  await symlink(join(directory, 'radio'), join(directory, 'alias'))
+  assert.throws(() => capturePath(directory, 'alias.pcapng'), /invalid/)
+  await writeFile(join(directory, 'radio.pcapng'), minimalPcapng(148))
+  assert.throws(() => capturePath(directory, 'radio.pcapng'), /ambiguous/)
 })

@@ -406,7 +406,8 @@ test('authenticated history API survives abrupt restart and degrades independent
       const database = new DatabaseSync(incompatible)
       database.exec('PRAGMA user_version=2'); database.close()
       running = await startTelemetry(incompatible)
-      assert.equal((await fetch(`http://127.0.0.1:${running.port}/api/ready`)).status, 200)
+      assert.equal((await fetch(`http://127.0.0.1:${running.port}/api/ready`)).status, 503)
+      assert.equal((await fetch(`http://127.0.0.1:${running.port}/api/live`)).status, 200)
       const status = await (await fetch(`http://127.0.0.1:${running.port}/api/history/status`,
         { headers: running.headers })).json()
       assert.equal(status.status, 'degraded')

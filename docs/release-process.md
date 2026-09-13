@@ -75,9 +75,9 @@ Author a graph with a relative path to that lock and pass its directory as
 `--catalog-root` when compiling. The source catalog remains an explicitly
 unverified development input. Offline OCI digests do not imply registry
 availability; publishing requires preserving or independently verifying the
-registry manifest. The compiler still marks execution unavailable. P5 supplies
-the resolved platform configuration adapter and native companion packaging.
-Application orchestration and guest execution retain their later phase gates.
+registry manifest. `graphx run` verifies these offline archives against the
+compiled release catalog, then runs an immutable local image-ID projection.
+Native execution uses the verified combined installation. Guest execution remains gated.
 
 The release workflow builds, attests, validates SPDX inventories and promotes
 all three shared registry images together. It refuses existing version tags and
@@ -96,3 +96,10 @@ verifier rejects. Install the companion
 alongside the corresponding C++ archive; its launcher uses the bundled Node binary.
 The release workflow verifies commit/version/platform/epoch for both artifacts
 before publication. The lab credential provider also requires OpenSSL.
+
+## Installing a native execution release
+
+Use `scripts/release/install_release.py` to verify and combine native and platform
+companion archives with matching version, commit, platform and epoch. The
+exclusive installation includes the file-hash/mode receipt consumed by `graphx run`.
+See [execution](execution.md) for exact arguments and local candidate policy.

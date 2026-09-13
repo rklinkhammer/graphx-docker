@@ -87,10 +87,10 @@ recipe/artifact declarations are compile errors, while missing built output
 from a declared recipe is an execution prerequisite error. This distinction
 allows a complete review of the build and boot plans without inventing a guest.
 
-P1–P4 implement the v3 model, generic bindings, local release barrier, pure
-compiler and shared image packaging. Native platform packaging, secure default credential delivery, bounded
-execution adapters, generated observability integration and guest execution remain
-later-phase work. Expected output here was authored for review; actual compiler
+P1–P6 implement the v3 model, generic bindings, release barrier, pure compiler,
+verified packaging, credential delivery, bounded history, observability services
+and finite native/portable execution. See [P6 verification](p6-verification.md).
+OVS, guest and scenario execution remain later-phase work. Expected output here was authored for review; actual compiler
 goldens and matrix tests are under `tests/`. `check_package.py` checks only this
 static package. Design parseability does not establish runtime compatibility,
 isolation, cleanup or guest boot; see the separate phase verification reports.

@@ -1,24 +1,36 @@
 # Test procedure
 
-P5 platform verification uses `node --test apps/telemetry/platform.test.mjs` with
-Node 24 and a current `build/dev/graphx`. After engine readiness checks, run
-`python3 tests/test_platform_docker.py VERIFIED_IMAGE_RELEASE --output FRESH_EVIDENCE_DIR`
-for unprivileged platform, history and observability service checks. This is not
-P6 application orchestration or privileged Linux/Lima acceptance. See
-[P5 verification](../design/graph-generation/p5-verification.md).
+`quick` covers the input/target matrix, compiler goldens, application bindings,
+release contracts and ownership modules. `portable` also runs telemetry HTTP,
+web tests/build and the native execution lifecycle fixture with Node 24.
 
-P1–P4 support v3 validation, normalized consumers, direct application bindings
-and deterministic artifact compilation. P4 adds shared image packaging and offline
-release-pin verification; see [P4 evidence](../design/graph-generation/p4-verification.md).
-`quick` covers the accepted input/target matrix, generic native node semantics,
-renamed independent pipelines, SDR bindings, the compiler matrix/goldens and
-reusable module contracts;
-`portable` adds execution-gate checks, telemetry HTTP integration and web tests/build.
-Example launches and infrastructure plans return `E_PHASE_UNAVAILABLE`. Privileged
-and Docker orchestration gates below cannot establish v3 acceptance until the
-corresponding execution phases are implemented. See the
-[P3 evidence](../design/graph-generation/p3-verification.md).
+After confirming the selected engine, run the unprivileged execution matrix:
 
+```sh
+PATH=/opt/homebrew/opt/node@24/bin:$PATH python3 tests/test_execution_matrix.py \
+  VERIFIED_IMAGE_RELEASE --output FRESH_EVIDENCE_DIRECTORY
+```
+
+Use a platform-appropriate Node 24 path on Linux. This runs S01/S05/S13, V01–V06
+and T01–T02 using unique graph names and ephemeral console ports. It records
+container/network/volume inventories and preserves a separately owned running
+sentinel throughout. It explicitly disposes only its own retained test volumes.
+The platform-only harness `tests/test_platform_docker.py` remains available for
+focused platform/history checks. Neither harness performs privileged operations.
+
+For native lifecycle checks use `python3 tests/test_execution.py build/dev .`.
+Append `examples/udp-unicast/graphx.yml`, `examples/udp-multicast/graphx.yml`, or
+`examples/capture/graphx.yml` to select other supported native cases. Set
+`GRAPHX_TEST_RELEASE` to a verified installation to test actual packaged files;
+otherwise the test creates an exact-file local fixture. Set
+`GRAPHX_EXECUTION_EVIDENCE` to an absent output directory to retain before/after
+ownership inventories, process logs and captures from the first successful run.
+Tests retain their private
+working directory on failure for identity-checked recovery.
+
+OVS, namespace, guest and scenario execution remain gated. See
+[P6 verification](../design/graph-generation/p6-verification.md) for actual
+environment evidence and unrun checks.
 
 Use the smallest profile that covers the change:
 
@@ -76,9 +88,8 @@ test set and runs it after portable acceptance.
 | GraphX ARM64 Lima on Apple Silicon macOS | `infrastructure/lima/verify.sh` | Guest build/quick tests plus privileged Linux CTests and infrastructure cleanup comparison |
 
 Before Docker tests, check `docker info` and `docker compose version`; on macOS
-also check `docker context show` returns `orbstack`. The Docker suite manages the
-sample pipeline Compose project (`graphx`): stop an existing demo deliberately before running it, or
-use a separate Compose project and free ports. Before native Linux privileged
+also check `docker context show` returns `orbstack`. The Docker suite uses unique test graph/project names and checks that existing
+resources survive unchanged. Before native Linux privileged
 CTests, build `graphx-demo:latest` in that engine with `docker build -t graphx-demo:latest .`; allow the network test to
 pull `debian:bookworm-slim` and external SDR to build its service image.
 Native portable tests also need their configured TCP/UDP/HTTP ports free. Check `node --version` is 24.x before

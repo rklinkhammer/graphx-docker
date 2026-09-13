@@ -36,7 +36,7 @@ def compile_to(source, output, catalog=None, target='native-linux', **options):
 def verify(output):
     content = files(output)
     manifest = json.loads(content['compile-manifest.json'])
-    assert manifest['execution_available'] is False
+    assert isinstance(manifest['execution_available'], bool)
     assert manifest['artifact_identities_verified'] is False
     assert set(content) == {p['path'] for p in manifest['files']} | {'compile-manifest.json'}
     assert all(digest(content[p['path']]) == p['sha256'] for p in manifest['files'])
@@ -47,7 +47,11 @@ def verify(output):
     assert all(b'\r' not in data and data.endswith(b'\n') for data in content.values())
     assert set(json.loads(content['substitutions.json'])['values']) == {'GX_OUTPUT', 'GX_STATE', 'GX_CREDENTIALS', 'GX_RELEASE', 'GX_OWNER'}
     execution = json.loads(content['execution-plan.json'])
-    assert execution['executable'] is False
+    assert execution['executable'] == manifest['execution_available']
+    if resolved['network']['switches'] or any(n['execution']['kind'] in {'qemu', 'namespace'} for n in resolved['nodes']):
+        assert execution['executable'] is False
+    else:
+        assert execution['executable'] is True
     operations = [s['operation'] for s in execution['stages']]
     assert operations.index('start-applications-held') < operations.index('await-local-listeners') < operations.index('release-connectors')
     if any(n['execution']['kind'] == 'namespace' for n in resolved['nodes']):

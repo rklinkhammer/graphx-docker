@@ -1,8 +1,8 @@
 # GraphX examples
 
 All 24 authored v3 examples support validation, normalization and deterministic
-compilation on their listed targets. Execution launchers remain gated with
-`E_PHASE_UNAVAILABLE`. See [compilation instructions](../docs/user-guide.md#compile-inspectable-artifacts). Images use the [shared release recipes](../docs/release-process.md#shared-images-and-catalog-pins);
+compilation on their listed targets. Native and portable container graphs support [owned execution](../docs/execution.md).
+OVS, namespace, QEMU and scenario launchers remain gated. See [compilation instructions](../docs/user-guide.md#compile-inspectable-artifacts). Images use the [shared release recipes](../docs/release-process.md#shared-images-and-catalog-pins);
 source Compose files contain no per-graph builds. Run from the repository root:
 
 ```sh

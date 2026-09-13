@@ -19,7 +19,8 @@ build, root = map(lambda p: Path(p).resolve(), sys.argv[1:])
 cli = build / 'graphx'
 apps = {'sample.source': 'graphx-generator', 'sample.transform': 'graphx-transform',
         'sample.sink': 'graphx-sink', 'udp.publisher': 'graphx-udp-publisher',
-        'udp.subscriber': 'graphx-udp-subscriber'}
+        'udp.subscriber': 'graphx-udp-subscriber',
+        'discovery.publisher': 'graphx-udp-publisher', 'discovery.subscriber': 'graphx-udp-subscriber'}
 env = {k: v for k, v in os.environ.items() if not k.startswith(('GRAPHX_', 'SDR_'))}
 
 
@@ -124,27 +125,27 @@ def run_nodes(nodes, directory):
 
 
 scenarios = [('S01', 'sample-pipeline'), ('S02', 'shared-memory'), ('S03', 'udp-unicast'),
-             ('S04', 'udp-multicast'), ('S06', 'capture')]
+             ('S04', 'udp-multicast'), ('S05-bindings', 'udp-broadcast'), ('S06', 'capture')]
 for label, scenario in scenarios:
     graph = normalize(f'examples/{scenario}/graphx.yml')
     with tempfile.TemporaryDirectory(prefix='graphx-p2-') as tmp:
-        directory = Path(tmp)
+        directory = Path(tmp).resolve()
         run_nodes(fixtures(graph, directory, 'alpha'), directory)
     print(f'{label}: native application semantics passed')
 
 graph = normalize('examples/sample-pipeline/graphx.yml')
 with tempfile.TemporaryDirectory(prefix='graphx-p2-two-') as tmp:
-    directory = Path(tmp)
+    directory = Path(tmp).resolve()
     run_nodes(fixtures(graph, directory, 'alpha') + fixtures(graph, directory, 'beta'), directory)
 with tempfile.TemporaryDirectory(prefix='graphx-p2-t01-') as tmp:
-    directory = Path(tmp)
+    directory = Path(tmp).resolve()
     run_nodes(fixtures(normalize('examples/variants/renamed-multi-source/graphx.yml'), directory, 'alpha'), directory)
 print('T01: authored east/west variant and two concurrent independent renamed pipelines passed')
 
 # The raw SDR programs use the C++ node validator too. Bind all three local
 # listeners before releasing the feedback cycle; no sample/status readiness probe.
 with tempfile.TemporaryDirectory(prefix='graphx-p2-sdr-') as tmp:
-    directory = Path(tmp)
+    directory = Path(tmp).resolve()
     common = root / 'examples/sdr-node/common'
     tls = directory / 'tls'
     subprocess.run([common / 'generate_tls.sh', tls], check=True, capture_output=True)
@@ -199,7 +200,7 @@ with tempfile.TemporaryDirectory(prefix='graphx-p2-sdr-') as tmp:
 print('SDR: renamed raw feedback cycle, local readiness, results and authenticated control passed')
 
 with tempfile.TemporaryDirectory(prefix='graphx-p2-negative-') as tmp:
-    directory = Path(tmp)
+    directory = Path(tmp).resolve()
     node = fixtures(graph, directory, 'alpha')[0]
     config = directory / 'node.json'
     command = [cli, 'node-settings', '--node', node['node_id'], '--config', config]
