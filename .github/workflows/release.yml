@@ -149,7 +149,7 @@ jobs:
             GRAPHX_REVISION=${{ github.sha }}
             GRAPHX_RELEASE_IMAGE_TYPES=ON
       - name: Attest runtime image
-        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-name: ghcr.io/${{ steps.version.outputs.owner }}/graphx-runtime
           subject-digest: ${{ steps.runtime.outputs.digest }}
@@ -171,7 +171,7 @@ jobs:
             GRAPHX_REVISION=${{ github.sha }}
             GRAPHX_RELEASE_IMAGE_TYPES=ON
       - name: Attest telemetry image
-        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-name: ghcr.io/${{ steps.version.outputs.owner }}/graphx-telemetry
           subject-digest: ${{ steps.telemetry.outputs.digest }}
@@ -193,7 +193,7 @@ jobs:
             GRAPHX_REVISION=${{ github.sha }}
             GRAPHX_RELEASE_IMAGE_TYPES=ON
       - name: Attest sdr image
-        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-name: ghcr.io/${{ steps.version.outputs.owner }}/graphx-sdr
           subject-digest: ${{ steps.sdr.outputs.digest }}
@@ -310,7 +310,7 @@ jobs:
           find release-assets -type f -exec cp {} release-upload/ \;
           test "$(find release-upload -type f | wc -l)" -eq 12
       - name: Attest native archives
-        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: release-upload/*.tar.gz
       - name: Publish immutable GitHub release
