@@ -1,6 +1,6 @@
 {
   "config": "resolved.json",
-  "executable": false,
+  "executable": true,
   "external": [],
   "on_failure": "reverse newly owned resources; retain mismatch evidence and history",
   "scenario_actions": "never implicit",

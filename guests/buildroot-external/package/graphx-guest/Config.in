@@ -1,0 +1,10 @@
+config BR2_PACKAGE_GRAPHX_GUEST
+	bool "GraphX guest applications and configuration agent"
+	depends on BR2_INSTALL_LIBSTDCPP
+	select BR2_PACKAGE_OPENSSL
+	select BR2_PACKAGE_PYTHON3
+	select BR2_PACKAGE_PYTHON3_SSL
+
+config BR2_PACKAGE_GRAPHX_GUEST_APPLICATION
+	string "Guest application contract"
+	default "guest.echo"

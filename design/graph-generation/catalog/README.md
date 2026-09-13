@@ -36,10 +36,9 @@ source digest, builder image digest, literal argv, bounded resource limits,
 network-disabled build after dependency fetch, fixed SOURCE_DATE_EPOCH, output
 checksums and SBOM. User graph nodes only select types.
 
-The two guest recipes require actual implementation work. Echo reuses the source
-under `examples/qemu-node/guest`, adding explicit configuration and readiness.
-Radio requires Python/OpenSSL and SDR software in the guest rootfs. Neither
-selecting `guest.echo` nor attaching a TAP supplies a radio application. Source
-references in guest recipes identify release inputs, not currently existing
-package paths; the release lock must map them to checksum-verified source trees
-before build. Build failure produces no eligible guest artifact set.
+The design catalog's guest pins remain illustrative review inputs. The common
+implementation under `guests/` builds echo and SDR radio applications with the
+same configuration/credential/readiness agent. Use the generated guest release
+catalog for execution; its source digest, builder pin and output checksums come
+from verified build artifacts. Neither selecting `guest.echo` nor attaching a
+TAP supplies a radio application. Build failure produces no eligible guest set.

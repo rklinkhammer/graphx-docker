@@ -11,7 +11,10 @@ unrun environment/manual checks. P6 finite native/portable execution is complete
 see [P6 verification](p6-verification.md) for native macOS and OrbStack results,
 release identities and unrun environment checks. P7 implementation and unprivileged verification are complete;
 see [P7 verification](p7-verification.md). S07–S12 privileged Lima acceptance passed. Compiled profile wrappers are converted and verified. Native Linux OVS acceptance
-was not run. P8–P10 remain future changes. The original
+was not run. P8 implementation, verified development artifacts and unprivileged checks are complete;
+authorized S15/T03 actual x86_64 TCG guest acceptance passed in the ARM64 Lima VM.
+Native Linux x86_64 acceptance remains unrun. See [P8 verification](p8-verification.md)
+for evidence and the remaining cross-host verification gate. P9–P10 remain future changes. The original
 design review did not authorize implementation, guest builds, infrastructure
 mutation or privileged tests. I-01–I-11 are accepted; no compatibility parser, second source manifest,
 deployment daemon, generic plugin system or per-topology image build is planned.

@@ -6,7 +6,7 @@ Input: [graphx.yml](graphx.yml). Shared types: [catalog](../../catalog/README.md
 
 Preserved intent and proposed acceptance: One container radio and one x86_64 TCG radio guest, two processors and two sinks; radio-x86 guest must be built; echo guest is not an SDR implementation.
 
-Current source evidence: [source](../../../../examples/qemu-node/guest). Source inspection establishes the current contract, not that v3 generation works. All expected artifacts have status `static-design`; proposed execution has not run. Native platform packaging and generic bindings are proposed in every set.
+Current source evidence: [source](../../../../guests). P8 provides the guest recipe and common runtime; actual boot evidence is tracked separately. All expected artifacts have status `static-design`; proposed execution has not run. Native platform packaging and generic bindings are proposed in every set.
 
 | Target | Capability cell | Rule and placement/reason | Evidence |
 |---|---|---|---|

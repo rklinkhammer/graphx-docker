@@ -23,6 +23,8 @@ int run_diagnostic_application(int argc, char** argv) {
   try {
     const auto arguments = node_arguments(argc, argv);
     const auto settings = load_node_settings(arguments.config, arguments.node);
+    if (settings.resolved.at("type").text() == "diagnostic.peer")
+      return run_packet_application(argc, argv, "diagnostic.peer");
     if (!settings.resolved.at("type").text().starts_with("diagnostic."))
       throw std::invalid_argument("E_TYPE: diagnostic node required");
     Sockets sockets;

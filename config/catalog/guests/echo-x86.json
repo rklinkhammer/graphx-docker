@@ -33,7 +33,7 @@
     "timeout_ms": 120000
   },
   "recipe_revision": 1,
-  "required_work": "Adapt current echo guest to generic bindings and virtio configuration",
+  "required_work": "Build, verify and install the guest release; actual boot requires separately authorized acceptance",
   "source_date_epoch": 1700000000,
   "source_digest": "226028384313a7673a1eeba3fcb47b1ae161ffbf53ef8ab68a72a3618734e013",
   "source_ref": "guest-source-echo-x86"

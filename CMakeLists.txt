@@ -102,10 +102,12 @@ add_library(graphx
   src/node_settings.cpp
   src/sample_application.cpp
   src/diagnostic_application.cpp
+  src/packet_application.cpp
   src/config.cpp
   src/compile.cpp
   src/execution.cpp
   src/infra/process_resources.cpp
+  src/infra/qemu_resources.cpp
   src/infra/compose_execution.cpp
   src/compile_output.cpp
   src/envelope.cpp
@@ -187,7 +189,7 @@ if(GRAPHX_BUILD_FUZZERS)
   target_compile_options(graphx PRIVATE -fsanitize=fuzzer-no-link)
 endif()
 
-foreach(app generator transform sink diagnostic)
+foreach(app generator transform sink diagnostic packet-guest)
   add_executable(graphx-${app} apps/${app}/main.cpp)
   target_link_libraries(graphx-${app} PRIVATE graphx)
   graphx_enable_analysis(graphx-${app})
@@ -223,7 +225,7 @@ if(GRAPHX_BUNDLED_YAML_CPP)
     DESTINATION ${CMAKE_INSTALL_DATADIR}/doc/graphx/licenses
     RENAME yaml-cpp-LICENSE COMPONENT documentation)
 endif()
-install(TARGETS graphx-cli graphx-generator graphx-transform graphx-sink graphx-diagnostic
+install(TARGETS graphx-cli graphx-generator graphx-transform graphx-sink graphx-diagnostic graphx-packet-guest
   graphx-udp-publisher graphx-udp-subscriber
   RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT runtime)
 install(DIRECTORY include/graphx DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
@@ -316,6 +318,10 @@ if(GRAPHX_BUILD_TESTS)
     PRIVATE GRAPHX_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
   add_test(NAME graphx-ownership-state COMMAND graphx-ownership-state-tests)
   set_tests_properties(graphx-ownership-state PROPERTIES TIMEOUT 15)
+  graphx_add_test_target(graphx-guest-artifact-tests tests/test_guest_artifacts.cpp)
+  target_include_directories(graphx-guest-artifact-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+  add_test(NAME graphx-guest-artifacts COMMAND graphx-guest-artifact-tests ${CMAKE_CURRENT_SOURCE_DIR})
+  set_tests_properties(graphx-guest-artifacts PROPERTIES TIMEOUT 15)
   graphx_add_test_target(graphx-resource-tests tests/test_resource_modules.cpp)
   target_include_directories(graphx-resource-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
   add_test(NAME graphx-resource-modules COMMAND graphx-resource-tests)
@@ -372,10 +378,6 @@ if(GRAPHX_BUILD_TESTS)
     add_test(NAME graphx-network-labs-live COMMAND sudo -n ${Python3_EXECUTABLE}
       ${CMAKE_SOURCE_DIR}/tests/test_network_lab_live.py $<TARGET_FILE:graphx-cli>)
     set_tests_properties(graphx-network-labs-live PROPERTIES TIMEOUT 180
-      ENVIRONMENT "GRAPHX_OVERRIDES=")
-    add_test(NAME graphx-qemu-tap-live COMMAND sudo -n ${Python3_EXECUTABLE}
-      ${CMAKE_SOURCE_DIR}/tests/test_qemu_tap_live.py $<TARGET_FILE:graphx-cli>)
-    set_tests_properties(graphx-qemu-tap-live PROPERTIES TIMEOUT 120
       ENVIRONMENT "GRAPHX_OVERRIDES=")
     add_test(NAME graphx-network-observability-live COMMAND sudo -n ${Python3_EXECUTABLE}
       ${CMAKE_SOURCE_DIR}/tests/test_network_observability_live.py $<TARGET_FILE:graphx-cli>)
@@ -446,6 +448,12 @@ if(GRAPHX_BUILD_TESTS)
   add_test(NAME graphx-udp-transport
     COMMAND graphx-tests --filter "UDP" --repeat 3)
   set_tests_properties(graphx-udp-transport PROPERTIES TIMEOUT 30)
+  graphx_add_python_test(graphx-packet-guest tests/test_packet_guest.py 30
+    ${CMAKE_BINARY_DIR} ${CMAKE_SOURCE_DIR})
+  graphx_add_python_test(graphx-guest-release tests/test_guest_release.py 30
+    ${CMAKE_SOURCE_DIR})
+  graphx_add_python_test(graphx-guest-agent tests/test_guest_agent.py 30
+    ${CMAKE_SOURCE_DIR})
   graphx_add_python_test(graphx-compile tests/test_compile.py 120
     $<TARGET_FILE:graphx-cli> ${CMAKE_SOURCE_DIR})
   graphx_add_python_test(graphx-diagnostic-bindings tests/test_diagnostic_bindings.py 30

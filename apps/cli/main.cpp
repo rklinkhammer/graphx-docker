@@ -25,8 +25,8 @@ void usage(std::ostream& out) {
       << "             [--release DIR --credentials DIR] [--images DIR] [--external DIR]\n"
       << "             [--allow-privileged] (local Linux OVS only)\n"
       << "Targets: native-linux (validation default), native-macos, orbstack, lima\n"
-      << "Execution requires verified releases; OVS requires explicit Linux authorization; guests "
-         "remain gated.\n";
+      << "Execution requires verified releases; OVS and guest boot require explicit Linux "
+         "authorization.\n";
 }
 }  // namespace
 

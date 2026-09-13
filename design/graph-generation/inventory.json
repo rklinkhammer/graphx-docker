@@ -504,6 +504,10 @@
     },
     {
       "format": "md",
+      "path": "p8-verification.md"
+    },
+    {
+      "format": "md",
       "path": "verification.md"
     }
   ],

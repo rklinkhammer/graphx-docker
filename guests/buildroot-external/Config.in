@@ -1,0 +1,1 @@
+source "$BR2_EXTERNAL_GRAPHX_GUEST_PATH/package/graphx-guest/Config.in"

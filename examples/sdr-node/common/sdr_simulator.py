@@ -75,10 +75,10 @@ def apply_command(command: object) -> dict[str, object]:
         return {"accepted": True, **state}
 
 
-def main() -> None:
+def main(expected_type='sdr.simulator') -> None:
     signal.signal(signal.SIGTERM, lambda *_: stop.set())
     signal.signal(signal.SIGINT, lambda *_: stop.set())
-    args, node = arguments('sdr.simulator')
+    args, node = arguments(expected_type)
     configure_telemetry(node)
     samples = binding(node, 'samples')
     control = binding(node, 'control')

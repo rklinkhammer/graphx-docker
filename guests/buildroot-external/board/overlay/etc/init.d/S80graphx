@@ -1,0 +1,5 @@
+#!/bin/sh
+case "$1" in
+  start) /usr/bin/python3 /usr/lib/graphx/agent.py </dev/null >/dev/console 2>&1 & ;;
+  stop) : ;; # QEMU lifecycle owns guest shutdown; no PID guessing inside the image.
+esac

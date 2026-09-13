@@ -33,7 +33,7 @@
     "timeout_ms": 120000
   },
   "recipe_revision": 1,
-  "required_work": "Build Linux guest with Python 3, OpenSSL and the SDR radio implementation; current echo guest cannot serve this type",
+  "required_work": "Build, verify and install the guest release; actual boot requires separately authorized acceptance",
   "source_date_epoch": 1700000000,
   "source_digest": "2392a5c24a74b3e55065b49d11114177029926e0a4fc1f8dfd031686ebc19c41",
   "source_ref": "guest-source-radio-x86"

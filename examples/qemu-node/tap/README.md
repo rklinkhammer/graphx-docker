@@ -1,20 +1,15 @@
-# QEMU TAP/OVS profile
+# QEMU TAP profile
 
-This authored v3 example is supported for validation and normalization. Graph
-execution is unavailable in P1; its launcher returns `E_PHASE_UNAVAILABLE` before
-performing actions. The retained launch recipes require the later adapters.
+`graphx.yml` declares a `guest.echo` node, a namespace `diagnostic.peer`, an
+owned OVS TAP and VLAN capture. The fixed guest application obtains all TCP/UDP
+addresses and ports from its resolved node bindings.
 
-Run from the repository root:
+Use the [common guest release and runtime instructions](../README.md).
+`scripts/ovs-lab.sh plan|up|status|down` consumes the existing `GX_OUTPUT`
+compilation and common ownership ledger. It has no independent QEMU argv, PID
+file, peer daemon or capture-export process. The S11 external endpoint remains
+external; this profile does not attach to or adopt it.
 
-```sh
-build/dev/graphx validate examples/qemu-node/tap/graphx.yml
-build/dev/graphx config normalize examples/qemu-node/tap/graphx.yml > resolved.json
-```
-
-Select `--target native-linux`, `native-macos`, `orbstack`, or `lima` to check
-placement capabilities. Managed OVS and QEMU require Linux or Lima; this command
-does not run a laboratory. The graph declares its catalog, typed node instances,
-connections, bounded platform policy and any explicit scenario actions.
-
-See the [example matrix](../../README.md) for all supported inputs and
-[configuration contract](../../../docs/configuration.md) for diagnostics and limits.
+Live acceptance requires separately authorized native Linux or GraphX Lima
+execution. `tests/test_guest_execution_live.py --case S15` checks actual TCG boot
+and bidirectional TCP/UDP. Scenario actions remain gated until P9.

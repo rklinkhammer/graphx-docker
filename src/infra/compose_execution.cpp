@@ -1,4 +1,5 @@
 #include "infra/compose_execution.hpp"
+#include "infra/qemu_resources.hpp"
 #include "infra/process_resources.hpp"
 #include "infra/ownership_lock.hpp"
 #include "infra/lifecycle_coordinator.hpp"
@@ -128,6 +129,14 @@ int execute_compose(const ExecutionOptions& opts, const ConfigValue& resolved,
   const auto state_volume = "graphx-" + graph + "-history";
   const auto credential_volume = "graphx-" + graph + "-credentials";
   const auto configuration = configuration_hash(opts.output / "compile-manifest.json");
+  const bool has_guests = std::ranges::any_of(resolved.at("nodes").array(), [](const auto& node) {
+    return node.at("execution").at("kind") == Value("qemu");
+  });
+  Value verified_guests = Array{};
+  if (opts.action == "up" && has_guests) {
+    verified_guests = verify_guest_artifacts(opts, resolved);
+    require_guest_account();
+  }
   const bool ovs = !resolved.at("network").at("switches").array().empty();
   if (ovs) {
     if (!opts.allow_privileged)
@@ -151,7 +160,8 @@ int execute_compose(const ExecutionOptions& opts, const ConfigValue& resolved,
     for (const auto& node : resolved.at("nodes").array())
       if (node.at("execution").at("kind") != Value("container") &&
           node.at("execution").at("kind") != Value("external") &&
-          node.at("execution").at("kind") != Value("namespace"))
+          node.at("execution").at("kind") != Value("namespace") &&
+          node.at("execution").at("kind") != Value("qemu"))
         throw std::runtime_error(
             "E_PHASE_UNAVAILABLE: graph requires native, namespace or guest execution");
     safe_execution_path(root, true);
@@ -233,9 +243,10 @@ int execute_compose(const ExecutionOptions& opts, const ConfigValue& resolved,
   };
   const auto stop = [&] {
     for (auto& resource : state.processes) {
-      if (resource.kind == "native")
+      if (resource.kind == "native") {
         native_process_status(resource);
-      else
+        verify_guest_directory(resource);
+      } else
         observe(resource, graph);
     }
     save();
@@ -270,6 +281,7 @@ int execute_compose(const ExecutionOptions& opts, const ConfigValue& resolved,
     for (std::size_t index = state.processes.size(); index > 0; --index)
       if (state.processes[index - 1].kind == "native") {
         stop_native_process(state.processes[index - 1]);
+        cleanup_guest_directory(state.processes[index - 1]);
         state.processes.erase(state.processes.begin() + static_cast<std::ptrdiff_t>(index - 1));
         save();
       }
@@ -300,6 +312,7 @@ int execute_compose(const ExecutionOptions& opts, const ConfigValue& resolved,
   if (opts.action == "status") {
     if (ovs && network_action(OvsLifecycleAction::status) != 0) return 2;
     for (auto resource : state.processes) {
+      if (resource.kind == "native") verify_guest_directory(resource);
       const bool present = resource.kind == "native" ? native_process_status(resource) != 0
                                                      : observe(resource, graph);
       output << resource.kind << ' ' << resource.name << ' ' << (present ? "present" : "absent")
@@ -530,7 +543,8 @@ int execute_compose(const ExecutionOptions& opts, const ConfigValue& resolved,
     const std::string stage_script = R"js(
 import {mkdirSync,writeFileSync,readFileSync,rmSync} from 'node:fs';
 import {stageCredentials,readJson} from '/app/credentials.mjs';
-const files=JSON.parse(readFileSync(0,'utf8'));
+const request=JSON.parse(readFileSync(0,'utf8'));
+const files=request.external;
 mkdirSync('/var/lib/graphx/external',{mode:0o700});
 for(const [ref,members] of Object.entries(files)) {
  mkdirSync('/var/lib/graphx/external/'+ref,{mode:0o700});
@@ -538,11 +552,26 @@ for(const [ref,members] of Object.entries(files)) {
 }
 stageCredentials(readJson('/run/graphx/credentials.json'),'/var/lib/graphx/credentials',{externalRoot:'/var/lib/graphx/external'});
 rmSync('/var/lib/graphx/external',{recursive:true});
+const guests={};
+for(const [node,refs] of Object.entries(request.guests)) {
+ guests[node]={};
+ for(const [name,ref] of Object.entries(refs)) {
+  guests[node][ref]={};
+  for(const member of [...readJson('/run/graphx/credentials.json').entries[ref].members,'generation.json']) {
+   const bytes=readFileSync('/var/lib/graphx/credentials/'+ref+'/'+member);
+   if(bytes.length>65536) throw Error('guest credential exceeds bounds');
+   guests[node][ref][member]=bytes.toString('hex');
+  }
+ }
+}
+process.stdout.write(JSON.stringify(guests));
 )js";
     call({"docker",
           "create",
           "--name",
           staging_name,
+          "--log-driver",
+          "none",
           "--interactive",
           "--label",
           "org.graphx.owner=" + state.owner_token,
@@ -574,8 +603,13 @@ rmSync('/var/lib/graphx/external',{recursive:true});
           stage_script});
     observe(state.processes[stage_index], graph);
     save();
-    call({"docker", "start", "--attach", "--interactive", state.processes[stage_index].stable_id},
-         config_value_json(external), true, 60000);
+    Object guest_refs;
+    for (const auto& node : resolved.at("nodes").array())
+      if (node.at("execution").at("kind") == Value("qemu"))
+        guest_refs[node.at("node_id").text()] = node.at("credentials");
+    const auto guest_credentials = parse_document(call(
+        {"docker", "start", "--attach", "--interactive", state.processes[stage_index].stable_id},
+        config_value_json(Object{{"external", external}, {"guests", guest_refs}}), true, 60000));
     const auto staged = inspect("container", state.processes[stage_index].stable_id);
     if (staged.at("State").at("ExitCode") != Value(0))
       throw std::runtime_error("E_CREDENTIAL: staging failed");
@@ -792,6 +826,24 @@ rmSync('/var/lib/graphx/external',{recursive:true});
         });
       }
     }
+    std::vector<std::unique_ptr<GuestSession>> guest_sessions;
+    if (has_guests) {
+      const auto guest_deadline = Clock::now() + std::chrono::seconds(120);
+      for (const auto& guest : verified_guests.array()) {
+        const auto name = guest.at("node").text();
+        const auto& node =
+            *std::ranges::find(resolved.at("nodes").array(), Value(name),
+                               [](const auto& value) { return value.at("node_id"); });
+        guest_sessions.push_back(std::make_unique<GuestSession>(
+            opts, guest, node, guest_credentials.at(name),
+            root / ("guest-" + name + "-" + random_token()), state.owner_token, guest_deadline,
+            [&](const auto& process) {
+              state.processes.push_back(process);
+              save();
+            },
+            [] { return cancelled != 0; }));
+      }
+    }
     const auto application_deadline = Clock::now() + std::chrono::seconds(30);
     for (const auto& name : applications) {
       auto resource = *std::ranges::find_if(state.processes, [&](const auto& item) {
@@ -811,6 +863,11 @@ rmSync('/var/lib/graphx/external',{recursive:true});
     }
     for (const auto& process : state.processes) {
       if (process.kind != "native") continue;
+      if (std::ranges::any_of(resolved.at("nodes").array(), [&](const auto& node) {
+            return node.at("node_id") == Value(process.name) &&
+                   node.at("execution").at("kind") == Value("qemu");
+          }))
+        continue;
       while (true) {
         check();
         if (Clock::now() >= application_deadline || !native_process_status(process))
@@ -830,6 +887,7 @@ rmSync('/var/lib/graphx/external',{recursive:true});
       }
     if (ovs && network_action(OvsLifecycleAction::status) != 0)
       throw std::runtime_error("E_NETWORK_READINESS: owned data plane is not ready");
+    for (auto& guest : guest_sessions) guest->release();
     publish_execution_file(root / "barriers/release", state.owner_token, 0444);
     state.status = "ready";
     save();

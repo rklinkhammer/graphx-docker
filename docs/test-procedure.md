@@ -28,7 +28,8 @@ ownership inventories, process logs and captures from the first successful run.
 Tests retain their private
 working directory on failure for identity-checked recovery.
 
-Guest and scenario execution remain gated. OVS and namespace execution require
+Scenario execution remains gated. Managed guests require verified artifacts and
+separate explicit privileged authorization; see [P8 verification](../design/graph-generation/p8-verification.md). OVS and namespace execution require
 explicit privileged opt-in on the local Linux engine and have S07–S12 Lima acceptance evidence; see [P7 verification](../design/graph-generation/p7-verification.md). See
 [P6 verification](../design/graph-generation/p6-verification.md) for actual
 environment evidence and unrun checks.
@@ -115,8 +116,9 @@ shared-memory, UDP unicast/multicast, application capture checks, telemetry and
 contract tests. `full` adds the standard Compose and UDP broadcast runs, plus
 quality/sanitizer/fuzz gates; it does not invoke Lima verification or boot QEMU.
 The privileged CTests exercise ownership, container veth, OVS network
-profile semantics, TAP lifecycle, capture/faults, external SDR, and static-route policy.
-The QEMU TAP CTest exercises infrastructure without booting a guest.
+profile semantics, capture/faults, external SDR, and static-route policy.
+QEMU acceptance uses the separate, explicitly authorized S15/T03 harness with
+verified guest artifacts; it is not selected by a generic privileged CTest run.
 
 Use the [complete example matrix](../examples/README.md) for launcher commands.
 For complete example acceptance, run each of the four network profiles through

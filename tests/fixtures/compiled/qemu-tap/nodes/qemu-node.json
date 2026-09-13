@@ -159,7 +159,7 @@
   },
   "startup": {
     "bind_before_connect": true,
-    "max_wait_ms": 30000,
+    "max_wait_ms": 180000,
     "release_barrier": true
   },
   "telemetry": {

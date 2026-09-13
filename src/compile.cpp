@@ -186,11 +186,14 @@ Value qemu_guest(const Value& node, const Value& recipe, const Value& network) {
       if (tap) reject("E_COMPILE_GUEST", id, "one TAP per guest is supported");
       tap = &attachment;
     }
-  if (!tap || recipe.at("architecture") != Value("x86_64") ||
+  if (!tap || tap->at("tap_uid") != Value(65532) || tap->at("tap_gid") != Value(65532) ||
+      recipe.at("architecture") != Value("x86_64") ||
       node.at("execution").at("accelerator") != Value("tcg"))
     reject("E_COMPILE_GUEST", id, "x86_64 TCG and one resolved TAP required");
   Array argv;
   append(argv, {"qemu-system-x86_64",
+                "-nodefaults",
+                "-no-user-config",
                 "-machine",
                 "q35,accel=tcg",
                 "-m",
@@ -246,6 +249,12 @@ Value qemu_guest(const Value& node, const Value& recipe, const Value& network) {
 }
 }  // namespace
 
+namespace config_internal {
+Value compiled_guest_plan(const Value& node, const Value& recipe, const Value& network) {
+  return qemu_guest(node, recipe, network);
+}
+}  // namespace config_internal
+
 CompiledGraph compile_graph(const GraphConfig& graph) {
   using namespace config_internal;
   static const auto schema = parse_document(normalized_schema);
@@ -282,7 +291,7 @@ CompiledGraph compile_graph(const GraphConfig& graph) {
         const auto& kind = node.at("execution").at("kind");
         return native ? kind == Value("native")
                       : (kind == Value("container") || kind == Value("external") ||
-                         (ovs && kind == Value("namespace")));
+                         (ovs && (kind == Value("namespace") || kind == Value("qemu"))));
       });
   const auto& targets = catalog.at("targets.json");
   if (!targets.contains(resolved.at("target").text()))

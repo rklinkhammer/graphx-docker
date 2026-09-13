@@ -1,4 +1,5 @@
 #include "infra/process_resources.hpp"
+#include <grp.h>
 #include <array>
 #include <arpa/inet.h>
 #include <sys/socket.h>
@@ -182,6 +183,16 @@ OwnedResourceIdentity start_native_process(
       ::_exit(125);
 #endif
     if (::setsid() < 0 || ::chdir(options.cwd.c_str()) != 0) ::_exit(125);
+    if (options.guest_identity) {
+#if defined(__linux__)
+      ::umask(0077);
+      if (::setgroups(0, nullptr) != 0 || ::setgid(65532) != 0 || ::setuid(65532) != 0 ||
+          ::prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0)
+        ::_exit(125);
+#else
+      ::_exit(125);
+#endif
+    }
     const int null = ::open("/dev/null", O_RDONLY);
     if (null < 0 || ::dup2(null, STDIN_FILENO) < 0 || ::dup2(log, STDOUT_FILENO) < 0 ||
         ::dup2(log, STDERR_FILENO) < 0)

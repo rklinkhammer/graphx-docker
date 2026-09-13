@@ -11,8 +11,9 @@ start processes, provision credentials, create infrastructure, or inspect a Dock
 engine. Compilation writes inspectable files only. `run plan` verifies a compilation
 and prints its network resource plan without runtime operations. `run up|status|down`
 provides [owned execution](execution.md); OVS requires explicit local Linux
-privileged opt-in and its live acceptance is pending. `infra`, guest/scenario
-adapters and unconverted example launchers remain gated. The [implementation plan](../design/graph-generation/implementation-plan.md)
+privileged opt-in. Managed QEMU guests additionally require verified guest artifacts
+and the dedicated Linux account; see [guest releases](../guests/README.md). `infra`,
+scenario adapters and unconverted example launchers remain gated. The [implementation plan](../design/graph-generation/implementation-plan.md)
 tracks the remaining execution adapters.
 
 ```sh
@@ -147,10 +148,10 @@ OVS/capture/guest/scenario work. Compose is emitted as canonical JSON in
 tools, builds artifacts, provisions credentials or probes infrastructure.
 
 The manifest's `execution_available` and execution plan's `executable` indicate
-whether the graph uses supported portable/native adapters. This is a capability
+whether the graph uses supported native, container, namespace or QEMU adapters. This is a capability
 flag, not release verification. `artifact_identities_verified` remains false at
 compilation; `graphx run` verifies actual installed files or OCI archive identities
-before execution. OVS/namespace/guest graphs remain unavailable.
+before execution. Physical-device startup remains gated pending its uplink contract.
 
 Publication uses private staging, fsync and exclusive atomic rename. An existing
 output is never replaced, even with a matching manifest. Use a fresh output

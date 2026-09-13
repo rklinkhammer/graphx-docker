@@ -12,7 +12,7 @@ resources, and observation.
 4. Reusable infrastructure modules own system OVS, veth/TAP, namespaces, routes,
    policy and capture through the compiled runner and common ownership ledger.
    OVS requires explicit Linux authorization; S07–S12 have Lima acceptance evidence; owned
-   guest boot and scenario fault actions remain gated.
+   guest boot requires verified artifacts and explicit Linux authorization; scenario fault actions remain gated.
 5. The telemetry service consumes normalized configuration and runtime events to
    provide health, topology, metrics, trace, history, capture, and authorized
    control APIs.

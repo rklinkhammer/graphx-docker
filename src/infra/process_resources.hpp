@@ -14,6 +14,7 @@ struct NativeProcessOptions {
   std::filesystem::path executable;
   std::filesystem::path network_namespace;
   std::uint64_t namespace_inode{};
+  bool guest_identity{};
   std::uint64_t log_bytes{2097152};
   std::uint64_t file_bytes_limit{};
 };

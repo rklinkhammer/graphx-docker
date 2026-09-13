@@ -75,6 +75,10 @@ YAML::Node state_node(const OwnershipState& state) {
     item["stable_id"] = process.stable_id;
     item["secondary_id"] = process.secondary_id;
     item["process_identity"] = process.process_identity;
+    if (!process.runtime_directory.empty()) {
+      item["runtime_directory"] = process.runtime_directory;
+      item["runtime_identity"] = process.runtime_identity;
+    }
     root["processes"].push_back(item);
   }
   for (const auto& name : state.expected_bridges) root["expected_bridges"].push_back(name);
@@ -429,6 +433,13 @@ OwnershipState load_state(const std::filesystem::path& path) {
       process.stable_id = required_scalar(item, "stable_id");
       process.secondary_id = required_scalar(item, "secondary_id");
       process.process_identity = required_scalar(item, "process_identity");
+      if (item["runtime_directory"] || item["runtime_identity"]) {
+        process.runtime_directory = required_scalar(item, "runtime_directory");
+        process.runtime_identity = required_scalar(item, "runtime_identity");
+        if (process.kind != "native" || process.runtime_directory.size() > 4096 ||
+            process.runtime_directory.empty() || process.runtime_identity.empty())
+          throw std::runtime_error("invalid owned guest directory identity");
+      }
       if (!names.insert(process.kind + ":" + process.name).second ||
           (process.kind != "native" && process.kind != "container" && process.kind != "volume" &&
            process.kind != "network"))

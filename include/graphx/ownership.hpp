@@ -33,6 +33,8 @@ struct OwnedResourceIdentity {
   std::string qdisc_identity;
   std::string capture_identity;
   std::string process_identity;
+  std::string runtime_directory;
+  std::string runtime_identity;
 };
 
 // Realizes owned OVS bridges, container/namespace veth endpoints, QEMU TAPs,

@@ -746,6 +746,9 @@ Value connection_values(const Value& graph, const Catalog& catalog, const Value&
 Value node_values(const Value& graph, const Catalog& catalog, const Value& connections,
                   const Value& platform, bool native) {
   Array nodes;
+  const bool has_guests = std::ranges::any_of(graph.at("nodes").object(), [](const auto& entry) {
+    return entry.second.at("execution").at("kind") == Value("qemu");
+  });
   const auto gid = graph.at("graph").at("id").text();
   for (const auto& [id, node] : graph.at("nodes").object()) {
     const auto& type = catalog.types.at(node.at("type").text());
@@ -811,7 +814,7 @@ Value node_values(const Value& graph, const Catalog& catalog, const Value& conne
                {"startup",
                 Object{{"bind_before_connect", true},
                        {"release_barrier", node.at("execution").at("kind") != Value("external")},
-                       {"max_wait_ms", 30000}}}});
+                       {"max_wait_ms", has_guests ? 180000 : 30000}}}});
   }
   return nodes;
 }

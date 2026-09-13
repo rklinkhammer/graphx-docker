@@ -6,6 +6,8 @@
       "architecture": "x86_64",
       "argv": [
         "qemu-system-x86_64",
+        "-nodefaults",
+        "-no-user-config",
         "-machine",
         "q35,accel=tcg",
         "-m",

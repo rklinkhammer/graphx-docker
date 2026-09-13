@@ -31,7 +31,7 @@ Current source boundaries:
 | External namespace ownership and guest startup live outside the core graph | [boundary helper](../../examples/external-ovs-boundary.sh), [route launcher](../../examples/static-route-policy/scripts/demo.sh), [QEMU launcher](../../examples/qemu-node/tap/scripts/ovs-lab.sh) | Fold only these resource kinds into the common identity store; no second ledger |
 | Ownership coordinator already supplies locks, rollback, identity-aware capture and endpoints | [ownership API](../../include/graphx/ownership.hpp), [coordinator](../../src/infra/lifecycle_coordinator.cpp), [endpoint module](../../src/infra/endpoint_resources.cpp) | Extend existing owner instead of replaying unchecked shell commands |
 | Communication cycles require type feedback support | [validation](../../src/config_v3.cpp), [graph tests](../../tests/test_config_graph.cpp) | P1 checks type feedback declarations; readiness remains separate |
-| QEMU launcher explicitly boots x86_64 TCG; TAP CTest does not boot | [QEMU README](../../examples/qemu-node/README.md), [TAP live test](../../tests/test_qemu_tap_live.py), [test procedure](../../docs/test-procedure.md) | Record infrastructure and actual guest boot evidence separately |
+| QEMU uses the common owned runner; actual boot requires its separate harness | [QEMU README](../../examples/qemu-node/README.md), [guest live test](../../tests/test_guest_execution_live.py), [test procedure](../../docs/test-procedure.md) | Record infrastructure and actual guest boot evidence separately |
 
 ## Boundaries and proposed layout
 
@@ -342,8 +342,8 @@ tmpfs and signals ID+config digest+listener readiness. Peer identity and framed
 message bounds are checked before guest launch release. Missing guest binary
 from a valid build recipe is E_GUEST_UNAVAILABLE at execution, not a compile
 fallback to an external guest. The image-build boundary remains separate from
-container service creation. T03 explicitly needs an SDR guest that does not yet
-exist; S15's old echo source also needs configuration-channel adaptation.
+container service creation. The P8 echo/radio recipes and provisioning agent are implemented under `guests/`;
+actual S15/T03 boot evidence is tracked separately in [P8 verification](p8-verification.md).
 
 ## Determinism, paths and output ownership (I-06, I-11)
 

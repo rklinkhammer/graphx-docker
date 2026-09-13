@@ -48,6 +48,7 @@ ARCHIVE_EXECUTABLE_FILES = frozenset({
     "bin/graphx-transform",
     "bin/graphx-sink",
     "bin/graphx-diagnostic",
+    "bin/graphx-packet-guest",
     "bin/graphx-udp-publisher",
     "bin/graphx-udp-subscriber",
     "libexec/graphx/graphx-extcap",

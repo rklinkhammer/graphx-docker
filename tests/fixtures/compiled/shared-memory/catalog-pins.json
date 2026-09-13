@@ -1,6 +1,6 @@
 {
   "artifacts_verified": false,
-  "catalog_digest": "c7173c98503b8f49c5997c6d3429f239b39d502b66b1eb0e7ffb252671788fe1",
+  "catalog_digest": "d351a4f93ab74be9bd8e30dc37b2ac4d59f98ba2badc63f7ccc0ce4f112e35b1",
   "documents": {
     "guests/echo-x86.json": {
       "accelerators": [
@@ -37,7 +37,7 @@
         "timeout_ms": 120000
       },
       "recipe_revision": 1,
-      "required_work": "Adapt current echo guest to generic bindings and virtio configuration",
+      "required_work": "Build, verify and install the guest release; actual boot requires separately authorized acceptance",
       "source_date_epoch": 1700000000,
       "source_digest": "226028384313a7673a1eeba3fcb47b1ae161ffbf53ef8ab68a72a3618734e013",
       "source_ref": "guest-source-echo-x86"
@@ -77,7 +77,7 @@
         "timeout_ms": 120000
       },
       "recipe_revision": 1,
-      "required_work": "Build Linux guest with Python 3, OpenSSL and the SDR radio implementation; current echo guest cannot serve this type",
+      "required_work": "Build, verify and install the guest release; actual boot requires separately authorized acceptance",
       "source_date_epoch": 1700000000,
       "source_digest": "2392a5c24a74b3e55065b49d11114177029926e0a4fc1f8dfd031686ebc19c41",
       "source_ref": "guest-source-radio-x86"
@@ -134,27 +134,18 @@
     "sources.json": {
       "entries": {
         "guest-source-echo-x86": {
-          "available_as_declared": false,
-          "current_evidence": "examples/qemu-node/guest",
-          "relative_path": "guests/echo-x86",
-          "required_changes": [
-            "generic node bindings",
-            "virtio config and credential channels",
-            "readiness digest handshake"
-          ],
-          "status": "planned-portable"
+          "available_as_declared": true,
+          "current_evidence": "guests/buildroot-external and guests/common",
+          "relative_path": "guests",
+          "required_changes": [],
+          "status": "source-available"
         },
         "guest-source-radio-x86": {
-          "available_as_declared": false,
-          "current_evidence": "examples/sdr-node/common",
-          "relative_path": "guests/radio-x86",
-          "required_changes": [
-            "guest Python and OpenSSL packaging",
-            "radio executable entrypoint",
-            "virtio provisioning",
-            "readiness digest handshake"
-          ],
-          "status": "planned-portable"
+          "available_as_declared": true,
+          "current_evidence": "guests/buildroot-external and guests/common",
+          "relative_path": "guests",
+          "required_changes": [],
+          "status": "source-available"
         }
       },
       "roots": {
@@ -1166,11 +1157,11 @@
     "files": [
       {
         "path": "guests/echo-x86.json",
-        "sha256": "9ed63f3f98dc8cb293f17aeb6e513ae91347c1943bded92f2e4dc22451201d30"
+        "sha256": "0731b576f70db0a5fdd56ae4e1a891c7ab14ad085a4f76e837d58fd2f4ae4a45"
       },
       {
         "path": "guests/radio-x86.json",
-        "sha256": "6df63c4597d500ddc91ea6bec433d29eb04208a5b6e75f8c0b8317538d74b9de"
+        "sha256": "2d92342d00d62813c5a229f7c2e1fa6abc521c4cdd0e92afe9a68d9bc42de907"
       },
       {
         "path": "platform.json",
@@ -1178,7 +1169,7 @@
       },
       {
         "path": "sources.json",
-        "sha256": "8ce0b30708ced1ad2d55507eb87bbd8732f2b75fe3e02b08af862533164f3a26"
+        "sha256": "ae0d603f48ec96a6d1a85ca64c1b4ccf0139a885be6cd959e86818396216cbe3"
       },
       {
         "path": "targets.json",

@@ -184,7 +184,8 @@ int execute_graph(const ExecutionOptions& opts, std::ostream& output) {
   if (!native) {
     if (opts.action == "up" &&
         std::ranges::any_of(resolved.at("nodes").array(), [](const auto& node) {
-          return node.at("execution").at("kind") == Value("namespace");
+          return node.at("execution").at("kind") == Value("namespace") ||
+                 node.at("execution").at("kind") == Value("qemu");
         }))
       verify_native_release(opts.release);
     return execute_compose(opts, resolved, output);

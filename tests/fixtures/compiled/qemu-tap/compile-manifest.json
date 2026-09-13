@@ -1,9 +1,9 @@
 {
   "artifact_identities_verified": false,
-  "catalog_digest": "c7173c98503b8f49c5997c6d3429f239b39d502b66b1eb0e7ffb252671788fe1",
+  "catalog_digest": "d351a4f93ab74be9bd8e30dc37b2ac4d59f98ba2badc63f7ccc0ce4f112e35b1",
   "compiler": "graphx-compiler-1",
   "compiler_version": "1.1.0",
-  "execution_available": false,
+  "execution_available": true,
   "files": [
     {
       "path": "capture-handoff.json",
@@ -11,7 +11,7 @@
     },
     {
       "path": "catalog-pins.json",
-      "sha256": "42139c85a6eb7b5343e58d5386b40dde9ec340beb8050fca747748d9dd103b36"
+      "sha256": "53cecc05bb5522e0bce9de6b5627ad320d3c3089b89d4f21759af8521bd04fdc"
     },
     {
       "path": "compose.yaml",
@@ -23,11 +23,11 @@
     },
     {
       "path": "execution-plan.json",
-      "sha256": "e0415f1d00e96789dd97874b660d6af7046734d09a47c1f8348e2a54de4e991d"
+      "sha256": "e2cd7e1708e242071d200c1ac1a4ed81d2d372d13f36e1906ad59b655faaf484"
     },
     {
       "path": "guest-build/echo-x86.json",
-      "sha256": "9ed63f3f98dc8cb293f17aeb6e513ae91347c1943bded92f2e4dc22451201d30"
+      "sha256": "0731b576f70db0a5fdd56ae4e1a891c7ab14ad085a4f76e837d58fd2f4ae4a45"
     },
     {
       "path": "native-plan.json",
@@ -35,11 +35,11 @@
     },
     {
       "path": "nodes/host-peer.json",
-      "sha256": "945644885bfd6ab70236fb97ef2c7468a9a59da64966fd32454d4ddd04d21b92"
+      "sha256": "ed816b4a757887841d803fa19bce8921e6a1d241cb9c6cd35bc11d0634c03621"
     },
     {
       "path": "nodes/qemu-node.json",
-      "sha256": "4fd3c37e1576a7a8773ec19f9683c079a25be9337dfa0b5fa4ebae9dd5230352"
+      "sha256": "dffdbe7af32e2c438490b1327acb1c5e9250b1f1eb3aa265428bf295e3f19d0d"
     },
     {
       "path": "ovs-plan.json",
@@ -51,11 +51,11 @@
     },
     {
       "path": "qemu-plan.json",
-      "sha256": "b1de861dd3aa18aedf6b9e25ab1245b62142dc3d53fab6934311b57c36a4b90a"
+      "sha256": "e0810ed7d9844809f8c144c96f98abb5b6aec7726f64a99246c933083ec8cbcc"
     },
     {
       "path": "resolved.json",
-      "sha256": "08b509dcb80f993b736fa591e7a473a42edd52c8bea5222363531729572981d9"
+      "sha256": "ed80bdcc9e4daa099e94d6e7191ef11078bd8dc78c8bcd4b18f932cde58e604b"
     },
     {
       "path": "scenario-plan.json",

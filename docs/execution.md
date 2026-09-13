@@ -111,7 +111,8 @@ infrastructure, then deletes Compose objects. It retains sealed captures and log
 The platform receives complete read-only PCAPNG snapshots from an owned exporter;
 live capture rings remain on Linux under `/var/lib/graphx`. Physical external
 uplinks are not implicit. S14 remains gated until its separate uplink contract is
-designed. Guest boot and scenario commands are not enabled by the privileged flag.
+designed. Scenario commands remain gated. Guest boot also requires verified guest artifacts
+and the dedicated QEMU account; the privileged flag alone does not satisfy these prerequisites.
 
 See [P7 verification](../design/graph-generation/p7-verification.md) for the
 implemented scope, unprivileged checks, guarded acceptance harness and
@@ -130,3 +131,19 @@ Portable example wrappers call this same adapter. Set `GX_OUTPUT`, `GX_STATE`,
 invoke the example's `run.sh` or `scripts/demo.sh` with `up`, `status`, or `down`.
 Compilation is a separate explicit step. Source Compose includes are inspection
 conveniences; use `graphx run` for owned staging, readiness and release.
+
+## Managed QEMU guests
+
+Compile S15 or T03 with a [verified guest release catalog](../guests/README.md),
+then pass the combined native/guest installation as `--release`. QEMU uses TCG
+and UID/GID 65532 (`graphx-qemu`), only its owned TAP, local QMP and a bounded
+serial ring. Artifact hashes and architecture are checked before infrastructure
+creation. Configuration, credential-generation files and readiness use three
+bounded local virtio channels with peer and invocation identity checks.
+
+The same process ledger handles startup, failure, status and cleanup. Runtime
+directory identity is validated before stopping any owned resources. Guest graphs
+resolve a 180-second application release wait to cover the shared 120-second
+guest handshake. Source-catalog placeholder artifacts cannot boot. See
+[P8 verification](../design/graph-generation/p8-verification.md) for build/check
+evidence and the separately authorized actual-boot gate.

@@ -1,27 +1,18 @@
 {
   "entries": {
     "guest-source-echo-x86": {
-      "available_as_declared": false,
-      "current_evidence": "examples/qemu-node/guest",
-      "relative_path": "guests/echo-x86",
-      "required_changes": [
-        "generic node bindings",
-        "virtio config and credential channels",
-        "readiness digest handshake"
-      ],
-      "status": "planned-portable"
+      "available_as_declared": true,
+      "current_evidence": "guests/buildroot-external and guests/common",
+      "relative_path": "guests",
+      "required_changes": [],
+      "status": "source-available"
     },
     "guest-source-radio-x86": {
-      "available_as_declared": false,
-      "current_evidence": "examples/sdr-node/common",
-      "relative_path": "guests/radio-x86",
-      "required_changes": [
-        "guest Python and OpenSSL packaging",
-        "radio executable entrypoint",
-        "virtio provisioning",
-        "readiness digest handshake"
-      ],
-      "status": "planned-portable"
+      "available_as_declared": true,
+      "current_evidence": "guests/buildroot-external and guests/common",
+      "relative_path": "guests",
+      "required_changes": [],
+      "status": "source-available"
     }
   },
   "roots": {

@@ -4,11 +4,11 @@
   "files": [
     {
       "path": "guests/echo-x86.json",
-      "sha256": "9ed63f3f98dc8cb293f17aeb6e513ae91347c1943bded92f2e4dc22451201d30"
+      "sha256": "0731b576f70db0a5fdd56ae4e1a891c7ab14ad085a4f76e837d58fd2f4ae4a45"
     },
     {
       "path": "guests/radio-x86.json",
-      "sha256": "6df63c4597d500ddc91ea6bec433d29eb04208a5b6e75f8c0b8317538d74b9de"
+      "sha256": "2d92342d00d62813c5a229f7c2e1fa6abc521c4cdd0e92afe9a68d9bc42de907"
     },
     {
       "path": "platform.json",
@@ -16,7 +16,7 @@
     },
     {
       "path": "sources.json",
-      "sha256": "8ce0b30708ced1ad2d55507eb87bbd8732f2b75fe3e02b08af862533164f3a26"
+      "sha256": "ae0d603f48ec96a6d1a85ca64c1b4ccf0139a885be6cd959e86818396216cbe3"
     },
     {
       "path": "targets.json",
