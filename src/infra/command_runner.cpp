@@ -370,6 +370,17 @@ BackgroundResult spawn_background(const BackgroundOptions& options) {
 ProcessIdentity inspect_process(std::uint32_t pid) {
   ProcessIdentity identity;
 #if defined(__linux__)
+  std::ifstream command("/proc/" + std::to_string(pid) + "/cmdline", std::ios::binary);
+  identity.command.assign(std::istreambuf_iterator<char>(command),
+                          std::istreambuf_iterator<char>());
+  std::replace(identity.command.begin(), identity.command.end(), '\0', ' ');
+  std::ifstream name("/proc/" + std::to_string(pid) + "/comm");
+  std::getline(name, identity.name);
+  std::array<char, 4096> executable{};
+  const auto size = ::readlink(("/proc/" + std::to_string(pid) + "/exe").c_str(), executable.data(),
+                               executable.size());
+  if (size > 0) identity.executable.assign(executable.data(), static_cast<std::size_t>(size));
+  // Observe exit state after executable lookup: /proc/PID/exe disappears during exit.
   std::ifstream stat("/proc/" + std::to_string(pid) + "/stat");
   std::string value;
   std::getline(stat, value);
@@ -386,17 +397,10 @@ ProcessIdentity inspect_process(std::uint32_t pid) {
     }
     identity.start_time = std::move(field);
   }
-  std::ifstream command("/proc/" + std::to_string(pid) + "/cmdline", std::ios::binary);
-  identity.command.assign(std::istreambuf_iterator<char>(command),
-                          std::istreambuf_iterator<char>());
-  std::replace(identity.command.begin(), identity.command.end(), '\0', ' ');
-  std::ifstream name("/proc/" + std::to_string(pid) + "/comm");
-  std::getline(name, identity.name);
-  std::array<char, 4096> executable{};
-  const auto size = ::readlink(("/proc/" + std::to_string(pid) + "/exe").c_str(), executable.data(),
-                               executable.size());
-  if (size > 0) identity.executable.assign(executable.data(), static_cast<std::size_t>(size));
 #elif defined(__APPLE__)
+  std::array<char, PROC_PIDPATHINFO_MAXSIZE> path{};
+  if (::proc_pidpath(static_cast<int>(pid), path.data(), sizeof(path)) > 0)
+    identity.executable = path.data();
   proc_bsdinfo info{};
   if (::proc_pidinfo(static_cast<int>(pid), PROC_PIDTBSDINFO, 0, &info, sizeof(info)) ==
       sizeof(info)) {
@@ -404,9 +408,6 @@ ProcessIdentity inspect_process(std::uint32_t pid) {
     identity.start_time =
         std::to_string(info.pbi_start_tvsec) + ":" + std::to_string(info.pbi_start_tvusec);
     identity.name = info.pbi_name;
-    std::array<char, PROC_PIDPATHINFO_MAXSIZE> path{};
-    if (::proc_pidpath(static_cast<int>(pid), path.data(), sizeof(path)) > 0)
-      identity.executable = path.data();
   }
 #else
   (void)pid;

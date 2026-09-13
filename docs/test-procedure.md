@@ -28,7 +28,8 @@ ownership inventories, process logs and captures from the first successful run.
 Tests retain their private
 working directory on failure for identity-checked recovery.
 
-OVS, namespace, guest and scenario execution remain gated. See
+Guest and scenario execution remain gated. OVS and namespace execution require
+explicit privileged opt-in on the local Linux engine and have S07–S12 Lima acceptance evidence; see [P7 verification](../design/graph-generation/p7-verification.md). See
 [P6 verification](../design/graph-generation/p6-verification.md) for actual
 environment evidence and unrun checks.
 

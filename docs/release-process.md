@@ -52,8 +52,10 @@ checked-in locks, and the SDR runtime comes from a digest-pinned Python base.
 The builder verifies Docker's OCI-compatible save output, normalizes layer and
 archive timestamps offline, and derives new OCI config and manifest digests from
 the resulting bytes. It preserves layer order, ownership, modes, links and xattrs.
-This accommodates Docker image stores that do not apply the BuildKit timestamp
-export option. Both the complete archive bytes and image inventories must repeat.
+The exporter explicitly requests OCI media types and uncompressed layers;
+timestamp normalization is independent of Docker image-store behavior. Both classic
+config-digest IDs and containerd manifest-digest IDs are checked against verified
+image bytes before smoke execution. Both the complete archive bytes and image inventories must repeat.
 The finished archives are imported and smoke-tested with no network, a read-only
 root filesystem, no capabilities and the declared non-root user. Only temporary
 image identities are cleaned up. No graph workload is launched.

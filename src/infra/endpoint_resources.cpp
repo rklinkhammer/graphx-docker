@@ -19,6 +19,7 @@ namespace {
 int run(const std::vector<std::string>& arguments, std::string* captured = nullptr) {
   CommandOptions options;
   options.arguments = arguments;
+  options.timeout_ms = 10000;
   options.capture_output = captured != nullptr;
   auto result = run_command(options);
   if (captured) *captured = std::move(result.output);
@@ -84,6 +85,33 @@ ResolvedContainer resolve_container(const GraphConfig& config, std::string_view 
                              std::string(owner));
   return {fields[0], static_cast<std::uint32_t>(parsed_pid),
           static_cast<std::uint64_t>(metadata.st_ino)};
+}
+
+ResolvedContainer resolve_owned_container(const GraphConfig& config, std::string_view owner,
+                                          const OwnershipState& state) {
+  const auto container = resolve_container(config, owner);
+  const auto record = std::ranges::find_if(state.processes, [&](const auto& item) {
+    return item.kind == "container" &&
+           item.name == "graphx-" + state.graph_id + "-" + std::string(owner);
+  });
+  if (record == state.processes.end() || record->stable_id != container.id ||
+      record->process_identity != state.owner_token)
+    throw std::runtime_error("E_DOCKER_IDENTITY: endpoint container is not graph-owned");
+  std::string tags;
+  if (run({"docker", "inspect", "--format",
+           "{{index .Config.Labels \"org.graphx.owner\"}}/{{index .Config.Labels "
+           "\"org.graphx.graph\"}}",
+           container.id},
+          &tags) != 0 ||
+      tags != state.owner_token + "/" + state.graph_id)
+    throw std::runtime_error("E_DOCKER_IDENTITY: endpoint container owner changed");
+#if defined(__linux__)
+  std::ifstream cgroup("/proc/" + std::to_string(container.pid) + "/cgroup");
+  const std::string identity((std::istreambuf_iterator<char>(cgroup)), {});
+  if (identity.find(container.id) == std::string::npos)
+    throw std::runtime_error("E_DOCKER_IDENTITY: container is not in the local engine cgroup");
+#endif
+  return container;
 }
 
 std::optional<std::uint32_t> link_ifindex(const std::string& name) {
@@ -231,7 +259,7 @@ bool tap_endpoint_healthy(const ExpectedEndpoint& expected, const OwnedResourceI
 bool container_endpoint_healthy(const ExpectedEndpoint& expected,
                                 const OwnedResourceIdentity& endpoint, const OwnershipState& state,
                                 const GraphConfig& config) {
-  const auto container = resolve_container(config, expected.owner);
+  const auto container = resolve_owned_container(config, expected.owner, state);
   if (container.id != endpoint.container_id ||
       container.namespace_inode != *endpoint.namespace_inode)
     return false;
@@ -254,7 +282,10 @@ bool container_endpoint_healthy(const ExpectedEndpoint& expected,
           &address) != 0 ||
       address.find(expected.address) == std::string::npos)
     return false;
+  for (const auto& alias : expected.aliases)
+    if (address.find(alias) == std::string::npos) return false;
   for (const auto& route : expected.routes) {
+    if (!route.install_on_create) continue;
     std::string observed;
     if (run({"nsenter", "-t", std::to_string(container.pid), "-n", "--", "ip", "-4", "route",
              "show", route.destination},
@@ -284,6 +315,8 @@ bool namespace_endpoint_healthy(const ExpectedEndpoint& expected,
           &address) != 0 ||
       address.find(expected.address) == std::string::npos)
     return false;
+  for (const auto& alias : expected.aliases)
+    if (address.find(alias) == std::string::npos) return false;
   return host_endpoint_owned(endpoint, state) && ovs_endpoint_owned(endpoint, state);
 }
 
@@ -378,8 +411,11 @@ OwnedResourceIdentity create_endpoint(const ExpectedEndpoint& endpoint, std::uin
   if (!endpoint.mac.empty())
     ns({"ip", "link", "set", "dev", endpoint.target_interface, "address", endpoint.mac});
   ns({"ip", "address", "replace", endpoint.address, "dev", endpoint.target_interface});
+  for (const auto& alias : endpoint.aliases)
+    ns({"ip", "address", "replace", alias, "dev", endpoint.target_interface});
   ns({"ip", "link", "set", "dev", endpoint.target_interface, "up"});
   for (const auto& route : endpoint.routes) {
+    if (!route.install_on_create) continue;
     std::vector<std::string> command = {"ip", "route", "replace", route.destination};
     if (!route.via.empty()) command.insert(command.end(), {"via", route.via});
     command.insert(command.end(), {"dev", endpoint.target_interface});
@@ -463,8 +499,11 @@ OwnedResourceIdentity create_namespace_endpoint(const ExpectedEndpoint& endpoint
   if (!endpoint.mac.empty())
     ns({"ip", "link", "set", "dev", endpoint.target_interface, "address", endpoint.mac});
   ns({"ip", "address", "replace", endpoint.address, "dev", endpoint.target_interface});
+  for (const auto& alias : endpoint.aliases)
+    ns({"ip", "address", "replace", alias, "dev", endpoint.target_interface});
   ns({"ip", "link", "set", "dev", endpoint.target_interface, "up"});
   for (const auto& route : endpoint.routes) {
+    if (!route.install_on_create) continue;
     std::vector<std::string> command = {"ip", "route", "replace", route.destination};
     if (!route.via.empty()) command.insert(command.end(), {"via", route.via});
     command.insert(command.end(), {"dev", endpoint.target_interface});

@@ -1,9 +1,10 @@
-# Portable graph execution
+# Owned graph execution
 
 `graphx run up` consumes an existing compilation and a verified release. It checks
 artifact hashes, target, executable/image identity, resource paths and listener
 ports before launching applications. Native and container applications must use
-separate graphs. OVS, namespace, QEMU and scenario-action execution remain gated.
+separate graphs. OVS and namespace execution require explicit local Linux privileged
+opt-in and have S07–S12 Lima acceptance evidence. QEMU and scenario actions remain gated.
 
 Startup is finite: stage credentials, start the platform, wait for listeners,
 credentials and SQLite history, start applications held at their local readiness
@@ -84,6 +85,37 @@ labels are checked before cleanup. Container names alone never authorize removal
 credential volumes are removed. Image cache entries are shared and retained.
 Capture files remain available after stop; restarting may replace the bounded
 per-node capture file. Archive desired evidence before restarting.
+
+## Compiled OVS execution
+
+Inspect the verified compilation without contacting an engine or creating state:
+
+```sh
+build/dev/graphx run plan --output "$GX_OUTPUT" --state-root "$GX_STATE"
+```
+
+On separately authorized native Linux or the existing GraphX Lima guest, compile
+for `native-linux` or `lima` using verified release pins. Pass `--allow-privileged`
+to `run up`, `status` and `down`; startup also needs `--images`. Namespace diagnostic
+applications need a matching verified native `--release` containing
+`graphx-diagnostic`. Native application placement cannot own OVS endpoints.
+
+The runner requires a local root-owned Docker Unix socket, confirms container
+ownership and local cgroup membership, prepares data interfaces and management
+ACLs while containers wait before exec, then applies the ordinary listener/release
+barrier. Router policies preserve authored order and manual routes remain deferred.
+Infrastructure and process identities share one graph lock and ownership record.
+Cleanup validates the complete inventory before stopping processes, removes owned
+infrastructure, then deletes Compose objects. It retains sealed captures and logs.
+
+The platform receives complete read-only PCAPNG snapshots from an owned exporter;
+live capture rings remain on Linux under `/var/lib/graphx`. Physical external
+uplinks are not implicit. S14 remains gated until its separate uplink contract is
+designed. Guest boot and scenario commands are not enabled by the privileged flag.
+
+See [P7 verification](../design/graph-generation/p7-verification.md) for the
+implemented scope, unprivileged checks, guarded acceptance harness and
+S07–S12 Lima results. Native Linux OVS is not verified by the Lima run. Network profile wrappers now use the same compiled runner.
 
 ## Recovery and examples
 

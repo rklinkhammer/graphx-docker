@@ -48,7 +48,7 @@ def verify(output):
     assert set(json.loads(content['substitutions.json'])['values']) == {'GX_OUTPUT', 'GX_STATE', 'GX_CREDENTIALS', 'GX_RELEASE', 'GX_OWNER'}
     execution = json.loads(content['execution-plan.json'])
     assert execution['executable'] == manifest['execution_available']
-    if resolved['network']['switches'] or any(n['execution']['kind'] in {'qemu', 'namespace'} for n in resolved['nodes']):
+    if any(a['kind'] == 'external' for a in resolved['network']['attachments']) or any(n['execution']['kind'] == 'qemu' for n in resolved['nodes']):
         assert execution['executable'] is False
     else:
         assert execution['executable'] is True

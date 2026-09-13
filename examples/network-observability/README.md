@@ -1,20 +1,22 @@
 # Declarative network observation and faults
 
-This authored v3 example is supported for validation and normalization. Graph
-execution is unavailable in P1; its launcher returns `E_PHASE_UNAVAILABLE` before
-performing actions. The retained launch recipes require the later adapters.
-
-Run from the repository root:
+This v3 graph supports validation, compilation and explicitly authorized OVS
+execution on native Linux or the GraphX Lima guest. S07–S12 have
+[Lima acceptance evidence](../../design/graph-generation/p7-verification.md).
 
 ```sh
-build/dev/graphx validate examples/network-observability/graphx.yml
-build/dev/graphx config normalize examples/network-observability/graphx.yml > resolved.json
+build/dev/graphx config normalize examples/network-observability/graphx.yml --target lima
 ```
 
-Select `--target native-linux`, `native-macos`, `orbstack`, or `lima` to check
-placement capabilities. Managed OVS and QEMU require Linux or Lima; this command
-does not run a laboratory. The graph declares its catalog, typed node instances,
-connections, bounded platform policy and any explicit scenario actions.
+Compile with a verified shared-image release catalog, then set `GX_OUTPUT`,
+`GX_STATE`, `GRAPHX_BIN` and `GRAPHX_IMAGE_RELEASE` to the compiled package,
+state parent, Linux executable and image release. Runtime artifacts belong under
+`/var/lib/graphx`. Set `GRAPHX_ALLOW_PRIVILEGED=1` only for an authorized run.
 
-See the [example matrix](../README.md) for all supported inputs and
-[configuration contract](../../docs/configuration.md) for diagnostics and limits.
+Use `graphx run up|status|down --output COMPILED --state-root STATE --images IMAGES
+--allow-privileged` in the authorized Linux environment. This graph owns a TAP and
+bounded Ethernet capture. It does not boot a guest or apply its scenario fault at
+startup. The acceptance harness injects bounded frames through that owned TAP.
+
+See [execution](../../docs/execution.md), [release packaging](../../docs/release-process.md)
+and the [example matrix](../README.md) for prerequisites and supported targets.

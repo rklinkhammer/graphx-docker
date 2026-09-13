@@ -21,6 +21,8 @@ struct ExpectedEndpoint {
   std::string mac;
   std::uint32_t mtu{1500};
   std::vector<RouteDefinition> routes;
+  std::vector<std::string> aliases;
+  std::string management_policy;
   std::string container_id;
   std::uint64_t namespace_inode{};
   std::string namespace_name;
@@ -47,6 +49,8 @@ struct OwnedCapture {
   std::uint32_t directory_mode{};
   std::uint32_t pid{};
   std::string process_start_time;
+  std::uint64_t snapshot_inode{};
+  std::uint64_t snapshot_pending_inode{};
 };
 
 struct ExpectedFault {
@@ -72,6 +76,9 @@ struct OwnershipState {
   std::string config_hash;
   std::string owner_token;
   std::string status;
+  std::string handoff_name;
+  std::uint64_t handoff_inode{};
+  std::uint64_t handoff_device{};
   std::vector<std::string> expected_bridges;
   std::vector<OwnedResourceIdentity> bridges;
   std::vector<ExpectedEndpoint> expected_endpoints;

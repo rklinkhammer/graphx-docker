@@ -1,10 +1,5 @@
 #!/usr/bin/env bash
 
-# Authored v3 execution is not yet implemented. Sourced library functions remain available.
-if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
-  echo "E_PHASE_UNAVAILABLE: GraphX v3 execution adapters are not implemented; no action was performed" >&2
-  exit 2
-fi
 set -euo pipefail
 
 ROOT=$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)
@@ -15,8 +10,9 @@ usage() {
   cat <<'EOF'
 usage: scripts/network-lab.sh <macvlan|ipvlan-l2|ipvlan-l3|mixed-network> <plan|up|status|down>
 
-Runs the selected system-OVS laboratory directly on Linux or inside the
-identity-checked GraphX Lima VM on Apple Silicon macOS.
+Uses GX_OUTPUT, GX_STATE and GRAPHX_IMAGE_RELEASE for an existing compilation.
+Set GRAPHX_ALLOW_PRIVILEGED=1 for up/status/down. On macOS these are guest paths
+and execution uses the existing identity-checked GraphX Lima VM.
 EOF
 }
 

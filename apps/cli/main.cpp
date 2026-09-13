@@ -21,10 +21,12 @@ void usage(std::ostream& out) {
       << "                          [--catalog-root DIR]\n"
       << "  graphx compile FILE --output DIR --source-root DIR --credential-root DIR\n"
       << "                        [--target TARGET] [--catalog-root DIR]\n"
-      << "  graphx run <up|status|down> --output DIR --state-root DIR\n"
+      << "  graphx run <plan|up|status|down> --output DIR --state-root DIR\n"
       << "             [--release DIR --credentials DIR] [--images DIR] [--external DIR]\n"
+      << "             [--allow-privileged] (local Linux OVS only)\n"
       << "Targets: native-linux (validation default), native-macos, orbstack, lima\n"
-      << "Execution requires verified releases; OVS, namespace and guest adapters remain gated.\n";
+      << "Execution requires verified releases; OVS requires explicit Linux authorization; guests "
+         "remain gated.\n";
 }
 }  // namespace
 
@@ -52,7 +54,7 @@ int main(int argc, char** argv) {
       return 0;
     }
     if (command == "run") {
-      if (argc < 3) throw std::invalid_argument("run requires up, down or status");
+      if (argc < 3) throw std::invalid_argument("run requires plan, up, down or status");
       graphx::ExecutionOptions options;
       options.action = argv[2];
       std::map<std::string, std::filesystem::path*> fields{
@@ -62,6 +64,14 @@ int main(int argc, char** argv) {
       std::set<std::string> seen;
       for (int i = 3; i < argc; ++i) {
         const std::string key = argv[i];
+        if (key == "--owner" && seen.insert(key).second && i + 1 < argc) {
+          options.owner_token = argv[++i];
+          continue;
+        }
+        if (key == "--allow-privileged" && seen.insert(key).second) {
+          options.allow_privileged = true;
+          continue;
+        }
         if (!fields.contains(key) || !seen.insert(key).second || i + 1 == argc)
           throw std::invalid_argument("unknown, duplicate or incomplete run option");
         *fields.at(key) = std::filesystem::absolute(argv[++i]).lexically_normal();

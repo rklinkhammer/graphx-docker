@@ -56,11 +56,12 @@ def main() -> int:
     assert all("device" in route for route in routes)
 
     demo = (example / "scripts/demo.sh").read_text(encoding="utf-8")
-    for marker in ("GRAPHX_EXTERNAL_OWNER", "external-ovs-boundary.sh",
-                   "graphx_external_namespace_create", "graphx_external_namespace_delete",
-                   "trap rollback_up ERR", 'infra create "$config"', "apply-route)",
-                   "clear-route)"):
-        assert marker in demo, f"canonical route launcher omits {marker}"
+    for marker in ("scripts/lib/demo-runtime.sh", "graphx_demo_run", "apply-route|clear-route)"):
+        assert marker in demo, f"compiled route launcher omits {marker}"
+    assert 'infra create' not in demo and 'external-ovs-boundary.sh' not in demo
+    for action in ('apply-route', 'clear-route'):
+        result = subprocess.run(['bash', example / 'scripts/demo.sh', action], capture_output=True, text=True)
+        assert result.returncode == 2 and 'E_PHASE_UNAVAILABLE' in result.stderr
     assert "--transactional" not in demo
     assert "pkill" not in demo and "killall" not in demo and "rm -rf" not in demo
     assert not (example / "compose.yaml").exists(), "retired route Compose data plane remains"

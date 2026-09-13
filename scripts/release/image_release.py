@@ -391,11 +391,19 @@ def pin_catalog(source: Path, destination: Path, manifest: dict) -> None:
     (destination / "lock.json").write_bytes(encoded(lock))
 
 
-def smoke_image(archive: Path, role: str, config_digest: str) -> None:
-    existing = subprocess.run(["docker", "image", "inspect", config_digest],
-                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
+def smoke_image(archive: Path, role: str, config_digest: str, manifest_digest: str) -> None:
+    # Classic stores use the config digest; containerd stores use the OCI manifest.
+    identity = config_digest
+    existing = any(subprocess.run(["docker", "image", "inspect", candidate],
+                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
+                   for candidate in (config_digest, manifest_digest))
     try:
         subprocess.run(["docker", "image", "load", "--input", str(archive)], check=True, timeout=300)
+        if subprocess.run(["docker", "image", "inspect", identity], stdout=subprocess.DEVNULL,
+                          stderr=subprocess.DEVNULL).returncode:
+            identity = manifest_digest
+        actual = json.loads(subprocess.check_output(["docker", "image", "inspect", identity], text=True))[0]
+        require(actual["Id"] == identity, "loaded image identity differs from verified OCI bytes")
         commands = {"runtime": [["/usr/local/bin/graphx", "--version"]],
                     "telemetry": [["node", "--check", "/app/server.mjs"],
                                   ["node", "--input-type=module", "-e", "await import('ws'); await import('ajv');"]],
@@ -404,7 +412,7 @@ def smoke_image(archive: Path, role: str, config_digest: str) -> None:
             container = subprocess.check_output(
                 ["docker", "create", "--network", "none", "--read-only", "--cap-drop", "ALL",
                  "--security-opt", "no-new-privileges:true", "--pids-limit", "64", "--memory", "256m",
-                 "--user", "65532:65532", "--entrypoint", command[0], config_digest, *command[1:]],
+                 "--user", "65532:65532", "--entrypoint", command[0], identity, *command[1:]],
                 text=True, timeout=30).strip()
             require(re.fullmatch(r"[a-f0-9]{64}", container), "Docker returned an invalid container identity")
             try:
@@ -420,7 +428,7 @@ def smoke_image(archive: Path, role: str, config_digest: str) -> None:
                                stdout=subprocess.DEVNULL)
     finally:
         if not existing:
-            subprocess.run(["docker", "image", "rm", config_digest], check=False,
+            subprocess.run(["docker", "image", "rm", identity], check=False,
                            stdout=subprocess.DEVNULL)
 
 
@@ -451,7 +459,7 @@ def build(args):
                            "--build-arg", "GRAPHX_REVISION=" + commit,
                            "--build-arg", "GRAPHX_RELEASE_IMAGE_TYPES=ON",
                            "--build-arg", "SOURCE_DATE_EPOCH=" + str(epoch),
-                           "--output", "type=image,rewrite-timestamp=true"]
+                           "--output", "type=image,oci-mediatypes=true,compression=uncompressed,force-compression=true"]
                 if args.no_cache:
                     command.append("--no-cache")
                 subprocess.run(command + ["."], cwd=source, check=True, timeout=1800)
@@ -469,7 +477,7 @@ def build(args):
                 first_archive = sha256_file(archive)
             (output / (role + ".spdx.json")).write_bytes(encoded(image_sbom(role, inspection, version, epoch)))
             manifest["images"][role] = {"archive_sha256": sha256_file(archive), "inspection": inspection}
-            smoke_image(archive, role, inspection["config_digest"])
+            smoke_image(archive, role, inspection["config_digest"], inspection["digest"])
             (output / (role + ".first.oci.tar")).unlink()
         finally:
             subprocess.run(["docker", "image", "rm", tag], check=False, stdout=subprocess.DEVNULL)

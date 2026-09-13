@@ -98,8 +98,10 @@ add_library(graphx
   src/config_document.cpp
   src/config_v3.cpp
   src/resolved_transport.cpp
+  src/resolved_network.cpp
   src/node_settings.cpp
   src/sample_application.cpp
+  src/diagnostic_application.cpp
   src/config.cpp
   src/compile.cpp
   src/execution.cpp
@@ -110,8 +112,10 @@ add_library(graphx
   src/framing.cpp
   src/in_process_transport.cpp
   src/infra/capture_resources.cpp
+  src/infra/capture_handoff.cpp
   src/infra/command_runner.cpp
   src/infra/endpoint_resources.cpp
+  src/infra/management_policy.cpp
   src/infra/fault_resources.cpp
   src/infra/lifecycle_coordinator.cpp
   src/infra/namespace_resources.cpp
@@ -183,7 +187,7 @@ if(GRAPHX_BUILD_FUZZERS)
   target_compile_options(graphx PRIVATE -fsanitize=fuzzer-no-link)
 endif()
 
-foreach(app generator transform sink)
+foreach(app generator transform sink diagnostic)
   add_executable(graphx-${app} apps/${app}/main.cpp)
   target_link_libraries(graphx-${app} PRIVATE graphx)
   graphx_enable_analysis(graphx-${app})
@@ -219,7 +223,7 @@ if(GRAPHX_BUNDLED_YAML_CPP)
     DESTINATION ${CMAKE_INSTALL_DATADIR}/doc/graphx/licenses
     RENAME yaml-cpp-LICENSE COMPONENT documentation)
 endif()
-install(TARGETS graphx-cli graphx-generator graphx-transform graphx-sink
+install(TARGETS graphx-cli graphx-generator graphx-transform graphx-sink graphx-diagnostic
   graphx-udp-publisher graphx-udp-subscriber
   RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT runtime)
 install(DIRECTORY include/graphx DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
@@ -347,6 +351,8 @@ if(GRAPHX_BUILD_TESTS)
     $<TARGET_FILE:graphx-cli> ${CMAKE_SOURCE_DIR})
   graphx_add_python_test(graphx-normalized-config tests/test_normalized_config.py 45
     $<TARGET_FILE:graphx-cli> ${CMAKE_SOURCE_DIR})
+  graphx_add_python_test(graphx-ovs-compiled tests/test_ovs_compiled.py 60
+    $<TARGET_FILE:graphx-cli> ${CMAKE_SOURCE_DIR})
   graphx_add_python_test(graphx-ovs-ownership-plan tests/test_ovs_ownership_plan.py 30
     $<TARGET_FILE:graphx-cli> ${CMAKE_SOURCE_DIR})
   graphx_add_python_test(graphx-container-veth-plan tests/test_container_veth_plan.py 30
@@ -442,6 +448,8 @@ if(GRAPHX_BUILD_TESTS)
   set_tests_properties(graphx-udp-transport PROPERTIES TIMEOUT 30)
   graphx_add_python_test(graphx-compile tests/test_compile.py 120
     $<TARGET_FILE:graphx-cli> ${CMAKE_SOURCE_DIR})
+  graphx_add_python_test(graphx-diagnostic-bindings tests/test_diagnostic_bindings.py 30
+    ${CMAKE_BINARY_DIR} ${CMAKE_SOURCE_DIR})
   graphx_add_python_test(graphx-node-bindings tests/test_node_bindings.py 60
     ${CMAKE_BINARY_DIR} ${CMAKE_SOURCE_DIR})
   graphx_add_python_test(graphx-execution-gate tests/test_execution_gate.py 30

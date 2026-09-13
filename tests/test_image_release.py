@@ -141,22 +141,41 @@ for role, (name, _) in RECIPES.items():
 print("OCI digest, layer, platform, credential, SBOM and catalog boundaries passed")
 
 # A killed attached Docker client must not leave its owned smoke container alive.
+# Both Docker stores must use verified content identities and preserve existing images.
+for containerd in (False, True):
+    calls = []
+    config_id, manifest_id = 'sha256:' + 'a' * 64, 'sha256:' + 'c' * 64
+    selected = manifest_id if containerd else config_id
+    def fake_run(command, **kwargs):
+        calls.append(command)
+        if command[:2] == ['docker', 'start']:
+            raise subprocess.TimeoutExpired(command, 30)
+        code = int(command[:3] == ['docker', 'image', 'inspect'] and command[-1] != selected)
+        return subprocess.CompletedProcess(command, code)
+    def fake_output(command, **kwargs):
+        calls.append(command)
+        if command[:3] == ['docker', 'image', 'inspect']:
+            return json.dumps([{'Id': selected}])
+        return 'b' * 64
+    with patch('image_release.subprocess.run', side_effect=fake_run), patch(
+            'image_release.subprocess.check_output', side_effect=fake_output):
+        try:
+            smoke_image(Path('test-image.tar'), 'runtime', config_id, manifest_id)
+        except subprocess.TimeoutExpired:
+            pass
+        else:
+            raise AssertionError('smoke timeout was ignored')
+    assert ['docker', 'rm', '--force', 'b' * 64] in calls
+    assert not any(command[:3] == ['docker', 'image', 'rm'] for command in calls)
+    assert selected in next(command for command in calls if command[:2] == ['docker', 'create'])
+
+# An engine returning a different identity must fail before creating a process.
 calls = []
-def fake_run(command, **kwargs):
-    calls.append(command)
-    if command[:2] == ['docker', 'start']:
-        raise subprocess.TimeoutExpired(command, 30)
-    return subprocess.CompletedProcess(command, 0)
-with patch('image_release.subprocess.run', side_effect=fake_run), patch(
-        'image_release.subprocess.check_output', return_value='b' * 64):
-    try:
-        smoke_image(Path('test-image.tar'), 'runtime', 'sha256:' + 'a' * 64)
-    except subprocess.TimeoutExpired:
-        pass
-    else:
-        raise AssertionError('smoke timeout was ignored')
-assert ['docker', 'rm', '--force', 'b' * 64] in calls
-assert not any(command[:3] == ['docker', 'image', 'rm'] for command in calls)
+with patch('image_release.subprocess.run', side_effect=lambda command, **kwargs:
+           (calls.append(command) or subprocess.CompletedProcess(command, 0))), patch(
+        'image_release.subprocess.check_output', return_value=json.dumps([{'Id': 'sha256:' + 'd' * 64}])):
+    rejected(lambda: smoke_image(Path('test-image.tar'), 'runtime', config_id, manifest_id))
+assert not any(command[:2] == ['docker', 'create'] for command in calls)
 
 if len(sys.argv) == 4:
     cli, release = Path(sys.argv[2]).resolve(), Path(sys.argv[3]).resolve()

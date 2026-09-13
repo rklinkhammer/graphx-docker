@@ -6,6 +6,8 @@
 #include <openssl/rand.h>
 
 #include <algorithm>
+#include <arpa/inet.h>
+#include <charconv>
 #include <array>
 #include <cerrno>
 #include <cctype>
@@ -60,6 +62,11 @@ YAML::Node state_node(const OwnershipState& state) {
   root["config_sha256"] = state.config_hash;
   root["owner_token"] = state.owner_token;
   root["status"] = state.status;
+  if (!state.handoff_name.empty()) {
+    root["handoff_name"] = state.handoff_name;
+    root["handoff_inode"] = state.handoff_inode;
+    root["handoff_device"] = state.handoff_device;
+  }
   root["expected_bridges"] = YAML::Node(YAML::NodeType::Sequence);
   for (const auto& process : state.processes) {
     YAML::Node item;
@@ -81,6 +88,8 @@ YAML::Node state_node(const OwnershipState& state) {
     item["target_interface"] = endpoint.target_interface;
     item["switch"] = endpoint.network_switch;
     item["address"] = endpoint.address;
+    if (!endpoint.management_policy.empty()) item["management_policy"] = endpoint.management_policy;
+    for (const auto& alias : endpoint.aliases) item["aliases"].push_back(alias);
     if (!endpoint.mac.empty()) item["mac"] = endpoint.mac;
     item["mtu"] = endpoint.mtu;
     if (!endpoint.container_id.empty()) item["container_id"] = endpoint.container_id;
@@ -94,6 +103,7 @@ YAML::Node state_node(const OwnershipState& state) {
       YAML::Node route_node;
       route_node["destination"] = route.destination;
       if (!route.via.empty()) route_node["via"] = route.via;
+      route_node["install_on_create"] = route.install_on_create;
       item["routes"].push_back(route_node);
     }
     root["expected_endpoints"].push_back(item);
@@ -154,6 +164,8 @@ YAML::Node state_node(const OwnershipState& state) {
     item["kind"] = network_namespace.kind;
     item["name"] = network_namespace.name;
     item["namespace_inode"] = *network_namespace.namespace_inode;
+    if (!network_namespace.rule_identity.empty())
+      item["rule_identity"] = network_namespace.rule_identity;
     root["resources"].push_back(item);
   }
   for (const auto& capture : state.captures) {
@@ -171,6 +183,8 @@ YAML::Node state_node(const OwnershipState& state) {
     item["directory_mode"] = capture.directory_mode;
     item["pid"] = capture.pid;
     item["process_start_time"] = capture.process_start_time;
+    item["snapshot_inode"] = capture.snapshot_inode;
+    item["snapshot_pending_inode"] = capture.snapshot_pending_inode;
     root["resources"].push_back(item);
   }
   for (const auto& fault : state.faults) {
@@ -396,6 +410,14 @@ OwnershipState load_state(const std::filesystem::path& path) {
   state.config_hash = required_scalar(root, "config_sha256");
   state.owner_token = required_scalar(root, "owner_token");
   state.status = required_scalar(root, "status");
+  if (root["handoff_name"]) {
+    state.handoff_name = root["handoff_name"].as<std::string>();
+    state.handoff_inode = root["handoff_inode"].as<std::uint64_t>(0);
+    state.handoff_device = root["handoff_device"].as<std::uint64_t>(0);
+    if (!state.handoff_name.starts_with("handoff-") || state.handoff_name.size() != 40 ||
+        !hexadecimal(state.handoff_name.substr(8)))
+      throw std::runtime_error("invalid handoff directory identity");
+  }
   if (root["processes"]) {
     if (!root["processes"].IsSequence() || root["processes"].size() > 4096)
       throw std::runtime_error("invalid owned process inventory");
@@ -437,7 +459,9 @@ OwnershipState load_state(const std::filesystem::path& path) {
   if (root["expected_namespaces"])
     for (const auto& value : root["expected_namespaces"]) {
       const auto name = value.as<std::string>();
-      if (name.empty()) throw std::runtime_error("invalid expected Linux namespace");
+      if (name.empty() ||
+          std::ranges::find(state.expected_namespaces, name) != state.expected_namespaces.end())
+        throw std::runtime_error("invalid expected Linux namespace");
       state.expected_namespaces.push_back(name);
     }
   std::unordered_set<std::string> expected_capture_ids;
@@ -499,6 +523,32 @@ OwnershipState load_state(const std::filesystem::path& path) {
       endpoint.target_interface = required_scalar(value, "target_interface");
       endpoint.network_switch = required_scalar(value, "switch");
       if (value["address"]) endpoint.address = value["address"].as<std::string>();
+      if (value["management_policy"]) {
+        endpoint.management_policy = value["management_policy"].as<std::string>();
+        if (endpoint.management_policy.size() != 64 ||
+            !std::ranges::all_of(endpoint.management_policy,
+                                 [](unsigned char c) { return std::isxdigit(c); }))
+          throw std::runtime_error("invalid management policy identity");
+      }
+      if (value["aliases"]) {
+        if (!value["aliases"].IsSequence() || value["aliases"].size() > 64)
+          throw std::runtime_error("invalid endpoint aliases");
+        std::unordered_set<std::string> aliases;
+        for (const auto& alias : value["aliases"]) {
+          const auto address = alias.as<std::string>();
+          const auto slash = address.find('/');
+          unsigned prefix{};
+          in_addr ip{};
+          const auto bits = slash == std::string::npos ? std::string{} : address.substr(slash + 1);
+          const auto parsed = std::from_chars(bits.data(), bits.data() + bits.size(), prefix);
+          if (slash == std::string::npos ||
+              ::inet_pton(AF_INET, address.substr(0, slash).c_str(), &ip) != 1 ||
+              parsed.ec != std::errc{} || parsed.ptr != bits.data() + bits.size() || prefix > 32 ||
+              !aliases.insert(address).second)
+            throw std::runtime_error("invalid endpoint alias");
+          endpoint.aliases.push_back(address);
+        }
+      }
       if (value["mac"]) endpoint.mac = value["mac"].as<std::string>();
       endpoint.mtu = value["mtu"].as<std::uint32_t>(1500);
       if (value["container_id"]) endpoint.container_id = value["container_id"].as<std::string>();
@@ -522,6 +572,7 @@ OwnershipState load_state(const std::filesystem::path& path) {
           RouteDefinition route;
           route.destination = required_scalar(route_value, "destination");
           if (route_value["via"]) route.via = route_value["via"].as<std::string>();
+          route.install_on_create = route_value["install_on_create"].as<bool>(true);
           endpoint.routes.push_back(std::move(route));
         }
       state.expected_endpoints.push_back(std::move(endpoint));
@@ -544,6 +595,8 @@ OwnershipState load_state(const std::filesystem::path& path) {
         capture.directory_mode = value["directory_mode"].as<std::uint32_t>(0);
         capture.pid = value["pid"].as<std::uint32_t>(0);
         capture.process_start_time = required_scalar(value, "process_start_time");
+        capture.snapshot_inode = value["snapshot_inode"].as<std::uint64_t>(0);
+        capture.snapshot_pending_inode = value["snapshot_pending_inode"].as<std::uint64_t>(0);
         if (!expected_capture_ids.contains(capture.id) || !capture.ifindex ||
             !capture.directory_device || !capture.directory_inode || capture.directory_uid != 0 ||
             capture.directory_gid != 0 || capture.directory_mode != 0700 || !capture.pid)
@@ -607,7 +660,17 @@ OwnershipState load_state(const std::filesystem::path& path) {
         item.kind = kind;
         item.name = required_scalar(value, "name");
         item.namespace_inode = value["namespace_inode"].as<std::uint64_t>(0);
-        if (!*item.namespace_inode) throw std::runtime_error("invalid owned Linux namespace");
+        if (!*item.namespace_inode ||
+            std::ranges::find(state.expected_namespaces, item.name) ==
+                state.expected_namespaces.end() ||
+            std::ranges::find(state.namespaces, item.name, &OwnedResourceIdentity::name) !=
+                state.namespaces.end())
+          throw std::runtime_error("invalid owned Linux namespace");
+        if (value["rule_identity"]) {
+          item.rule_identity = value["rule_identity"].as<std::string>();
+          if (item.rule_identity.size() != 64 || !hexadecimal(item.rule_identity))
+            throw std::runtime_error("invalid namespace policy identity");
+        }
         state.namespaces.push_back(std::move(item));
         continue;
       }

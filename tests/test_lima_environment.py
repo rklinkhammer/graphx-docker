@@ -63,8 +63,8 @@ def main() -> int:
         require(token in launcher_text, f"network-lab runtime omits {token}")
     for arguments in [("not-a-lab", "up"), ("ipvlan-l2", "plan")]:
         rejected = subprocess.run([str(dispatcher), *arguments], text=True, capture_output=True)
-        require(rejected.returncode == 2 and "E_PHASE_UNAVAILABLE" in rejected.stderr,
-                "unconverted dispatcher must fail before selecting a runtime")
+        require(rejected.returncode != 0 and ("unsupported network laboratory" in rejected.stderr or "GX_OUTPUT" in rejected.stderr),
+                "dispatcher must reject invalid inputs before selecting a runtime")
 
     config_digest = subprocess.run(
         ["bash", "-c", f'source "{lima / "common.sh"}"; graphx_lima_digest'],
@@ -96,9 +96,20 @@ def main() -> int:
                 f"graphx|Running|aarch64|vz|{root}|{config_digest}",
         }
         result = subprocess.run([str(dispatcher), "macvlan", "status"], env=environment, capture_output=True, text=True)
-        require(result.returncode == 2 and "E_PHASE_UNAVAILABLE" in result.stderr,
-                "v3 dispatcher must fail before Lima invocation")
-        require(not invocation_log.exists(), "gated dispatcher invoked Lima")
+        require(result.returncode != 0 and "GX_OUTPUT" in result.stderr,
+                "dispatcher must require an explicit compilation")
+        require(not invocation_log.exists(), "missing compilation invoked Lima")
+        environment.update(GX_OUTPUT='/var/lib/graphx/test/compiled', GX_STATE='/var/lib/graphx/test/state')
+        result = subprocess.run([str(dispatcher), "macvlan", "status"], env=environment, capture_output=True, text=True)
+        require(result.returncode == 2 and "GRAPHX_ALLOW_PRIVILEGED" in result.stderr,
+                "dispatcher must require explicit privileged authorization")
+        require(not invocation_log.exists(), "missing authorization invoked Lima")
+        environment['GRAPHX_ALLOW_PRIVILEGED'] = '1'
+        result = subprocess.run([str(dispatcher), "macvlan", "status"], env=environment, capture_output=True, text=True)
+        require(result.returncode == 0, result.stderr)
+        invocation = invocation_log.read_text()
+        require('sudo env GRAPHX_BIN=' in invocation and 'GX_OUTPUT=/var/lib/graphx/test/compiled' in invocation,
+                'guest invocation omitted compiled artifact or privileged runner')
     provision = (lima / "provision.sh").read_text(encoding="utf-8")
     for token in ("docker.io", "docker-buildx", "docker-compose-v2", "openvswitch-switch", "nftables", "qemu-system-ppc", "tshark", "/var/lib/graphx"):
         require(token in provision, f"provisioning omits {token}")

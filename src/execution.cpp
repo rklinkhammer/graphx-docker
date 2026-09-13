@@ -1,4 +1,5 @@
 #include "graphx/execution.hpp"
+#include "graphx/ownership.hpp"
 #include "graphx/config_schemas.hpp"
 #include "graphx/version.hpp"
 #include "graphx/node_settings.hpp"
@@ -142,8 +143,9 @@ void verify_native_release(const std::filesystem::path& release) {
 }  // namespace
 
 int execute_graph(const ExecutionOptions& opts, std::ostream& output) {
-  if (opts.action != "up" && opts.action != "down" && opts.action != "status")
-    throw std::invalid_argument("run requires up, down or status");
+  if (opts.action != "up" && opts.action != "down" && opts.action != "status" &&
+      opts.action != "plan" && opts.action != "handoff")
+    throw std::invalid_argument("run requires plan, up, down or status");
   const auto manifest = document(opts.output / "compile-manifest.json");
   verify_compilation(opts.output, manifest);
   const auto resolved = document(opts.output / "resolved.json");
@@ -152,6 +154,17 @@ int execute_graph(const ExecutionOptions& opts, std::ostream& output) {
   if (!std::regex_match(id, std::regex("^[a-z][a-z0-9_-]{0,63}$")))
     throw std::runtime_error("E_EXECUTION_ID: unsafe graph identity");
   const auto state_directory = opts.state_root / id;
+  if (opts.action == "handoff") return execute_capture_handoff(opts, resolved, output);
+  if (opts.action == "plan") {
+    GraphConfig config;
+    config.id = id;
+    config.version = 3;
+    config.resolved = resolved;
+    config.deployment.project = "graphx-" + id;
+    config.network_infrastructure = resolved_network(resolved.at("network"));
+    return execute_ovs_lifecycle(config, opts.output / "compile-manifest.json",
+                                 OvsLifecycleAction::create, true, opts.state_root, output, output);
+  }
   if (opts.action == "up") {
     const auto overlaps = [](const auto& a, const auto& b) {
       if (a.empty() || b.empty()) return false;
@@ -168,7 +181,14 @@ int execute_graph(const ExecutionOptions& opts, std::ostream& output) {
   const auto state_file = state_directory / "ownership.yml";
   const auto config_hash = configuration_hash(opts.output / "compile-manifest.json");
   const bool native = resolved.at("platform").at("telemetry").at("host") == Value("127.0.0.1");
-  if (!native) return execute_compose(opts, resolved, output);
+  if (!native) {
+    if (opts.action == "up" &&
+        std::ranges::any_of(resolved.at("nodes").array(), [](const auto& node) {
+          return node.at("execution").at("kind") == Value("namespace");
+        }))
+      verify_native_release(opts.release);
+    return execute_compose(opts, resolved, output);
+  }
   if (opts.action == "up") {
 #if defined(__APPLE__)
     if (resolved.at("target") != Value("native-macos"))
@@ -178,7 +198,9 @@ int execute_graph(const ExecutionOptions& opts, std::ostream& output) {
       throw std::runtime_error("E_TARGET: native target does not match Linux host");
 #endif
     if (!resolved.at("network").at("switches").array().empty())
-      throw std::runtime_error("E_PHASE_UNAVAILABLE: graph requires P7 OVS realization");
+      throw std::runtime_error(
+          "E_PHASE_UNAVAILABLE: native applications cannot own OVS endpoints; use container or "
+          "namespace placement");
     for (const auto& node : resolved.at("nodes").array())
       if (node.at("execution").at("kind") != Value("native"))
         throw std::runtime_error("E_PHASE_UNAVAILABLE: graph requires a later execution adapter");

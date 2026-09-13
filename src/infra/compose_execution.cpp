@@ -1,6 +1,9 @@
 #include "infra/compose_execution.hpp"
 #include "infra/process_resources.hpp"
 #include "infra/ownership_lock.hpp"
+#include "infra/lifecycle_coordinator.hpp"
+#include "infra/management_policy.hpp"
+#include "infra/namespace_resources.hpp"
 #include "config_document.hpp"
 #include "graphx/config_schemas.hpp"
 #include <algorithm>
@@ -125,12 +128,30 @@ int execute_compose(const ExecutionOptions& opts, const ConfigValue& resolved,
   const auto state_volume = "graphx-" + graph + "-history";
   const auto credential_volume = "graphx-" + graph + "-credentials";
   const auto configuration = configuration_hash(opts.output / "compile-manifest.json");
+  const bool ovs = !resolved.at("network").at("switches").array().empty();
+  if (ovs) {
+    if (!opts.allow_privileged)
+      throw std::runtime_error(
+          "E_PRIVILEGED_AUTHORIZATION: OVS requires explicit --allow-privileged on Linux");
+#if !defined(__linux__)
+    throw std::runtime_error("E_TARGET: OVS requires native Linux or the GraphX Lima guest");
+#else
+    if (::geteuid() != 0)
+      throw std::runtime_error(
+          "E_PRIVILEGED_REQUIRED: OVS requires the authorized Linux root runner");
+#endif
+    if (resolved.at("target") != Value("native-linux") && resolved.at("target") != Value("lima"))
+      throw std::runtime_error("E_TARGET: OVS target must be native-linux or lima");
+    for (const auto& attachment : resolved.at("network").at("attachments").array())
+      if (attachment.at("kind") == Value("external"))
+        throw std::runtime_error(
+            "E_PHASE_UNAVAILABLE: physical-device uplink ownership contract is not defined");
+  }
   if (opts.action == "up") {
-    if (!resolved.at("network").at("switches").array().empty())
-      throw std::runtime_error("E_PHASE_UNAVAILABLE: graph requires P7 OVS realization");
     for (const auto& node : resolved.at("nodes").array())
       if (node.at("execution").at("kind") != Value("container") &&
-          node.at("execution").at("kind") != Value("external"))
+          node.at("execution").at("kind") != Value("external") &&
+          node.at("execution").at("kind") != Value("namespace"))
         throw std::runtime_error(
             "E_PHASE_UNAVAILABLE: graph requires native, namespace or guest execution");
     safe_execution_path(root, true);
@@ -149,13 +170,39 @@ int execute_compose(const ExecutionOptions& opts, const ConfigValue& resolved,
   if (call({"docker", "context", "show"}) != "orbstack")
     throw std::runtime_error("E_TARGET: macOS portable execution requires selected OrbStack");
 #endif
+  if (ovs) {
+    const auto* override_host = std::getenv("DOCKER_HOST");
+    const auto endpoint =
+        override_host && *override_host
+            ? std::string(override_host)
+            : call({"docker", "context", "inspect", "--format", "{{.Endpoints.docker.Host}}"});
+    if (!endpoint.starts_with("unix:///"))
+      throw std::runtime_error("E_TARGET: OVS requires a local Unix Docker socket");
+    struct stat socket{};
+    if (::stat(endpoint.substr(7).c_str(), &socket) != 0 || !S_ISSOCK(socket.st_mode) ||
+        socket.st_uid != 0)
+      throw std::runtime_error("E_TARGET: OVS requires a root-owned local Docker socket");
+  }
   call({"docker", "info", "--format", "{{.OSType}}/{{.Architecture}}"});
   if (opts.action == "up") {
     ensure_state_root(opts.state_root);
     ensure_state_root(root);
   }
   safe_execution_path(root);
-  auto lock = OwnershipLock::open_or_create(root / ".lock", OwnershipLockMode::exclusive);
+  auto lock = [&] {
+    const auto deadline = Clock::now() + std::chrono::seconds(10);
+    for (;;) {
+      try {
+        return OwnershipLock::open_or_create(root / ".lock", OwnershipLockMode::exclusive);
+      } catch (const std::runtime_error& error) {
+        if (!ovs || opts.action == "up" || Clock::now() >= deadline ||
+            std::string_view(error.what()) !=
+                "another infrastructure operation owns the graph lock")
+          throw;
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+      }
+    }
+  }();
   OwnershipState state;
   if (std::filesystem::exists(state_file)) {
     state = load_state(state_file);
@@ -168,9 +215,32 @@ int execute_compose(const ExecutionOptions& opts, const ConfigValue& resolved,
     state.status = "creating";
   }
   const auto save = [&] { save_state(state_file, state); };
+  const auto network_action = [&](OvsLifecycleAction action, bool validate_only = false) {
+    GraphConfig config;
+    config.version = 3;
+    config.id = graph;
+    config.resolved = resolved;
+    config.network_infrastructure = resolved_network(resolved.at("network"));
+    config.deployment.project = "graphx-" + graph;
+    for (const auto& resource : state.processes)
+      if (resource.kind == "container") {
+        const auto name = resource.name.substr(("graphx-" + graph + "-").size());
+        config.deployment.services.push_back({name, resource.secondary_id, {}});
+      }
+    OvsExecutionContext context{state, lock, [] { return cancelled != 0; }, validate_only};
+    return execute_ovs_lifecycle_impl(config, opts.output / "compile-manifest.json", action, false,
+                                      opts.state_root, output, output, &context);
+  };
   const auto stop = [&] {
-    for (auto& resource : state.processes) observe(resource, graph);
+    for (auto& resource : state.processes) {
+      if (resource.kind == "native")
+        native_process_status(resource);
+      else
+        observe(resource, graph);
+    }
     save();
+    if (ovs && (!state.expected_bridges.empty() || !state.expected_endpoints.empty()))
+      network_action(OvsLifecycleAction::destroy, true);
     const auto barrier = root / "barriers/release";
     if (std::filesystem::exists(barrier)) {
       safe_execution_path(barrier);
@@ -178,6 +248,33 @@ int execute_compose(const ExecutionOptions& opts, const ConfigValue& resolved,
         throw std::runtime_error("E_BARRIER_IDENTITY: refusing cleanup");
       std::filesystem::remove(barrier);
     }
+    const auto prepared = root / "barriers/network-ready";
+    if (std::filesystem::exists(prepared)) {
+      safe_execution_path(prepared);
+      if (read_document(prepared, 128) != state.owner_token)
+        throw std::runtime_error("E_BARRIER_IDENTITY: refusing network barrier cleanup");
+      std::filesystem::remove(prepared);
+    }
+    if (ovs)
+      for (auto& resource : state.processes)
+        if (resource.kind == "container" &&
+            std::ranges::any_of(resolved.at("nodes").array(),
+                                [&](const auto& node) {
+                                  return node.at("execution").at("kind") == Value("container") &&
+                                         resource.name ==
+                                             "graphx-" + graph + "-" + node.at("node_id").text();
+                                }) &&
+            observe(resource, graph) &&
+            inspect("container", resource.stable_id).at("State").at("Running").boolean())
+          call({"docker", "stop", "--time", "5", resource.stable_id});
+    for (std::size_t index = state.processes.size(); index > 0; --index)
+      if (state.processes[index - 1].kind == "native") {
+        stop_native_process(state.processes[index - 1]);
+        state.processes.erase(state.processes.begin() + static_cast<std::ptrdiff_t>(index - 1));
+        save();
+      }
+    if (ovs && (!state.expected_bridges.empty() || !state.expected_endpoints.empty()))
+      network_action(OvsLifecycleAction::destroy);
     state.status = "destroying";
     save();
     for (std::size_t index = state.processes.size(); index > 0; --index) {
@@ -201,8 +298,10 @@ int execute_compose(const ExecutionOptions& opts, const ConfigValue& resolved,
     }
   };
   if (opts.action == "status") {
+    if (ovs && network_action(OvsLifecycleAction::status) != 0) return 2;
     for (auto resource : state.processes) {
-      const bool present = observe(resource, graph);
+      const bool present = resource.kind == "native" ? native_process_status(resource) != 0
+                                                     : observe(resource, graph);
       output << resource.kind << ' ' << resource.name << ' ' << (present ? "present" : "absent")
              << '\n';
     }
@@ -235,6 +334,35 @@ int execute_compose(const ExecutionOptions& opts, const ConfigValue& resolved,
       throw std::runtime_error("E_RELEASE_IDENTITY: OCI archive hash mismatch");
     image_ids[pin] = id;
   }
+  // The verified compilation remains private. Containers receive a separate,
+  // read-only copy of its non-secret documents beneath this owned state root.
+  const auto container_config = root / ("configuration-" + random_token());
+  if (!std::filesystem::create_directory(container_config))
+    throw std::runtime_error("E_DOCKER_OUTPUT: runtime configuration collision");
+  for (const auto& entry : std::filesystem::recursive_directory_iterator(opts.output)) {
+    safe_execution_path(entry.path());
+    const auto destination = container_config / entry.path().lexically_relative(opts.output);
+    if (entry.is_directory()) {
+      std::filesystem::create_directory(destination);
+      std::filesystem::permissions(destination, std::filesystem::perms::owner_all |
+                                                    std::filesystem::perms::group_read |
+                                                    std::filesystem::perms::group_exec |
+                                                    std::filesystem::perms::others_read |
+                                                    std::filesystem::perms::others_exec);
+    } else if (entry.is_regular_file()) {
+      std::filesystem::copy_file(entry.path(), destination);
+      std::filesystem::permissions(destination, std::filesystem::perms::owner_read |
+                                                    std::filesystem::perms::group_read |
+                                                    std::filesystem::perms::others_read);
+    } else {
+      throw std::runtime_error("E_DOCKER_OUTPUT: unexpected compilation entry");
+    }
+  }
+  std::filesystem::permissions(container_config, std::filesystem::perms::owner_all |
+                                                     std::filesystem::perms::group_read |
+                                                     std::filesystem::perms::group_exec |
+                                                     std::filesystem::perms::others_read |
+                                                     std::filesystem::perms::others_exec);
   const auto source = read(opts.output / "compose.yaml");
   for (const auto& [name, network] : source.at("networks").object()) {
     (void)name;
@@ -334,13 +462,32 @@ int execute_compose(const ExecutionOptions& opts, const ConfigValue& resolved,
   try {
     for (const auto& [role, record] : images.at("images").object()) {
       check();
-      const auto id = record.at("inspection").at("config_digest").text();
+      auto id = record.at("inspection").at("config_digest").text();
       if (call({"docker", "image", "inspect", id}, {}, false).empty())
         call({"docker", "image", "load", "--input", (opts.images / (role + ".oci.tar")).string()},
              {}, true, 120000);
+      if (call({"docker", "image", "inspect", id}, {}, false).empty())
+        id = record.at("inspection").at("digest").text();
       const auto actual = parse_document(call({"docker", "image", "inspect", id})).array().front();
       if (actual.at("Id") != Value(id))
         throw std::runtime_error("E_RELEASE_IDENTITY: loaded image mismatch");
+      image_ids["graphx-" + role + "@" + record.at("inspection").at("digest").text()] = id;
+    }
+    if (ovs && !resolved.at("network").at("captures").array().empty()) {
+      state.handoff_name = "handoff-" + random_token();
+      state.handoff_inode = 0;
+      state.handoff_device = 0;
+      save();
+      const auto handoff = root / state.handoff_name;
+      if (std::filesystem::exists(handoff))
+        throw std::runtime_error("E_CAPTURE_HANDOFF: directory collision");
+      ensure_state_root(handoff);
+      struct stat metadata{};
+      if (::chmod(handoff.c_str(), 0755) != 0 || ::lstat(handoff.c_str(), &metadata) != 0)
+        throw std::runtime_error("E_CAPTURE_HANDOFF: cannot prepare directory");
+      state.handoff_inode = static_cast<std::uint64_t>(metadata.st_ino);
+      state.handoff_device = static_cast<std::uint64_t>(metadata.st_dev);
+      save();
     }
     std::vector<std::string> volume_names{state_volume, credential_volume};
     for (const auto& node : resolved.at("nodes").array())
@@ -363,7 +510,8 @@ int execute_compose(const ExecutionOptions& opts, const ConfigValue& resolved,
       save();
     }
     const auto telemetry =
-        images.at("images").at("telemetry").at("inspection").at("config_digest").text();
+        image_ids.at("graphx-telemetry@" +
+                     images.at("images").at("telemetry").at("inspection").at("digest").text());
     const auto staging_name = "graphx-" + graph + "-stage";
     const auto stage_index = own("container", staging_name, telemetry);
     Object external;
@@ -416,7 +564,7 @@ rmSync('/var/lib/graphx/external',{recursive:true});
           "--tmpfs",
           "/tmp:rw,nosuid,nodev,size=16m",
           "--mount",
-          "type=bind,src=" + opts.output.string() + ",dst=/run/graphx,readonly",
+          "type=bind,src=" + container_config.string() + ",dst=/run/graphx,readonly",
           "--mount",
           "type=volume,src=" + credential_volume + ",dst=/var/lib/graphx",
           telemetry,
@@ -440,7 +588,7 @@ rmSync('/var/lib/graphx/external',{recursive:true});
     for (const auto& name : volume_names)
       volumes[name] = Object{{"external", true}, {"name", name}};
     compose["volumes"] = volumes;
-    const std::map<std::string, std::string> values{{"GX_OUTPUT", opts.output.string()},
+    const std::map<std::string, std::string> values{{"GX_OUTPUT", container_config.string()},
                                                     {"GX_STATE", root.string()},
                                                     {"GX_OWNER", state.owner_token},
                                                     {"GX_CREDENTIALS", "/unused-credential-path"},
@@ -482,8 +630,11 @@ rmSync('/var/lib/graphx/external',{recursive:true});
                                      {"read_only", true},
                                      {"volume", Object{{"subpath", "credentials/" + ref}}}});
         } else if (target == "/captures" && name == "platform") {
-          // Application capture volumes are mounted below the image's owned /captures.
-          // Network capture handoff remains gated with P7.
+          if (ovs && !state.handoff_name.empty())
+            mounts.emplace_back(Object{{"type", "bind"},
+                                       {"source", (root / state.handoff_name).string()},
+                                       {"target", "/captures"},
+                                       {"read_only", true}});
           continue;
         } else if (target == "/captures" && name != "platform") {
           mounts.emplace_back(Object{{"type", "volume"},
@@ -494,10 +645,11 @@ rmSync('/var/lib/graphx/external',{recursive:true});
               Object{{"type", "volume"}, {"source", state_volume}, {"target", "/var/lib/graphx"}});
         } else {
           auto path = source_path.starts_with("./")
-                          ? opts.output / source_path.substr(2)
+                          ? container_config / source_path.substr(2)
                           : std::filesystem::path(replace(source_path, values));
           path = path.lexically_normal();
-          if (path != root / "barriers" && !path.string().starts_with(opts.output.string() + "/"))
+          if (path != root / "barriers" &&
+              !path.string().starts_with(container_config.string() + "/"))
             throw std::runtime_error(
                 "E_COMPOSE_SECURITY: bind is outside the compilation and barrier roots");
           safe_execution_path(path);
@@ -521,6 +673,21 @@ rmSync('/var/lib/graphx/external',{recursive:true});
       own("container", actual, service.at("image").text());
       if (name != "platform" && name != "prometheus" && name != "grafana")
         applications.push_back(name);
+      if (ovs && name != "platform" && name != "prometheus" && name != "grafana") {
+        auto argv = service.at("entrypoint").array();
+        argv.insert(argv.end(), service.at("command").array().begin(),
+                    service.at("command").array().end());
+        Array command{Value("-c"),
+                      Value("trap 'exit 130' INT TERM; i=0; while [ \"$$i\" -lt 600 ]; do "
+                            "if [ -f /run/graphx/barriers/network-ready ] && "
+                            "[ \"$$(cat /run/graphx/barriers/network-ready)\" = \"$$1\" ]; then "
+                            "shift; exec \"$$@\"; fi; "
+                            "i=$$((i+1)); sleep 0.1; done; exit 124"),
+                      Value("graphx-network-prepare"), Value(state.owner_token)};
+        command.insert(command.end(), argv.begin(), argv.end());
+        service["entrypoint"] = Array{Value("/bin/sh")};
+        service["command"] = command;
+      }
     }
     compose = project(compose, values);
     const auto projection = root / "compose.json";
@@ -584,6 +751,47 @@ rmSync('/var/lib/graphx/external',{recursive:true});
       start.insert(start.end(), applications.begin(), applications.end());
       compose_call(start);
     }
+    if (ovs) {
+      check();
+      network_action(OvsLifecycleAction::create);
+      check();
+      publish_execution_file(root / "barriers/network-ready", state.owner_token, 0444);
+      for (const auto& node : resolved.at("nodes").array()) {
+        if (node.at("execution").at("kind") != Value("namespace")) continue;
+        const auto name = node.at("node_id").text();
+        const auto ns_name =
+            resource_name(graph, "namespace", string_or(node.at("execution"), "namespace", name));
+        const auto owned =
+            std::ranges::find(state.namespaces, ns_name, &OwnedResourceIdentity::name);
+        if (owned == state.namespaces.end() || !namespace_owned(*owned, state))
+          throw std::runtime_error("E_NAMESPACE_IDENTITY: diagnostic namespace not owned");
+        NativeProcessOptions start;
+        start.id = name;
+        start.executable = opts.release / "bin/graphx-diagnostic";
+        start.cwd = opts.output;
+        start.log = root / "logs" / (name + ".log");
+        if (std::filesystem::exists(start.log)) {
+          safe_execution_path(start.log);
+          safe_execution_path(start.log.string() + ".previous", true);
+          std::filesystem::rename(start.log, start.log.string() + ".previous");
+        }
+        start.network_namespace = "/run/netns/" + ns_name;
+        start.namespace_inode = *owned->namespace_inode;
+        start.argv = {start.executable.string(),
+                      "--node",
+                      name,
+                      "--config",
+                      (opts.output / "nodes" / (name + ".json")).string(),
+                      "--release-file",
+                      (root / "barriers/release").string(),
+                      "--release-token",
+                      state.owner_token};
+        start_native_process(start, [&](const auto& process) {
+          state.processes.push_back(process);
+          save();
+        });
+      }
+    }
     const auto application_deadline = Clock::now() + std::chrono::seconds(30);
     for (const auto& name : applications) {
       auto resource = *std::ranges::find_if(state.processes, [&](const auto& item) {
@@ -601,6 +809,18 @@ rmSync('/var/lib/graphx/external',{recursive:true});
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
       }
     }
+    for (const auto& process : state.processes) {
+      if (process.kind != "native") continue;
+      while (true) {
+        check();
+        if (Clock::now() >= application_deadline || !native_process_status(process))
+          throw std::runtime_error("E_READINESS_TIMEOUT: namespace diagnostic");
+        if (read_document(root / "logs" / (process.name + ".log"), 2097152)
+                .find("ready node=" + process.name) != std::string::npos)
+          break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+      }
+    }
     check();
     for (auto& resource : state.processes)
       if (resource.kind == "container") {
@@ -608,9 +828,34 @@ rmSync('/var/lib/graphx/external',{recursive:true});
             !inspect("container", resource.stable_id).at("State").at("Running").boolean())
           throw std::runtime_error("E_READINESS_EXIT: process exited before release");
       }
+    if (ovs && network_action(OvsLifecycleAction::status) != 0)
+      throw std::runtime_error("E_NETWORK_READINESS: owned data plane is not ready");
     publish_execution_file(root / "barriers/release", state.owner_token, 0444);
     state.status = "ready";
     save();
+    if (ovs && !state.captures.empty()) {
+#if defined(__linux__)
+      NativeProcessOptions handoff;
+      handoff.id = "mg-capture-handoff";
+      handoff.executable = std::filesystem::read_symlink("/proc/self/exe");
+      handoff.cwd = opts.output;
+      handoff.log = root / "logs" / (state.handoff_name + ".log");
+      handoff.environment = {{"PATH", "/usr/sbin:/usr/bin:/sbin:/bin"}};
+      handoff.argv = {handoff.executable.string(),
+                      "run",
+                      "handoff",
+                      "--output",
+                      opts.output.string(),
+                      "--state-root",
+                      opts.state_root.string(),
+                      "--owner",
+                      state.owner_token};
+      start_native_process(handoff, [&](const auto& process) {
+        state.processes.push_back(process);
+        save();
+      });
+#endif
+    }
     restore();
     output << "ready graph=" << graph << " owner=" << state.owner_token << '\n';
     return 0;

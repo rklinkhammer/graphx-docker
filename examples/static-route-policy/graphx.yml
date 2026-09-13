@@ -1,4 +1,4 @@
-# GraphX version 3. Validation and compilation available; execution adapters are unavailable.
+# GraphX version 3. OVS execution requires explicit authorization on Linux or Lima.
 catalog: ../../config/catalog/lock.json
 connections:
   allowed-flow:

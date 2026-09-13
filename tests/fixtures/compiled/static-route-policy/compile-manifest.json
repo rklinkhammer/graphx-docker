@@ -3,7 +3,7 @@
   "catalog_digest": "c7173c98503b8f49c5997c6d3429f239b39d502b66b1eb0e7ffb252671788fe1",
   "compiler": "graphx-compiler-1",
   "compiler_version": "1.1.0",
-  "execution_available": false,
+  "execution_available": true,
   "files": [
     {
       "path": "capture-handoff.json",
@@ -23,7 +23,7 @@
     },
     {
       "path": "execution-plan.json",
-      "sha256": "00c40b114a650b88bfb5693eebb229046083d97f389d0edf91b2461e3ddf4dbc"
+      "sha256": "2a150e9bb42de88ba0998e2f2fe7815bda4b2e09d5d2ba197995c86684106c63"
     },
     {
       "path": "native-plan.json",
@@ -31,7 +31,7 @@
     },
     {
       "path": "nodes/left.json",
-      "sha256": "c0da3b215caf3442be45f74547e30223b0da5abfdb531b107fef737abc9bf3c9"
+      "sha256": "3b64881f2ec4903a6ab9f5dd17f2a99e24a1b0dbf2b31915cef92d753cb575af"
     },
     {
       "path": "nodes/middle.json",
@@ -39,7 +39,7 @@
     },
     {
       "path": "nodes/right.json",
-      "sha256": "38c552cff1a66a8d2185f9cf6a55a04527d69768dd1231db9c361cb741ec892a"
+      "sha256": "2749b6b879d34869ba0a77ac442d62df835c27567a09b5fd8d558b1bcede8317"
     },
     {
       "path": "ovs-plan.json",
@@ -51,7 +51,7 @@
     },
     {
       "path": "resolved.json",
-      "sha256": "e60bddc2f8cd9b75f5c34d4d9d32dd85dea66322a3506e1b91a7b92bbf0f9cbb"
+      "sha256": "6bb5db5b6f3aa9c69e071b6e3000e282a9cc4838fc2d874c17b1c11c05e24700"
     },
     {
       "path": "scenario-plan.json",

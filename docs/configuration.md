@@ -8,8 +8,11 @@ The implemented commands are `validate`, `inspect`, `config normalize`, and
 `node-settings --node ID --config FILE` for resolved node validation, and `compile`.
 `inspect` prints the resolved JSON. These commands read bounded files and do not
 start processes, provision credentials, create infrastructure, or inspect a Docker
-engine. Compilation writes inspectable files only. `run`, `infra`, and unconverted example launchers return
-`E_PHASE_UNAVAILABLE`. The [implementation plan](../design/graph-generation/implementation-plan.md)
+engine. Compilation writes inspectable files only. `run plan` verifies a compilation
+and prints its network resource plan without runtime operations. `run up|status|down`
+provides [owned execution](execution.md); OVS requires explicit local Linux
+privileged opt-in and its live acceptance is pending. `infra`, guest/scenario
+adapters and unconverted example launchers remain gated. The [implementation plan](../design/graph-generation/implementation-plan.md)
 tracks the remaining execution adapters.
 
 ```sh

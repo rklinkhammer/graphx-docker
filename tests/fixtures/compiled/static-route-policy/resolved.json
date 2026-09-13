@@ -80,7 +80,7 @@
         "from": "left-data",
         "to": "right-data"
       },
-      "destination_address": "10.64.3.10",
+      "destination_address": "10.64.30.10",
       "encoding": "raw",
       "from": {
         "node": "left",
@@ -93,7 +93,7 @@
         "profile": "none"
       },
       "settings": {
-        "bind": "10.64.3.10",
+        "bind": "10.64.30.10",
         "destination": "10.64.30.10",
         "framing": "none",
         "loopback": true,
@@ -552,7 +552,7 @@
               "to": "right-data"
             },
             "connection": "routed-flow",
-            "destination_address": "10.64.3.10",
+            "destination_address": "10.64.30.10",
             "encoding": "raw",
             "role": "connect",
             "schema": "RawDiagnosticDatagram",
@@ -560,7 +560,7 @@
               "profile": "none"
             },
             "settings": {
-              "bind": "10.64.3.10",
+              "bind": "10.64.30.10",
               "destination": "10.64.30.10",
               "framing": "none",
               "loopback": true,
@@ -731,7 +731,7 @@
               "to": "right-data"
             },
             "connection": "routed-flow",
-            "destination_address": "10.64.3.10",
+            "destination_address": "10.64.30.10",
             "encoding": "raw",
             "role": "listen",
             "schema": "RawDiagnosticDatagram",
@@ -739,7 +739,7 @@
               "profile": "none"
             },
             "settings": {
-              "bind": "10.64.3.10",
+              "bind": "10.64.30.10",
               "destination": "10.64.30.10",
               "framing": "none",
               "loopback": true,

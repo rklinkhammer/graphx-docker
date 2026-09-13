@@ -7,12 +7,17 @@
 #include <chrono>
 #include <csignal>
 #include <fcntl.h>
+#include <poll.h>
 #include <stdexcept>
 #include <sys/resource.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <thread>
 #include <unistd.h>
+#if defined(__linux__)
+#include <sched.h>
+#include <sys/prctl.h>
+#endif
 
 namespace graphx::infra::detail {
 void require_available_tcp_port(std::uint16_t port) {
@@ -124,19 +129,71 @@ OwnedResourceIdentity start_native_process(
     ::close(log);
     throw std::runtime_error("E_PROCESS_START: cannot create registration gate");
   }
+  std::array<int, 2> executed{};
+  if (::pipe(executed.data()) != 0) {
+    ::close(log);
+    ::close(gate[0]);
+    ::close(gate[1]);
+    throw std::runtime_error("E_PROCESS_START: cannot create exec confirmation pipe");
+  }
+  if (::fcntl(executed[1], F_SETFD, FD_CLOEXEC) != 0) {
+    ::close(log);
+    ::close(gate[0]);
+    ::close(gate[1]);
+    ::close(executed[0]);
+    ::close(executed[1]);
+    throw std::runtime_error("E_PROCESS_START: cannot configure exec confirmation pipe");
+  }
+  int network_namespace = -1;
+  if (!options.network_namespace.empty()) {
+#if defined(__linux__)
+    network_namespace =
+        ::open(options.network_namespace.c_str(), O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
+    struct stat metadata{};
+    if (network_namespace < 0 || ::fstat(network_namespace, &metadata) != 0 ||
+        static_cast<std::uint64_t>(metadata.st_ino) != options.namespace_inode) {
+      if (network_namespace >= 0) ::close(network_namespace);
+      ::close(log);
+      ::close(gate[0]);
+      ::close(gate[1]);
+      ::close(executed[0]);
+      ::close(executed[1]);
+      throw std::runtime_error("E_NAMESPACE_IDENTITY: cannot enter replaced namespace");
+    }
+#else
+    ::close(log);
+    ::close(gate[0]);
+    ::close(gate[1]);
+    ::close(executed[0]);
+    ::close(executed[1]);
+    throw std::runtime_error("E_TARGET: namespace processes require Linux");
+#endif
+  }
   const auto pid = ::fork();
   if (pid == 0) {
+    ::close(executed[0]);
     ::close(gate[1]);
     char release{};
     if (::read(gate[0], &release, 1) != 1 || release != 'R') ::_exit(125);
     ::close(gate[0]);
+#if defined(__linux__)
+    if (network_namespace >= 0 && (::setns(network_namespace, CLONE_NEWNET) != 0 ||
+                                   ::prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0))
+      ::_exit(125);
+#endif
     if (::setsid() < 0 || ::chdir(options.cwd.c_str()) != 0) ::_exit(125);
     const int null = ::open("/dev/null", O_RDONLY);
     if (null < 0 || ::dup2(null, STDIN_FILENO) < 0 || ::dup2(log, STDOUT_FILENO) < 0 ||
         ::dup2(log, STDERR_FILENO) < 0)
       ::_exit(125);
     const auto maximum = ::sysconf(_SC_OPEN_MAX);
-    for (int fd = 3; fd < maximum; ++fd) ::close(fd);
+    for (int fd = 3; fd < maximum; ++fd)
+      if (fd != executed[1]) ::close(fd);
+    if (options.file_bytes_limit) {
+      const rlimit limit{static_cast<rlim_t>(options.file_bytes_limit),
+                         static_cast<rlim_t>(options.file_bytes_limit)};
+      if (::setrlimit(RLIMIT_FSIZE, &limit) != 0) ::_exit(125);
+    }
     ::signal(SIGINT, SIG_DFL);
     ::signal(SIGTERM, SIG_DFL);
     ::signal(SIGPIPE, SIG_DFL);
@@ -153,9 +210,12 @@ OwnedResourceIdentity start_native_process(
     ::execve(argv.front(), argv.data(), envp.data());
     ::_exit(127);
   }
+  ::close(executed[1]);
+  if (network_namespace >= 0) ::close(network_namespace);
   ::close(log);
   ::close(gate[0]);
   if (pid < 0) {
+    ::close(executed[0]);
     ::close(gate[1]);
     throw std::runtime_error("E_PROCESS_START: fork failed");
   }
@@ -170,8 +230,18 @@ OwnedResourceIdentity start_native_process(
     register_identity(resource);
     if (::write(gate[1], "R", 1) != 1) throw std::runtime_error("E_PROCESS_START: gate failed");
     ::close(gate[1]);
+    gate[1] = -1;
+    pollfd completion{executed[0], POLLIN | POLLHUP, 0};
+    const auto confirmed = ::poll(&completion, 1, 10000);
+    if (confirmed < 0 && errno == EINTR)
+      throw std::runtime_error(
+          "E_INTERRUPTED: process startup interrupted before exec confirmation");
+    if (confirmed <= 0) throw std::runtime_error("E_PROCESS_START: exec confirmation timed out");
+    ::close(executed[0]);
+    executed[0] = -1;
   } catch (...) {
-    ::close(gate[1]);
+    if (executed[0] >= 0) ::close(executed[0]);
+    if (gate[1] >= 0) ::close(gate[1]);
     ::kill(pid, SIGKILL);
     ::waitpid(pid, nullptr, 0);
     throw;

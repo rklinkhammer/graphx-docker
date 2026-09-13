@@ -1,5 +1,6 @@
 #include "infra/endpoint_resources.hpp"
 #include "infra/namespace_resources.hpp"
+#include "infra/management_policy.hpp"
 #include "infra/ovs_resources.hpp"
 
 #include <iostream>
@@ -12,6 +13,19 @@ void require(bool condition, const char* message) {
   if (!condition) throw std::runtime_error(message);
 }
 
+void test_policy_identity() {
+  const std::string initial =
+      R"({"nftables":[{"metainfo":{"version":"1"}},{"rule":{"handle":1,"expr":[{"counter":{"packets":1,"bytes":1}},{"accept":null}]}}]})";
+  const std::string counted =
+      R"({"nftables":[{"metainfo":{"version":"2"}},{"rule":{"handle":7,"expr":[{"counter":{"packets":77,"bytes":999}},{"accept":null}]}}]})";
+  const std::string replaced = R"({"nftables":[{"rule":{"expr":[{"counter":{}},{"drop":null}]}}]})";
+  const auto digest = [](const auto& json) {
+    return graphx::infra::detail::nft_policy_identity({"printf", "%s", json});
+  };
+  require(digest(initial) == digest(counted),
+          "counters and kernel handles are not policy identity");
+  require(digest(initial) != digest(replaced), "policy replacement must change identity");
+}
 void test_owned_names() {
   graphx::infra::detail::OwnershipState state;
   state.owner_token = "0123456789abcdef0123456789abcdef";
@@ -45,6 +59,7 @@ void test_ovs_planning_helpers() {
 int main() {
   try {
     test_owned_names();
+    test_policy_identity();
     test_ovs_planning_helpers();
     std::cout << "GraphX resource module tests passed\n";
     return 0;

@@ -1,6 +1,7 @@
 #include "infra/capture_resources.hpp"
 
 #include "infra/command_runner.hpp"
+#include "infra/process_resources.hpp"
 #include "infra/endpoint_resources.hpp"
 
 #include <algorithm>
@@ -63,31 +64,6 @@ void detach_child_io() {
     ::close(descriptor);
 }
 
-std::uint32_t spawn_process(const std::vector<std::string>& arguments, std::string_view marker,
-                            const std::filesystem::path& diagnostic_path) {
-  const auto spawned =
-      infra::detail::spawn_background({.arguments = arguments, .diagnostic_path = diagnostic_path});
-  const auto child = static_cast<pid_t>(spawned.pid);
-  if (spawned.exec_error != 0) {
-    while (::waitpid(child, nullptr, 0) < 0 && errno == EINTR) {
-    }
-    throw std::system_error(spawned.exec_error, std::generic_category(), "execvp");
-  }
-  const auto pid = static_cast<std::uint32_t>(child);
-  for (int attempt = 0; attempt < 100; ++attempt) {
-    const auto start = process_start_time(pid);
-    const auto command = process_command(pid);
-    if (!start.empty() && command.find(marker) != std::string::npos) return pid;
-    int status{};
-    if (::waitpid(child, &status, WNOHANG) == child)
-      throw std::runtime_error("owned process exited during startup");
-    ::usleep(20'000);
-  }
-  ::kill(child, SIGKILL);
-  ::waitpid(child, nullptr, 0);
-  throw std::runtime_error("owned process did not become identifiable");
-}
-
 bool process_owned(std::uint32_t pid, const std::string& start_time, std::string_view marker) {
   return pid != 0 && !start_time.empty() && process_start_time(pid) == start_time &&
          process_command(pid).find(marker) != std::string::npos;
@@ -133,7 +109,8 @@ bool directory_identity_matches(const OwnedCapture& capture) {
       ::open(capture.session_directory.c_str(), O_RDONLY | O_DIRECTORY | O_NOFOLLOW));
   struct stat metadata{};
   return directory.get() >= 0 && ::fstat(directory.get(), &metadata) == 0 &&
-         capture_directory_metadata_matches(capture, metadata);
+         (capture_directory_metadata_matches(capture, metadata) ||
+          capture_directory_metadata_matches(capture, metadata, 0550));
 }
 
 bool capture_file_metadata_is_safe(const OwnedCapture& capture, const struct stat& metadata) {
@@ -345,9 +322,12 @@ void prune_expired_capture_sessions(const NetworkCaptureDefinition& definition) 
   }
 }
 
-OwnedCapture create_capture(const ExpectedCapture& expected, const OwnershipState& state) {
+OwnedCapture create_capture(const ExpectedCapture& expected, const OwnershipState& state,
+                            const std::function<void(const OwnedCapture&)>& register_identity) {
   const auto& definition = expected.definition;
   std::error_code error;
+  if (state.handoff_name.size() != 40)
+    throw std::runtime_error("capture requires owned handoff generation");
   ensure_real_directory_tree(definition.directory);
   struct stat storage_boundary{};
   if (::lstat("/var/lib/graphx/captures", &storage_boundary) != 0 ||
@@ -360,8 +340,8 @@ OwnedCapture create_capture(const ExpectedCapture& expected, const OwnershipStat
   if (error || !std::filesystem::is_directory(root_status) ||
       std::filesystem::is_symlink(root_status))
     throw std::runtime_error("capture root must be a real directory");
-  const auto session =
-      std::filesystem::path(definition.directory) / (definition.id + "-" + state.owner_token);
+  const auto session = std::filesystem::path(definition.directory) /
+                       (definition.id + "-" + state.handoff_name.substr(8));
   if (::mkdir(session.c_str(), 0700) != 0)
     throw std::system_error(errno, std::generic_category(), "cannot create capture session");
   struct stat metadata{};
@@ -391,8 +371,20 @@ OwnedCapture create_capture(const ExpectedCapture& expected, const OwnershipStat
   capture.directory_gid = static_cast<std::uint32_t>(metadata.st_gid);
   capture.directory_mode = static_cast<std::uint32_t>(metadata.st_mode & 0777);
   try {
-    capture.pid = spawn_process(command, session.string(), diagnostic);
-    capture.process_start_time = process_start_time(capture.pid);
+    NativeProcessOptions start;
+    start.id = "capture-" + definition.id;
+    start.executable = "/usr/bin/dumpcap";
+    start.argv = command;
+    start.argv.front() = start.executable.string();
+    start.cwd = session;
+    start.log = diagnostic;
+    start.file_bytes_limit = definition.max_file_bytes + definition.snaplen + 4096;
+    start.environment = {{"PATH", "/usr/sbin:/usr/bin:/sbin:/bin"}};
+    start_native_process(start, [&](const auto& process) {
+      capture.pid = static_cast<std::uint32_t>(std::stoul(process.stable_id));
+      capture.process_start_time = process.secondary_id;
+      register_identity(capture);
+    });
     if (!capture.ifindex || capture.process_start_time.empty())
       throw std::runtime_error("cannot record capture process identity");
     for (int attempt = 0;
@@ -407,7 +399,7 @@ OwnedCapture create_capture(const ExpectedCapture& expected, const OwnershipStat
     std::string diagnostic_text((std::istreambuf_iterator<char>(diagnostic_input)),
                                 std::istreambuf_iterator<char>());
     if (diagnostic_text.size() > 4096) diagnostic_text.resize(4096);
-    std::filesystem::remove_all(session, error);
+    // The registered directory and process remain in the common ledger for rollback.
     if (!diagnostic_text.empty())
       throw std::runtime_error("dumpcap startup failed: " + diagnostic_text);
     std::rethrow_exception(original);
@@ -429,13 +421,15 @@ bool stop_capture(const OwnedCapture& capture) {
       ::open(capture.session_directory.c_str(), O_RDONLY | O_DIRECTORY | O_NOFOLLOW));
   struct stat metadata{};
   if (directory.get() < 0 || ::fstat(directory.get(), &metadata) != 0 ||
-      !capture_directory_metadata_matches(capture, metadata))
+      !(capture_directory_metadata_matches(capture, metadata) ||
+        capture_directory_metadata_matches(capture, metadata, 0550)))
     return false;
   if (!stop_owned_process(capture.pid, capture.process_start_time,
                           capture.session_directory.string()))
     return false;
   if (::fstat(directory.get(), &metadata) != 0 ||
-      !capture_directory_metadata_matches(capture, metadata) ||
+      !(capture_directory_metadata_matches(capture, metadata) ||
+        capture_directory_metadata_matches(capture, metadata, 0550)) ||
       !seal_capture_session_files(directory.get()) || ::fchmod(directory.get(), 0550) != 0)
     return false;
   struct stat published{};

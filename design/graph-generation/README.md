@@ -9,13 +9,16 @@ application verification. P3 implements deterministic compilation; see
 catalog pins from verified OCI bytes; see [P4 verification](p4-verification.md).
 This review package retains illustrative
 expected artifacts; maintained compiler goldens live under `tests/fixtures/compiled`.
-P5 adds the default platform and credential staging; see [P5 verification](p5-verification.md). Later execution phases are not implemented.
+P5 adds the default platform and credential staging; see [P5 verification](p5-verification.md). P6 implements finite native/portable execution; see [P6 verification](p6-verification.md).
+P7 implements compiled OVS preparation and ownership with S07–S12 Lima acceptance verified;
+see [P7 verification](p7-verification.md). Guest and scenario execution remain gated.
 
 The design meets the simplification objective if the binding and execution
 boundaries in [architecture.md](architecture.md) land together. A topology change
 then edits one graph and ordinarily creates zero Dockerfiles. Review the complete
 example package before starting [the implementation phases](implementation-plan.md).
-There are no newly discovered blocking issues. Remaining engineering risks and
+S14 physical startup is gated pending a separate physical-uplink ownership contract,
+as selected during P7. Remaining engineering risks and
 selected restrictions are documented in the architecture, not reopened decisions.
 
 ## Reading the package

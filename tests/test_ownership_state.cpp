@@ -113,6 +113,44 @@ void test_round_trip_and_publication() {
       "failed atomic publication left temporary state");
 }
 
+void test_network_extensions() {
+  TemporaryDirectory temporary;
+  auto state = load_state(secure_fixture_copy(temporary, "current"));
+  graphx::infra::detail::ExpectedEndpoint endpoint;
+  endpoint.id = "right-data";
+  endpoint.owner = "right";
+  endpoint.kind = graphx::AttachmentKind::namespace_veth;
+  endpoint.host_interface = "gxpright";
+  endpoint.target_interface = "gxiright";
+  endpoint.network_switch = "gxbright";
+  endpoint.namespace_name = "gxright";
+  endpoint.namespace_inode = 1;
+  endpoint.address = "10.64.3.10/24";
+  endpoint.aliases = {"10.64.30.10/32"};
+  endpoint.management_policy = std::string(64, 'a');
+  endpoint.routes.push_back({"10.65.0.0/24", "10.64.3.1", {}, false});
+  state.expected_endpoints.push_back(endpoint);
+  state.handoff_name = "handoff-" + std::string(32, 'a');
+  state.handoff_inode = 42;
+  const auto path = temporary.path() / "network.yaml";
+  save_state(path, state);
+  auto loaded = load_state(path);
+  require(loaded.expected_endpoints.front().aliases == endpoint.aliases &&
+              loaded.expected_endpoints.front().management_policy == endpoint.management_policy &&
+              !loaded.expected_endpoints.front().routes.front().install_on_create &&
+              loaded.handoff_inode == 42,
+          "network extension round trip");
+  loaded.expected_endpoints.front().aliases.push_back(endpoint.aliases.front());
+  save_state(path, loaded);
+  expect_failure([&] { static_cast<void>(load_state(path)); }, "duplicate aliases accepted");
+  state.handoff_name = "../foreign";
+  save_state(path, state);
+  expect_failure([&] { static_cast<void>(load_state(path)); }, "handoff traversal accepted");
+  state.handoff_name = "handoff-" + std::string(32, 'a');
+  state.expected_endpoints.front().management_policy = "forged";
+  save_state(path, state);
+  expect_failure([&] { static_cast<void>(load_state(path)); }, "invalid policy identity accepted");
+}
 void test_process_inventory() {
   TemporaryDirectory temporary;
   auto state = load_state(secure_fixture_copy(temporary, "current"));
@@ -244,6 +282,7 @@ int main() {
   try {
     test_round_trip_and_publication();
     test_process_inventory();
+    test_network_extensions();
     test_rejected_state_files();
     test_state_root_and_lock_security();
     test_identity_and_hash_helpers();

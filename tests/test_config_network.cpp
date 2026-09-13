@@ -1,6 +1,22 @@
 #include "config_test_support.hpp"
 using namespace config_test;
 namespace {
+void runtime_projection() {
+  const auto config = load_value(authored("static-route-policy"));
+  const auto& network = config.network_infrastructure;
+  expect(network.routers.size() == 4, "router and diagnostic namespaces share ownership");
+  expect(network.attachments.size() == 9, "router attachments expanded once including mirrors");
+  expect(network.routers.front().routes.size() == 1 &&
+             !network.routers.front().routes.front().install_on_create,
+         "deferred route remains manual");
+  for (const auto& attachment : network.attachments) {
+    if (attachment.id == "right-data")
+      expect(attachment.aliases == std::vector<std::string>{"10.64.30.10/32"},
+             "alias survives projection");
+    expect(attachment.network_switch.starts_with("gxb"), "physical switch references are resolved");
+  }
+  expect(network.faults.empty(), "scenario actions are not baseline faults");
+}
 void logical_network_resolves() {
   const auto value = load_value(authored("qemu-node/tap")).resolved;
   const auto& network = value.at("network");
@@ -100,7 +116,8 @@ void infrastructure_transaction_rolls_back_identity_probe_failure() {
 }  // namespace
 int main() {
   return run_tests(
-      {{"logical network resolution", logical_network_resolves},
+      {{"runtime network projection", runtime_projection},
+       {"logical network resolution", logical_network_resolves},
        {"rollback reverse", infrastructure_transaction_rolls_back_in_reverse},
        {"preserve replacement", infrastructure_transaction_preserves_replacement},
        {"identity probe failure", infrastructure_transaction_rolls_back_identity_probe_failure}});

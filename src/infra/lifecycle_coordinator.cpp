@@ -6,6 +6,7 @@
 #include "infra/fault_resources.hpp"
 #include "infra/lifecycle_coordinator.hpp"
 #include "infra/namespace_resources.hpp"
+#include "infra/management_policy.hpp"
 #include "infra/ovs_resources.hpp"
 #include "infra/ownership_lock.hpp"
 #include "infra/ownership_state.hpp"
@@ -76,6 +77,7 @@ class FileDescriptor {
 int run(const std::vector<std::string>& arguments, std::string* captured = nullptr) {
   infra::detail::CommandOptions options;
   options.arguments = arguments;
+  options.timeout_ms = 10000;
   options.capture_output = captured != nullptr;
   auto result = infra::detail::run_command(options);
   if (captured) *captured = std::move(result.output);
@@ -105,12 +107,11 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
                                               const std::filesystem::path& config_path,
                                               OvsLifecycleAction action, bool dry_run,
                                               const std::filesystem::path& state_root,
-                                              std::ostream& output, std::ostream& errors) {
-  if (config.version == 3)
-    throw std::logic_error("E_PHASE_UNAVAILABLE: v3 resource realization requires P7/P8");
+                                              std::ostream& output, std::ostream& errors,
+                                              OvsExecutionContext* context) {
   if (config.version != 3) throw std::invalid_argument("OVS lifecycle requires authored version 3");
   const auto hash = configuration_hash(config_path);
-  const auto state_path = state_root / (config.id + ".yaml");
+  const auto state_path = state_root / config.id / "ownership.yml";
   if (dry_run) {
     if (action == OvsLifecycleAction::create) {
       output << "# ownership-state " << state_path << "\n";
@@ -140,12 +141,25 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
         } else if (item.kind == AttachmentKind::external) {
           output << "external-boundary " << item.id << " owner=" << item.owner << " unchanged\n";
         }
+        for (const auto& alias : item.aliases)
+          output << "netns[" << item.owner << "] ip address replace " << alias << " dev "
+                 << item.interface << '\n';
         for (const auto& route : item.routes) {
+          if (!route.install_on_create) continue;
           output << "netns[" << item.owner << "] ip route replace " << route.destination;
           if (!route.via.empty()) output << " via " << route.via;
           output << " dev " << item.interface << '\n';
         }
       }
+      if (!config.resolved.is_null())
+        for (const auto& node : config.resolved.at("nodes").array())
+          if (node.at("execution").at("kind") == ConfigValue("container"))
+            output << "management-acl node=" << node.at("node_id").text() << " allow=platform/tcp:"
+                   << config.resolved.at("platform").at("console").at("port").integer()
+                   << ",platform/udp:"
+                   << config.resolved.at("platform").at("telemetry").at("port").integer()
+                   << " return=established,related deny=other-management-and-forwarding "
+                      "before=application-bind\n";
       for (const auto& capture : config.network_infrastructure.captures)
         output << "dumpcap attachment=" << capture.attachment << " format=ethernet-pcapng"
                << " directory=" << capture.directory << " snaplen=" << capture.snaplen
@@ -208,13 +222,56 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
     return 0;
   }
 
-  const auto lock_path = state_root / (config.id + ".lock");
+  if (!context)
+    throw std::logic_error("E_PHASE_UNAVAILABLE: use the compiled graph runner for OVS execution");
+  if (context->lock.descriptor() < 0 || context->state.graph_id != config.id ||
+      context->state.config_hash != hash)
+    throw std::runtime_error("E_EXECUTION_IDENTITY: OVS context does not match compilation");
+#if !defined(__linux__)
+  throw std::runtime_error("E_TARGET: OVS realization requires a local Linux Docker engine");
+#endif
+  const auto checkpoint = [&] {
+    if (context->cancelled && context->cancelled())
+      throw std::runtime_error(
+          "E_INTERRUPTED: OVS preparation interrupted before application release");
+  };
+  const auto recover_namespaces = [&](OwnershipState& state) {
+    for (const auto& name : state.expected_namespaces) {
+      if (std::ranges::find(state.namespaces, name, &OwnedResourceIdentity::name) !=
+          state.namespaces.end())
+        continue;
+      const auto inode = namespace_inode(name);
+      if (!inode) continue;
+      OwnedResourceIdentity recovered;
+      recovered.kind = "linux_namespace";
+      recovered.name = name;
+      recovered.namespace_inode = *inode;
+      if (!namespace_owned(recovered, state))
+        throw std::runtime_error(
+            "E_NAMESPACE_IDENTITY: interrupted namespace lacks ownership proof; state retained");
+      state.namespaces.push_back(recovered);
+      for (auto& endpoint : state.expected_endpoints)
+        if (endpoint.namespace_name == name) endpoint.namespace_inode = *inode;
+      save_state(state_path, state);
+    }
+  };
+  const auto clear_infrastructure = [](OwnershipState& state) {
+    state.expected_bridges.clear();
+    state.bridges.clear();
+    state.expected_endpoints.clear();
+    state.endpoints.clear();
+    state.expected_namespaces.clear();
+    state.namespaces.clear();
+    state.expected_captures.clear();
+    state.captures.clear();
+    state.expected_faults.clear();
+    state.faults.clear();
+  };
   if (action == OvsLifecycleAction::status) {
     if (!inspect_existing_state_root(state_root) || !path_entry_exists(state_path)) {
       output << "No OVS ownership state for graph " << config.id << '\n';
       return 2;
     }
-    auto lock = OwnershipLock::open_existing(lock_path, OwnershipLockMode::shared);
     const auto state = load_state(state_path);
     if (state.graph_id != config.id) throw std::runtime_error("ownership state graph mismatch");
     const bool config_matches = state.config_hash == hash;
@@ -255,7 +312,11 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
       healthy = healthy && owned;
     }
     for (const auto& item : state.namespaces) {
-      const bool owned = namespace_owned(item, state);
+      const bool owned =
+          namespace_owned(item, state) &&
+          (item.rule_identity.empty() ||
+           item.rule_identity == nft_policy_identity({"ip", "netns", "exec", item.name, "nft", "-j",
+                                                      "list", "table", "inet", "graphx"}));
       output << "linux_namespace " << item.name << " netns-inode=" << *item.namespace_inode
              << " state=" << (owned ? "owned" : "missing-or-replaced") << '\n';
       healthy = healthy && owned;
@@ -280,26 +341,20 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
              << (owned ? (active ? "active" : "expired") : "missing-or-replaced") << '\n';
       healthy = healthy && owned;
     }
+    healthy = healthy && management_policy_matches(config, state);
     return healthy ? 0 : 2;
   }
 
-  ensure_state_root(state_root);
-  // Refuse even a dangling symlink before create mutates the per-graph state
-  // directory by opening or creating its lock.
-  if (action == OvsLifecycleAction::create && path_entry_exists(state_path))
-    throw std::runtime_error("ownership state already exists; inspect, destroy, or recover it");
-  auto lock = OwnershipLock::open_or_create(lock_path, OwnershipLockMode::exclusive);
-
   if (action == OvsLifecycleAction::create) {
-    if (path_entry_exists(state_path))
-      throw std::runtime_error("ownership state already exists; inspect, destroy, or recover it");
+    if (!context->state.expected_bridges.empty() || !context->state.expected_endpoints.empty() ||
+        !context->state.expected_namespaces.empty() || !context->state.bridges.empty() ||
+        !context->state.endpoints.empty() || !context->state.namespaces.empty())
+      throw std::runtime_error(
+          "E_EXECUTION_ACTIVE: infrastructure requires identity-checked cleanup");
     for (const auto& item : config.network_infrastructure.switches)
       if (bridge_exists(item.id))
         throw std::runtime_error("refusing unowned OVS bridge collision: " + item.id);
-    OwnershipState state;
-    state.graph_id = config.id;
-    state.config_hash = hash;
-    state.owner_token = random_token();
+    auto& state = context->state;
     state.status = "creating";
     for (const auto& item : config.network_infrastructure.switches)
       state.expected_bridges.push_back(item.id);
@@ -335,11 +390,12 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
       endpoint.mac = item.mac;
       endpoint.mtu = item.mtu;
       endpoint.routes = item.routes;
+      endpoint.aliases = item.aliases;
       endpoint.tap_uid = item.tap_uid;
       endpoint.tap_gid = item.tap_gid;
       if (item.kind == AttachmentKind::container_veth) {
         auto [container_entry, inserted] = containers.try_emplace(item.owner);
-        if (inserted) container_entry->second = resolve_container(config, item.owner);
+        if (inserted) container_entry->second = resolve_owned_container(config, item.owner, state);
         const auto& container = container_entry->second;
         endpoint.container_id = container.id;
         endpoint.namespace_inode = container.namespace_inode;
@@ -404,10 +460,11 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
                                  fault.attachment);
       state.expected_faults.push_back({fault, endpoint->host_interface});
     }
-    save_state(state_path, state, false);
+    save_state(state_path, state);
     try {
       std::size_t mutation{};
       for (const auto& item : config.network_infrastructure.switches) {
+        checkpoint();
         std::string uuid;
         const std::vector<std::string> command = {
             "ovs-vsctl",
@@ -437,6 +494,7 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
         save_state(state_path, state);
       }
       for (const auto& [id, router] : routers) {
+        checkpoint();
         output << "+ linux_namespace " << router->namespace_name << '\n';
         state.namespaces.push_back(create_namespace(*router, state));
         for (auto& endpoint : state.expected_endpoints)
@@ -447,6 +505,7 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
         inject_test_interruption(mutation);
       }
       for (const auto& endpoint : state.expected_endpoints) {
+        checkpoint();
         output << "+ " << to_string(endpoint.kind) << ' ' << endpoint.id
                << " host=" << endpoint.host_interface << " switch=" << endpoint.network_switch
                << '\n';
@@ -463,7 +522,10 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
         inject_test_interruption(mutation);
         save_state(state_path, state);
       }
+      checkpoint();
       install_profile_flows(config, state);
+      install_management_policy(config, state);
+      save_state(state_path, state);
       for (const auto& [id, router] : routers) {
         if (router->forwarding && run({"ip", "netns", "exec", router->namespace_name, "sysctl",
                                        "-q", "-w", "net.ipv4.ip_forward=1"}) != 0)
@@ -491,13 +553,22 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
                      "graphx", "forward", "ip", "saddr", policy.source, "ip", "daddr",
                      policy.destination, "counter", policy.action}) != 0)
               throw std::runtime_error("cannot install router policy " + policy.id);
+          auto owned = std::ranges::find(state.namespaces, router->namespace_name,
+                                         &OwnedResourceIdentity::name);
+          owned->rule_identity =
+              nft_policy_identity({"ip", "netns", "exec", router->namespace_name, "nft", "-j",
+                                   "list", "table", "inet", "graphx"});
+          save_state(state_path, state);
         }
       }
       for (const auto& capture : state.expected_captures) {
+        checkpoint();
         output << "+ network_capture " << capture.definition.id
                << " interface=" << capture.interface << '\n';
-        state.captures.push_back(create_capture(capture, state));
-        save_state(state_path, state);
+        create_capture(capture, state, [&](const auto& owned) {
+          state.captures.push_back(owned);
+          save_state(state_path, state);
+        });
         ++mutation;
         inject_test_interruption(mutation);
       }
@@ -514,6 +585,7 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
       output << "GraphX OVS laboratory state ready: " << state_path << '\n';
       return 0;
     } catch (...) {
+      recover_namespaces(state);
       errors << "graphx: create interrupted; recovering owned OVS/container mutations\n";
       for (auto iterator = state.faults.rbegin(); iterator != state.faults.rend(); ++iterator)
         if (!clear_fault(*iterator))
@@ -601,10 +673,8 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
                    << iterator->name << '\n';
           }
         }
-      if (cleanup_complete)
-        std::filesystem::remove(state_path);
-      else
-        save_state(state_path, state);
+      if (cleanup_complete) clear_infrastructure(state);
+      save_state(state_path, state);
       throw;
     }
   }
@@ -612,7 +682,7 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
   if (!path_entry_exists(state_path)) {
     throw std::runtime_error("no ownership state for graph " + config.id);
   }
-  auto state = load_state(state_path);
+  auto& state = context->state;
   if (state.graph_id != config.id) throw std::runtime_error("ownership state graph mismatch");
   const bool config_matches = state.config_hash == hash;
   if (!config_matches)
@@ -622,6 +692,7 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
   if (action == OvsLifecycleAction::recover && state.status == "ready")
     throw std::runtime_error("ownership state is ready; use infra destroy, not recover");
 
+  recover_namespaces(state);
   // Recover an atomic bridge mutation that completed before its state update.
   for (const auto& name : state.expected_bridges) {
     bool recorded{};
@@ -721,7 +792,11 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
       throw std::runtime_error("refusing replaced mirror peer: " + item.attachment_id);
   }
   for (const auto& item : state.namespaces)
-    if (namespace_inode(item.name) && !namespace_owned(item, state))
+    if (namespace_inode(item.name) &&
+        (!namespace_owned(item, state) ||
+         (!item.rule_identity.empty() &&
+          item.rule_identity != nft_policy_identity({"ip", "netns", "exec", item.name, "nft", "-j",
+                                                     "list", "table", "inet", "graphx"}))))
       throw std::runtime_error("refusing to delete replaced Linux namespace: " + item.name);
   for (const auto& item : state.captures) {
     if (!directory_identity_matches(item))
@@ -734,6 +809,9 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
   for (const auto& item : state.faults)
     if (!fault_healthy(item))
       throw std::runtime_error("refusing replaced fault target, timer, or qdisc: " + item.id);
+  if (!management_policy_matches(config, state, true))
+    throw std::runtime_error("E_MANAGEMENT_ACL: policy identity changed; nothing removed");
+  if (context->validate_only) return 0;
   state.status = "destroying";
   save_state(state_path, state);
   for (auto iterator = state.faults.rbegin(); iterator != state.faults.rend(); ++iterator) {
@@ -767,7 +845,8 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
       throw std::runtime_error("identity changed while deleting owned OVS bridge " +
                                iterator->name);
   }
-  std::filesystem::remove(state_path);
+  clear_infrastructure(state);
+  save_state(state_path, state);
   output << "GraphX OVS laboratory state removed\n";
   return 0;
 }
@@ -777,17 +856,18 @@ int infra::detail::export_owned_network_capture_impl(const GraphConfig& config,
                                                      std::string_view capture_id,
                                                      const std::filesystem::path& state_root,
                                                      const std::filesystem::path& destination,
-                                                     std::ostream& output) {
-  if (config.version == 3)
-    throw std::logic_error("E_PHASE_UNAVAILABLE: v3 resource realization requires P7/P8");
+                                                     std::ostream& output,
+                                                     const OwnershipState* locked_state) {
   if (config.version != 3)
     throw std::invalid_argument("network capture export requires authored version 3");
   if (!inspect_existing_state_root(state_root))
     throw std::runtime_error("network capture ownership state is unavailable");
-  const auto state_path = state_root / (config.id + ".yaml");
-  const auto lock_path = state_root / (config.id + ".lock");
-  auto lock = OwnershipLock::open_existing(lock_path, OwnershipLockMode::shared);
-  const auto state = load_state(state_path);
+  const auto state_path = state_root / config.id / "ownership.yml";
+  const auto lock_path = state_root / config.id / ".lock";
+  std::optional<OwnershipLock> lock;
+  if (!locked_state)
+    lock.emplace(OwnershipLock::open_existing(lock_path, OwnershipLockMode::shared));
+  const auto state = locked_state ? *locked_state : load_state(state_path);
   if (state.graph_id != config.id || state.config_hash != configuration_hash(config_path) ||
       state.status != "ready")
     throw std::runtime_error("network capture export requires matching ready ownership state");

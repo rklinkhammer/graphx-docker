@@ -156,6 +156,22 @@ void tests(const std::string& executable) {
   expect(identified, "background process identity was not observable");
 #endif
   reap(static_cast<pid_t>(background.pid));
+#if defined(__linux__)
+  // An exiting process must not look like a live process with a substituted executable.
+  for (int attempt = 0; attempt < 25; ++attempt) {
+    const auto exiting =
+        spawn_background(BackgroundOptions{.arguments = {executable, "--fixture", "sleep", "5"}});
+    expect(exiting.exec_error == 0, "exit-race fixture failed");
+    for (int probe = 0; probe < 100; ++probe) {
+      const auto identity = inspect_process(exiting.pid);
+      expect(!identity.executable.empty() || identity.exited || identity.start_time.empty(),
+             "exited executable was paired with stale live process state");
+      if (identity.exited || identity.start_time.empty()) break;
+      ::usleep(1000);
+    }
+    reap(static_cast<pid_t>(exiting.pid));
+  }
+#endif
 }
 
 }  // namespace

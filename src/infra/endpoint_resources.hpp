@@ -15,6 +15,8 @@ struct ResolvedContainer {
   std::uint64_t namespace_inode{};
 };
 
+ResolvedContainer resolve_owned_container(const GraphConfig& config, std::string_view owner,
+                                          const OwnershipState& state);
 ResolvedContainer resolve_container(const GraphConfig& config, std::string_view owner);
 std::optional<std::uint32_t> link_ifindex(const std::string& name);
 std::string link_alias(const std::string& name);

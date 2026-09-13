@@ -85,60 +85,15 @@ graphx_demo_dispatch_lima() {
       return 2
     }
   case "$action" in plan|status) deadline=120 ;; up|down) deadline=1800 ;; esac
+  local -a runner=(env)
+  [[ $action == plan ]] || runner=(sudo env)
   "${GRAPHX_LIMA_RUNNER}" "${deadline}" limactl shell --workdir "${GRAPHX_LIMA_GUEST_ROOT}" \
-    "${GRAPHX_LIMA_INSTANCE}" -- env GRAPHX_BIN="${guest_graphx}" \
+    "${GRAPHX_LIMA_INSTANCE}" -- "${runner[@]}" GRAPHX_BIN="${guest_graphx}" \
+    GX_OUTPUT="$GX_OUTPUT" GX_STATE="$GX_STATE" GX_RELEASE="${GX_RELEASE:-}" \
+    GRAPHX_IMAGE_RELEASE="${GRAPHX_IMAGE_RELEASE:-}" GX_CREDENTIALS="${GX_CREDENTIALS:-}" \
+    GRAPHX_EXTERNAL_CREDENTIALS="${GRAPHX_EXTERNAL_CREDENTIALS:-}" \
+    GRAPHX_ALLOW_PRIVILEGED="${GRAPHX_ALLOW_PRIVILEGED:-0}" \
     scripts/network-lab.sh "${lab}" "${action}"
-}
-
-graphx_demo_ovs_lab_local() {
-  local action=$1 example_dir=$2 project=$3 repo_root=$4 graphx=$5
-  local compose_path="$repo_root/examples/network-lab.compose.yaml"
-  local config="$example_dir/graphx.yml"
-  local -a compose=(sudo env GRAPHX_REPO_ROOT="$repo_root" GRAPHX_LAB_CONFIG="$config"
-    docker compose -p "$project" -f "$compose_path")
-  case "$action" in
-    up)
-      "${compose[@]}" up -d --build
-      if ! sudo "$graphx" infra create "$config"; then
-        "${compose[@]}" down
-        return 1
-      fi
-      sudo "$graphx" infra status "$config"
-      ;;
-    status)
-      sudo "$graphx" infra status "$config"
-      "${compose[@]}" ps
-      ;;
-    down)
-      sudo "$graphx" infra destroy "$config"
-      "${compose[@]}" down
-      ;;
-    *)
-      echo "unsupported action: $action" >&2
-      return 64
-      ;;
-  esac
-}
-
-graphx_demo_ovs_lab() {
-  local action=$1 example_dir=$2 project=$3 repo_root=$4
-  case $(graphx_demo_platform) in
-    Darwin)
-      if [[ ${GRAPHX_DEMO_GUEST:-0} != 1 ]]; then
-        graphx_demo_dispatch_lima "$repo_root" "$(basename "$example_dir")" "$action"
-        return
-      fi
-      ;;
-    Linux) ;;
-    *)
-      echo "Privileged GraphX network labs require native Linux or macOS with Lima." >&2
-      return 1
-      ;;
-  esac
-  graphx_demo_require_compose_runtime
-  local graphx
-  graphx=$(graphx_demo_ensure_dev_build "$repo_root") || return
-  graphx_demo_ovs_lab_local "$action" "$example_dir" "$project" "$repo_root" "$graphx"
 }
 
 graphx_demo_network_lab() {
@@ -149,16 +104,14 @@ graphx_demo_network_lab() {
   case "$action" in plan|up|status|down) ;;
     *) echo "unsupported network laboratory action: $action" >&2; return 64 ;;
   esac
+  : "${GX_OUTPUT:?Set GX_OUTPUT to an existing compiled output directory}"
+  : "${GX_STATE:?Set GX_STATE to the execution state parent directory}"
+  if [[ $action != plan && ${GRAPHX_ALLOW_PRIVILEGED:-0} != 1 ]]; then
+    echo "Set GRAPHX_ALLOW_PRIVILEGED=1 to authorize the local Linux OVS runner" >&2
+    return 2
+  fi
   case $(graphx_demo_platform) in
-    Linux)
-      local graphx
-      graphx=$(graphx_demo_ensure_dev_build "$repo_root") || return
-      if [[ $action == plan ]]; then
-        "$graphx" infra create "$repo_root/examples/$lab/graphx.yml" --dry-run
-      else
-        "$repo_root/examples/$lab/scripts/$action.sh"
-      fi
-      ;;
+    Linux) graphx_demo_run "$action" ;;
     Darwin) graphx_demo_dispatch_lima "$repo_root" "$lab" "$action" ;;
     *)
       echo "system-OVS network laboratories require Linux or Apple Silicon macOS with GraphX Lima." >&2
@@ -171,7 +124,7 @@ graphx_demo_network_lab() {
 # Compile separately so up/status/down always refer to the same artifact identity.
 graphx_demo_run() {
   local action=${1:-status}
-  case "$action" in up|status|down) ;; *) echo "usage: $0 {up|status|down}" >&2; return 64 ;; esac
+  case "$action" in plan|up|status|down) ;; *) echo "usage: $0 {plan|up|status|down}" >&2; return 64 ;; esac
   : "${GX_OUTPUT:?Set GX_OUTPUT to an existing compiled output directory}"
   : "${GX_STATE:?Set GX_STATE to the execution state parent directory}"
   local graphx=${GRAPHX_BIN:-${GX_RELEASE:-}/bin/graphx}
@@ -181,5 +134,6 @@ graphx_demo_run() {
   [[ -z ${GX_CREDENTIALS:-} ]] || args+=(--credentials "$GX_CREDENTIALS")
   [[ -z ${GRAPHX_IMAGE_RELEASE:-} ]] || args+=(--images "$GRAPHX_IMAGE_RELEASE")
   [[ -z ${GRAPHX_EXTERNAL_CREDENTIALS:-} ]] || args+=(--external "$GRAPHX_EXTERNAL_CREDENTIALS")
+  [[ ${GRAPHX_ALLOW_PRIVILEGED:-0} != 1 ]] || args+=(--allow-privileged)
   "$graphx" "${args[@]}"
 }

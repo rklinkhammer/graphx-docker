@@ -48,8 +48,9 @@ OVS capture and telemetry defaults are visible in `platform`.
 
 `graphx run up|status|down` executes native or unprivileged container graphs from
 verified compiled artifacts and releases. See [execution](execution.md) for
-installation, credentials, ownership and cleanup. OVS, namespace, QEMU and scenario
-actions remain gated. Target validation alone is not execution evidence.
+installation, credentials, ownership and cleanup. Compiled OVS/namespace execution
+requires explicit local Linux privileged opt-in, with S07–S12 Lima acceptance verified.
+QEMU and scenario actions remain gated. Target validation alone is not execution evidence.
 
 Use `scripts/verify.sh quick`, `scripts/verify.sh quality`, and
 `scripts/verify.sh portable` for the implemented contract and reusable modules.

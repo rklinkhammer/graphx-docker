@@ -568,6 +568,15 @@ Value connection_values(const Value& graph, const Catalog& catalog, const Value&
       destination_address = address_of(attachments.at(selected.at("to").text()));
     }
     Value settings = member(connection, "settings");
+    if (connection.contains("attachments") && transport == "udp" &&
+        string_or(settings, "mode", "unicast") == "unicast" && settings.contains("destination")) {
+      const auto& attachment = attachments.at(connection.at("attachments").at("to").text());
+      if (attachment.contains("aliases"))
+        for (const auto& alias : attachment.at("aliases").array()) {
+          const auto host = alias.text().substr(0, alias.text().find('/'));
+          if (settings.at("destination") == Value(host)) destination_address = host;
+        }
+    }
     const std::map<std::string, std::set<std::string>> allowed{
         {"tcp",
          {"host", "bind", "port", "framing", "connect_timeout_ms", "send_timeout_ms", "reconnect",
@@ -808,6 +817,7 @@ Value node_values(const Value& graph, const Catalog& catalog, const Value& conne
 }
 
 void project_runtime_types(GraphConfig& config, const Catalog& catalog) {
+  config.network_infrastructure = resolved_network(config.resolved.at("network"));
   // Read-only projections for existing transport and resource APIs. Execution of
   // authored graphs remains explicitly unavailable until the corresponding adapter.
   for (const auto& [id, type] : catalog.types) {

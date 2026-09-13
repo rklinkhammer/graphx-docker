@@ -273,11 +273,17 @@ CompiledGraph compile_graph(const GraphConfig& graph) {
   const bool native = platform.at("telemetry").at("host") == Value("127.0.0.1");
   const auto& network = resolved.at("network");
   const bool ovs = !network.at("switches").array().empty();
-  const bool portable_execution = !ovs && std::ranges::all_of(nodes, [&](const Value& node) {
-    const auto& kind = node.at("execution").at("kind");
-    return native ? kind == Value("native")
-                  : (kind == Value("container") || kind == Value("external"));
-  });
+  const bool execution_available =
+      (!native || !ovs) &&
+      !std::ranges::any_of(
+          network.at("attachments").array(),
+          [](const auto& attachment) { return attachment.at("kind") == Value("external"); }) &&
+      std::ranges::all_of(nodes, [&](const Value& node) {
+        const auto& kind = node.at("execution").at("kind");
+        return native ? kind == Value("native")
+                      : (kind == Value("container") || kind == Value("external") ||
+                         (ovs && kind == Value("namespace")));
+      });
   const auto& targets = catalog.at("targets.json");
   if (!targets.contains(resolved.at("target").text()))
     reject("E_COMPILE_TARGET", "target", "missing pinned target capabilities");
@@ -570,7 +576,7 @@ CompiledGraph compile_graph(const GraphConfig& graph) {
   put("execution-plan.json",
       Object{{"version", 1},
              {"config", "resolved.json"},
-             {"executable", portable_execution},
+             {"executable", execution_available},
              {"stages", stages},
              {"external", external},
              {"scenario_actions", "never implicit"},
@@ -603,7 +609,7 @@ CompiledGraph compile_graph(const GraphConfig& graph) {
              {"catalog_digest", resolved.at("catalog_digest")},
              {"input_digest", resolved.at("input_digest")},
              {"files", hashes},
-             {"execution_available", portable_execution},
+             {"execution_available", execution_available},
              {"artifact_identities_verified", false},
              {"replacement",
               "refused; use fresh output until owned-consumer inactivity can be verified"}});

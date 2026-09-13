@@ -3,7 +3,7 @@
 This page records the active design constraints for GraphX 1.1.0.
 
 - `graphx.yml` with `version: 3` is the only authored configuration format; normalized JSON uses contract version 2.
-- P1 implements validation and normalization; P2 implements resolved node bindings and the local-ready/release application interface. P3 compiles deterministic artifacts. P4 packages shared images and derives release catalog pins from verified OCI bytes; the source catalog remains an unverified development input. P5 adds compiled platform consumption, explicit credential staging, bounded owned history, optional observability services and a pinned native Node/web companion. P6 adds finite native/portable execution with verified releases and identity-checked cleanup. OVS, guest and scenario execution remain gated with `E_PHASE_UNAVAILABLE`; see `design/graph-generation/implementation-plan.md`.
+- P1 implements validation and normalization; P2 implements resolved node bindings and the local-ready/release application interface. P3 compiles deterministic artifacts. P4 packages shared images and derives release catalog pins from verified OCI bytes; the source catalog remains an unverified development input. P5 adds compiled platform consumption, explicit credential staging, bounded owned history, optional observability services and a pinned native Node/web companion. P6 adds finite native/portable execution with verified releases and identity-checked cleanup. P7 adds compiled OVS execution behind explicit local Linux privileged opt-in, with S07–S12 acceptance verified in the GraphX Lima guest. Guest and scenario execution remain gated with `E_PHASE_UNAVAILABLE`; see `design/graph-generation/implementation-plan.md`.
 - The C++ loader is authoritative; normalized JSON is the only configuration input
   accepted by telemetry.
 - System Open vSwitch is the only managed data-plane backend.
@@ -25,3 +25,7 @@ This page records the active design constraints for GraphX 1.1.0.
 
 - Native and container applications cannot share one authored graph. Use separate
   graphs; each has its own explicit management and telemetry path.
+
+- Physical-device startup remains gated until an explicit physical-uplink ownership
+  contract is designed. An external address alone does not authorize attaching a
+  host NIC or silently starting the laboratory simulator. S14 is not a P7 live case.

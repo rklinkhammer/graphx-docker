@@ -12,7 +12,10 @@ struct NativeProcessOptions {
   std::filesystem::path cwd;
   std::filesystem::path log;
   std::filesystem::path executable;
+  std::filesystem::path network_namespace;
+  std::uint64_t namespace_inode{};
   std::uint64_t log_bytes{2097152};
+  std::uint64_t file_bytes_limit{};
 };
 // The child cannot exec before its identity has been durably registered.
 OwnedResourceIdentity start_native_process(

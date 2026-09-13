@@ -500,6 +500,10 @@
     },
     {
       "format": "md",
+      "path": "p7-verification.md"
+    },
+    {
+      "format": "md",
       "path": "verification.md"
     }
   ],

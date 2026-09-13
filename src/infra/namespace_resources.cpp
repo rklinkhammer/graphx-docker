@@ -11,6 +11,7 @@ namespace {
 int run(const std::vector<std::string>& arguments, std::string* captured = nullptr) {
   CommandOptions options;
   options.arguments = arguments;
+  options.timeout_ms = 10000;
   options.capture_output = captured != nullptr;
   auto result = run_command(options);
   if (captured) *captured = std::move(result.output);
