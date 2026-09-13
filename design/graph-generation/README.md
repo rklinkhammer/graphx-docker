@@ -3,7 +3,8 @@
 **DESIGN ONLY — all files below this directory, including JSON, YAML, INI and
 expected outputs, are non-runtime review artifacts.** I-01 through I-11 are
 accepted future-state premises. P1 now implements authored version 3 and
-normalized contract version 2; see [P1 verification](p1-verification.md). The
+normalized contract version 2, and P2 implements generic bindings and native
+application verification; see [P2 verification](p2-verification.md). The
 expected compiler artifacts in this package remain illustrative until P3; later
 execution phases are not implemented.
 

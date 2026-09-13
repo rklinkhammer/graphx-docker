@@ -6,4 +6,5 @@ inline constexpr std::string_view node_type_schema = R"gx_schema(@GRAPHX_TYPE_SC
 inline constexpr std::string_view normalized_schema = R"gx_schema(@GRAPHX_NORMALIZED_SCHEMA@)gx_schema";
 inline constexpr std::string_view guest_schema = R"gx_schema(@GRAPHX_GUEST_SCHEMA@)gx_schema";
 inline constexpr std::string_view lock_schema = R"gx_schema(@GRAPHX_LOCK_SCHEMA@)gx_schema";
+inline constexpr std::string_view runtime_types = R"gx_schema(@GRAPHX_RUNTIME_TYPES@)gx_schema";
 }

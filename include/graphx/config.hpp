@@ -50,6 +50,7 @@ struct TcpTransportConfig {
   RetryConfig retry;
   bool reconnect{true};
   TlsConfig tls;
+  std::string source_address;
 };
 
 struct UdpTransportConfig {

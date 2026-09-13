@@ -12,9 +12,13 @@ import ssl
 import threading
 import time
 
-from protocol import decode_samples, recv_line, signed, telemetry_endpoint, verified
+from protocol import configure_telemetry, decode_samples, recv_line, signed, telemetry_endpoint, verified
+from node_settings import arguments, binding, release
 
 stop = threading.Event()
+node_settings = None
+control_binding = None
+result_binding = None
 
 
 def expected_sample_source(value: str) -> str:
@@ -22,16 +26,16 @@ def expected_sample_source(value: str) -> str:
     try:
         address = ipaddress.ip_address(value)
     except ValueError as error:
-        raise ValueError("SDR_SAMPLE_SOURCE must be one IPv4 address") from error
+        raise ValueError("sample binding source must be one IPv4 address") from error
     if address.version != 4:
-        raise ValueError("SDR_SAMPLE_SOURCE must be one IPv4 address")
+        raise ValueError("sample binding source must be one IPv4 address")
     return str(address)
 
 
 def decode_sample_datagram(payload: bytes, peer: tuple[str, int], source: str):
     """Enforce the configured device address before parsing ordinary UDP bytes."""
     if peer[0] != source:
-        raise ValueError("SDR sample source does not match SDR_SAMPLE_SOURCE")
+        raise ValueError("SDR sample source does not match resolved binding")
     return decode_samples(payload)
 
 
@@ -48,7 +52,7 @@ def telemetry_control() -> None:
             now = time.monotonic()
             if now - last_heartbeat >= 1:
                 sequence += 1
-                event = {"kind": "trace", "event": "heartbeat", "nodeId": "processor",
+                event = {"kind": "trace", "event": "heartbeat", "nodeId": node_settings["node_id"],
                          "timestamp": int(time.time() * 1000), "sequence": sequence}
                 try:
                     endpoint.sendto(signed(event, secret), (host, port))
@@ -61,11 +65,12 @@ def telemetry_control() -> None:
                 continue
             command = verified(packet, secret)
             if not command or command.get("kind") != "control" or \
-                    command.get("targetNode") != "processor":
+                    command.get("targetNode") != node_settings["node_id"]:
                 continue
             action = command.get("action")
             accepted = action in ("pause", "resume") and \
-                int(command.get("expiresAt", 0)) >= int(time.time() * 1000)
+                type(command.get("expiresAt")) is int and \
+                command["expiresAt"] >= int(time.time() * 1000)
             state = "unknown"
             if accepted:
                 try:
@@ -77,7 +82,7 @@ def telemetry_control() -> None:
                         state = "running"
                 except (OSError, ssl.SSLError, RuntimeError, ValueError):
                     accepted = False
-            acknowledgement = {"kind": "control_ack", "nodeId": "processor",
+            acknowledgement = {"kind": "control_ack", "nodeId": node_settings["node_id"],
                                "action": action, "accepted": accepted,
                                "commandId": command.get("commandId"), "state": state}
             try:
@@ -94,14 +99,16 @@ def control(action: str, frequency_hz: int | None = None) -> dict[str, object]:
     request = {"action": action}
     if frequency_hz is not None:
         request["frequency_hz"] = frequency_hz
-    with socket.create_connection((os.environ.get("SDR_CONTROL_TARGET", "sdr-simulator"),
-                                   int(os.environ.get("SDR_CONTROL_PORT", "18401"))), timeout=2) as raw:
-        with context.wrap_socket(raw, server_hostname=os.environ.get("SDR_TLS_SERVER_NAME",
-                                                                     "sdr-simulator")) as secure:
+    with socket.create_connection((control_binding["settings"]["host"],
+                                   control_binding["settings"]["port"]), timeout=2,
+                                   source_address=(control_binding["source_address"], 0)) as raw:
+        with context.wrap_socket(raw, server_hostname=control_binding["security"]["server_name"]) as secure:
             secure.sendall(json.dumps(request, separators=(",", ":")).encode() + b"\n")
             response = recv_line(secure, 4096)
     value = json.loads(response)
-    if not value.get("accepted"):
+    if not isinstance(value, dict) or type(value.get("accepted")) is not bool:
+        raise ValueError("malformed SDR control response")
+    if not value["accepted"]:
         raise RuntimeError(f"SDR control rejected: {value.get('error', 'unknown error')}")
     return value
 
@@ -110,31 +117,32 @@ def send_result(result: dict[str, object]) -> None:
     payload = json.dumps(result, separators=(",", ":")).encode() + b"\n"
     if len(payload) > 4096:
         raise RuntimeError("result exceeds 4096 bytes")
-    with socket.create_connection((os.environ.get("SDR_RESULT_TARGET", "sink"),
-                                   int(os.environ.get("SDR_RESULT_PORT", "18402"))), timeout=2) as output:
+    with socket.create_connection((result_binding["settings"]["host"],
+                                   result_binding["settings"]["port"]), timeout=2,
+                                   source_address=(result_binding["source_address"], 0)) as output:
         output.sendall(payload)
 
 
 def main() -> None:
     signal.signal(signal.SIGTERM, lambda *_: stop.set())
     signal.signal(signal.SIGINT, lambda *_: stop.set())
-    bind = os.environ.get("SDR_SAMPLE_BIND", "0.0.0.0")
-    port = int(os.environ.get("SDR_SAMPLE_PORT", "18400"))
-    sample_source = expected_sample_source(os.environ["SDR_SAMPLE_SOURCE"])
-    for _ in range(30):
-        try:
-            print(f"SDR control status: {control('status')}", flush=True)
-            break
-        except (OSError, ssl.SSLError, RuntimeError, json.JSONDecodeError):
-            if stop.wait(0.5):
-                return
-    else:
-        raise RuntimeError("SDR TLS control did not become ready")
-    threading.Thread(target=telemetry_control, daemon=True).start()
+    global node_settings, control_binding, result_binding
+    args, node_settings = arguments('sdr.processor')
+    configure_telemetry(node_settings)
+    samples = binding(node_settings, 'samples')
+    control_binding = binding(node_settings, 'control')
+    result_binding = binding(node_settings, 'results')
+    bind = samples['settings']['bind']
+    port = samples['settings']['port']
+    sample_source = expected_sample_source(samples['source_address'])
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as source:
         source.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         source.bind((bind, port))
         source.settimeout(0.5)
+        if not release(args, node_settings, stop):
+            return
+        if node_settings["telemetry"]["credential"] is not None:
+            threading.Thread(target=telemetry_control, daemon=True).start()
         accepted = 0
         print(f"processor ready on UDP {bind}:{port}", flush=True)
         while not stop.is_set():

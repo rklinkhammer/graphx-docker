@@ -4,6 +4,7 @@
 #include "socket_utils.hpp"
 
 #include <algorithm>
+#include <arpa/inet.h>
 #include <array>
 #include <cerrno>
 #include <cstring>
@@ -135,20 +136,28 @@ void configure_socket(int socket) {
     throw system_error("configure nonblocking socket");
 }
 
-bool wait_ready(int socket, short events, Clock::time_point deadline, bool has_deadline) {
+bool wait_ready(int socket, short events, Clock::time_point deadline, bool has_deadline,
+                const std::function<bool()>& stopping = {}) {
   for (;;) {
+    if (stopping && stopping()) throw std::runtime_error("TCP operation cancelled");
     pollfd descriptor{socket, events, 0};
-    const int status = ::poll(&descriptor, 1, poll_timeout(deadline, has_deadline));
+    const int status = ::poll(&descriptor, 1,
+                              stopping ? std::min(50, poll_timeout(deadline, has_deadline))
+                                       : poll_timeout(deadline, has_deadline));
     if (status > 0) {
       if (descriptor.revents & POLLNVAL) throw system_error("poll", EBADF);
       return true;
     }
-    if (status == 0) return false;
+    if (status == 0) {
+      if (stopping && (!has_deadline || Clock::now() < deadline)) continue;
+      return false;
+    }
     if (errno != EINTR) throw system_error("poll");
   }
 }
 
-int connect_once(const Endpoint& endpoint, std::chrono::milliseconds timeout) {
+int connect_once(const Endpoint& endpoint, std::chrono::milliseconds timeout,
+                 const std::function<bool()>& stopping, const std::string& source_address) {
   auto addresses = resolve(endpoint, false);
   int last_error = ECONNREFUSED;
   for (auto* address = addresses.get(); address; address = address->ai_next) {
@@ -159,10 +168,18 @@ int connect_once(const Endpoint& endpoint, std::chrono::milliseconds timeout) {
     }
     try {
       configure_socket(candidate);
+      if (!source_address.empty()) {
+        sockaddr_in source{};
+        source.sin_family = AF_INET;
+        if (address->ai_family != AF_INET ||
+            ::inet_pton(AF_INET, source_address.c_str(), &source.sin_addr) != 1 ||
+            ::bind(candidate, reinterpret_cast<const sockaddr*>(&source), sizeof(source)) != 0)
+          throw std::runtime_error("TCP cannot bind resolved source address");
+      }
       int status = ::connect(candidate, address->ai_addr, address->ai_addrlen);
       if (status != 0 && errno == EINPROGRESS) {
         const auto deadline = Clock::now() + timeout;
-        if (!wait_ready(candidate, POLLOUT, deadline, true)) {
+        if (!wait_ready(candidate, POLLOUT, deadline, true, stopping)) {
           last_error = ETIMEDOUT;
           ::close(candidate);
           continue;
@@ -396,10 +413,12 @@ void TcpTransport::connect_outbound() {
   auto backoff = options_.retry.initial_backoff;
   std::string last_error;
   for (std::size_t attempt = 1; attempt <= attempts; ++attempt) {
-    if (closed_.load()) throw std::runtime_error(context("connection cancelled"));
+    if (closed_.load() || (options_.stopping && options_.stopping()))
+      throw std::runtime_error(context("connection cancelled"));
     try {
       trace_sink_->on_connection(edge_id_, ConnectionState::connecting);
-      const int connected = connect_once(endpoint_, options_.connect_timeout);
+      const int connected = connect_once(endpoint_, options_.connect_timeout, options_.stopping,
+                                         options_.source_address);
       if (closed_.load()) {
         ::close(connected);
         throw std::runtime_error(context("connection cancelled"));
@@ -425,7 +444,13 @@ void TcpTransport::connect_outbound() {
                                               " failed: " + last_error));
       if (attempt == attempts) break;
       std::unique_lock lock(retry_mutex_);
-      if (retry_ready_.wait_for(lock, backoff, [&] { return closed_.load(); }))
+      const auto retry_deadline = Clock::now() + backoff;
+      while (Clock::now() < retry_deadline && !closed_.load() &&
+             !(options_.stopping && options_.stopping()))
+        retry_ready_.wait_for(lock, std::min(std::chrono::milliseconds(50),
+                                             std::chrono::duration_cast<std::chrono::milliseconds>(
+                                                 retry_deadline - Clock::now())));
+      if (closed_.load() || (options_.stopping && options_.stopping()))
         throw std::runtime_error(context("connection cancelled"));
       backoff = std::min(options_.retry.max_backoff, backoff * 2);
     }

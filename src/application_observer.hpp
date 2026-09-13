@@ -39,36 +39,6 @@ inline void interruptible_pause(std::chrono::milliseconds duration) {
   }
 }
 
-inline std::string env(const char* name, std::string fallback) {
-  if (const char* value = std::getenv(name)) return value;
-  return fallback;
-}
-
-inline bool boolean_env(const char* name, bool fallback) {
-  const char* configured = std::getenv(name);
-  if (!configured) return fallback;
-  std::string value(configured);
-  std::ranges::transform(value, value.begin(), [](unsigned char character) {
-    return static_cast<char>(std::tolower(character));
-  });
-  if (value == "1" || value == "true" || value == "yes" || value == "on") return true;
-  if (value == "0" || value == "false" || value == "no" || value == "off") return false;
-  throw std::runtime_error(std::string(name) +
-                           " must be one of true, false, 1, 0, yes, no, on, or off");
-}
-
-inline std::uint64_t unsigned_env(const char* name, std::uint64_t fallback, std::uint64_t minimum,
-                                  std::uint64_t maximum) {
-  const auto value = env(name, std::to_string(fallback));
-  std::uint64_t parsed{};
-  const auto [end, error] = std::from_chars(value.data(), value.data() + value.size(), parsed);
-  if (error != std::errc{} || end != value.data() + value.size() || parsed < minimum ||
-      parsed > maximum)
-    throw std::runtime_error(std::string(name) + " must be between " + std::to_string(minimum) +
-                             " and " + std::to_string(maximum));
-  return parsed;
-}
-
 inline std::string secret_env(const char* name) {
   const auto file_name = std::string(name) + "_FILE";
   const char* inline_value = std::getenv(name);
@@ -174,11 +144,10 @@ class RuntimeTraceSink final : public graphx::TraceSink {
           config.observability.otlp.traces_path, config.observability.otlp.queue_capacity);
       composite_.add(*otlp_);
     }
-    const auto capture_enabled =
-        boolean_env("GRAPHX_CAPTURE_ENABLED", config.observability.capture.enabled);
+    const auto capture_enabled = config.observability.capture.enabled;
     const auto& capture_provider = config.observability.capture.provider;
     if (capture_enabled && capture_provider == "pcapng") {
-      const auto directory = env("GRAPHX_CAPTURE_DIR", config.observability.capture.directory);
+      const auto& directory = config.observability.capture.directory;
       const auto snaplen = config.observability.capture.snaplen;
       const auto max_file_bytes = config.observability.capture.max_file_bytes;
       const auto max_packets = config.observability.capture.max_packets;
@@ -283,10 +252,5 @@ class RuntimeTraceSink final : public graphx::TraceSink {
   std::unique_ptr<graphx::PcapngCaptureSink> capture_;
   graphx::CompositeTraceSink composite_;
 };
-
-inline std::filesystem::path config_path() {
-  throw std::runtime_error(
-      "E_PHASE_UNAVAILABLE: v3 application bindings require Phase P2; no action was performed");
-}
 
 }  // namespace demo

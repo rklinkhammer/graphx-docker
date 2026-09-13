@@ -1,46 +1,37 @@
-#include "../apps/common.hpp"
+#include "../src/application_observer.hpp"
 
-#include <cstdlib>
+#include <filesystem>
 #include <iostream>
-#include <stdexcept>
-#include <string>
-#include <string_view>
-
-namespace {
-
-void expect(bool condition, std::string_view message) {
-  if (!condition) throw std::runtime_error(std::string(message));
-}
-
-template <typename Operation>
-void expect_failure(Operation&& operation, std::string_view expected) {
-  try {
-    operation();
-  } catch (const std::exception& error) {
-    expect(std::string_view(error.what()).find(expected) != std::string_view::npos,
-           "runtime capture diagnostic");
-    return;
-  }
-  throw std::runtime_error("invalid runtime capture value was accepted");
-}
-
-}  // namespace
+#include <unistd.h>
 
 int main() {
+  std::filesystem::path directory;
   try {
-    ::setenv("GRAPHX_CAPTURE_ENABLED", "TrUe", 1);
-    expect(demo::boolean_env("GRAPHX_CAPTURE_ENABLED", false), "mixed-case true environment");
-    ::setenv("GRAPHX_CAPTURE_ENABLED", "OFF", 1);
-    expect(!demo::boolean_env("GRAPHX_CAPTURE_ENABLED", true), "mixed-case false environment");
-    ::setenv("GRAPHX_CAPTURE_ENABLED", "maybe", 1);
-    expect_failure([] { static_cast<void>(demo::boolean_env("GRAPHX_CAPTURE_ENABLED", false)); },
-                   "must be one of");
-
-    ::unsetenv("GRAPHX_CAPTURE_ENABLED");
-    std::cout << "GraphX runtime capture deployment toggle validation passed\n";
+    auto pattern =
+        (std::filesystem::temp_directory_path() / "graphx-capture-binding-XXXXXX").string();
+    const auto* created = ::mkdtemp(pattern.data());
+    if (!created) return 1;
+    directory = created;
+    graphx::GraphConfig config;
+    config.observability.metrics.exporters = {"console"};
+    config.observability.tracing.exporters = {"console"};
+    config.observability.capture.enabled = true;
+    config.observability.capture.provider = "pcapng";
+    config.observability.capture.directory = directory.string();
+    ::setenv("GRAPHX_CAPTURE_ENABLED", "false", 1);
+    ::setenv("GRAPHX_CAPTURE_DIR", "/nonexistent", 1);
+    {
+      demo::RuntimeTraceSink trace("renamed-instance", config);
+      trace.on_send("renamed-connection", graphx::Envelope::make(1, "Sample", "7"), 1);
+    }
+    if (std::filesystem::file_size(directory / "renamed-instance.pcapng") <= 100)
+      throw std::runtime_error("resolved capture settings or identity were ignored");
+    std::filesystem::remove_all(directory);
+    std::cout << "Resolved application capture settings and identity passed\n";
     return 0;
   } catch (const std::exception& error) {
-    ::unsetenv("GRAPHX_CAPTURE_ENABLED");
+    std::error_code ignored;
+    if (!directory.empty()) std::filesystem::remove_all(directory, ignored);
     std::cerr << error.what() << '\n';
     return 1;
   }

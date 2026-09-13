@@ -9,7 +9,8 @@ import signal
 import socket
 import threading
 
-from protocol import publish_heartbeat, recv_line
+from protocol import configure_telemetry, publish_heartbeat, recv_line
+from node_settings import arguments, binding, release
 
 stop = threading.Event()
 
@@ -17,11 +18,16 @@ stop = threading.Event()
 def main() -> None:
     signal.signal(signal.SIGTERM, lambda *_: stop.set())
     signal.signal(signal.SIGINT, lambda *_: stop.set())
+    args, node = arguments('sdr.result-sink')
+    configure_telemetry(node)
+    result_port = binding(node, 'results')
     with socket.socket() as listener:
         listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        listener.bind(("0.0.0.0", int(os.environ.get("SDR_RESULT_PORT", "18402"))))
+        listener.bind((result_port["settings"]["bind"], result_port["settings"]["port"]))
         listener.listen(16)
         listener.settimeout(0.5)
+        if not release(args, node, stop):
+            return
         count = 0
         print("SDR result sink ready", flush=True)
         while not stop.is_set():
@@ -32,6 +38,8 @@ def main() -> None:
             with connection:
                 connection.settimeout(2)
                 try:
+                    if peer[0] != result_port["source_address"]:
+                        raise ValueError("unexpected result source")
                     payload = recv_line(connection, 4096)
                     result = json.loads(payload)
                     required = {"sequence", "frequency_hz", "sample_count", "power"}
@@ -53,7 +61,7 @@ def main() -> None:
                     count += 1
                     print(f"result {count} from={peer[0]} sequence={result['sequence']} "
                           f"power={result['power']}", flush=True)
-                    publish_heartbeat("sink", count)
+                    publish_heartbeat(node["node_id"], count)
                 except (OSError, ValueError, TypeError, json.JSONDecodeError) as error:
                     print(f"sink rejected result: {type(error).__name__}", flush=True)
 

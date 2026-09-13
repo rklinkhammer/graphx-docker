@@ -1,4 +1,5 @@
 #include "graphx/config.hpp"
+#include "graphx/node_settings.hpp"
 #include "graphx/normalized_config.hpp"
 #include "graphx/version.hpp"
 
@@ -10,11 +11,12 @@ namespace {
 void usage(std::ostream& out) {
   out << "usage:\n"
       << "  graphx --version\n"
+      << "  graphx node-settings --node ID --config FILE\n"
       << "  graphx <validate|inspect> [graphx.yml] [--target TARGET] [--catalog-root DIR]\n"
       << "  graphx config normalize [graphx.yml] [--format json] [--target TARGET]\n"
       << "                          [--catalog-root DIR]\n"
       << "Targets: native-linux (validation default), native-macos, orbstack, lima\n"
-      << "Graph execution and artifact generation are unavailable in the P1 model cutover.\n";
+      << "Graph execution and artifact generation remain unavailable.\n";
 }
 }  // namespace
 
@@ -30,6 +32,12 @@ int main(int argc, char** argv) {
   }
   try {
     const std::string command = argv[1];
+    if (command == "node-settings") {
+      const auto args = graphx::node_arguments(argc - 1, argv + 1, false);
+      std::cout << graphx::config_value_json(
+          graphx::load_node_settings(args.config, args.node).resolved);
+      return 0;
+    }
     if (command == "infra" || command == "compile" || command == "run") {
       std::cerr << "E_PHASE_UNAVAILABLE: version 3 execution/artifact adapters are not "
                    "implemented; no action was performed\n";

@@ -10,7 +10,7 @@
 namespace graphx {
 
 TransportPtr TransportFactory::create(const EdgeConfig& edge, ConnectionMode mode,
-                                      TraceSink* trace_sink) {
+                                      TraceSink* trace_sink, std::function<bool()> stopping) {
   if (std::holds_alternative<ExternalTransportConfig>(edge.transport))
     throw std::invalid_argument("external data-plane edge '" + edge.edge.id +
                                 "' is observed but not managed by TransportFactory");
@@ -22,6 +22,8 @@ TransportPtr TransportFactory::create(const EdgeConfig& edge, ConnectionMode mod
       const Endpoint endpoint{mode == ConnectionMode::connect ? transport.host : transport.bind,
                               transport.port};
       TcpOptions options;
+      options.stopping = stopping;
+      options.source_address = transport.source_address;
       options.connect_timeout = std::chrono::milliseconds(transport.connect_timeout_ms);
       options.send_timeout = std::chrono::milliseconds(transport.send_timeout_ms);
       options.retry.max_attempts = transport.retry.max_attempts;
@@ -80,6 +82,7 @@ TransportPtr TransportFactory::create(const EdgeConfig& edge, ConnectionMode mod
       if (transport.segment.empty())
         throw std::invalid_argument("shared-memory transport requires a segment name");
       SharedMemoryOptions options;
+      options.stopping = stopping;
       options.capacity = transport.capacity;
       options.max_message_bytes = transport.max_message_bytes;
       options.send_timeout = std::chrono::milliseconds(transport.send_timeout_ms);

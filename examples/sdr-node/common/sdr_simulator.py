@@ -11,7 +11,8 @@ import ssl
 import threading
 import time
 
-from protocol import encode_samples, publish_heartbeat, recv_line
+from protocol import configure_telemetry, encode_samples, publish_heartbeat, recv_line
+from node_settings import arguments, binding, release
 
 stop = threading.Event()
 state_lock = threading.Lock()
@@ -29,7 +30,7 @@ def control_server(listener: socket.socket | None = None,
     if listener is None:
         listener = socket.socket()
         listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        listener.bind(("0.0.0.0", int(os.environ.get("SDR_CONTROL_PORT", "18401"))))
+        raise ValueError("a pre-bound control listener is required")
         listener.listen(8)
     with listener:
         listener.settimeout(0.5)
@@ -41,6 +42,7 @@ def control_server(listener: socket.socket | None = None,
             except TimeoutError:
                 continue
             with connection:
+                connection.settimeout(2)
                 try:
                     with context.wrap_socket(connection, server_side=True) as secure:
                         secure.settimeout(2)
@@ -65,7 +67,7 @@ def apply_command(command: object) -> dict[str, object]:
             state["running"] = False
         elif action == "tune":
             frequency = command.get("frequency_hz")
-            if not isinstance(frequency, int) or not 1_000_000 <= frequency <= 6_000_000_000:
+            if type(frequency) is not int or not 1_000_000 <= frequency <= 6_000_000_000:
                 return {"accepted": False, "error": "frequency is out of range"}
             state["frequency_hz"] = frequency
         elif action != "status":
@@ -76,20 +78,34 @@ def apply_command(command: object) -> dict[str, object]:
 def main() -> None:
     signal.signal(signal.SIGTERM, lambda *_: stop.set())
     signal.signal(signal.SIGINT, lambda *_: stop.set())
-    target = os.environ.get("SDR_SAMPLE_TARGET", "processor")
-    port = int(os.environ.get("SDR_SAMPLE_PORT", "18400"))
-    interval = float(os.environ.get("SDR_SAMPLE_INTERVAL_SECONDS", "0.2"))
-    if not 0.02 <= interval <= 60:
-        raise ValueError("SDR_SAMPLE_INTERVAL_SECONDS must be from 0.02 through 60")
-    threading.Thread(target=control_server, daemon=True).start()
+    args, node = arguments('sdr.simulator')
+    configure_telemetry(node)
+    samples = binding(node, 'samples')
+    control = binding(node, 'control')
+    target, port = samples['settings']['destination'], samples['settings']['port']
+    interval = 0.2
+    listener = socket.socket()
+    listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    listener.bind((control['settings']['bind'], control['settings']['port']))
+    listener.listen(8)
+    ready = threading.Event()
+    threading.Thread(target=control_server, args=(listener, ready), daemon=True).start()
+    deadline = time.monotonic() + node['readiness']['timeout_ms'] / 1000
+    while not ready.wait(0.02):
+        if stop.is_set() or time.monotonic() >= deadline:
+            listener.close()
+            raise TimeoutError('control listener initialization failed')
     sequence = 0
     last_heartbeat = 0.0
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as output:
+        output.bind((samples['source_address'], 0))
+        if not release(args, node, stop):
+            return
         print(f"SDR simulator ready; UDP target {target}:{port}, TLS control enabled", flush=True)
         while not stop.wait(interval):
             now = time.monotonic()
             if now - last_heartbeat >= 1:
-                publish_heartbeat("sdr-node", sequence)
+                publish_heartbeat(node["node_id"], sequence)
                 last_heartbeat = now
             with state_lock:
                 running, frequency = state["running"], state["frequency_hz"]

@@ -62,6 +62,8 @@ ARCHIVE_PUBLIC_HEADERS = frozenset({
     "include/graphx/infra.hpp",
     "include/graphx/network.hpp",
     "include/graphx/node.hpp",
+    "include/graphx/node_settings.hpp",
+    "include/graphx/sample_application.hpp",
     "include/graphx/normalized_config.hpp",
     "include/graphx/observability.hpp",
     "include/graphx/ownership.hpp",

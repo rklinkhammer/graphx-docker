@@ -213,6 +213,9 @@ def main() -> int:
                            "SDR_TLS_CA": str(tls / "ca.pem"),
                            "SDR_TLS_SERVER_NAME": "sdr-node"})
         processor = import_path("sdr_processor_test", common / "processor.py")
+        processor.control_binding = {"settings": {"host": "127.0.0.1", "port": port},
+                                     "security": {"server_name": "sdr-node"},
+                                     "source_address": "127.0.0.1"}
         unauthorized = ssl.create_default_context(ssl.Purpose.SERVER_AUTH,
                                                    cafile=str(tls / "ca.pem"))
         unauthorized.minimum_version = ssl.TLSVersion.TLSv1_3

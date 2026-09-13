@@ -97,6 +97,9 @@ add_library(graphx
   src/capture.cpp
   src/config_document.cpp
   src/config_v3.cpp
+  src/resolved_transport.cpp
+  src/node_settings.cpp
+  src/sample_application.cpp
   src/config.cpp
   src/envelope.cpp
   src/framing.cpp
@@ -130,6 +133,15 @@ file(READ "${CMAKE_CURRENT_SOURCE_DIR}/config/schema/catalog-lock.schema.json" G
 foreach(schema_variable GRAPHX_AUTHORED_SCHEMA GRAPHX_TYPE_SCHEMA GRAPHX_NORMALIZED_SCHEMA GRAPHX_GUEST_SCHEMA GRAPHX_LOCK_SCHEMA)
   string(REGEX REPLACE "\n[ \t]+" "\n" ${schema_variable} "${${schema_variable}}")
 endforeach()
+file(GLOB GRAPHX_RUNTIME_TYPE_FILES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/config/catalog/types/*.json")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${GRAPHX_RUNTIME_TYPE_FILES})
+set(GRAPHX_RUNTIME_TYPES "[")
+foreach(type_file IN LISTS GRAPHX_RUNTIME_TYPE_FILES)
+  file(READ "${type_file}" type_json)
+  string(APPEND GRAPHX_RUNTIME_TYPES "${type_json},")
+endforeach()
+string(REGEX REPLACE ",$" "]" GRAPHX_RUNTIME_TYPES "${GRAPHX_RUNTIME_TYPES}")
+string(REGEX REPLACE "\n[ ]*" "" GRAPHX_RUNTIME_TYPES "${GRAPHX_RUNTIME_TYPES}")
 configure_file(cmake/config_schemas.hpp.in generated/graphx/config_schemas.hpp @ONLY)
 target_compile_definitions(graphx PRIVATE GRAPHX_CATALOG_ROOT="${CMAKE_CURRENT_SOURCE_DIR}/config/catalog")
 install(DIRECTORY config/catalog DESTINATION ${CMAKE_INSTALL_DATADIR}/graphx)
@@ -411,6 +423,8 @@ if(GRAPHX_BUILD_TESTS)
   add_test(NAME graphx-udp-transport
     COMMAND graphx-tests --filter "UDP" --repeat 3)
   set_tests_properties(graphx-udp-transport PROPERTIES TIMEOUT 30)
+  graphx_add_python_test(graphx-node-bindings tests/test_node_bindings.py 60
+    ${CMAKE_BINARY_DIR} ${CMAKE_SOURCE_DIR})
   graphx_add_python_test(graphx-execution-gate tests/test_execution_gate.py 30
     ${CMAKE_BINARY_DIR} ${CMAKE_SOURCE_DIR})
   add_test(NAME graphx-qemu-node-static

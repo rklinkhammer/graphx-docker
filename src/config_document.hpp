@@ -19,6 +19,7 @@ std::filesystem::path confined_path(const std::filesystem::path& root,
 std::string sha256(std::string_view value);
 void validate_shape(const Value& value, const Value& schema, std::string_view path = "$",
                     const Value* root = nullptr);
+TransportSettings resolved_transport(const ConfigValue& connection);
 Value merged(Value defaults, const Value& explicit_values);
 std::string string_or(const Value& value, std::string_view key, std::string fallback = {});
 std::int64_t integer_or(const Value& value, std::string_view key, std::int64_t fallback);

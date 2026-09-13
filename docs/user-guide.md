@@ -2,7 +2,9 @@
 
 The implemented graph workflow validates an authored v3 graph and produces
 resolved JSON. Start from one of the [24 examples](../examples/README.md), select
-a target, and inspect the normalized model before implementing an execution adapter.
+a target, and inspect the normalized model. Direct applications also support
+[resolved node bindings and a local release barrier](configuration.md#application-bindings);
+compilation and graph execution adapters remain gated.
 
 Build and validate from the repository root:
 

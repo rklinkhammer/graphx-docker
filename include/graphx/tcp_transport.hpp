@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <condition_variable>
 #include <memory>
+#include <functional>
 #include <mutex>
 #include <string>
 
@@ -33,6 +34,8 @@ struct TcpOptions {
   TcpRetryPolicy retry;
   bool reconnect{false};
   TcpTlsOptions tls;
+  std::function<bool()> stopping;
+  std::string source_address;
 };
 
 struct TcpTlsState;

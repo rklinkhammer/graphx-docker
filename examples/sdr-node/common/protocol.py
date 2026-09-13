@@ -11,7 +11,6 @@ import secrets
 import socket
 import struct
 import time
-from functools import lru_cache
 
 MAGIC = b"SDR1"
 HEADER = struct.Struct("!4sIQH")
@@ -19,15 +18,20 @@ SAMPLE = struct.Struct("!hh")
 MAX_SAMPLES = 256
 
 
-@lru_cache(maxsize=1)
+_telemetry = None
+
+
+def configure_telemetry(node):
+    global _telemetry
+    _telemetry = node['telemetry']
+    if _telemetry['credential'] is not None and not os.environ.get('GRAPHX_TELEMETRY_SHARED_SECRET'):
+        raise ValueError('E_PHASE_UNAVAILABLE: telemetry credential staging requires P5 or an explicit runtime secret')
+
+
 def telemetry_endpoint() -> tuple[str, int]:
-    """Read the shared telemetry destination from normalized GraphX configuration."""
-    path = os.environ.get("GRAPHX_NORMALIZED_CONFIG", "")
-    if not path:
-        return "telemetry", 9000
-    with open(path, encoding="utf-8") as stream:
-        telemetry = json.load(stream)["observability"]["telemetry"]
-    return telemetry["host"], telemetry["port"]
+    if _telemetry is None:
+        raise ValueError('resolved telemetry settings are required')
+    return _telemetry['host'], _telemetry['port']
 
 
 def recv_line(connection: socket.socket, maximum: int = 4096) -> bytes:
@@ -99,12 +103,14 @@ def verified(data: bytes, secret: str) -> dict[str, object] | None:
         compact = json.dumps(payload, separators=(",", ":"))
         expected = hmac.new(secret.encode(), f"{timestamp}.{nonce}.{compact}".encode(),
                             hashlib.sha256).hexdigest()
-        return payload if hmac.compare_digest(expected, supplied) else None
+        return payload if isinstance(payload, dict) and hmac.compare_digest(expected, supplied) else None
     except (KeyError, TypeError, ValueError, json.JSONDecodeError):
         return None
 
 
 def publish_heartbeat(node_id: str, sequence: int) -> None:
+    if _telemetry is None or _telemetry["credential"] is None:
+        return
     host, port = telemetry_endpoint()
     secret = os.environ.get("GRAPHX_TELEMETRY_SHARED_SECRET", "")
     event = {"kind": "trace", "event": "heartbeat", "nodeId": node_id,

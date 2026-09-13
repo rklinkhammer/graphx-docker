@@ -4,7 +4,8 @@
 catalog type instances and connections into normalized JSON contract version 2.
 Version 2 authored files and normalized version 1 are deliberately rejected.
 
-The implemented commands are `validate`, `inspect`, and `config normalize`.
+The implemented commands are `validate`, `inspect`, `config normalize`, and
+`node-settings --node ID --config FILE` for resolved node validation.
 `inspect` prints the resolved JSON. These commands read bounded files and do not
 start processes, provision credentials, create infrastructure, or inspect a Docker
 engine. `compile`, `run`, `infra`, and unconverted example launchers return
@@ -81,3 +82,44 @@ staging is unavailable until P5 and fails before listeners open. `${GX_STATE}` a
 other execution placeholders are resolved by later execution adapters, not the
 configuration loader. Normalization does not generate Compose, binding files or
 guest artifacts; deterministic artifact compilation is P3.
+
+## Application bindings
+
+The C++ `load_node_settings` API reads one resolved node object, using the node
+shape from the normalized schema and the release's embedded catalog type
+contracts. It rejects mismatched or absent instance identity, unknown type or
+revision, wrong ports/roles/schema/encoding, peer cardinality violations, malformed
+parameters, invalid resolved endpoints and unbounded startup settings before
+opening application resources. It does not interpret authored graphs.
+
+`graphx node-settings --node ID --config FILE` validates this object and prints
+canonical JSON. The SDR Python programs use this C++ command through `GRAPHX_CLI`
+(default: the installed `graphx` executable), then consume its validated output.
+There is no second authored parser or endpoint environment fallback.
+
+The sample and UDP executables require `--node ID --config FILE` plus
+`--release-file FILE --release-token TOKEN`. SDR service scripts accept the same
+arguments. The token is a fresh 32–128 byte invocation identity supplied by the
+caller. After binding listeners/local resources, each process flushes
+`ready node=ID` to stdout. It then waits up to `startup.max_wait_ms` for a bounded,
+regular, non-symlink release file containing exactly that token, with no newline.
+Connectors and sample traffic stay held until release. SIGINT/SIGTERM interrupts
+the wait; C++ TCP retry and shared-memory connection setup also accept cancellation.
+TCP/UDP senders bind the resolved source address. The eventual P6 adapter owns
+safe directory staging, ownership checks, readiness collection and release-file
+creation by atomic rename; this application interface does not implement graph orchestration.
+
+Ports such as `samples` are application type contracts, not connection IDs. The
+source, transform and sink consume their resolved parameters and actual node/edge
+identities. A transform rejects the wrong incoming wire type, malformed integer
+samples and multiplication overflow. Application capture uses the resolved node
+identity and capture limits. Null telemetry credential references disable network
+telemetry; a non-null reference requires an explicitly supplied runtime secret
+through the existing secret/file interface. Automatic credential staging and
+GraphX transport TLS credential mapping remain gated for P5. Raw SDR control keeps
+its existing explicit TLS file inputs and uses resolved endpoints/server names.
+
+Node files are currently available through the library/resolved JSON contract;
+P3 will implement deterministic file generation. The native binding tests extract
+node objects into temporary fixtures and supply their own barrier. They do not
+establish compiled graph, container, OVS or guest execution acceptance.

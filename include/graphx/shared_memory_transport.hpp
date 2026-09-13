@@ -5,6 +5,7 @@
 #include <chrono>
 #include <cstddef>
 #include <memory>
+#include <functional>
 #include <string>
 #include <string_view>
 
@@ -18,6 +19,7 @@ struct SharedMemoryOptions {
   SharedMemoryBackpressure backpressure{SharedMemoryBackpressure::block};
   std::chrono::milliseconds send_timeout{5000};
   std::chrono::milliseconds connect_timeout{5000};
+  std::function<bool()> stopping;
 };
 
 // A bounded, single-producer/single-consumer POSIX shared-memory ring. The

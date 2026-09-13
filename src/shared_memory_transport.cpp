@@ -288,6 +288,8 @@ std::unique_ptr<SharedMemoryTransport::Impl> SharedMemoryTransport::create_impl(
       throw posix_error("size shared-memory segment");
   } else {
     do {
+      if (options.stopping && options.stopping())
+        throw std::runtime_error("shared-memory connection cancelled");
       impl->descriptor = ::shm_open(impl->segment.c_str(), O_RDWR, 0600);
       if (impl->descriptor >= 0 || errno != ENOENT) break;
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -318,8 +320,11 @@ std::unique_ptr<SharedMemoryTransport::Impl> SharedMemoryTransport::create_impl(
     impl->role_claimed = true;
   } else {
     while (load_magic(*impl->header) != kMagic &&
-           std::chrono::steady_clock::now() < connect_deadline)
+           std::chrono::steady_clock::now() < connect_deadline) {
+      if (options.stopping && options.stopping())
+        throw std::runtime_error("shared-memory initialization cancelled");
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
     if (load_magic(*impl->header) != kMagic || impl->header->version != kLayoutVersion)
       throw std::runtime_error("shared-memory segment layout is incompatible or incomplete");
     const auto expected_mapping = mapping_size(options);

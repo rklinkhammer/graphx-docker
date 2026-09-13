@@ -1,7 +1,8 @@
 # Phased implementation plan
 
 **Phase status:** P1 is complete as the authorized model cutover; see
-[P1 verification](p1-verification.md). P2–P10 remain future changes. The original
+[P1 verification](p1-verification.md). P2 is complete with generic bindings and native application verification; see
+[P2 verification](p2-verification.md). P3–P10 remain future changes. The original
 design review did not authorize implementation, guest builds, infrastructure
 mutation or privileged tests. I-01–I-11 are accepted; no compatibility parser, second source manifest,
 deployment daemon, generic plugin system or per-topology image build is planned.

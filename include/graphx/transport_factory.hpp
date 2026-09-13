@@ -5,6 +5,7 @@
 #include "graphx/transport.hpp"
 
 #include <memory>
+#include <functional>
 #include <mutex>
 #include <string>
 #include <unordered_map>
@@ -15,7 +16,8 @@ enum class ConnectionMode { connect, listen };
 
 class TransportFactory {
  public:
-  TransportPtr create(const EdgeConfig& edge, ConnectionMode mode, TraceSink* trace_sink = nullptr);
+  TransportPtr create(const EdgeConfig& edge, ConnectionMode mode, TraceSink* trace_sink = nullptr,
+                      std::function<bool()> stopping = {});
 
  private:
   std::mutex mutex_;
