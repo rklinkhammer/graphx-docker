@@ -380,3 +380,20 @@ bool bool_or(const Value& value, std::string_view key, bool fallback) {
 }
 }  // namespace config_internal
 }  // namespace graphx
+
+namespace graphx::config_internal {
+std::string resource_name(std::string_view graph, std::string_view kind, std::string_view id) {
+  std::string key(graph);
+  key += '\0';
+  key += kind;
+  key += '\0';
+  key += id;
+  const char prefix = kind == "bridge"      ? 'b'
+                      : kind == "interface" ? 'i'
+                      : kind == "peer"      ? 'p'
+                      : kind == "namespace" ? 'n'
+                                            : 't';
+  return "gx" + std::string(1, prefix) + sha256(key).substr(0, 12);
+}
+
+}  // namespace graphx::config_internal

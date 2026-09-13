@@ -1,0 +1,195 @@
+{
+  "api": "execute_ovs_lifecycle",
+  "capture_process_count": 1,
+  "cleanup": "identity-checked destroy; external devices untouched",
+  "config": "resolved.json",
+  "privileged_authorization_required": true,
+  "resource_intent": {
+    "attachments": [
+      {
+        "address": "10.0.2.99/24",
+        "id": "isolated-data",
+        "interface": "gxiba48fd31b4a0",
+        "kind": "namespace_veth",
+        "network": "qemu-lan",
+        "owner": "qemu-peer",
+        "peer": "gxpc7681ae553ac",
+        "port": "isolated",
+        "switch": "br-qemu-tap",
+        "vlan": {
+          "access_tag": 43
+        }
+      },
+      {
+        "address": "10.0.2.2/24",
+        "id": "peer-data",
+        "interface": "gxi3438299613b0",
+        "kind": "namespace_veth",
+        "network": "qemu-lan",
+        "owner": "qemu-peer",
+        "peer": "gxp1a63919aa9a2",
+        "port": "peer",
+        "switch": "br-qemu-tap",
+        "vlan": {
+          "access_tag": 42
+        }
+      },
+      {
+        "address": "10.0.2.15/24",
+        "id": "qemu-data",
+        "interface": "gxt1d74459f2b59",
+        "kind": "qemu_tap",
+        "mac": "02:00:00:00:02:15",
+        "network": "qemu-lan",
+        "owner": "qemu-node",
+        "port": "qemu",
+        "switch": "br-qemu-tap",
+        "tap_gid": 65532,
+        "tap_uid": 65532,
+        "vlan": {
+          "access_tag": 42
+        }
+      },
+      {
+        "id": "qemu-span",
+        "interface": "gxidea2c6fc571d",
+        "kind": "mirror",
+        "owner": "br-qemu-tap",
+        "peer": "gxpaddcd7b1543a",
+        "port": "capture",
+        "switch": "br-qemu-tap"
+      }
+    ],
+    "captures": [
+      {
+        "attachment": "qemu-span",
+        "directory": "/var/lib/graphx/captures/qemu-tap/qemu-span",
+        "id": "qemu-span",
+        "max_file_bytes": 67108864,
+        "max_files": 2,
+        "retention_seconds": 86400,
+        "rotation_seconds": 300,
+        "snaplen": 65535
+      }
+    ],
+    "edge_paths": {
+      "peer-qemu-tcp": [
+        "host-peer",
+        "qemu-lan",
+        "br-qemu-tap",
+        "qemu-node"
+      ],
+      "peer-qemu-udp": [
+        "host-peer",
+        "qemu-lan",
+        "br-qemu-tap",
+        "qemu-node"
+      ],
+      "qemu-peer-tcp": [
+        "qemu-node",
+        "br-qemu-tap",
+        "qemu-lan",
+        "host-peer"
+      ],
+      "qemu-peer-udp": [
+        "qemu-node",
+        "br-qemu-tap",
+        "qemu-lan",
+        "host-peer"
+      ]
+    },
+    "management_isolation": {
+      "application_bind": "selected-data-address",
+      "ip_forward": false,
+      "ovs_management_acl": "only platform TCP 8080 and UDP 9000; deny node-to-node and forwarding; enforced before release barrier",
+      "per_node_network": true,
+      "platform_routes_data": false
+    },
+    "networks": [
+      {
+        "gateway": "10.0.2.2",
+        "id": "qemu-lan",
+        "profile": "ethernet",
+        "realization": "ovs",
+        "subnets": [
+          "10.0.2.0/24"
+        ]
+      }
+    ],
+    "routers": [
+      {
+        "forwarding": false,
+        "id": "qemu-peer",
+        "interfaces": [
+          {
+            "address": "10.0.2.2/24",
+            "attachment_id": "peer-data",
+            "device": "gxi3438299613b0",
+            "id": "data",
+            "network": "qemu-lan",
+            "peer": "gxp1a63919aa9a2",
+            "port": "peer",
+            "switch": "br-qemu-tap"
+          },
+          {
+            "address": "10.0.2.99/24",
+            "attachment_id": "isolated-data",
+            "device": "gxiba48fd31b4a0",
+            "id": "isolated",
+            "network": "qemu-lan",
+            "peer": "gxpc7681ae553ac",
+            "port": "isolated",
+            "switch": "br-qemu-tap"
+          }
+        ],
+        "kind": "linux_namespace",
+        "namespace": "gxn941f715557a0",
+        "routes": []
+      }
+    ],
+    "switches": [
+      {
+        "datapath": "system",
+        "id": "br-qemu-tap",
+        "kind": "openvswitch",
+        "mirror": {
+          "id": "qemu-span",
+          "output_port": "capture",
+          "select_all": true
+        },
+        "name": "gxbd9319cd909c4",
+        "ports": [
+          {
+            "id": "qemu",
+            "interface": "gxt1d74459f2b59",
+            "vlan": {
+              "access_tag": 42
+            }
+          },
+          {
+            "id": "peer",
+            "interface": "gxi3438299613b0",
+            "peer": "gxp1a63919aa9a2",
+            "vlan": {
+              "access_tag": 42
+            }
+          },
+          {
+            "id": "isolated",
+            "interface": "gxiba48fd31b4a0",
+            "peer": "gxpc7681ae553ac",
+            "vlan": {
+              "access_tag": 43
+            }
+          },
+          {
+            "id": "capture",
+            "interface": "gxidea2c6fc571d",
+            "peer": "gxpaddcd7b1543a"
+          }
+        ]
+      }
+    ]
+  },
+  "version": 1
+}

@@ -1,0 +1,26 @@
+{
+  "secrets_in_values": false,
+  "syntax": "${GX_NAME}",
+  "values": {
+    "GX_CREDENTIALS": {
+      "phase": "execution",
+      "type": "absolute-directory"
+    },
+    "GX_OUTPUT": {
+      "phase": "execution",
+      "type": "absolute-directory"
+    },
+    "GX_OWNER": {
+      "phase": "execution",
+      "type": "identity-token"
+    },
+    "GX_RELEASE": {
+      "phase": "execution",
+      "type": "absolute-directory"
+    },
+    "GX_STATE": {
+      "phase": "execution",
+      "type": "absolute-directory"
+    }
+  }
+}

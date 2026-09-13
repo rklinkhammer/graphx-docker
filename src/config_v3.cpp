@@ -21,20 +21,6 @@ const Array& entries(const Value& value, std::string_view key) {
   return member(value, key, empty_array).array();
 }
 
-std::string name_for(std::string_view graph, std::string_view kind, std::string_view id) {
-  std::string key(graph);
-  key += '\0';
-  key += kind;
-  key += '\0';
-  key += id;
-  const char prefix = kind == "bridge"      ? 'b'
-                      : kind == "interface" ? 'i'
-                      : kind == "peer"      ? 'p'
-                      : kind == "namespace" ? 'n'
-                                            : 't';
-  return "gx" + std::string(1, prefix) + sha256(key).substr(0, 12);
-}
-
 std::uint32_t ip(std::string_view text, const std::string& path) {
   in_addr address{};
   if (::inet_pton(AF_INET, std::string(text).c_str(), &address) != 1)
@@ -62,6 +48,8 @@ std::string address_of(const Value& value) {
 }
 
 struct Catalog {
+  Value snapshot{Object{}};
+  std::filesystem::path root;
   std::string digest;
   Value platform;
   Value wire_schemas;
@@ -87,6 +75,9 @@ Catalog load_catalog(const Value& graph, const ConfigLoadOptions& options,
     reject("E_BOUND", "catalog", "catalog exceeds 1024 files");
   Catalog catalog;
   catalog.digest = sha256(source);
+  catalog.root = std::filesystem::absolute(root).lexically_normal();
+  catalog.snapshot["lock"] = lock;
+  catalog.snapshot["files"] = Object{};
   std::set<std::string> paths;
   std::size_t bytes{};
   static const auto schema = parse_document(node_type_schema);
@@ -104,6 +95,7 @@ Catalog load_catalog(const Value& graph, const ConfigLoadOptions& options,
       reject("E_CATALOG_DIGEST", "catalog." + relative,
              "catalog content does not match its digest");
     const auto data = parse_document(contents);
+    catalog.snapshot["files"][relative] = data;
     if (relative.starts_with("types/")) {
       validate_shape(data, schema, "catalog." + relative);
       for (const auto& [name, port] : data.at("ports").object()) {
@@ -284,19 +276,19 @@ Value network_value(const Value& graph) {
   if (!net.contains("edge_paths")) net["edge_paths"] = Object{};
   for (auto& sw : net["switches"].array()) {
     const auto id = sw.at("id").text();
-    sw["name"] = name_for(gid, "bridge", id);
+    sw["name"] = resource_name(gid, "bridge", id);
     for (auto& port : sw["ports"].array()) {
-      port["interface"] = name_for(gid, "interface", id + "." + port.at("id").text());
-      port["peer"] = name_for(gid, "peer", id + "." + port.at("id").text());
+      port["interface"] = resource_name(gid, "interface", id + "." + port.at("id").text());
+      port["peer"] = resource_name(gid, "peer", id + "." + port.at("id").text());
     }
   }
   for (auto& router : net["routers"].array()) {
     const auto id = router.at("id").text();
-    router["namespace"] = name_for(gid, "namespace", id);
+    router["namespace"] = resource_name(gid, "namespace", id);
     for (auto& interface : router["interfaces"].array()) {
       const auto logical = id + "." + interface.at("id").text();
-      interface["device"] = name_for(gid, "interface", logical);
-      interface["peer"] = name_for(gid, "peer", logical);
+      interface["device"] = resource_name(gid, "interface", logical);
+      interface["peer"] = resource_name(gid, "peer", logical);
       Object a{{"id", string_or(interface, "attachment_id", id + "-" + interface.at("id").text())},
                {"kind", "namespace_veth"},
                {"owner", id},
@@ -338,10 +330,10 @@ Value network_value(const Value& graph) {
     const auto id = a.at("id").text();
     if (kind == "external") continue;
     if (!a.contains("interface"))
-      a["interface"] = name_for(gid, kind == "qemu_tap" ? "tap" : "interface", id);
-    if (kind != "qemu_tap" && !a.contains("peer")) a["peer"] = name_for(gid, "peer", id);
+      a["interface"] = resource_name(gid, kind == "qemu_tap" ? "tap" : "interface", id);
+    if (kind != "qemu_tap" && !a.contains("peer")) a["peer"] = resource_name(gid, "peer", id);
     if (kind == "namespace_veth" && graph.at("nodes").contains(a.at("owner").text()))
-      a["namespace"] = name_for(gid, "namespace", a.at("owner").text());
+      a["namespace"] = resource_name(gid, "namespace", a.at("owner").text());
     if (a.contains("port")) {
       const auto sw = std::ranges::find_if(
           net["switches"].array(), [&](const auto& s) { return s.at("id") == a.at("switch"); });
@@ -815,8 +807,6 @@ void project_runtime_types(GraphConfig& config, const Catalog& catalog) {
     NodeTypeDefinition definition;
     definition.id = id;
     definition.revision = static_cast<std::uint32_t>(type.at("revision").integer());
-    definition.image = type.at("image").text();
-    definition.executable = type.at("executable").text();
     for (const auto& [name, port] : type.at("ports").object()) {
       TypePortCapability capability;
       capability.port = {
@@ -938,6 +928,9 @@ GraphConfig load_graph(const std::filesystem::path& path, const ConfigLoadOption
   config.version = 3;
   config.id = graph.at("graph").at("id").text();
   config.authored = graph;
+  config.catalog = catalog.snapshot;
+  config.input_directory = std::filesystem::absolute(path).parent_path().lexically_normal();
+  config.catalog_directory = catalog.root;
   config.resolved = Object{
       {"contract_version", 2},
       {"graph_version", 3},

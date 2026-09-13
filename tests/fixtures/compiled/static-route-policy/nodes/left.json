@@ -1,0 +1,136 @@
+{
+  "bindings": {
+    "allowed": [
+      {
+        "attachments": {
+          "from": "left-data",
+          "to": "middle-data"
+        },
+        "connection": "allowed-flow",
+        "destination_address": "10.64.2.10",
+        "encoding": "raw",
+        "role": "connect",
+        "schema": "RawDiagnosticDatagram",
+        "security": {
+          "profile": "none"
+        },
+        "settings": {
+          "bind": "10.64.2.10",
+          "destination": "10.64.2.10",
+          "framing": "none",
+          "loopback": true,
+          "max_datagram_bytes": 512,
+          "mode": "unicast",
+          "port": 18601,
+          "receive_buffer_bytes": 65536,
+          "reuse_address": false,
+          "send_buffer_bytes": 65536,
+          "ttl": 1
+        },
+        "source_address": "10.64.1.10",
+        "transport": "udp"
+      }
+    ],
+    "denied": [
+      {
+        "attachments": {
+          "from": "middle-data",
+          "to": "left-data"
+        },
+        "connection": "denied-flow",
+        "destination_address": "10.64.1.10",
+        "encoding": "raw",
+        "role": "listen",
+        "schema": "RawDiagnosticDatagram",
+        "security": {
+          "profile": "none"
+        },
+        "settings": {
+          "bind": "10.64.1.10",
+          "destination": "10.64.1.10",
+          "framing": "none",
+          "loopback": true,
+          "max_datagram_bytes": 512,
+          "mode": "unicast",
+          "port": 18602,
+          "receive_buffer_bytes": 65536,
+          "reuse_address": false,
+          "send_buffer_bytes": 65536,
+          "ttl": 1
+        },
+        "source_address": "10.64.2.10",
+        "transport": "udp"
+      }
+    ],
+    "routed": [
+      {
+        "attachments": {
+          "from": "left-data",
+          "to": "right-data"
+        },
+        "connection": "routed-flow",
+        "destination_address": "10.64.3.10",
+        "encoding": "raw",
+        "role": "connect",
+        "schema": "RawDiagnosticDatagram",
+        "security": {
+          "profile": "none"
+        },
+        "settings": {
+          "bind": "10.64.3.10",
+          "destination": "10.64.30.10",
+          "framing": "none",
+          "loopback": true,
+          "max_datagram_bytes": 512,
+          "mode": "unicast",
+          "port": 18603,
+          "receive_buffer_bytes": 65536,
+          "reuse_address": false,
+          "send_buffer_bytes": 65536,
+          "ttl": 1
+        },
+        "source_address": "10.64.1.10",
+        "transport": "udp"
+      }
+    ]
+  },
+  "capture": {
+    "directory": "/captures",
+    "enabled": true,
+    "max_file_bytes": 67108864,
+    "max_files": 2,
+    "max_packets": 100000,
+    "provider": "ovs-span",
+    "retention_seconds": 86400,
+    "snaplen": 65535
+  },
+  "contract_version": 2,
+  "control": "none",
+  "credentials": {},
+  "execution": {
+    "kind": "namespace"
+  },
+  "graph_id": "static-route-policy",
+  "graph_version": 3,
+  "node_id": "left",
+  "observation": [
+    "packet"
+  ],
+  "parameters": {},
+  "readiness": {
+    "kind": "local-bound",
+    "timeout_ms": 30000
+  },
+  "startup": {
+    "bind_before_connect": true,
+    "max_wait_ms": 30000,
+    "release_barrier": true
+  },
+  "telemetry": {
+    "credential": null,
+    "host": "platform",
+    "port": 9000
+  },
+  "type": "diagnostic.left",
+  "type_revision": 1
+}

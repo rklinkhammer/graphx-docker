@@ -35,9 +35,9 @@ Credentials are projected as files, excluded from normalized configuration and
 telemetry, and redacted from logs and APIs.
 
 Graph orchestration remains unavailable. The CLI exposes validation, inspection,
-normalization and resolved node validation. P2 applications consume required node
+normalization, resolved node validation and deterministic artifact compilation. P2 applications consume required node
 identities and port bindings and expose a local-ready/release barrier. Example
-launchers still reject execution; compilation, orchestration and credential staging
+launchers still reject execution; packaging, orchestration and credential staging
 have subsequent implementation gates.
 
 ## Runtime boundaries

@@ -1,14 +1,15 @@
 # Test procedure
 
-P1/P2 support authored v3 validation, normalized v2 consumers and direct application
-binding tests with a local-ready/release barrier.
+P1–P3 support v3 validation, normalized consumers, direct application bindings
+and deterministic artifact compilation.
 `quick` covers the accepted input/target matrix, generic native node semantics,
-renamed independent pipelines, SDR bindings and reusable module contracts;
+renamed independent pipelines, SDR bindings, the compiler matrix/goldens and
+reusable module contracts;
 `portable` adds execution-gate checks, telemetry HTTP integration and web tests/build.
 Example launches and infrastructure plans return `E_PHASE_UNAVAILABLE`. Privileged
 and Docker orchestration gates below cannot establish v3 acceptance until the
 corresponding execution phases are implemented. See the
-[P2 evidence](../design/graph-generation/p2-verification.md).
+[P3 evidence](../design/graph-generation/p3-verification.md).
 
 
 Use the smallest profile that covers the change:

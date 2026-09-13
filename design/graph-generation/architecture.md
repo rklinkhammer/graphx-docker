@@ -1,8 +1,9 @@
 # Proposed graph generation architecture
 
 **Architecture design — I-01 through I-11 accepted.** P1 implements the model cutover and P2 implements generic application bindings;
-see [P2 verification](p2-verification.md). Later compiler and execution
-artifacts remain design contracts, not implemented runtime behavior.
+P3 implements deterministic artifact compilation; see [P3 verification](p3-verification.md).
+The expected files in this review package remain illustrative. Actual compiler
+goldens live under `tests/fixtures/compiled`; execution remains unavailable.
 
 ## Verdict and evidence
 
@@ -42,7 +43,7 @@ Proposed source layout after authorization:
 | Component | Files | Smallest new abstraction and why needed |
 |---|---|---|
 | Authoritative graph model | `include/graphx/config.hpp`, `src/config_*.cpp` | Type/instance/connection structures; P1 resolves catalog types and shared endpoints; execution projections remain gated |
-| Pure compilation | `include/graphx/compile.hpp`, `src/compile.cpp`, `src/compile/{bindings,artifacts}.cpp` | A resolved value plus serializers; current normalizer cannot emit execution artifacts or consume catalog capabilities |
+| Pure compilation | `include/graphx/compile.hpp`, `src/compile.cpp`, `src/compile/{bindings,artifacts}.cpp` | P3 consumes the resolved value and verified catalog snapshot through fixed serializers |
 | Node bindings | `include/graphx/node_settings.hpp`, `src/node_settings.cpp`, reusable application code under `src/`; thin `apps/*` | P2 implements typed per-port bindings and the local-ready/release protocol |
 | Catalog assets | `config/catalog/{types,templates,guests}`, `config/schema/` | Fixed data contracts; no plugins or programmable renderer |
 | Execution adapters | `src/infra/{process_resources,qemu_resources}.cpp`, existing lifecycle coordinator; thin `apps/cli/main.cpp` | Owned process records and bounded startup phases; Compose alone cannot run native/QEMU or attach owned endpoints |
@@ -403,7 +404,7 @@ finite enum with graph resource references. Unknown operations fail closed.
 
 | Artifact/action | Execution owner | Invocation boundary / consumer | Readiness input | Failure result | Cleanup owner | Persisted state |
 |---|---|---|---|---|---|---|
-| Graph/catalog → resolved, node, Compose, manifest files | unprivileged compiler | proposed `graphx compile`; current `load_config_literal`/normalizer extended | parsed/validated fixed inputs | diagnostics, no published partial output | compiler owns only staging output | artifact provenance manifest |
+| Graph/catalog → resolved, node, Compose, manifest files | unprivileged compiler | implemented `graphx compile`; authoritative loader feeds pure serializers | parsed/validated fixed inputs | diagnostics, no published partial output | compiler owns only staging output | artifact provenance manifest |
 | Credential staging | invoking user, narrow credential adapter | proposed staging subcommand replacing sample/SDR PKI blocks | roots, ownership, SAN/policy refs, permissions | abort before app release, no secret logs | staging adapter verifies owner; external originals untouched | files under credential root; references in existing state |
 | Container creation/start/stop | selected Docker engine | generated Compose via existing `scripts/lib/demo-runtime.sh` reduced to common invocation | image pins, platform health, local app health | return failure; only newly created matching project services removed | Compose with checked graph labels and container IDs | engine metadata, existing ownership bindings |
 | Native platform/apps | invoking user, missing owned-process adapter | CLI adapter using common process identity contract; replace native `run.sh` loops | executable digest, listeners-bound files and platform HTTP ready | bounded wait then rollback new processes | process adapter, PID/start-time/executable checks | extend existing ownership store; native user root |
@@ -437,7 +438,7 @@ These do not prevent a consistent contract or acceptance test and are not new
 issues. Baseline supports single-peer ports, IPv4, native-only shared memory,
 TCG guest execution and bounded fixed templates. Endpoint/subnet/name hash
 collisions reject instead of searching. Every generated pin must be replaced by
-a real verified release lock before implementation acceptance. The hardest work
+verified packaging identities in P4 (runtime/images) and P8 (guests) before execution acceptance. P3 explicitly marks current artifact identities unverified. The hardest work
 is bind-before-connect application readiness, management-path isolation,
 IPVLAN shared-MAC forwarding, native secure platform packaging and guest
 configuration channels. Static fixture validation cannot establish those.

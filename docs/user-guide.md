@@ -4,7 +4,7 @@ The implemented graph workflow validates an authored v3 graph and produces
 resolved JSON. Start from one of the [24 examples](../examples/README.md), select
 a target, and inspect the normalized model. Direct applications also support
 [resolved node bindings and a local release barrier](configuration.md#application-bindings);
-compilation and graph execution adapters remain gated.
+artifact compilation is available and graph execution adapters remain gated.
 
 Build and validate from the repository root:
 
@@ -57,3 +57,19 @@ Use `scripts/verify.sh quick`, `scripts/verify.sh quality`, and
 `scripts/verify.sh portable` for the implemented contract and reusable modules.
 The [test procedure](test-procedure.md) describes prerequisites and separates
 privileged evidence, which always requires explicit authorization.
+
+## Compile inspectable artifacts
+
+Choose a fresh output outside the repository and the protected credential root:
+
+```sh
+COMPILE_PARENT=$(python3 -c 'import pathlib,tempfile; print(pathlib.Path(tempfile.mkdtemp(prefix="graphx-compile-")).resolve())')
+build/dev/graphx compile examples/sample-pipeline/graphx.yml \
+  --target native-linux --source-root "$(pwd -P)" \
+  --credential-root "$COMPILE_PARENT/credentials" --output "$COMPILE_PARENT/sample"
+```
+
+Inspect `compile-manifest.json`, `resolved.json`, `nodes/`, and the emitted plans.
+Compilation starts nothing. Image/release pins remain explicitly unverified until
+packaging, and graph execution stays gated. Recompilation requires a fresh output
+directory; existing output and unrelated files are preserved.

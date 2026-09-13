@@ -230,8 +230,6 @@ struct TypePortCapability {
 struct NodeTypeDefinition {
   std::string id;
   std::uint32_t revision{};
-  std::string image;
-  std::string executable;
   std::vector<TypePortCapability> ports;
 };
 
@@ -248,6 +246,10 @@ struct GraphConfig {
   // used only by isolated module callers; v3 graph execution is explicitly gated.
   ConfigValue authored;
   ConfigValue resolved;
+  // Verified catalog content retained for pure artifact compilation.
+  ConfigValue catalog;
+  std::filesystem::path input_directory;
+  std::filesystem::path catalog_directory;
   std::vector<NodeTypeDefinition> node_types;
 
   [[nodiscard]] const NodeConfig& node(std::string_view id) const;

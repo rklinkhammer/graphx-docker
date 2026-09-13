@@ -1,0 +1,98 @@
+{
+  "owner_api": "owned-process-adapter",
+  "processes": [
+    {
+      "argv": [
+        "${GX_RELEASE}/bin/graphx-diagnostic",
+        "--node",
+        "left",
+        "--config",
+        "${GX_OUTPUT}/nodes/left.json",
+        "--release-file",
+        "${GX_STATE}/barriers/release",
+        "--release-token",
+        "${GX_OWNER}"
+      ],
+      "credentials": [],
+      "cwd": "${GX_OUTPUT}",
+      "environment": {
+        "GRAPHX_CREDENTIALS": "${GX_CREDENTIALS}"
+      },
+      "id": "left",
+      "kind": "namespace",
+      "limits": {
+        "log_bytes": 2097152,
+        "memory_bytes": 134217728
+      },
+      "log": "${GX_STATE}/logs/left.log",
+      "namespace": "gxn3b90847b051f",
+      "readiness": {
+        "kind": "local-bound",
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "argv": [
+        "${GX_RELEASE}/bin/graphx-diagnostic",
+        "--node",
+        "middle",
+        "--config",
+        "${GX_OUTPUT}/nodes/middle.json",
+        "--release-file",
+        "${GX_STATE}/barriers/release",
+        "--release-token",
+        "${GX_OWNER}"
+      ],
+      "credentials": [],
+      "cwd": "${GX_OUTPUT}",
+      "environment": {
+        "GRAPHX_CREDENTIALS": "${GX_CREDENTIALS}"
+      },
+      "id": "middle",
+      "kind": "namespace",
+      "limits": {
+        "log_bytes": 2097152,
+        "memory_bytes": 134217728
+      },
+      "log": "${GX_STATE}/logs/middle.log",
+      "namespace": "gxndb0f1d7b8d00",
+      "readiness": {
+        "kind": "local-bound",
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "argv": [
+        "${GX_RELEASE}/bin/graphx-diagnostic",
+        "--node",
+        "right",
+        "--config",
+        "${GX_OUTPUT}/nodes/right.json",
+        "--release-file",
+        "${GX_STATE}/barriers/release",
+        "--release-token",
+        "${GX_OWNER}"
+      ],
+      "credentials": [],
+      "cwd": "${GX_OUTPUT}",
+      "environment": {
+        "GRAPHX_CREDENTIALS": "${GX_CREDENTIALS}"
+      },
+      "id": "right",
+      "kind": "namespace",
+      "limits": {
+        "log_bytes": 2097152,
+        "memory_bytes": 134217728
+      },
+      "log": "${GX_STATE}/logs/right.log",
+      "namespace": "gxn5e5a66848238",
+      "readiness": {
+        "kind": "local-bound",
+        "timeout_ms": 30000
+      }
+    }
+  ],
+  "start": "platform-ready then bind-all then release-connectors",
+  "state": "existing ownership store",
+  "version": 1
+}

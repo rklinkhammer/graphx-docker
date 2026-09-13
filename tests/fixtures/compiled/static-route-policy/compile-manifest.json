@@ -1,0 +1,71 @@
+{
+  "artifact_identities_verified": false,
+  "catalog_digest": "c7173c98503b8f49c5997c6d3429f239b39d502b66b1eb0e7ffb252671788fe1",
+  "compiler": "graphx-compiler-1",
+  "compiler_version": "1.1.0",
+  "execution_available": false,
+  "files": [
+    {
+      "path": "capture-handoff.json",
+      "sha256": "0f0b5d0ff1399943441a56efc9a2b1c9fcf71c71c3678e41e1c5198e33ff0eee"
+    },
+    {
+      "path": "catalog-pins.json",
+      "sha256": "42139c85a6eb7b5343e58d5386b40dde9ec340beb8050fca747748d9dd103b36"
+    },
+    {
+      "path": "compose.yaml",
+      "sha256": "2c05b6c13f34a12b998775259659e99ff4308abe282bd93ee08d9abaf1951d82"
+    },
+    {
+      "path": "credentials.json",
+      "sha256": "78bec4a948065366a5ce20ceffcf051a6120497aec574ac7ad9b08f2d4d4db98"
+    },
+    {
+      "path": "execution-plan.json",
+      "sha256": "00c40b114a650b88bfb5693eebb229046083d97f389d0edf91b2461e3ddf4dbc"
+    },
+    {
+      "path": "native-plan.json",
+      "sha256": "126fc81725acacf8855c17bf558ba2637fdb5a1cd84698eac327981647e62bef"
+    },
+    {
+      "path": "nodes/left.json",
+      "sha256": "c0da3b215caf3442be45f74547e30223b0da5abfdb531b107fef737abc9bf3c9"
+    },
+    {
+      "path": "nodes/middle.json",
+      "sha256": "246b3da86c6d8efc91c40650ae015fca59ecad74aad35b1a8e073a4113aad5d7"
+    },
+    {
+      "path": "nodes/right.json",
+      "sha256": "38c552cff1a66a8d2185f9cf6a55a04527d69768dd1231db9c361cb741ec892a"
+    },
+    {
+      "path": "ovs-plan.json",
+      "sha256": "03d2071fc11d928f6c16e6a8d3cab5100965d60ba6b7c222fc4b3b0ea99220cb"
+    },
+    {
+      "path": "platform.json",
+      "sha256": "d03f1859b617cc204e8f12031f6357df71b89be51e44df2f3731b37d83315c5b"
+    },
+    {
+      "path": "resolved.json",
+      "sha256": "e60bddc2f8cd9b75f5c34d4d9d32dd85dea66322a3506e1b91a7b92bbf0f9cbb"
+    },
+    {
+      "path": "scenario-plan.json",
+      "sha256": "902a09266d9b876a9a1ad7353ad0afb3d1f37590638c0f7d7e460e3056d9f650"
+    },
+    {
+      "path": "substitutions.json",
+      "sha256": "af5ac63f7542b74af7c2b2038b69d8ea1690df8955daf3163bb8ec5fcfea7891"
+    }
+  ],
+  "graph_id": "static-route-policy",
+  "input_digest": "9b5c8bfa858958cac3b16b99dbefdf17550debf83befdbb5a329ec4e49ec6708",
+  "replacement": "refused; use fresh output until owned-consumer inactivity can be verified",
+  "serializer": "graphx-json-1-yaml12-subset",
+  "target": "native-linux",
+  "version": 1
+}

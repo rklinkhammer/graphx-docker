@@ -1,0 +1,55 @@
+{
+  "artifact_identities_verified": false,
+  "catalog_digest": "c7173c98503b8f49c5997c6d3429f239b39d502b66b1eb0e7ffb252671788fe1",
+  "compiler": "graphx-compiler-1",
+  "compiler_version": "1.1.0",
+  "execution_available": false,
+  "files": [
+    {
+      "path": "catalog-pins.json",
+      "sha256": "42139c85a6eb7b5343e58d5386b40dde9ec340beb8050fca747748d9dd103b36"
+    },
+    {
+      "path": "compose.yaml",
+      "sha256": "af03e7ceada8d069823105b52d8143d9b5855eee8b67364609daebf3999f80e9"
+    },
+    {
+      "path": "credentials.json",
+      "sha256": "5b345ff00f5d5e2536c102ff7b19396a4ef2c4aa11f62234bf4fa54ad58ff468"
+    },
+    {
+      "path": "execution-plan.json",
+      "sha256": "927d00604f28e55d2565eadb7a031fc0f2c1aba75bc5cde364659a4c4e166951"
+    },
+    {
+      "path": "nodes/processor.json",
+      "sha256": "5db6c68db6ab0a5d54e23ea57194faf92a41b9c02eb94449fa88e75e12c48296"
+    },
+    {
+      "path": "nodes/radio.json",
+      "sha256": "9bb8288233e362808dd9c93f4575df8bf3b200eac14c3a744e069c14b300d645"
+    },
+    {
+      "path": "nodes/sink.json",
+      "sha256": "c30c145c0d14a4f4d8942a51423d52b7f16595422a5a1ad85214a465be98bbae"
+    },
+    {
+      "path": "platform.json",
+      "sha256": "d82ab5b5da3b4efb47bb0f9f3cf46c9e829232f23fcfb08051ab48dddc5817e7"
+    },
+    {
+      "path": "resolved.json",
+      "sha256": "00d0e7acee65711e2ed624907af3036120de7ace88740b9ad1eabb6a4c8c8f45"
+    },
+    {
+      "path": "substitutions.json",
+      "sha256": "af5ac63f7542b74af7c2b2038b69d8ea1690df8955daf3163bb8ec5fcfea7891"
+    }
+  ],
+  "graph_id": "sdr-simulated",
+  "input_digest": "4f81532d7ef7654a4b7232fdf0f097ece702c1e9f4502f49f66957e6177bd37b",
+  "replacement": "refused; use fresh output until owned-consumer inactivity can be verified",
+  "serializer": "graphx-json-1-yaml12-subset",
+  "target": "native-linux",
+  "version": 1
+}

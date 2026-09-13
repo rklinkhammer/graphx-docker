@@ -101,6 +101,8 @@ add_library(graphx
   src/node_settings.cpp
   src/sample_application.cpp
   src/config.cpp
+  src/compile.cpp
+  src/compile_output.cpp
   src/envelope.cpp
   src/framing.cpp
   src/in_process_transport.cpp
@@ -423,6 +425,8 @@ if(GRAPHX_BUILD_TESTS)
   add_test(NAME graphx-udp-transport
     COMMAND graphx-tests --filter "UDP" --repeat 3)
   set_tests_properties(graphx-udp-transport PROPERTIES TIMEOUT 30)
+  graphx_add_python_test(graphx-compile tests/test_compile.py 120
+    $<TARGET_FILE:graphx-cli> ${CMAKE_SOURCE_DIR})
   graphx_add_python_test(graphx-node-bindings tests/test_node_bindings.py 60
     ${CMAKE_BINARY_DIR} ${CMAKE_SOURCE_DIR})
   graphx_add_python_test(graphx-execution-gate tests/test_execution_gate.py 30

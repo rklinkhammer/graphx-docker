@@ -1,4 +1,4 @@
-# GraphX version 3. Validate/normalize only; execution adapters are unavailable.
+# GraphX version 3. Validation and compilation available; execution adapters are unavailable.
 catalog: ../../../config/catalog/lock.json
 connections:
   control:

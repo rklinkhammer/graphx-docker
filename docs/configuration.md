@@ -5,10 +5,10 @@ catalog type instances and connections into normalized JSON contract version 2.
 Version 2 authored files and normalized version 1 are deliberately rejected.
 
 The implemented commands are `validate`, `inspect`, `config normalize`, and
-`node-settings --node ID --config FILE` for resolved node validation.
+`node-settings --node ID --config FILE` for resolved node validation, and `compile`.
 `inspect` prints the resolved JSON. These commands read bounded files and do not
 start processes, provision credentials, create infrastructure, or inspect a Docker
-engine. `compile`, `run`, `infra`, and unconverted example launchers return
+engine. Compilation writes inspectable files only. `run`, `infra`, and unconverted example launchers return
 `E_PHASE_UNAVAILABLE`. The [implementation plan](../design/graph-generation/implementation-plan.md)
 tracks the remaining execution adapters.
 
@@ -80,8 +80,8 @@ schema. Its existing standalone HTTP, history and capture modules remain testabl
 with explicitly supplied runtime wiring. Graph-driven credential/control-grant
 staging is unavailable until P5 and fails before listeners open. `${GX_STATE}` and
 other execution placeholders are resolved by later execution adapters, not the
-configuration loader. Normalization does not generate Compose, binding files or
-guest artifacts; deterministic artifact compilation is P3.
+configuration loader. Normalization does not write artifacts. The P3 compiler serializes this resolved
+model into the node files and applicable plans described below.
 
 ## Application bindings
 
@@ -120,6 +120,34 @@ GraphX transport TLS credential mapping remain gated for P5. Raw SDR control kee
 its existing explicit TLS file inputs and uses resolved endpoints/server names.
 
 Node files are currently available through the library/resolved JSON contract;
-P3 will implement deterministic file generation. The native binding tests extract
+P3 implements deterministic file generation. The native binding tests extract
 node objects into temporary fixtures and supply their own barrier. They do not
 establish compiled graph, container, OVS or guest execution acceptance.
+
+## Deterministic compilation
+
+`graphx compile FILE --output DIR --source-root DIR --credential-root DIR`
+accepts the same `--target` and `--catalog-root` options as normalization. All
+roots are explicit and may not contain symlinks or parent traversal; the output's
+parent must exist. The source and credential roots are protected boundaries,
+not instructions to build sources or read secrets. Output must be outside them,
+the authored input directory and the catalog root. Use canonical absolute paths
+(for example `/private/tmp` on macOS rather than its `/tmp` symlink).
+
+The compiler emits a manifest with graph/catalog/input digests and hashes of every
+other artifact. Node JSON files match normalized node objects exactly. Plans cover
+the platform, credentials, fixed Compose/native launch templates and applicable
+OVS/capture/guest/scenario work. Compose is emitted as canonical JSON in
+`compose.yaml`, a valid YAML 1.2 representation. No compiler step invokes runtime
+tools, builds artifacts, provisions credentials or probes infrastructure.
+
+Catalog binary identities are explicitly unverified until P4/P8 packaging. The
+manifest records `execution_available: false` and
+`artifact_identities_verified: false`; the execution plan has `executable: false`.
+These plans are inspectable compiler output, not an enabled launch workflow.
+
+Publication uses private staging, fsync and exclusive atomic rename. An existing
+output is never replaced, even with a matching manifest. Use a fresh output
+name; `--replace` is refused until runtime ownership can establish inactivity.
+See [P3 verification](../design/graph-generation/p3-verification.md) for the
+artifact matrix, reproducibility evidence and remaining execution boundaries.

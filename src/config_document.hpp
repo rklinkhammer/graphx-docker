@@ -17,6 +17,7 @@ std::string read_document(const std::filesystem::path& path, std::size_t maximum
 std::filesystem::path confined_path(const std::filesystem::path& root,
                                     const std::filesystem::path& path);
 std::string sha256(std::string_view value);
+std::string resource_name(std::string_view graph, std::string_view kind, std::string_view id);
 void validate_shape(const Value& value, const Value& schema, std::string_view path = "$",
                     const Value* root = nullptr);
 TransportSettings resolved_transport(const ConfigValue& connection);

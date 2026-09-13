@@ -55,6 +55,7 @@ ARCHIVE_EXECUTABLE_FILES = frozenset({
 ARCHIVE_PUBLIC_HEADERS = frozenset({
     "include/graphx/capture.hpp",
     "include/graphx/config.hpp",
+    "include/graphx/compile.hpp",
     "include/graphx/config_value.hpp",
     "include/graphx/envelope.hpp",
     "include/graphx/framing.hpp",

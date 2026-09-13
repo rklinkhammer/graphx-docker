@@ -1,0 +1,57 @@
+{
+  "config": "resolved.json",
+  "executable": false,
+  "external": [],
+  "on_failure": "reverse newly owned resources; retain mismatch evidence and history",
+  "scenario_actions": "never implicit",
+  "stages": [
+    {
+      "checks": [
+        "manifest hashes",
+        "verified release identities",
+        "target capabilities",
+        "roots and listener availability",
+        "credential references"
+      ],
+      "operation": "preflight"
+    },
+    {
+      "operation": "stage-credentials",
+      "plan": "credentials.json"
+    },
+    {
+      "operation": "start-platform",
+      "owner": "native-plan.json"
+    },
+    {
+      "operation": "await-platform",
+      "timeout_ms": 30000
+    },
+    {
+      "operation": "start-applications-held"
+    },
+    {
+      "operation": "await-local-listeners",
+      "protocol": "ready node=ID on owned process stdout",
+      "timeout_ms": 30000
+    },
+    {
+      "contents": "${GX_OWNER}",
+      "file": "${GX_STATE}/barriers/release",
+      "operation": "release-connectors",
+      "publication": "atomic rename"
+    },
+    {
+      "continuous_supervision": false,
+      "operation": "return"
+    }
+  ],
+  "stop_order": [
+    "applications and guests",
+    "capture handoff",
+    "OVS resources",
+    "platform",
+    "ephemeral credentials"
+  ],
+  "version": 1
+}

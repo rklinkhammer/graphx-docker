@@ -1,6 +1,7 @@
 # Verification definition and results
 
-P1 implementation evidence is recorded separately in [P1 verification](p1-verification.md).
+Implementation evidence is recorded separately in [P1 verification](p1-verification.md),
+[P2 verification](p2-verification.md) and [P3 verification](p3-verification.md).
 The checks below concern illustrative design artifacts; they are not runtime acceptance.
 
 **DESIGN ONLY.** Static validation does not demonstrate runtime support.

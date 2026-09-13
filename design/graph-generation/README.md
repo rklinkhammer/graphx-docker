@@ -4,9 +4,10 @@
 expected outputs, are non-runtime review artifacts.** I-01 through I-11 are
 accepted future-state premises. P1 now implements authored version 3 and
 normalized contract version 2, and P2 implements generic bindings and native
-application verification; see [P2 verification](p2-verification.md). The
-expected compiler artifacts in this package remain illustrative until P3; later
-execution phases are not implemented.
+application verification. P3 implements deterministic compilation; see
+[P3 verification](p3-verification.md). This review package retains illustrative
+expected artifacts; maintained compiler goldens live under `tests/fixtures/compiled`.
+Later execution phases are not implemented.
 
 The design meets the simplification objective if the binding and execution
 boundaries in [architecture.md](architecture.md) land together. A topology change
@@ -76,18 +77,18 @@ host mount sources use placeholders. No numeric placeholder is used.
 Future release/image/guest digest literals in `catalog/lock.json` and its indexed
 files are **illustrative identities**, not claims of published or built binaries.
 They are deliberately syntactically complete digest pins, not `latest` tags.
-Prometheus/Grafana pins are copied from current repository evidence. At
-implementation, producing the actual release lock is a pre-compilation gate;
-image or source identities may not remain unresolved at execution. Guest recipe
+Prometheus/Grafana pins are copied from repository evidence. P3 preserves these
+identities with explicit unverified status. Verified runtime/image pins belong to
+P4 and guest pins to P8; execution must reject unverified artifact identities. Guest recipe
 outputs are review expectations; no guest binary is shipped here. Missing
 recipe/artifact declarations are compile errors, while missing built output
 from a declared recipe is an execution prerequisite error. This distinction
 allows a complete review of the build and boot plans without inventing a guest.
 
-Not implemented: the v3 C++ model/compiler, generic sample/SDR bindings, portable
-native platform packaging, release barriers, secure default telemetry delivery,
-bounded adapters, generated observability integration and configurable guests.
-Expected output was authored for review. No fixture generation framework or
-production compiler is included. `check_package.py` only checks this static
-package. Parseability, shape validation and reference checks do not prove
-rendering determinism, runtime compatibility, isolation, cleanup or guest boot.
+P1–P3 implement the v3 model, generic bindings, local release barrier and pure
+compiler. Native platform packaging, secure default credential delivery, bounded
+execution adapters, generated observability integration and guest execution remain
+later-phase work. Expected output here was authored for review; actual compiler
+goldens and matrix tests are under `tests/`. `check_package.py` checks only this
+static package. Design parseability does not establish runtime compatibility,
+isolation, cleanup or guest boot; see the separate phase verification reports.

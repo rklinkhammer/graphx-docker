@@ -1,0 +1,33 @@
+{
+  "actions": [
+    {
+      "action": "route-apply",
+      "destination": "10.64.30.10/32",
+      "id": "apply-deferred",
+      "router": "route-router"
+    },
+    {
+      "action": "route-clear",
+      "destination": "10.64.30.10/32",
+      "id": "clear-deferred",
+      "router": "route-router"
+    },
+    {
+      "action": "traffic",
+      "connections": [
+        "allowed-flow",
+        "denied-flow",
+        "routed-flow"
+      ],
+      "expect": [
+        "pass",
+        "drop",
+        "pass-only-after-apply-deferred"
+      ],
+      "id": "verify-flows"
+    }
+  ],
+  "baseline_config": "resolved.json",
+  "implicit_start": false,
+  "version": 1
+}

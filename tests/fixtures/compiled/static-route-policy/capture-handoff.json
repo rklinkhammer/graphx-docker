@@ -1,0 +1,25 @@
+{
+  "api": "export_owned_network_capture",
+  "captures": [
+    {
+      "destination": "${GX_STATE}/handoff/mirror-route-left.pcapng",
+      "id": "mirror-route-left",
+      "interval_seconds": 5,
+      "max_bytes": 67108864
+    },
+    {
+      "destination": "${GX_STATE}/handoff/mirror-route-middle.pcapng",
+      "id": "mirror-route-middle",
+      "interval_seconds": 5,
+      "max_bytes": 67108864
+    },
+    {
+      "destination": "${GX_STATE}/handoff/mirror-route-right.pcapng",
+      "id": "mirror-route-right",
+      "interval_seconds": 5,
+      "max_bytes": 67108864
+    }
+  ],
+  "permissions": "sealed read-only snapshots to platform group; live rings remain privileged",
+  "version": 1
+}

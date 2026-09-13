@@ -1,4 +1,5 @@
 #include "graphx/config.hpp"
+#include "graphx/compile.hpp"
 #include "graphx/node_settings.hpp"
 #include "graphx/normalized_config.hpp"
 #include "graphx/version.hpp"
@@ -15,8 +16,10 @@ void usage(std::ostream& out) {
       << "  graphx <validate|inspect> [graphx.yml] [--target TARGET] [--catalog-root DIR]\n"
       << "  graphx config normalize [graphx.yml] [--format json] [--target TARGET]\n"
       << "                          [--catalog-root DIR]\n"
+      << "  graphx compile FILE --output DIR --source-root DIR --credential-root DIR\n"
+      << "                        [--target TARGET] [--catalog-root DIR]\n"
       << "Targets: native-linux (validation default), native-macos, orbstack, lima\n"
-      << "Graph execution and artifact generation remain unavailable.\n";
+      << "Graph execution remains unavailable; compile only writes inspectable artifacts.\n";
 }
 }  // namespace
 
@@ -38,10 +41,40 @@ int main(int argc, char** argv) {
           graphx::load_node_settings(args.config, args.node).resolved);
       return 0;
     }
-    if (command == "infra" || command == "compile" || command == "run") {
+    if (command == "infra" || command == "run") {
       std::cerr << "E_PHASE_UNAVAILABLE: version 3 execution/artifact adapters are not "
                    "implemented; no action was performed\n";
       return 2;
+    }
+    if (command == "compile") {
+      if (argc < 3) throw std::invalid_argument("compile requires an authored file");
+      const std::filesystem::path source = argv[2];
+      graphx::ConfigLoadOptions load;
+      std::map<std::string, std::string> opts;
+      for (int i = 3; i < argc; ++i) {
+        const std::string key = argv[i];
+        if (key == "--replace")
+          throw std::invalid_argument(
+              "E_OUTPUT_OWNERSHIP: replacement is unavailable; use a fresh directory");
+        if ((key != "--output" && key != "--source-root" && key != "--credential-root" &&
+             key != "--target" && key != "--catalog-root") ||
+            i + 1 == argc || !opts.emplace(key, argv[++i]).second)
+          throw std::invalid_argument(
+              "E_ARGUMENT: unknown, duplicate or incomplete compile option");
+      }
+      for (const auto* key : {"--output", "--source-root", "--credential-root"})
+        if (!opts.contains(key))
+          throw std::invalid_argument(std::string("E_ARGUMENT: compile requires ") + key);
+      if (opts.contains("--target")) load.target = opts.at("--target");
+      if (opts.contains("--catalog-root")) load.catalog_root = opts.at("--catalog-root");
+      const auto graph = graphx::load_graph(source, load);
+      const auto compiled = graphx::compile_graph(graph);
+      graphx::write_compilation(compiled, opts.at("--output"),
+                                {graph.input_directory, graph.catalog_directory,
+                                 opts.at("--source-root"), opts.at("--credential-root")});
+      std::cout << "Compiled " << compiled.files.size()
+                << " artifacts; execution unavailable; release identities unverified\n";
+      return 0;
     }
     int first = 2;
     const bool normalize = command == "config";

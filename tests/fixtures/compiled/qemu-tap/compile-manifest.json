@@ -1,0 +1,75 @@
+{
+  "artifact_identities_verified": false,
+  "catalog_digest": "c7173c98503b8f49c5997c6d3429f239b39d502b66b1eb0e7ffb252671788fe1",
+  "compiler": "graphx-compiler-1",
+  "compiler_version": "1.1.0",
+  "execution_available": false,
+  "files": [
+    {
+      "path": "capture-handoff.json",
+      "sha256": "66f92f8883cb9c02035c92357b60f58230f69aedfeab425b791013ebc910bb93"
+    },
+    {
+      "path": "catalog-pins.json",
+      "sha256": "42139c85a6eb7b5343e58d5386b40dde9ec340beb8050fca747748d9dd103b36"
+    },
+    {
+      "path": "compose.yaml",
+      "sha256": "131c78336df9d5fe843a7eb334a42c166928f10f05599253fdf8cd81c5793c0a"
+    },
+    {
+      "path": "credentials.json",
+      "sha256": "78bec4a948065366a5ce20ceffcf051a6120497aec574ac7ad9b08f2d4d4db98"
+    },
+    {
+      "path": "execution-plan.json",
+      "sha256": "e0415f1d00e96789dd97874b660d6af7046734d09a47c1f8348e2a54de4e991d"
+    },
+    {
+      "path": "guest-build/echo-x86.json",
+      "sha256": "9ed63f3f98dc8cb293f17aeb6e513ae91347c1943bded92f2e4dc22451201d30"
+    },
+    {
+      "path": "native-plan.json",
+      "sha256": "cff11aa008fe012184be1665436e7e456e63278c0fc77bccc65df5ac5f91a185"
+    },
+    {
+      "path": "nodes/host-peer.json",
+      "sha256": "945644885bfd6ab70236fb97ef2c7468a9a59da64966fd32454d4ddd04d21b92"
+    },
+    {
+      "path": "nodes/qemu-node.json",
+      "sha256": "4fd3c37e1576a7a8773ec19f9683c079a25be9337dfa0b5fa4ebae9dd5230352"
+    },
+    {
+      "path": "ovs-plan.json",
+      "sha256": "5e1907fb9fec748a3375571880a159d0b56d781f310ffe41d0b76fe6bb043129"
+    },
+    {
+      "path": "platform.json",
+      "sha256": "d03f1859b617cc204e8f12031f6357df71b89be51e44df2f3731b37d83315c5b"
+    },
+    {
+      "path": "qemu-plan.json",
+      "sha256": "b1de861dd3aa18aedf6b9e25ab1245b62142dc3d53fab6934311b57c36a4b90a"
+    },
+    {
+      "path": "resolved.json",
+      "sha256": "08b509dcb80f993b736fa591e7a473a42edd52c8bea5222363531729572981d9"
+    },
+    {
+      "path": "scenario-plan.json",
+      "sha256": "b2829d4b3f960d3c8b68ce3d6f43f1ea1c108641ce7c3de9740552631439639f"
+    },
+    {
+      "path": "substitutions.json",
+      "sha256": "af5ac63f7542b74af7c2b2038b69d8ea1690df8955daf3163bb8ec5fcfea7891"
+    }
+  ],
+  "graph_id": "qemu-tap",
+  "input_digest": "6833126a180ea34de5ae051ea32da599f8dd41a2c4db1c3170d60dd0f84e648e",
+  "replacement": "refused; use fresh output until owned-consumer inactivity can be verified",
+  "serializer": "graphx-json-1-yaml12-subset",
+  "target": "native-linux",
+  "version": 1
+}

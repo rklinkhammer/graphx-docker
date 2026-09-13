@@ -1,0 +1,40 @@
+{
+  "accelerators": [
+    "tcg"
+  ],
+  "application": "guest.echo",
+  "architecture": "x86_64",
+  "build_argv": [
+    "make",
+    "O=/work/build",
+    "BR2_EXTERNAL=/source/buildroot-external",
+    "graphx_echo_x86_defconfig",
+    "all",
+    "legal-info"
+  ],
+  "builder_image": "graphx-design/guest-builder@sha256:6a386502337587de8b635877138af27ebe5755eb8c8a4ae3182345deb9f4fcfd",
+  "configuration_delivery": "virtio-serial channel org.graphx.config; framed JSON before starting application",
+  "credential_delivery": "separate org.graphx.credentials channel; tmpfs 0400; no disk or serial logs",
+  "exists_today": false,
+  "id": "echo-x86",
+  "outputs": [
+    {
+      "path": "bzImage",
+      "sha256": "f2239ca163dd441a7f809fc8354cbda82efb9f4c5ec206bad7ee47dd44969efe"
+    },
+    {
+      "path": "rootfs.cpio.gz",
+      "sha256": "60a0ce83d91e10974ccd67cb2eab19a62ff36925ad10be8ae197388a7b29d53e"
+    }
+  ],
+  "readiness": {
+    "channel": "org.graphx.ready",
+    "message": "node ID + config digest + listeners-bound",
+    "timeout_ms": 120000
+  },
+  "recipe_revision": 1,
+  "required_work": "Adapt current echo guest to generic bindings and virtio configuration",
+  "source_date_epoch": 1700000000,
+  "source_digest": "226028384313a7673a1eeba3fcb47b1ae161ffbf53ef8ab68a72a3618734e013",
+  "source_ref": "guest-source-echo-x86"
+}
