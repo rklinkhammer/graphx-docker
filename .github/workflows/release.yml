@@ -39,7 +39,7 @@ jobs:
           python3 scripts/release/ghcr_release.py assert-absent \
             --repository "${{ github.repository }}" --owner "$owner" \
             --owner-type "${{ github.event.repository.owner.type }}" --tag "$version" \
-            --package graphx-runtime --package graphx-telemetry
+            --package graphx-runtime --package graphx-telemetry --package graphx-sdr
       - name: Run portable Linux acceptance
         run: scripts/test-linux-container.sh portable
       - name: Run pinned static analysis
@@ -164,10 +164,31 @@ jobs:
           subject-name: ghcr.io/${{ steps.version.outputs.owner }}/graphx-telemetry
           subject-digest: ${{ steps.telemetry.outputs.digest }}
           push-to-registry: true
+      - name: Build and stage sdr image by unique run identity
+        id: sdr
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: docker/sdr.Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ghcr.io/${{ steps.version.outputs.owner }}/graphx-sdr:staging-${{ github.run_id }}-${{ github.run_attempt }}
+          provenance: mode=max
+          sbom: generator=docker/buildkit-syft-scanner@sha256:ae4f3b554449e7e25548e7d8ccc029d17357348e30c6e3df01b92bc93654d6a9
+          build-args: |
+            GRAPHX_VERSION=${{ steps.version.outputs.version }}
+            GRAPHX_REVISION=${{ github.sha }}
+      - name: Attest sdr image
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
+        with:
+          subject-name: ghcr.io/${{ steps.version.outputs.owner }}/graphx-sdr
+          subject-digest: ${{ steps.sdr.outputs.digest }}
+          push-to-registry: true
       - name: Validate staged platform SBOM inventories
         run: |
           runtime="ghcr.io/${{ steps.version.outputs.owner }}/graphx-runtime@${{ steps.runtime.outputs.digest }}"
           telemetry="ghcr.io/${{ steps.version.outputs.owner }}/graphx-telemetry@${{ steps.telemetry.outputs.digest }}"
+          sdr="ghcr.io/${{ steps.version.outputs.owner }}/graphx-sdr@${{ steps.sdr.outputs.digest }}"
           for platform in linux/amd64 linux/arm64; do
             docker buildx imagetools inspect "$runtime" \
               --format "{{ json (index .SBOM \"${platform}\").SPDX }}" | \
@@ -176,8 +197,11 @@ jobs:
               --format "{{ json (index .SBOM \"${platform}\").SPDX }}" | \
               python3 scripts/release/validate_oci_sbom.py --artifact "telemetry-${platform}" \
                 --expected-package ws
+            docker buildx imagetools inspect "$sdr" \
+              --format "{{ json (index .SBOM \"${platform}\").SPDX }}" | \
+              python3 scripts/release/validate_oci_sbom.py --artifact "sdr-${platform}"
           done
-      - name: Promote both staged images without replacing a version
+      - name: Promote shared staged images without replacing a version
         env:
           GITHUB_TOKEN: ${{ github.token }}
           OWNER: ${{ steps.version.outputs.owner }}
@@ -185,6 +209,7 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
           RUNTIME_DIGEST: ${{ steps.runtime.outputs.digest }}
           TELEMETRY_DIGEST: ${{ steps.telemetry.outputs.digest }}
+          SDR_DIGEST: ${{ steps.sdr.outputs.digest }}
         run: |
           set -euo pipefail
           promoted=()
@@ -205,7 +230,7 @@ jobs:
           python3 scripts/release/ghcr_release.py assert-absent \
             --repository "${{ github.repository }}" --owner "$OWNER" \
             --owner-type "$OWNER_TYPE" --tag "$VERSION" \
-            --package graphx-runtime --package graphx-telemetry
+            --package graphx-runtime --package graphx-telemetry --package graphx-sdr
           runtime="ghcr.io/${OWNER}/graphx-runtime"
           telemetry="ghcr.io/${OWNER}/graphx-telemetry"
           docker buildx imagetools create --tag "${runtime}:${VERSION}" \
@@ -218,6 +243,11 @@ jobs:
           promoted+=(graphx-telemetry)
           test "$(docker buildx imagetools inspect "${telemetry}:${VERSION}" \
             --format '{{.Manifest.Digest}}')" = "$TELEMETRY_DIGEST"
+          sdr="ghcr.io/${OWNER}/graphx-sdr"
+          docker buildx imagetools create --tag "${sdr}:${VERSION}" "${sdr}@${SDR_DIGEST}"
+          promoted+=(graphx-sdr)
+          test "$(docker buildx imagetools inspect "${sdr}:${VERSION}" \
+            --format '{{.Manifest.Digest}}')" = "$SDR_DIGEST"
           trap - EXIT
 
   publish:
@@ -281,7 +311,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
-      - name: Compensate both exact-version tags
+      - name: Compensate shared exact-version tags
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
@@ -289,7 +319,7 @@ jobs:
           status=0
           owner="$(printf '%s' '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
           version="$(tr -d '\n' < VERSION)"
-          for package in graphx-runtime graphx-telemetry; do
+          for package in graphx-runtime graphx-telemetry graphx-sdr; do
             python3 scripts/release/ghcr_release.py delete-tag \
               --repository "${{ github.repository }}" --owner "$owner" \
               --owner-type "${{ github.event.repository.owner.type }}" --tag "$version" \

@@ -1,10 +1,10 @@
 # GraphX
 
-P1–P3 implement v3 validation, normalized JSON version 2, generic application
-bindings and deterministic artifact compilation.
+P1–P4 implement v3 validation, normalized JSON version 2, generic application
+bindings, deterministic artifact compilation and shared release image packaging.
 Graph execution and unconverted launchers fail explicitly with
 `E_PHASE_UNAVAILABLE`. Follow the [current user guide](docs/user-guide.md) and
-[phase status](design/graph-generation/p3-verification.md) for the supported workflow.
+[phase status](design/graph-generation/p4-verification.md) for the supported workflow.
 
 
 [![CI](https://github.com/rklinkhammer/graphx-docker/actions/workflows/ci.yml/badge.svg)](https://github.com/rklinkhammer/graphx-docker/actions/workflows/ci.yml)

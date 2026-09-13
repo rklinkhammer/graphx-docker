@@ -222,11 +222,6 @@ install(FILES "${CMAKE_CURRENT_BINARY_DIR}/GraphXConfig.cmake"
 install(FILES config/schema/graphx.schema.json config/schema/normalized-graph.schema.json
   config/schema/node-type.schema.json config/schema/guest-artifact.schema.json config/schema/catalog-lock.schema.json
   DESTINATION ${CMAKE_INSTALL_DATADIR}/graphx/schema COMPONENT runtime)
-file(READ "${CMAKE_CURRENT_SOURCE_DIR}/examples/sample-pipeline/graphx.yml" GRAPHX_INSTALLED_GRAPH)
-string(REPLACE "../../config/catalog/lock.json" "catalog/lock.json" GRAPHX_INSTALLED_GRAPH "${GRAPHX_INSTALLED_GRAPH}")
-file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/installed-graphx.yml" CONTENT "${GRAPHX_INSTALLED_GRAPH}")
-install(FILES "${CMAKE_CURRENT_BINARY_DIR}/installed-graphx.yml" RENAME graphx.yml
-  DESTINATION ${CMAKE_INSTALL_DATADIR}/graphx COMPONENT runtime)
 install(PROGRAMS tools/graphx-extcap
   DESTINATION ${CMAKE_INSTALL_LIBEXECDIR}/graphx COMPONENT tools)
 install(FILES wireshark/graphx.lua wireshark/README.md
@@ -412,6 +407,8 @@ if(GRAPHX_BUILD_TESTS)
     PASS_REGULAR_EXPRESSION "^graphx ${GRAPHX_VERSION}")
   add_test(NAME graphx-release-contract COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/test_release.py ${CMAKE_SOURCE_DIR} $<TARGET_FILE:graphx-cli>)
+  add_test(NAME graphx-image-release COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/test_image_release.py ${CMAKE_SOURCE_DIR})
   add_test(NAME graphx-package COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/test_package.py ${CMAKE_SOURCE_DIR} ${CMAKE_BINARY_DIR})
   set_tests_properties(graphx-release-contract PROPERTIES TIMEOUT 30)

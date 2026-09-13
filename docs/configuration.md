@@ -151,3 +151,7 @@ output is never replaced, even with a matching manifest. Use a fresh output
 name; `--replace` is refused until runtime ownership can establish inactivity.
 See [P3 verification](../design/graph-generation/p3-verification.md) for the
 artifact matrix, reproducibility evidence and remaining execution boundaries.
+
+Catalog node-type revisions are positive integers from 1 through 2147483647.
+Release image packaging increments the affected container type revisions and
+repins the catalog lock together; see the [release process](release-process.md).

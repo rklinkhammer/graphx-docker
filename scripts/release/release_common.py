@@ -108,6 +108,7 @@ ARCHIVE_DOCUMENTATION_FILES = frozenset({
 })
 
 ARCHIVE_DATA_FILES = frozenset({
+    "share/graphx/catalog/README.md",
     "share/graphx/catalog/guests/echo-x86.json",
     "share/graphx/catalog/guests/radio-x86.json",
     "share/graphx/catalog/lock.json",
@@ -143,7 +144,6 @@ ARCHIVE_DATA_FILES = frozenset({
     "lib/cmake/GraphX/GraphXConfigVersion.cmake",
     "lib/cmake/GraphX/GraphXTargets.cmake",
     "lib/cmake/GraphX/GraphXTargets-release.cmake",
-    "share/graphx/graphx.yml",
     "share/graphx/schema/graphx.schema.json",
     "share/graphx/schema/normalized-graph.schema.json",
     "share/graphx/wireshark/graphx.lua",

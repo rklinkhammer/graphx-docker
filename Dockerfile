@@ -1,7 +1,8 @@
 FROM debian:bookworm-slim@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171 AS build
+COPY docker/debian.sources /etc/apt/sources.list.d/debian.sources
 RUN apt-get update && apt-get install -y --no-install-recommends \
       bash ca-certificates cmake curl ninja-build g++ libssl-dev \
- && rm -rf /var/lib/apt/lists/*
+ && rm -rf /var/lib/apt/lists/* /var/log/* /var/cache/ldconfig/aux-cache
 COPY docker/install-build-trust.sh /usr/local/libexec/graphx-install-build-trust
 ARG GRAPHX_BUILD_TRUST_FINGERPRINT=graphx-trust-v1-none
 RUN --mount=type=secret,id=graphx_ca,required=false \
@@ -20,11 +21,11 @@ COPY config config
 COPY docs docs
 COPY tools tools
 COPY wireshark wireshark
-COPY examples/sample-pipeline/graphx.yml ./examples/sample-pipeline/graphx.yml
 RUN cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DGRAPHX_BUILD_TESTS=OFF \
  && cmake --build build
 
 FROM debian:bookworm-slim@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171
+COPY docker/debian.sources /etc/apt/sources.list.d/debian.sources
 ARG GRAPHX_VERSION=dev
 ARG GRAPHX_REVISION=unknown
 LABEL org.opencontainers.image.title="GraphX runtime" \
@@ -33,7 +34,7 @@ LABEL org.opencontainers.image.title="GraphX runtime" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.version="${GRAPHX_VERSION}" \
       org.opencontainers.image.revision="${GRAPHX_REVISION}"
-RUN apt-get update && apt-get install -y --no-install-recommends iproute2 libssl3 && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends iproute2 libssl3 && rm -rf /var/lib/apt/lists/* /var/log/* /var/cache/ldconfig/aux-cache
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 RUN mkdir /captures && chown 65532:65532 /captures && chmod 0770 /captures
 COPY --from=build /src/build/graphx-generator /usr/local/bin/
@@ -42,8 +43,10 @@ COPY --from=build /src/build/graphx-sink /usr/local/bin/
 COPY --from=build /src/build/graphx-udp-publisher /usr/local/bin/
 COPY --from=build /src/build/graphx-udp-subscriber /usr/local/bin/
 COPY --from=build /src/build/graphx /usr/local/bin/
-COPY --from=build /src/examples/sample-pipeline/graphx.yml /etc/graphx/graphx.yml
-ENV GRAPHX_CONFIG=/etc/graphx/graphx.yml GRAPHX_VERSION=${GRAPHX_VERSION} \
+COPY --from=build /src/build/generated/graphx-build-dependencies.json /usr/local/share/graphx/build-dependencies.json
+COPY --from=build /src/build/_deps/yaml-cpp-src/LICENSE /usr/local/share/doc/graphx/yaml-cpp-LICENSE
+COPY LICENSE THIRD_PARTY.md /usr/local/share/doc/graphx/
+ENV GRAPHX_VERSION=${GRAPHX_VERSION} \
     SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
 USER 65532:65532
-ENTRYPOINT ["/usr/local/bin/graphx-generator"]
+CMD ["/usr/local/bin/graphx", "--help"]

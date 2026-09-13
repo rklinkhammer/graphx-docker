@@ -1,7 +1,8 @@
 # Test procedure
 
-P1–P3 support v3 validation, normalized consumers, direct application bindings
-and deterministic artifact compilation.
+P1–P4 support v3 validation, normalized consumers, direct application bindings
+and deterministic artifact compilation. P4 adds shared image packaging and offline
+release-pin verification; see [P4 evidence](../design/graph-generation/p4-verification.md).
 `quick` covers the accepted input/target matrix, generic native node semantics,
 renamed independent pipelines, SDR bindings, the compiler matrix/goldens and
 reusable module contracts;

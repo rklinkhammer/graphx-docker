@@ -153,8 +153,15 @@ jobs:
           persist-credentials: false
       - name: Validate Compose model
         run: docker compose -f examples/sample-pipeline/compose.yaml config --quiet
+      - name: Verify shared OCI image reproducibility and packaging
+        run: >-
+          python3 scripts/release/image_release.py build
+          --output outputs/shared-images --platform linux/amd64 --no-cache
       - name: Build affected images
-        run: docker compose -f examples/sample-pipeline/compose.yaml build
+        run: |
+          docker build -t graphx-demo:latest -f Dockerfile .
+          docker build -t graphx-telemetry:latest -f docker/telemetry.Dockerfile .
+          docker build -t graphx-sdr-services:latest -f docker/sdr.Dockerfile .
       - name: Verify capture-volume identity and collector read-only access
         run: bash scripts/test-container-hardening.sh
 

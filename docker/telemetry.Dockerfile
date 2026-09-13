@@ -1,6 +1,7 @@
 FROM debian:bookworm-slim@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171 AS trust
+COPY docker/debian.sources /etc/apt/sources.list.d/debian.sources
 RUN apt-get update && apt-get install -y --no-install-recommends bash ca-certificates curl \
- && rm -rf /var/lib/apt/lists/*
+ && rm -rf /var/lib/apt/lists/* /var/log/* /var/cache/ldconfig/aux-cache
 COPY docker/install-build-trust.sh /usr/local/libexec/graphx-install-build-trust
 ARG GRAPHX_BUILD_TRUST_FINGERPRINT=graphx-trust-v1-none
 RUN --mount=type=secret,id=graphx_ca,required=false \
@@ -15,7 +16,7 @@ ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt \
 WORKDIR /app/web
 COPY web/package*.json ./
 RUN npm config set strict-ssl true
-RUN npm ci
+RUN npm ci && rm -rf /root/.npm /tmp/node-compile-cache
 COPY web/ ./
 RUN npm run build
 
@@ -30,23 +31,26 @@ LABEL org.opencontainers.image.title="GraphX telemetry" \
       org.opencontainers.image.version="${GRAPHX_VERSION}" \
       org.opencontainers.image.revision="${GRAPHX_REVISION}"
 WORKDIR /app
-RUN addgroup -S -g 65532 graphx-capture && addgroup node graphx-capture \
+RUN addgroup -S -g 65532 graphx && adduser -S -D -H -u 65532 -G graphx graphx \
  && mkdir /captures /var/lib/graphx /var/lib/graphx/history \
  && chown 65532:65532 /captures && chmod 0770 /captures \
- && chown -R node:node /var/lib/graphx && chmod 0750 /var/lib/graphx /var/lib/graphx/history
+ && chown -R 65532:65532 /var/lib/graphx && chmod 0750 /var/lib/graphx /var/lib/graphx/history
 COPY config/schema/normalized-graph.schema.json /config/schema/normalized-graph.schema.json
 COPY apps/telemetry/package*.json ./
-RUN npm ci --omit=dev
-COPY --chown=node:node apps/telemetry/server.mjs apps/telemetry/security.mjs apps/telemetry/control.mjs apps/telemetry/operations.mjs \
+RUN npm ci --omit=dev && rm -rf /root/.npm /tmp/node-compile-cache
+COPY apps/telemetry/server.mjs apps/telemetry/security.mjs apps/telemetry/control.mjs apps/telemetry/operations.mjs \
   apps/telemetry/history.mjs apps/telemetry/history-worker.mjs apps/telemetry/capture-files.mjs \
   apps/telemetry/normalized-config.mjs apps/telemetry/topology.mjs apps/telemetry/metric-store.mjs \
   apps/telemetry/runtime-evidence.mjs apps/telemetry/http-routes.mjs apps/telemetry/collector.mjs ./
 COPY --from=web /app/web/dist ./web/dist
+COPY web/package-lock.json /usr/local/share/graphx/web-package-lock.json
+COPY LICENSE THIRD_PARTY.md /usr/local/share/doc/graphx/
 ENV GRAPHX_WEB_ROOT=/app/web/dist GRAPHX_NORMALIZED_CONFIG=/run/graphx/normalized.json PORT=8080 \
     GRAPHX_VERSION=${GRAPHX_VERSION} \
     NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt \
     SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
     npm_config_cafile=/etc/ssl/certs/ca-certificates.crt
-USER node
+USER 65532:65532
 EXPOSE 8080
+ENTRYPOINT []
 CMD ["node", "server.mjs"]

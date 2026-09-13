@@ -17,10 +17,6 @@ x-sdr-environment: &sdr-environment
   GRAPHX_TELEMETRY_SHARED_SECRET: ${GRAPHX_TELEMETRY_SHARED_SECRET:-}
 services:
   normalize-config:
-    build:
-      context: ../../..
-      secrets: [graphx_ca, graphx_cert_installer]
-      args: { GRAPHX_BUILD_TRUST_FINGERPRINT: "${GRAPHX_BUILD_TRUST_FINGERPRINT:-graphx-trust-v1-none}" }
     image: graphx-demo:latest
     user: "0:0"
     entrypoint: ["/bin/sh", "-ec"]
@@ -54,9 +50,6 @@ services:
       sdr-ethernet: { ipv4_address: 172.30.13.10 }
   processor:
     <<: *sdr-service
-    build:
-      context: ../../..
-      dockerfile: examples/sdr-node/Dockerfile.services
     command: ["python3", "common/processor.py"]
     environment:
       <<: *sdr-environment
@@ -107,11 +100,6 @@ services:
     depends_on: [packet-capture, telemetry]
     networks: [sdr-ethernet]
   telemetry:
-    build:
-      context: ../../..
-      dockerfile: docker/telemetry.Dockerfile
-      secrets: [graphx_ca, graphx_cert_installer]
-      args: { GRAPHX_BUILD_TRUST_FINGERPRINT: "${GRAPHX_BUILD_TRUST_FINGERPRINT:-graphx-trust-v1-none}" }
     image: graphx-telemetry:latest
     ports: ["127.0.0.1:${GRAPHX_SDR_GUI_PORT:-8080}:8080"]
     environment:

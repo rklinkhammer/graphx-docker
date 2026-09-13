@@ -5,7 +5,9 @@ expected outputs, are non-runtime review artifacts.** I-01 through I-11 are
 accepted future-state premises. P1 now implements authored version 3 and
 normalized contract version 2, and P2 implements generic bindings and native
 application verification. P3 implements deterministic compilation; see
-[P3 verification](p3-verification.md). This review package retains illustrative
+[P3 verification](p3-verification.md). P4 packages shared images and derives release
+catalog pins from verified OCI bytes; see [P4 verification](p4-verification.md).
+This review package retains illustrative
 expected artifacts; maintained compiler goldens live under `tests/fixtures/compiled`.
 Later execution phases are not implemented.
 
@@ -78,15 +80,15 @@ Future release/image/guest digest literals in `catalog/lock.json` and its indexe
 files are **illustrative identities**, not claims of published or built binaries.
 They are deliberately syntactically complete digest pins, not `latest` tags.
 Prometheus/Grafana pins are copied from repository evidence. P3 preserves these
-identities with explicit unverified status. Verified runtime/image pins belong to
-P4 and guest pins to P8; execution must reject unverified artifact identities. Guest recipe
+identities with explicit unverified status. P4 derives verified image pins in release-specific catalogs; native packages have
+separate release manifests, and guest pins belong to P8; execution must reject unverified artifact identities. Guest recipe
 outputs are review expectations; no guest binary is shipped here. Missing
 recipe/artifact declarations are compile errors, while missing built output
 from a declared recipe is an execution prerequisite error. This distinction
 allows a complete review of the build and boot plans without inventing a guest.
 
-P1–P3 implement the v3 model, generic bindings, local release barrier and pure
-compiler. Native platform packaging, secure default credential delivery, bounded
+P1–P4 implement the v3 model, generic bindings, local release barrier, pure
+compiler and shared image packaging. Native platform packaging, secure default credential delivery, bounded
 execution adapters, generated observability integration and guest execution remain
 later-phase work. Expected output here was authored for review; actual compiler
 goldens and matrix tests are under `tests/`. `check_package.py` checks only this

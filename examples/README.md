@@ -2,7 +2,8 @@
 
 All 24 authored v3 examples support validation, normalization and deterministic
 compilation on their listed targets. Execution launchers remain gated with
-`E_PHASE_UNAVAILABLE`. See [compilation instructions](../docs/user-guide.md#compile-inspectable-artifacts). Run from the repository root:
+`E_PHASE_UNAVAILABLE`. See [compilation instructions](../docs/user-guide.md#compile-inspectable-artifacts). Images use the [shared release recipes](../docs/release-process.md#shared-images-and-catalog-pins);
+source Compose files contain no per-graph builds. Run from the repository root:
 
 ```sh
 build/dev/graphx config normalize examples/sample-pipeline/graphx.yml --target orbstack

@@ -19,9 +19,6 @@ x-sdr-service: &sdr-service
 services:
   processor:
     <<: *sdr-service
-    build:
-      context: ../../..
-      dockerfile: examples/sdr-node/Dockerfile.services
     command: ["python3", "common/processor.py"]
     environment:
       SDR_CONTROL_TARGET: 10.63.0.10

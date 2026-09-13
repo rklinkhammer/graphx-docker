@@ -79,7 +79,10 @@ with tempfile.TemporaryDirectory(prefix="graphx-package-test-") as temporary:
     assert all(path.is_file() for path in required), [str(path) for path in required if not path.is_file()]
     assert subprocess.check_output([executable, "--version"], text=True) == f"graphx {VERSION}\n"
 
-    installed_graph = prefix / "share/graphx/graphx.yml"
+    assert not (prefix / "share/graphx/graphx.yml").exists()
+    installed_graph = root / "graphx.yml"
+    installed_graph.write_text((SOURCE / "examples/sample-pipeline/graphx.yml").read_text().replace(
+        "../../config/catalog/lock.json", "prefix/share/graphx/catalog/lock.json"))
     run([str(executable), "validate", str(installed_graph), "--catalog-root", str(prefix / "share/graphx/catalog")])
 
     contract = archive_file_contract(VERSION, current_platform())

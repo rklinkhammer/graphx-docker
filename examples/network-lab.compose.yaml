@@ -1,8 +1,5 @@
 services:
   generator:
-    build:
-      context: ${GRAPHX_REPO_ROOT:?set repository root}
-      secrets: [graphx_ca, graphx_cert_installer]
     image: graphx-demo:latest
     entrypoint: [/usr/local/bin/graphx-generator]
     volumes: ["${GRAPHX_LAB_CONFIG:?set laboratory config}:/etc/graphx/graphx.yml:ro"]

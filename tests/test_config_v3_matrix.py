@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """Execute the accepted design inputs against the authoritative P1 loader."""
 import json
+import hashlib
 from pathlib import Path
+import shutil
 import subprocess
 import sys
+import tempfile
 
 
 def main():
@@ -40,6 +43,29 @@ def main():
                     assert binding['role'] == role and binding['settings'] == connection['settings']
             positive += 1
     assert (positive, negative, unsupported) == (63, 15, 33), (positive, negative, unsupported)
+    with tempfile.TemporaryDirectory(prefix='graphx-type-revision-') as temporary:
+        temp = Path(temporary).resolve()
+        catalog = temp / 'catalog'
+        shutil.copytree(root / 'config/catalog', catalog)
+        graph = temp / 'graphx.yml'
+        graph.write_text((root / 'examples/sample-pipeline/graphx.yml').read_text().replace(
+            '../../config/catalog/lock.json', 'catalog/lock.json'))
+        type_path = catalog / 'types/sample.source.json'
+        definition = json.loads(type_path.read_text())
+        lock = json.loads((catalog / 'lock.json').read_text())
+        for revision in (2, 2147483647, 0, -1, 2147483648, True, 1.5, '2'):
+            definition['revision'] = revision
+            type_path.write_text(json.dumps(definition))
+            next(entry for entry in lock['files'] if entry['path'] == 'types/sample.source.json')['sha256'] = hashlib.sha256(type_path.read_bytes()).hexdigest()
+            (catalog / 'lock.json').write_text(json.dumps(lock))
+            result = subprocess.run([graphx, 'config', 'normalize', graph, '--catalog-root', catalog],
+                                    capture_output=True, text=True, timeout=15)
+            if type(revision) is int and revision in (2, 2147483647):
+                assert result.returncode == 0, result.stderr
+                node = next(node for node in json.loads(result.stdout)['nodes'] if node['node_id'] == 'generator')
+                assert node['type_revision'] == revision
+            else:
+                assert result.returncode and '.revision:' in result.stderr and not result.stdout, result
     print(f'{positive} supported target normalizations; {negative} exact negative diagnostics; {unsupported} unsupported targets')
 
 
