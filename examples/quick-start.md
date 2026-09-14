@@ -104,7 +104,7 @@ graphx example down sdr-node/external --allow-privileged
 
 Physical SDR startup remains gated. The laboratory selection is explicit.
 Examples declaring external credentials need `--external DIR` containing the
-referenced files; see [credential staging](../docs/execution.md#container-execution).
+referenced files; see [credential staging](../docs/user-guide.md#execution-administration-container-execution).
 The CLI generates an operator credential only for an explicit `--control` grant.
 
 Scenario actions remain explicit after startup:
@@ -115,7 +115,7 @@ graphx example scenario network-observability --action source-delay \
   --operation clear --allow-privileged
 ```
 
-See the [complete example matrix](README.md) and [CLI reference](../docs/example-cli.md).
+See the [complete example matrix](README.md) and [CLI reference](../docs/user-guide.md#cli-reference).
 
 ## Restart and recovery
 

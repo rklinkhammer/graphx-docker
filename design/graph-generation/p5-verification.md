@@ -36,7 +36,7 @@ guest execution and scenario dispatch retain their later phase gates.
   overlays are removed. Their remaining application/capture wiring and launcher
   execution gates stay in place for P6/P7.
 
-Usage and provisioning commands are in [the platform guide](../../docs/platform.md).
+Usage and provisioning commands are in [the platform guide](../../docs/user-guide.md#platform-administration).
 
 ## Verification environment and commands
 

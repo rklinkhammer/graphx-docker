@@ -185,7 +185,7 @@ def main() -> int:
     require("ip tuntap add" not in verify and "ovs-vsctl add-br" not in verify,
             "Lima verification must exercise production lifecycle tests, not reproduce them")
 
-    docs = "\n".join((root / name).read_text(encoding="utf-8") for name in ("README.md", "SUPPORT.md", "docs/security.md", "docs/GraphX_Architecture.md"))
+    docs = "\n".join((root / name).read_text(encoding="utf-8") for name in ("README.md", "SUPPORT.md", "docs/user-guide.md", "docs/GraphX_Architecture.md"))
     for statement in ("version: 3", "veth", "TAP", "Open vSwitch"):
         require(statement.lower() in docs.lower(), f"documentation does not state Lima boundary: {statement}")
     print("Lima static contract checks passed")

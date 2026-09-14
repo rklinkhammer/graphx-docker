@@ -4,10 +4,10 @@
 and simulated SDR, including image preparation, console access and cleanup.
 
 All 25 authored v3 examples support validation, normalization and deterministic
-compilation on their listed targets. Native and portable container graphs support [owned execution](../docs/execution.md).
+compilation on their listed targets. Native and portable container graphs support [owned execution](../docs/user-guide.md#execution-administration).
 OVS and namespace graphs have a compiled runner behind explicit Linux privileged
 opt-in, with [P7 Lima acceptance evidence](../design/graph-generation/p7-verification.md).
-Container network and static-route startup wrappers use the compiled runner. Verified QEMU guest startup is supported; [P8](../design/graph-generation/p8-verification.md) records actual Lima TCG boot. [Scenario actions](../docs/scenarios.md) are selected explicitly after baseline startup; the laboratory simulator is an explicit pre-start compilation selection. See [compilation instructions](../docs/user-guide.md#compile-inspectable-artifacts). Images use the [shared release recipes](../docs/release-process.md#shared-images-and-catalog-pins);
+Container network and static-route startup wrappers use the compiled runner. Verified QEMU guest startup is supported; [P8](../design/graph-generation/p8-verification.md) records actual Lima TCG boot. [Scenario actions](../docs/user-guide.md#scenario-actions) are selected explicitly after baseline startup; the laboratory simulator is an explicit pre-start compilation selection. See [compilation instructions](../docs/user-guide.md#compile-inspectable-artifacts). Images use the [shared release recipes](../docs/user-guide.md#release-administration-shared-images-and-catalog-pins);
 Compose is generated only in compiler output; examples contain no source Compose files. Run from the repository root:
 
 ```sh
@@ -47,11 +47,15 @@ veth/TAP resources; MACVLAN/IPVLAN are semantic profiles. Compose owns processes
 and management connectivity. No Docker engine or VM is needed for normalization.
 
 Catalog images and guest artifacts remain illustrative until release packaging.
-Use `graphx example up|status|tokens|logs|down NAME` for every demo.
-The [CLI reference](../docs/example-cli.md) describes preparation and artifact overrides.
-See [configuration](../docs/configuration.md), [phase status](../design/graph-generation/p1-verification.md),
+Use `graphx example up|open|status|tokens|logs|down NAME` for every demo.
+The [CLI reference](../docs/user-guide.md#cli-reference) describes preparation and artifact overrides.
+See [configuration](../docs/user-guide.md#configuration-reference), [documentation index](../docs/README.md),
 and [test procedure](../docs/test-procedure.md).
 
-[P10 acceptance](../design/graph-generation/p10-verification.md) maps all 24 inputs
+The prior [acceptance record](../design/graph-generation/p10-verification.md) maps its 24-input inventory
 to actual macOS, OrbStack, Linux ARM64/Lima and x86_64 TCG results. It also records
 the native Linux x86_64 and clean-release gates that remain open.
+
+The additional OVS sample and current browser-session workflow have separately
+recorded evidence; see [verification scope](../docs/documentation-verification.md).
+The matrix above is the current validation inventory, not a fresh release qualification.

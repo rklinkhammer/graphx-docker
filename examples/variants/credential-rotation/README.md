@@ -13,5 +13,5 @@ graphx example down variants/credential-rotation
 
 Baseline startup performs no rotation. The first action rotates the operator token;
 the second rotates the generator runtime HMAC. Both use the declared 60-second
-overlap. See [scenario execution](../../../docs/scenarios.md) and the
+overlap. See [scenario execution](../../../docs/user-guide.md#scenario-actions) and the
 [CLI quick start](../../quick-start.md).

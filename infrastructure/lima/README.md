@@ -29,20 +29,21 @@ limactl shell --workdir /workspace/graphx-docker graphx -- sudo ovs-vsctl --time
 
 ## Compile and execute
 
-The [example CLI](../../docs/example-cli.md) transfers a source snapshot, builds
+The [example CLI](../../docs/user-guide.md#cli-reference) transfers a source snapshot, builds
 the Linux CLI and prepares verified artifacts on the guest disk. From the macOS
 repository root:
 
 ```sh
 graphx env up
 graphx example plan sample-pipeline/ovs
-graphx example up sample-pipeline/ovs --allow-privileged --control generator:pause,resume
-graphx example tokens sample-pipeline/ovs --allow-privileged
+graphx example up sample-pipeline/ovs --allow-privileged --control generator:pause,resume --control collector:reset
+graphx example open sample-pipeline/ovs --allow-privileged
 graphx example status sample-pipeline/ovs --allow-privileged
 graphx example down sample-pipeline/ovs --allow-privileged
 ```
 
-The printed console URL uses the host loopback forward, normally port 18080.
+Interactive startup opens an authenticated host browser. The console URL uses
+the host loopback forward, normally port 18080.
 Use `--images DIR` and `--release DIR` to reuse existing verified **guest-local**
 artifacts. Runtime state and build output remain under `/var/lib/graphx/examples`.
 The same interface supports network profiles, route diagnostics, laboratory SDR

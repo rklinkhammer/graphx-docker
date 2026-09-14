@@ -17,4 +17,4 @@ Publication must preserve the verified OCI manifest or derive and verify new
 registry pins. A Docker image ID is not an OCI manifest digest. Compilation alone
 does not verify image bytes or enable execution.
 
-See [release process](../../docs/release-process.md) for commands and verification.
+See [release process](../../docs/user-guide.md#release-administration) for commands and verification.

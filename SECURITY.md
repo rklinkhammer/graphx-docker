@@ -24,4 +24,4 @@ requested and appropriate.
 
 Released fixes use a new immutable version. Existing tags and assets are not
 silently replaced. Operators should verify checksums and provenance as described
-in `docs/release-process.md`.
+in [release administration](docs/user-guide.md#release-administration).

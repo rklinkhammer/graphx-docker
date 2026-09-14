@@ -1,93 +1,64 @@
 # GraphX
 
-GraphX accepts authored v3 graphs, resolves normalized JSON contract 2, and
-compiles deterministic artifacts. Verified releases support finite native and
-unprivileged container execution with owned cleanup. OVS and guest execution require explicit Linux privileged opt-in; scenario actions
-are selected explicitly. Follow the [user guide](docs/user-guide.md),
-[execution guide](docs/execution.md), and [phase status](design/graph-generation/implementation-plan.md).
+GraphX 1.1.0 describes typed processing graphs, runs them in controlled laboratories,
+and shows application traffic and declared network paths in a browser console.
+Supported workflows include native processes, portable containers, Linux OVS
+networks, verified QEMU TCG guests and explicitly selected simulator scenarios.
+Startup and cleanup verify resource ownership; runtime operation is not continuously
+supervised or automatically repaired.
 
+## Start here
 
-[![CI](https://github.com/rklinkhammer/graphx-docker/actions/workflows/ci.yml/badge.svg)](https://github.com/rklinkhammer/graphx-docker/actions/workflows/ci.yml)
+- [User guide](docs/user-guide.md): installation, concepts and complete workflows.
+- [Run your first example](examples/quick-start.md): a continuous sample pipeline with automatic console login.
+- [Choose a demo](docs/user-guide.md#example-selection) and [complete target matrix](examples/README.md).
+- [Documentation index](docs/README.md): operational and technical references.
+- [Architecture review](docs/GraphX_Architecture.md) and [review checklist](docs/GraphX_Architecture.md#architecture-review-checklist).
 
-GraphX 1.1.0 is an educational framework for describing a processing graph once,
-running nodes in processes, containers, QEMU, or external runtimes, and observing
-traffic across graph edges.
+## Build and validate
 
-Start with the [`complete user guide`](docs/user-guide.md) for installation,
-configuration, node, transport, networking, capture, and telemetry workflows.
-
-The current configuration format is `version: 3`. GraphX manages Linux network
-infrastructure with system Open vSwitch: containers use veth pairs and QEMU guests
-use TAP devices. Docker Compose manages application processes and management
-connectivity, not the GraphX data plane.
-
-## Run your first example
-
-Follow the [example quick start](examples/quick-start.md) for copyable commands to
-build shared images, compile the sample pipeline, start it, open the console and
-stop it. The same sequence runs the simulated SDR and UDP broadcast examples.
-
-Example launchers require a compiled graph and explicit paths; running a launcher
-alone does not build or configure the example.
-
-## Validate a graph
+From the repository root with the [development prerequisites](docs/user-guide.md#installation-and-prerequisites):
 
 ```sh
-graphx example up sample-pipeline --control generator:pause,resume
+cmake --preset dev
+cmake --build --preset dev
+build/dev/graphx validate examples/sample-pipeline/graphx.yml --target orbstack
 ```
 
-The [configuration guide](docs/configuration.md) explains type instances, catalog
-pins, shared endpoint settings, and the current execution gate.
+Validation starts no processes. Authored graphs use `version: 3`; normalized JSON
+uses contract version 2. The C++ loader resolves the authoritative catalog and
+shared endpoint settings. [Configuration](docs/user-guide.md#configuration-reference) explains this contract.
 
-## Build and test
+## Run the sample
 
-Development requires CMake 3.25+, Ninja, OpenSSL 3, and a C++20 compiler.
+After completing the [quick start prerequisites](examples/quick-start.md), with a
+ready Docker engine (OrbStack on macOS), run:
 
 ```sh
-scripts/verify.sh quick
+build/dev/graphx example up sample-pipeline \
+  --control generator:pause,resume --control collector:reset
+build/dev/graphx example open sample-pipeline
+build/dev/graphx example down sample-pipeline
 ```
+
+`up` prepares verified local artifacts when necessary and opens an authenticated
+console. The sample runs until stopped. `open` reopens the same running graph;
+refresh preserves its browser session. Use `--json` or `--no-open` for scripts.
+Read the [CLI reference](docs/user-guide.md#cli-reference) before selecting custom artifact inputs.
+
+Managed data-plane networking uses system Open vSwitch on Linux. Containers attach
+with owned veth pairs and QEMU guests use TAP devices. Docker Compose manages
+processes and management connectivity. On macOS, OVS laboratories use the dedicated
+Lima guest and require explicit privileged authorization; they do not run in OrbStack.
+Physical SDR startup remains gated pending its uplink ownership contract.
+
+## Verification and support
 
 Available verification profiles are `quick`, `quality`, `sanitizers`, `fuzz`,
 `portable`, `full`, `native-linux`, and `release`. Their requirements are documented in
-[`docs/test-procedure.md`](docs/test-procedure.md).
+[the test procedure](docs/test-procedure.md). [Documentation verification](docs/documentation-verification.md)
+separates current unprivileged checks from prior runtime evidence and open release gates.
 
-The direct CMake workflow and exact prerequisites are maintained in the
-[`complete user guide`](docs/user-guide.md).
-
-## Configuration and infrastructure
-
-Each example owns its `graphx.yml`. Validate the sample pipeline or produce the
-normalized JSON consumed by telemetry and other downstream tools:
-
-```sh
-build/dev/graphx validate examples/sample-pipeline/graphx.yml
-build/dev/graphx config normalize examples/sample-pipeline/graphx.yml > normalized.json
-```
-
-Reusable infrastructure modules verify resource identity and fail closed. The compiled v3 runner uses those modules. The dedicated Lima environment is reserved
-for separately authorized Linux networking and guest verification.
-
-## Examples and documentation
-
-After the complete user guide, use [`docs/demo-guide.md`](docs/demo-guide.md) to
-choose a scenario. The [example platform matrix](examples/README.md) identifies
-native Linux, native macOS, OrbStack, and Lima requirements for every example.
-Current examples include the
-shared OVS network labs, the [`QEMU TAP lab`](examples/qemu-node/README.md), the
-[`SDR scenarios`](examples/sdr-node/README.md), and the
-[`route and policy lab`](examples/static-route-policy/README.md).
-
-- [`Architecture`](docs/GraphX_Architecture.md)
-- [`Complete user guide`](docs/user-guide.md)
-- [`Configuration contract`](docs/configuration.md)
-- [`Network infrastructure`](docs/network-infrastructure.md)
-- [`macOS Docker and OVS with Lima`](infrastructure/lima/README.md)
-- [`Runtime lifecycle`](docs/runtime-lifecycle.md)
-- [`Protocol and transports`](docs/protocol.md)
-- [`Observability and capture`](docs/observability.md)
-- [`Control plane and security`](docs/control-plane.md)
-- [`Test procedure`](docs/test-procedure.md)
-- [`Release process`](docs/release-process.md)
-
-Read [`CONTRIBUTING.md`](CONTRIBUTING.md) before submitting changes. Security and
-support contacts are in [`SECURITY.md`](SECURITY.md) and [`SUPPORT.md`](SUPPORT.md).
+Use [troubleshooting](docs/user-guide.md#troubleshooting) for startup, credentials, missing
+traffic and identity refusal. Read [CONTRIBUTING.md](CONTRIBUTING.md),
+[SUPPORT.md](SUPPORT.md) and [SECURITY.md](SECURITY.md) before submitting changes or sharing diagnostics.

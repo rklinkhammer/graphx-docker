@@ -28,7 +28,7 @@ ownership inventories, process logs and captures from the first successful run.
 Tests retain their private
 working directory on failure for identity-checked recovery.
 
-Scenario actions are explicitly selected; see [scenario execution](scenarios.md) and
+Scenario actions are explicitly selected; see [scenario execution](user-guide.md#scenario-actions) and
 [P9 verification](../design/graph-generation/p9-verification.md) for portable evidence
 and separately authorized networking/guest acceptance. Managed guests require verified artifacts and
 separate explicit privileged authorization; see [P8 verification](../design/graph-generation/p8-verification.md). OVS and namespace execution require
@@ -122,8 +122,25 @@ matrix, quality, sanitizers and fuzzing. The separately authorized privileged su
 adds OVS, route/fault actions and actual QEMU guests. The [example matrix](../examples/README.md)
 identifies each authored input and target; [P10 verification](../design/graph-generation/p10-verification.md)
 records actual environment coverage. Browser interaction requires the separate
-[manual checks](manual-test-procedures.md); API checks do not establish visual acceptance.
+[manual checks](user-guide.md#manual-acceptance-checks); API checks do not establish visual acceptance.
 
 Report native Linux, native macOS, OrbStack and Lima separately, including host and
 guest architectures. The accepted guest cases use x86_64 TCG. KVM and physical-radio
 startup are separate, unimplemented contracts.
+
+
+## Test families
+The CTest suite is grouped by purpose:
+
+| Label | Coverage |
+|---|---|
+| `quick` | C++ units, configuration, normalized schema, scripts, and documentation |
+| `stress` | repeated transport lifecycle and concurrency pressure |
+| `package` | installation, archive contents, consumer linkage, release contracts |
+| `privileged` | Linux (native or Lima) OVS, veth/TAP, namespaces, capture, faults, SDR, and routes |
+
+Telemetry uses Node's test runner. Docker scripts exercise the portable end-to-end
+system, operations stack, secure OTLP, history, and hardening. Privileged Python
+tests exercise current OVS ownership, container veth, network labs, QEMU TAP,
+network capture/fault behavior, SDR delivery, and route policy. CTest fixtures own
+setup and cleanup for multi-step laboratories.
