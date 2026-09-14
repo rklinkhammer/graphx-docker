@@ -23,7 +23,7 @@ ranges, mirror output ports, router interfaces, and graph-edge path hops. The
 
 ## Infrastructure lifecycle
 
-P1 resolves logical resources into bounded deterministic names and validates
+The loader resolves logical resources into bounded deterministic names and validates
 references, addresses, VLANs and routes. Router interfaces produce one attachment
 per interface; an explicit `port` binds to a switch port and its VLAN. Runtime
 ownership identities are not generated during normalization.
@@ -37,9 +37,8 @@ build/dev/graphx run plan --output "$GX_OUTPUT" --state-root "$GX_STATE"
 
 OVS execution requires `run up|status|down --allow-privileged` on an authorized
 local Linux engine. It is implemented with [P7 Lima acceptance evidence](../design/graph-generation/p7-verification.md).
-The legacy `infra` CLI and per-profile shell launchers remain explicitly gated;
-wrappers are removed only after their profile passes live acceptance. Guest boot
-and scenario actions remain gated. Physical external uplinks require a separate
+Profile wrappers delegate to the compiled runner. Verified guest boot and explicit
+scenario actions use the same ownership state. Physical external uplinks require a separate
 ownership contract and are not attached implicitly.
 
 ```sh

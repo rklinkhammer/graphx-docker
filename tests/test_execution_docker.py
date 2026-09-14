@@ -16,11 +16,12 @@ import uuid
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('images',type=Path)
 parser.add_argument('--output',type=Path,required=True)
+parser.add_argument('--release',type=Path)
 parser.add_argument('--case',default='examples/sample-pipeline/graphx.yml')
 args=parser.parse_args()
 source=Path(__file__).resolve().parents[1]
 root=args.output.resolve();root.mkdir(parents=True,exist_ok=False)
-cli=source/'build/dev/graphx'
+cli=args.release/'bin/graphx' if args.release else source/'build/dev/graphx'
 
 def call(*argv,ok=True,timeout=120):
  r=subprocess.run(list(map(str,argv)),capture_output=True,text=True,timeout=timeout,cwd=source)
@@ -63,6 +64,7 @@ for ref,entry in refs.items():
   data=(ref+'x'*64).encode() if member in ('token','password') else (fixture/'fixture'/member).read_bytes()
   (directory/member).write_bytes(data);(directory/member).chmod(0o400)
 options=['--external',external,'--output',compiled,'--state-root',state,'--images',args.images.resolve()]
+if args.release: options += ['--release',args.release.resolve()]
 try:
  invalid=list(options);invalid[invalid.index('--state-root')+1]=compiled/'runtime'
  assert 'E_EXECUTION_PATH' in call(cli,'run','up',*invalid,ok=False).stderr

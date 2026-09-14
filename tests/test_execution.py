@@ -4,6 +4,7 @@ import contextlib
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import signal
@@ -69,6 +70,11 @@ with contextlib.nullcontext(tempfile.mkdtemp(prefix='graphx-p6-')) as temporary:
         rotate_ref=node['telemetry']['credential']
         original += '\ncredentials: ' + json.dumps({'scenario-next':{'identity':node['node_id'],'provider':'runtime-generated','members':['hmac']}})
         original += '\nscenario: ' + json.dumps({'actions':[{'id':'rotate-runtime','action':'credential-rotate','credential':rotate_ref,'next':'scenario-next','grace_seconds':1}]}) + '\n'
+    # Lifecycle acceptance stops live applications explicitly instead of racing
+    # the examples' short demonstration message limits.
+    original=re.sub(r'max_messages: [0-9]+', 'max_messages: 10000', original)
+    for type_name in ('publisher','subscriber'):
+        original=original.replace('    type: udp.'+type_name, '    parameters: {max_messages: 10000}\n    type: udp.'+type_name)
     (authored/'graphx.yml').write_text(original)
     compiled=root/'compiled'; credentials=root/'credentials'; state=root/'state'
     run('compile',authored/'graphx.yml','--target',('native-macos' if sys.platform=='darwin' else 'native-linux'),'--catalog-root',source/'config/catalog',

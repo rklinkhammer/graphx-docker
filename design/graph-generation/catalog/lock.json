@@ -3,20 +3,12 @@
   "design_only": true,
   "files": [
     {
-      "path": "graph.schema.json",
-      "sha256": "09fb2f222f9a847ec2db5d9bfa51c7eb3023c131174481381a18d8805ff32c16"
-    },
-    {
       "path": "guests/echo-x86.json",
       "sha256": "9ed63f3f98dc8cb293f17aeb6e513ae91347c1943bded92f2e4dc22451201d30"
     },
     {
       "path": "guests/radio-x86.json",
       "sha256": "6df63c4597d500ddc91ea6bec433d29eb04208a5b6e75f8c0b8317538d74b9de"
-    },
-    {
-      "path": "normalized.schema.json",
-      "sha256": "4eae1d645e13e55c41a59f14bc0e5ad3b7a788ff7bd8ba5cb568ed8d9fb49007"
     },
     {
       "path": "platform.json",
@@ -33,10 +25,6 @@
     {
       "path": "templates.json",
       "sha256": "4f517fe10c62e9204887ff719be273700ef3793e551b9d6c5e85221fffe1533e"
-    },
-    {
-      "path": "type.schema.json",
-      "sha256": "83f102e550373bebbed4811ae1c99e74a6ba24a6ae84896537aa8c482deb1731"
     },
     {
       "path": "types/diagnostic.left.json",

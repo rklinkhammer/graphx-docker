@@ -1,43 +1,36 @@
 #!/usr/bin/env bash
 set -euo pipefail
-
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-source "$ROOT/scripts/test-feature-common.sh"
-BUILD_DIR=${GRAPHX_BUILD_DIR:-"$ROOT/build/dev"}
-linux_network() {
-  test "$(uname -s)" = Linux || { echo "linux-network mode requires native Linux" >&2; exit 2; }
-  test "${GRAPHX_ALLOW_PRIVILEGED_TESTS:-}" = 1 || {
-    echo "set GRAPHX_ALLOW_PRIVILEGED_TESTS=1 after reviewing docs/test-procedure.md" >&2; exit 2;
-  }
-  require docker
-  require ip
-  require ovs-vsctl
-  require nft
-  "$ROOT/scripts/test-features.sh" portable
-  test -x "$BUILD_DIR/graphx" || {
-    echo "GraphX CLI was not built at $BUILD_DIR/graphx" >&2
-    exit 2
-  }
-  export GRAPHX_BUILD_DIR="$BUILD_DIR"
-  export GRAPHX_BIN="$BUILD_DIR/graphx"
-  step "Run native isolated UDP broadcast lab"
-  if command -v dumpcap >/dev/null && command -v tshark >/dev/null; then
-    GRAPHX_VERIFY_LIVE_CAPTURE=1 "$ROOT/examples/udp-broadcast/run-native-linux.sh"
-  else
-    echo "SKIP: live UDP capture requires dumpcap and tshark; running delivery gate only"
-    "$ROOT/examples/udp-broadcast/run-native-linux.sh"
-  fi
-  "$ROOT/examples/udp-broadcast/down-native-linux.sh"
-  "$ROOT/examples/udp-broadcast/down-native-linux.sh"
-  for example in macvlan ipvlan-l2 ipvlan-l3 mixed-network; do
-    step "Run native $example lab"
-    "$ROOT/examples/$example/scripts/up.sh"
-    "$ROOT/examples/$example/scripts/status.sh"
-    "$ROOT/examples/$example/scripts/down.sh"
-  done
-  step "Privileged Linux network suite passed"
+[[ $(uname -s) == Linux && ${GRAPHX_ALLOW_PRIVILEGED_TESTS:-0} == 1 ]] || {
+  echo "Requires Linux and explicit GRAPHX_ALLOW_PRIVILEGED_TESTS=1" >&2; exit 2;
 }
-
-
-linux_network
-
+: "${GRAPHX_IMAGE_RELEASE:?Set the verified image release directory}"
+: "${GRAPHX_TEST_RELEASE:?Set the verified native/platform installation}"
+: "${GRAPHX_GUEST_RELEASE:?Set the verified guest artifact directory}"
+target=${GRAPHX_TEST_TARGET:-native-linux}
+output=${GRAPHX_PRIVILEGED_EVIDENCE:-/var/lib/graphx/runtime/acceptance-$(date -u +%Y%m%dT%H%M%SZ)-$$}
+[[ $output == /var/lib/graphx/* && ! -e $output ]] || {
+  echo "Evidence must be an absent directory under /var/lib/graphx" >&2; exit 2;
+}
+docker info >/dev/null
+docker compose version
+runner=(sudo -n)
+[[ $EUID != 0 ]] || runner=()
+for example in macvlan ipvlan-l2 ipvlan-l3 mixed-network network-observability static-route-policy; do
+  "${runner[@]}" python3 "$ROOT/tests/test_ovs_execution_live.py" --allow-privileged \
+    --target "$target" --images "$GRAPHX_IMAGE_RELEASE" --release "$GRAPHX_TEST_RELEASE" \
+    --case "$example" --output "$output/$example"
+done
+for scenario in S11 S12 S14; do
+  "${runner[@]}" python3 "$ROOT/tests/test_scenario_live.py" --allow-privileged \
+    --target "$target" --images "$GRAPHX_IMAGE_RELEASE" --release "$GRAPHX_TEST_RELEASE" \
+    --case "$scenario" --output "$output/$scenario"
+done
+for guest in S15 T03; do
+  extra=()
+  [[ $guest != S15 ]] || extra=(--scenario)
+  "${runner[@]}" python3 "$ROOT/tests/test_guest_execution_live.py" --allow-privileged \
+    --target "$target" --images "$GRAPHX_IMAGE_RELEASE" --release "$GRAPHX_TEST_RELEASE" \
+    --guests "$GRAPHX_GUEST_RELEASE" --case "$guest" "${extra[@]}" --output "$output/$guest"
+done
+printf 'Privileged compiled acceptance passed: %s\n' "$output"

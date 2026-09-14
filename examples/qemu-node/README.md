@@ -20,7 +20,8 @@ Run on native Linux or explicitly inside the existing GraphX Lima guest. These
 wrappers do not provision a VM or invoke sudo.
 
 Runtime state and high-I/O artifacts stay under `/var/lib/graphx`. No privileged
-socket is forwarded to macOS. Scenario actions, including automated
-broadcast/multicast and pause/resume verification, remain a P9 gate. See
+socket is forwarded to macOS. Explicit scenario actions verify the implemented unicast TCP/UDP contract, VLAN
+isolation, capture and QMP pause/resume. Broadcast/multicast guest support requires
+a separate application contract. See
 [P8 verification](../../design/graph-generation/p8-verification.md) for actual
 boot evidence and unrun environments; TAP lifecycle tests alone prove no guest boot.

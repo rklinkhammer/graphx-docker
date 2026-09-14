@@ -16,7 +16,8 @@ authorized S15/T03 actual x86_64 TCG guest acceptance passed in the ARM64 Lima V
 Native Linux x86_64 acceptance remains unrun. See [P8 verification](p8-verification.md)
 for evidence and the remaining cross-host verification gate. P9 implements explicit scenario actions and laboratory selection; native/OrbStack
 rotation and S11/S12/S14 laboratory/S15 privileged Lima acceptance passed. See [P9 verification](p9-verification.md).
-P10 remains a future change. The original
+P10 removal and available platform acceptance are complete; native Linux x86_64
+and final clean-release qualification remain open. See [P10 verification](p10-verification.md). The original
 design review did not authorize implementation, guest builds, infrastructure
 mutation or privileged tests. I-01–I-11 are accepted; no compatibility parser, second source manifest,
 deployment daemon, generic plugin system or per-topology image build is planned.

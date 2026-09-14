@@ -25,15 +25,15 @@ Current source boundaries:
 | Samples use resolved instance identities and type-declared ports | [generator](../../apps/generator/main.cpp), [transform](../../apps/transform/main.cpp), [sink](../../apps/sink/main.cpp) | P2 shares application behavior and uses bound identities for traces/captures |
 | Sample/UDP entrypoints consume mandatory resolved node identities and ports | [publisher](../../apps/udp_publisher/main.cpp), [subscriber](../../apps/udp_subscriber/main.cpp), [shared application](../../src/sample_application.cpp) | P2 removes instance/connection defaults; transport behavior remains shared |
 | Runtime image provides shared binaries with explicit commands | [Dockerfile](../../Dockerfile) | P4 removes graph COPY and default sample execution; reuse one release image |
-| Sample Compose includes generated services; the compiled platform owns settings | [Compose](../../examples/sample-pipeline/compose.yaml), [authored variants](../../examples/variants), [telemetry Dockerfile](../../Dockerfile) | Compile once; credential staging and graph execution consume that output |
-| Network profiles repeat service names, fixed host endpoints and wrappers | [network Compose](../../examples/network-lab.compose.yaml), [network launcher](../../scripts/network-lab.sh), [OVS launcher](../../examples/network-lab-ovs.sh), [IPVLAN L2](../../examples/ipvlan-l2/graphx.yml) | Derived names and declarative resource references replace per-topology wiring |
+| Sample Compose includes generated services; the compiled platform owns settings | [Compose](../../examples/sample-pipeline/graphx.yml), [authored variants](../../examples/variants), [telemetry Dockerfile](../../Dockerfile) | Compile once; credential staging and graph execution consume that output |
+| Network profiles repeat service names, fixed host endpoints and wrappers | [network Compose](../../docs/execution.md), [network launcher](../../scripts/network-lab.sh), [OVS launcher](../../examples/network-lab-ovs.sh), [IPVLAN L2](../../examples/ipvlan-l2/graphx.yml) | Derived names and declarative resource references replace per-topology wiring |
 | SDR listeners use validated port bindings; sink accepts one result stream contract | [processor](../../examples/sdr-node/common/processor.py), [protocol](../../examples/sdr-node/common/protocol.py), [sink](../../examples/sdr-node/common/sink.py), [SDR Dockerfile](../../Dockerfile) | P2 preserves the wire protocol and enforces declared peers through the shared reader |
-| External namespace ownership and guest startup live outside the core graph | [boundary helper](../../examples/external-ovs-boundary.sh), [route launcher](../../examples/static-route-policy/scripts/demo.sh), [QEMU launcher](../../examples/qemu-node/tap/scripts/ovs-lab.sh) | Fold only these resource kinds into the common identity store; no second ledger |
+| External namespace ownership and guest startup live outside the core graph | [boundary helper](../../docs/scenarios.md), [route launcher](../../examples/static-route-policy/scripts/demo.sh), [QEMU launcher](../../examples/qemu-node/tap/scripts/ovs-lab.sh) | Fold only these resource kinds into the common identity store; no second ledger |
 | Ownership coordinator already supplies locks, rollback, identity-aware capture and endpoints | [ownership API](../../include/graphx/ownership.hpp), [coordinator](../../src/infra/lifecycle_coordinator.cpp), [endpoint module](../../src/infra/endpoint_resources.cpp) | Extend existing owner instead of replaying unchecked shell commands |
 | Communication cycles require type feedback support | [validation](../../src/config_v3.cpp), [graph tests](../../tests/test_config_graph.cpp) | P1 checks type feedback declarations; readiness remains separate |
 | QEMU uses the common owned runner; actual boot requires its separate harness | [QEMU README](../../examples/qemu-node/README.md), [guest live test](../../tests/test_guest_execution_live.py), [test procedure](../../docs/test-procedure.md) | Record infrastructure and actual guest boot evidence separately |
 
-## Boundaries and proposed layout
+## Boundaries and layout
 
 Authored input is `graphx.yml` plus immutable reusable catalog selection and an
 explicit target argument. Secret values are external. Scenarios are a separate
@@ -60,7 +60,7 @@ editable runtime authority, nor a journal of actual state.
 
 ## Authored schema and defaults (I-01, I-03, I-11)
 
-The structural contract is [graph.schema.json](catalog/graph.schema.json).
+The structural contract is [graph.schema.json](../../config/schema/graphx.schema.json).
 Unknown keys and duplicate YAML keys fail closed. YAML aliases/tags and merge
 keys are rejected; YAML 1.2 scalar rules apply. Maximum input size is 1 MiB,
 1024 nodes, 4096 connections, 256 ports/type, 256 networks/switches/routers,
@@ -118,10 +118,10 @@ creates a startup dependency automatically.
 
 ## Normalized and node contracts (I-02)
 
-Authored graph version is 3; normalized contract version is 2 (current normalized
-contract is 1). The proposed [outer schema](catalog/normalized.schema.json) is
-intentionally incomplete below its root; the implementation must close every
-nested object. Normative complete fixture instances accompany every target.
+Authored graph version is 3; normalized contract version is 2. The authoritative
+[normalized schema](../../config/schema/normalized-graph.schema.json) closes nested
+objects and is checked with the production compiler fixtures. Design target
+artifacts are illustrative; runtime evidence is recorded in the phase reports.
 
 `resolved.json` has exactly: contract_version, graph_version, graph_id, target,
 catalog_digest, input_digest, nodes, connections, network, portable_network,
@@ -455,21 +455,22 @@ fully closed production schema. Both are explicit phase gates below.
 
 ## Accepted-decision traceability
 
-All rows are `static-design` contract locations; runtime checks remain planned.
+These rows locate the accepted design contracts. Runtime results are recorded in
+[P10 verification](p10-verification.md), separately from illustrative design fixtures.
 
-| Decision | Proposed contract location | Concrete fixtures | Planned verification |
+| Decision | Contract location | Concrete fixtures | Verification scope |
 |---|---|---|---|
-| I-01 | Authored schema / Normalized contract; [schema](catalog/graph.schema.json) | [S01–S15, V01–V06, T01–T03](inventory.json); [S01](scenarios/sample-pipeline/graphx.yml) | `planned-portable`; version rejection; schema/normalizer/consumer atomic replacement |
-| I-02 | Normalized and node contracts; [schema](catalog/graph.schema.json) | [S01, T01, T02](inventory.json); [S01](scenarios/sample-pipeline/graphx.yml) | `planned-portable`; renaming and two-instance runtime output independence |
-| I-03 | Authored schema / Endpoints and readiness; [schema](catalog/graph.schema.json) | [T02, T03, N02–N05, N12–N13](inventory.json); [T02](variants/multi-radio/graphx.yml) | `planned-portable`; port/schema/cardinality/SCC rejection; no readiness cycles |
-| I-04 | Endpoints, names, locality; [schema](catalog/graph.schema.json) | [S02–S04, S06, N06](inventory.json); [S02](scenarios/shared-memory/graphx.yml) | `planned-portable`; native Linux/macOS IPC and loopback behavior |
-| I-05 | Network realization; [schema](catalog/graph.schema.json) | [S05, S07–S12, S14–S15, N01, N11](inventory.json); [S05](scenarios/udp-broadcast/graphx.yml) | `planned-portable`; `planned-privileged`; privileged OVS profile/VLAN/routes/management bypass denial |
-| I-06 | Determinism, paths and output ownership; [schema](catalog/graph.schema.json) | [T01, N07–N09, N14](inventory.json); [T01](variants/renamed-multi-source/graphx.yml) | `planned-portable`; `planned-privileged`; byte determinism; collisions; path/symlink/stale-output negatives |
-| I-07 | Platform, credentials, history and builds; [schema](catalog/graph.schema.json) | [S11, S15, T03, N10, N15](inventory.json); [S11](scenarios/network-observation/graphx.yml) | `planned-portable`; `planned-guest-boot`; external not booted; actual TCG application boot and missing artifacts |
-| I-08 | Platform, credentials, history and builds; [schema](catalog/graph.schema.json) | [S13–S14, T02–T03](inventory.json); [S13](scenarios/sdr-simulated/graphx.yml) | `planned-portable`; raw protocol vs lifecycle and telemetry provenance |
-| I-09 | Execution ownership and failures; [schema](catalog/graph.schema.json) | [S11–S12, S14–S15, V04](inventory.json); [S11](scenarios/network-observation/graphx.yml) | `planned-portable`; `planned-privileged`; baseline excludes actions; route/fault/rotation apply/clear |
-| I-10 | Platform, credentials, history and builds; [schema](catalog/graph.schema.json) | [S01–S15, V01–V06](inventory.json); [S01](scenarios/sample-pipeline/graphx.yml) | `planned-portable`; `planned-privileged`; default history bounds; native access; Lima HTTP only; explicit deletion |
-| I-11 | Boundaries / Authored schema; [schema](catalog/graph.schema.json) | [S01, T01–T03, catalog](inventory.json); [S01](scenarios/sample-pipeline/graphx.yml) | `planned-portable`; unchanged shared types; zero topology Dockerfiles; reject arbitrary overrides |
+| I-01 | Authored schema / Normalized contract; [schema](../../config/schema/graphx.schema.json) | [S01–S15, V01–V06, T01–T03](inventory.json); [S01](scenarios/sample-pipeline/graphx.yml) | `planned-portable`; version rejection; schema/normalizer/consumer atomic replacement |
+| I-02 | Normalized and node contracts; [schema](../../config/schema/graphx.schema.json) | [S01, T01, T02](inventory.json); [S01](scenarios/sample-pipeline/graphx.yml) | `planned-portable`; renaming and two-instance runtime output independence |
+| I-03 | Authored schema / Endpoints and readiness; [schema](../../config/schema/graphx.schema.json) | [T02, T03, N02–N05, N12–N13](inventory.json); [T02](variants/multi-radio/graphx.yml) | `planned-portable`; port/schema/cardinality/SCC rejection; no readiness cycles |
+| I-04 | Endpoints, names, locality; [schema](../../config/schema/graphx.schema.json) | [S02–S04, S06, N06](inventory.json); [S02](scenarios/shared-memory/graphx.yml) | `planned-portable`; native Linux/macOS IPC and loopback behavior |
+| I-05 | Network realization; [schema](../../config/schema/graphx.schema.json) | [S05, S07–S12, S14–S15, N01, N11](inventory.json); [S05](scenarios/udp-broadcast/graphx.yml) | `planned-portable`; `planned-privileged`; privileged OVS profile/VLAN/routes/management bypass denial |
+| I-06 | Determinism, paths and output ownership; [schema](../../config/schema/graphx.schema.json) | [T01, N07–N09, N14](inventory.json); [T01](variants/renamed-multi-source/graphx.yml) | `planned-portable`; `planned-privileged`; byte determinism; collisions; path/symlink/stale-output negatives |
+| I-07 | Platform, credentials, history and builds; [schema](../../config/schema/graphx.schema.json) | [S11, S15, T03, N10, N15](inventory.json); [S11](scenarios/network-observation/graphx.yml) | `planned-portable`; `planned-guest-boot`; external not booted; actual TCG application boot and missing artifacts |
+| I-08 | Platform, credentials, history and builds; [schema](../../config/schema/graphx.schema.json) | [S13–S14, T02–T03](inventory.json); [S13](scenarios/sdr-simulated/graphx.yml) | `planned-portable`; raw protocol vs lifecycle and telemetry provenance |
+| I-09 | Execution ownership and failures; [schema](../../config/schema/graphx.schema.json) | [S11–S12, S14–S15, V04](inventory.json); [S11](scenarios/network-observation/graphx.yml) | `planned-portable`; `planned-privileged`; baseline excludes actions; route/fault/rotation apply/clear |
+| I-10 | Platform, credentials, history and builds; [schema](../../config/schema/graphx.schema.json) | [S01–S15, V01–V06](inventory.json); [S01](scenarios/sample-pipeline/graphx.yml) | `planned-portable`; `planned-privileged`; default history bounds; native access; Lima HTTP only; explicit deletion |
+| I-11 | Boundaries / Authored schema; [schema](../../config/schema/graphx.schema.json) | [S01, T01–T03, catalog](inventory.json); [S01](scenarios/sample-pipeline/graphx.yml) | `planned-portable`; unchanged shared types; zero topology Dockerfiles; reject arbitrary overrides |
 
 ## Case and diagnostic traceability
 

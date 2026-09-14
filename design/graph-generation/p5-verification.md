@@ -63,8 +63,8 @@ python3 tests/test_platform_bundle.py . build/dev outputs/p5-native-final
 shellcheck -x -P . scripts/test-tls.sh scripts/test-history.sh scripts/test-operations.sh scripts/test-secure-otlp.sh scripts/test-compose-features.sh examples/sample-pipeline/scripts/demo.sh
 shellcheck -x -P .:examples/sdr-node/simulated/scripts examples/sdr-node/simulated/scripts/demo.sh
 shellcheck -s sh outputs/p5-native-launcher.sh
-GX_OUTPUT=/tmp/graphx-compiled docker compose -f examples/sample-pipeline/compose.yaml config --quiet
-GX_OUTPUT=/tmp/graphx-compiled GRAPHX_SDR_TLS_DIR=/tmp/graphx-tls GRAPHX_SDR_RUN_DIR=/tmp/graphx-run GRAPHX_SDR_RUN_ID=p5-config-check GRAPHX_SDR_PACKET_RULES=/tmp/graphx-rules docker compose -f examples/sdr-node/simulated/compose.yaml config --quiet
+GX_OUTPUT=/tmp/graphx-compiled docker compose -f examples/sample-pipeline/graphx.yml config --quiet
+GX_OUTPUT=/tmp/graphx-compiled GRAPHX_SDR_TLS_DIR=/tmp/graphx-tls GRAPHX_SDR_RUN_DIR=/tmp/graphx-run GRAPHX_SDR_RUN_ID=p5-config-check GRAPHX_SDR_PACKET_RULES=/tmp/graphx-rules docker compose -f examples/sdr-node/simulated/graphx.yml config --quiet
 git diff --check
 ```
 

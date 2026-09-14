@@ -31,8 +31,8 @@ Physical-device startup remains gated.
   and external trust files remain unchanged. The compilation records the selection.
 - S15's approved expectations exclude broadcast echo/multicast reception, which are
   outside the current P8 guest application contract. Manual-route wrappers now
-  dispatch declared actions through the common CLI. The replacement's privileged acceptance gate is satisfied; superseded external
-  launcher deletion remains part of the final conversion/removal work.
+  dispatch declared actions through the common CLI. The replacement's privileged acceptance gate is satisfied; the external wrapper
+  delegates to the common compiled runner.
 
 ## Evidence
 

@@ -14,7 +14,7 @@ or production trust is reused.
 The original graph and external credential files remain unchanged. `run down`
 removes the laboratory's staged credentials and owned resources while retaining
 ordinary history/capture evidence. The common compiled laboratory interface passed privileged Lima acceptance.
-The superseded external demo body remains disabled pending removal.
+The wrapper delegates to the common compiled runner.
 
 See [scenario execution](../../../docs/scenarios.md), [P9 verification](../../../design/graph-generation/p9-verification.md)
 and the [example matrix](../../README.md).

@@ -6,8 +6,8 @@ Use authored v3 graphs, deterministic compilation, verified releases and
 
 Compiled OVS and namespace execution requires explicit local Linux privileged
 opt-in. Its S07–S12 Lima acceptance and compiled profile wrappers are verified; see
-[P7 verification](../design/graph-generation/p7-verification.md). Physical radio
-uplinks, owned QEMU boot and scenario actions retain their explicit gates in the
+[P7 verification](../design/graph-generation/p7-verification.md). Verified QEMU boot and explicit scenario actions have Lima acceptance evidence.
+Physical radio uplinks retain their separate contract gate in the
 [implementation plan](../design/graph-generation/implementation-plan.md).
 
 Portable verification covers C++ behavior, normalized consumers, telemetry HTTP,

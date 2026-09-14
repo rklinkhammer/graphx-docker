@@ -83,10 +83,10 @@ physical names; no runtime ownership token is fabricated by normalization.
 
 Telemetry accepts only this resolved contract and validates it with the same
 schema. Its existing standalone HTTP, history and capture modules remain testable
-with explicitly supplied runtime wiring. Graph-driven credential/control-grant
-staging is unavailable until P5 and fails before listeners open. `${GX_STATE}` and
-other execution placeholders are resolved by later execution adapters, not the
-configuration loader. Normalization does not write artifacts. The P3 compiler serializes this resolved
+with explicitly supplied runtime wiring. The runner stages graph credentials and
+control grants before releasing applications. `${GX_STATE}` and other execution
+placeholders are resolved by the execution adapter, not the configuration loader.
+Normalization does not write artifacts. The compiler serializes this resolved
 model into the node files and applicable plans described below.
 
 ## Application bindings
@@ -121,12 +121,11 @@ identities. A transform rejects the wrong incoming wire type, malformed integer
 samples and multiplication overflow. Application capture uses the resolved node
 identity and capture limits. Null telemetry credential references disable network
 telemetry; a non-null reference requires an explicitly supplied runtime secret
-through the existing secret/file interface. Automatic credential staging and
-GraphX transport TLS credential mapping remain gated for P5. Raw SDR control keeps
-its existing explicit TLS file inputs and uses resolved endpoints/server names.
+through the existing secret/file interface. The runner stages credentials and maps TLS references to owned files. Raw SDR
+control uses those explicit TLS files and resolved endpoints/server names.
 
-Node files are currently available through the library/resolved JSON contract;
-P3 implements deterministic file generation. The native binding tests extract
+Node files are emitted by deterministic compilation and consumed through the
+shared node-settings contract. The native binding tests extract
 node objects into temporary fixtures and supply their own barrier. They do not
 establish compiled graph, container, OVS or guest execution acceptance.
 

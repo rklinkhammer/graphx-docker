@@ -105,8 +105,8 @@ The operation takes the common exclusive staging lock. Readers reject incomplete
 changed or stale generations. Previous-token acceptance expires on a monotonic
 clock; wall-clock expiry limits overlap after a reader restart. Tokens remain
 redacted during bounded retirement. C++ and SDR telemetry reread staged HMAC files;
-TLS sessions retain their negotiated identity until reconnect. Scenario dispatch
-of rotation actions remains P9 work.
+TLS sessions retain their negotiated identity until reconnect. Declared rotation actions run through the explicit `graphx scenario run` interface;
+see [scenario execution](scenarios.md).
 
 History reserves storage for the database, WAL frames and SHM together. It refuses
 new writes when checkpointing cannot reclaim storage and reports drops without

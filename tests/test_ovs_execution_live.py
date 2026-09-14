@@ -31,7 +31,7 @@ if not args.allow_privileged or sys.platform != 'linux' or os.geteuid() != 0:
 # every authored graph still passes the authoritative C++ loader/compiler.
 import yaml
 source = Path(__file__).resolve().parents[1]
-cli = source / 'build/dev/graphx'
+cli = args.release / 'bin/graphx' if args.release else source / 'build/dev/graphx'
 root = args.output.resolve()
 if not root.is_relative_to(Path('/var/lib/graphx')):
     parser.error('Linux runtime evidence must remain under /var/lib/graphx')
@@ -88,7 +88,7 @@ with socket.socket() as listener:
 value.setdefault('platform', {})['console'] = {'port': console_port}
 if args.case == 'network-observability':
     value['network']['captures'][0].update(max_file_bytes=65536, max_files=2)
-normalized = json.loads(call(cli, 'config', 'normalize', original).stdout)
+normalized = json.loads(call(cli, 'config', 'normalize', original, '--target', args.target, '--catalog-root', source / 'config/catalog').stdout)
 for node in normalized['nodes']:
     if 'max_messages' in node['parameters']:
         value['nodes'][node['node_id']].setdefault('parameters', {})['max_messages'] = 10000

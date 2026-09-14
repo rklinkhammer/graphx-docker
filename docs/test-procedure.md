@@ -87,56 +87,43 @@ test set and runs it after portable acceptance.
 | Execution environment | Acceptance command | What the result establishes |
 |---|---|---|
 | Native macOS | `scripts/verify.sh portable` | Native C++/transport and Node.js acceptance |
-| OrbStack on macOS | `scripts/test-features.sh docker` | Portable Compose and broadcast; no system OVS |
+| OrbStack on macOS | `GRAPHX_IMAGE_RELEASE=VERIFIED_IMAGES scripts/test-features.sh docker` | Compiled portable container matrix; no system OVS |
 | Native Linux | `GRAPHX_ALLOW_PRIVILEGED_TESTS=1 scripts/verify.sh native-linux` | Portable acceptance plus privileged Linux CTests |
 | GraphX ARM64 Lima on Apple Silicon macOS | `infrastructure/lima/verify.sh` | Guest build/quick tests plus privileged Linux CTests and infrastructure cleanup comparison |
 
 Before Docker tests, check `docker info` and `docker compose version`; on macOS
-also check `docker context show` returns `orbstack`. The Docker suite uses unique test graph/project names and checks that existing
-resources survive unchanged. Before native Linux privileged
-CTests, build `graphx-demo:latest` in that engine with `docker build -t graphx-demo:latest .`; allow the network test to
-pull `debian:bookworm-slim` and external SDR to build its service image.
-Native portable tests also need their configured TCP/UDP/HTTP ports free. Check `node --version` is 24.x before
-portable acceptance; another installed major must not be treated as equivalent.
+also check that `docker context show` returns `orbstack`. Use a verified image
+release with `GRAPHX_IMAGE_RELEASE`; test graphs use unique identities and preserve
+existing workloads. Node.js 24 is required for portable checks.
 
-For Lima setup and verification, run on the macOS host:
+The privileged CTest `graphx-compiled-live` runs the six compiled OVS cases,
+S11/S12/S14 scenario actions, and actual S15/T03 TCG guests sequentially. Set:
 
 ```sh
-infrastructure/lima/start.sh
-limactl shell --workdir /workspace/graphx-docker graphx -- \
-  docker build -t graphx-demo:latest .
-infrastructure/lima/verify.sh
+export GRAPHX_ALLOW_PRIVILEGED_TESTS=1
+export GRAPHX_IMAGE_RELEASE=/var/lib/graphx/VERIFIED_IMAGES
+export GRAPHX_TEST_RELEASE=/var/lib/graphx/VERIFIED_INSTALLATION
+export GRAPHX_GUEST_RELEASE=/var/lib/graphx/VERIFIED_GUESTS
+scripts/verify.sh native-linux
 ```
 
-A configuration identity mismatch is a failed prerequisite. Follow the guide's
-deliberate VM replacement procedure; do not bypass the digest check. Replacement
-erases the guest disk. Logs are under `/var/lib/graphx/runtime/evidence` in the
-VM; host profile logs are under `outputs/verification`.
+For the existing GraphX Lima VM, use the same variables with guest-local paths and
+run `infrastructure/lima/verify.sh` on macOS. It checks VM identity, builds/tests in
+guest storage, and compares before/after infrastructure inventories. It neither
+provisions a VM nor builds topology-specific images. The direct guest entry point
+is `GRAPHX_TEST_TARGET=lima scripts/test-linux-network-features.sh`.
 
-Neither `portable` nor `full` runs every example. `portable` runs local TCP,
-shared-memory, UDP unicast/multicast, application capture checks, telemetry and
-contract tests. `full` adds the standard Compose and UDP broadcast runs, plus
-quality/sanitizer/fuzz gates; it does not invoke Lima verification or boot QEMU.
-The privileged CTests exercise ownership, container veth, OVS network
-profile semantics, capture/faults, external SDR, and static-route policy.
-QEMU acceptance uses the separate, explicitly authorized S15/T03 harness with
-verified guest artifacts; it is not selected by a generic privileged CTest run.
+A configuration identity mismatch is a failed prerequisite. Follow the Lima guide's
+explicit replacement procedure only when separately authorized; replacement erases
+the guest disk. Do not bypass the identity check.
 
-Use the [complete example matrix](../examples/README.md) for launcher commands.
-For complete example acceptance, run each of the four network profiles through
-`plan/up/status/down` on native Linux, preserving any existing lab workloads.
-The checked-in profiles reuse host veth names and must run sequentially. An
-existing profile blocks the other profiles on that host until its owner agrees
-to stop it with the matching launcher; separate Compose projects are insufficient.
-Also run the standalone capture launcher,
-simulated SDR `start/status/verify/stop`, the isolated Linux broadcast runner,
-and QEMU `start/status/verify/stop`. Exercise the macOS network dispatcher for
-all four profile names with `plan/up/status/down`. Use an explicit guest shell
-for external SDR, static routes, and network observation. Browser interaction
-requires the separate [manual checks](manual-test-procedures.md); API checks do
-not establish visual acceptance.
+Neither `portable` nor `full` runs every example. `full` adds the portable container
+matrix, quality, sanitizers and fuzzing. The separately authorized privileged suite
+adds OVS, route/fault actions and actual QEMU guests. The [example matrix](../examples/README.md)
+identifies each authored input and target; [P10 verification](../design/graph-generation/p10-verification.md)
+records actual environment coverage. Browser interaction requires the separate
+[manual checks](manual-test-procedures.md); API checks do not establish visual acceptance.
 
-Report native Linux, native macOS, OrbStack, and Lima separately, with host and
-guest architectures. The checked-in QEMU launcher selects TCG on both Linux and
-Lima. Report a successful boot as TCG evidence; TAP tests alone establish neither
-TCG guest execution nor KVM. No current example launcher selects KVM.
+Report native Linux, native macOS, OrbStack and Lima separately, including host and
+guest architectures. The accepted guest cases use x86_64 TCG. KVM and physical-radio
+startup are separate, unimplemented contracts.

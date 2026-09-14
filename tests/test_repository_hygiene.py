@@ -39,6 +39,15 @@ def main() -> int:
             "generated runtime artifacts are tracked:\n" + "\n".join(violations)
         )
 
+    for relative in repository_files:
+        path = root / relative
+        if not relative.startswith('examples/') or not path.is_file():
+            continue
+        if path.name in {'compose.yaml', 'compose.yml'} or path.name.endswith('.compose.yaml'):
+            raise AssertionError(f'source Compose duplicates compiled output: {path}')
+        if path.suffix == '.sh' and 'E_PHASE_UNAVAILABLE' in path.read_text():
+            raise AssertionError(f'disabled historical launcher remains: {path}')
+
     ci = (root / ".github/workflows/ci.yml").read_text(encoding="utf-8")
     if "apt.llvm.org" in ci:
         raise AssertionError("CI duplicates the toolchain installation owned by the verifier image")

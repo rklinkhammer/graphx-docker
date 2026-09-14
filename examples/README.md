@@ -5,7 +5,7 @@ compilation on their listed targets. Native and portable container graphs suppor
 OVS and namespace graphs have a compiled runner behind explicit Linux privileged
 opt-in, with [P7 Lima acceptance evidence](../design/graph-generation/p7-verification.md).
 Container network and static-route startup wrappers use the compiled runner. Verified QEMU guest startup is supported; [P8](../design/graph-generation/p8-verification.md) records actual Lima TCG boot. [Scenario actions](../docs/scenarios.md) are selected explicitly after baseline startup; the laboratory simulator is an explicit pre-start compilation selection. See [compilation instructions](../docs/user-guide.md#compile-inspectable-artifacts). Images use the [shared release recipes](../docs/release-process.md#shared-images-and-catalog-pins);
-source Compose files contain no per-graph builds. Run from the repository root:
+Compose is generated only in compiler output; examples contain no source Compose files. Run from the repository root:
 
 ```sh
 build/dev/graphx config normalize examples/sample-pipeline/graphx.yml --target orbstack
@@ -43,6 +43,10 @@ veth/TAP resources; MACVLAN/IPVLAN are semantic profiles. Compose owns processes
 and management connectivity. No Docker engine or VM is needed for normalization.
 
 Catalog images and guest artifacts remain illustrative until release packaging.
-Retained Compose recipes and launcher bodies are not a supported v3 launch path.
+Every retained launcher delegates to the common compiled execution path.
 See [configuration](../docs/configuration.md), [phase status](../design/graph-generation/p1-verification.md),
 and [test procedure](../docs/test-procedure.md).
+
+[P10 acceptance](../design/graph-generation/p10-verification.md) maps all 24 inputs
+to actual macOS, OrbStack, Linux ARM64/Lima and x86_64 TCG results. It also records
+the native Linux x86_64 and clean-release gates that remain open.

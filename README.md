@@ -55,8 +55,7 @@ build/dev/graphx validate examples/sample-pipeline/graphx.yml
 build/dev/graphx config normalize examples/sample-pipeline/graphx.yml > normalized.json
 ```
 
-Reusable infrastructure modules verify resource identity and fail closed. Their
-v3 graph adapter is not yet available. The dedicated Lima environment is reserved
+Reusable infrastructure modules verify resource identity and fail closed. The compiled v3 runner uses those modules. The dedicated Lima environment is reserved
 for separately authorized Linux networking and guest verification.
 
 ## Examples and documentation

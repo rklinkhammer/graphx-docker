@@ -3,7 +3,12 @@
 This page records the active design constraints for GraphX 1.1.0.
 
 - `graphx.yml` with `version: 3` is the only authored configuration format; normalized JSON uses contract version 2.
-- P1 implements validation and normalization; P2 implements resolved node bindings and the local-ready/release application interface. P3 compiles deterministic artifacts. P4 packages shared images and derives release catalog pins from verified OCI bytes; the source catalog remains an unverified development input. P5 adds compiled platform consumption, explicit credential staging, bounded owned history, optional observability services and a pinned native Node/web companion. P6 adds finite native/portable execution with verified releases and identity-checked cleanup. P7 adds compiled OVS execution behind explicit local Linux privileged opt-in, with S07–S12 acceptance verified in the GraphX Lima guest. P8 adds verified guest artifacts and owned QEMU startup, with actual S15/T03 x86_64 TCG guest acceptance passed in the ARM64 Lima VM; remaining host coverage is tracked in `design/graph-generation/p8-verification.md`. P9 adds explicitly selected route, fault, traffic and credential actions plus pre-start laboratory compilation; S11/S12/S14 laboratory/S15 privileged acceptance passed in the GraphX Lima guest. See `design/graph-generation/implementation-plan.md`.
+- The compiled execution path provides generic node bindings, deterministic artifacts,
+  verified shared releases, default platform/history, credential staging, owned native
+  and container processes, system OVS networking, verified QEMU TCG guests and explicit
+  scenario actions. Examples have one authored source and no source Compose overlays.
+  See `design/graph-generation/p10-verification.md` for current acceptance and remaining
+  release qualification gates.
 - The C++ loader is authoritative; normalized JSON is the only configuration input
   accepted by telemetry.
 - System Open vSwitch is the only managed data-plane backend.

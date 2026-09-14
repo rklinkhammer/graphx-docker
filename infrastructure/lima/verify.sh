@@ -1,7 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-script_dir=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
+: "${GRAPHX_ALLOW_PRIVILEGED_TESTS:?Set to 1 after authorizing privileged acceptance}"
+[[ $GRAPHX_ALLOW_PRIVILEGED_TESTS == 1 ]] || exit 2
+: "${GRAPHX_IMAGE_RELEASE:?Set the guest-local verified image release}"
+: "${GRAPHX_TEST_RELEASE:?Set the guest-local verified installation}"
+: "${GRAPHX_GUEST_RELEASE:?Set the guest-local verified guest artifacts}"
+export GRAPHX_TEST_TARGET=lima
+
+script_dir=$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 
 if [[ $(uname -s) == Darwin ]]; then
   # shellcheck source=common.sh
@@ -15,6 +22,8 @@ if [[ $(uname -s) == Darwin ]]; then
   }
   exec "${GRAPHX_LIMA_RUNNER}" 3600 limactl shell --workdir "${GRAPHX_LIMA_GUEST_ROOT}" \
     "${GRAPHX_LIMA_INSTANCE}" -- sudo env GRAPHX_LIMA_CONFIG_DIGEST="${config_digest}" \
+    GRAPHX_ALLOW_PRIVILEGED_TESTS=1 GRAPHX_IMAGE_RELEASE="$GRAPHX_IMAGE_RELEASE" \
+    GRAPHX_TEST_RELEASE="$GRAPHX_TEST_RELEASE" GRAPHX_GUEST_RELEASE="$GRAPHX_GUEST_RELEASE" \
     bash "${GRAPHX_LIMA_GUEST_ROOT}/infrastructure/lima/verify.sh" --guest
 fi
 

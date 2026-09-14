@@ -1,5 +1,5 @@
 {
-  "catalog_digest": "3589ffafcc9bccc4fbf453cf9dc3d43e5a82be956c8be4aff113c64c6e78c7ed",
+  "catalog_digest": "76052c6b23675f45fe9b1c6399d31658135dd88a3ce5e159b98dcacf78a475da",
   "compiler": "proposed-graphx-v3-design-1",
   "files": [
     {
@@ -36,7 +36,7 @@
     },
     {
       "path": "resolved.json",
-      "sha256": "0d2e82116323772c0adbd4cb18fe183714d1d06a295ef6f2bc18ae900b7cbbe3"
+      "sha256": "c4f18adaeb08d68b909d4a33e3aaf84c73e6c06e34ff9b1374fad65c047e2170"
     },
     {
       "path": "substitutions.json",

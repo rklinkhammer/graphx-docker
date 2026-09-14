@@ -4,9 +4,10 @@ The portable pipeline and simulated SDR example expose the GraphX browser consol
 launcher reports readiness, open its printed URL and verify topology, node and edge
 status, rates, latency, SLO state, runtime evidence, capture entries, and history.
 
-Both run with Docker Engine on Linux or OrbStack on macOS. The external SDR
-example provides command-line traffic and control verification only; it does not
-start telemetry, history, a capture observer, or a browser console.
+Container graphs run with Docker Engine on Linux or OrbStack on macOS. The explicit
+SDR laboratory and QEMU/OVS graphs also have the default platform console, with
+packet evidence governed by their declared observation contract. Physical SDR
+startup remains gated until an uplink ownership contract is implemented.
 
 After resizing the browser or rotating a mobile display, use the topology's
 **Fit view** control to bring all nodes back into view. The canvas does not

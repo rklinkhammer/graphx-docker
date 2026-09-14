@@ -36,11 +36,11 @@ identity. Destruction verifies those identities and refuses ambiguous cleanup.
 Credentials are projected as files, excluded from normalized configuration and
 telemetry, and redacted from logs and APIs.
 
-Graph orchestration remains unavailable. The CLI exposes validation, inspection,
-normalization, resolved node validation and deterministic artifact compilation. P2 applications consume required node
-identities and port bindings and expose a local-ready/release barrier. Example
-launchers still reject execution; packaging, orchestration and credential staging
-have subsequent implementation gates.
+The CLI validates, normalizes and compiles authored graphs, then executes immutable
+artifacts through the common ownership lifecycle. Applications consume resolved
+node identities and port bindings with a local-ready/release barrier. Verified
+packages supply shared binaries, images and guest artifacts. Credentials are staged
+before application release; scenario actions require explicit selection.
 
 ## Runtime boundaries
 

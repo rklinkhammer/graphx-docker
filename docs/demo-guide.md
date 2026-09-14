@@ -22,10 +22,9 @@ for cleanup. OVS scenarios require native Linux or the GraphX Lima guest. The
 portable pipeline runs with Docker Compose on Linux or OrbStack on macOS.
 
 On Apple Silicon macOS, follow the
-[`Docker and OVS with Lima`](../infrastructure/lima/README.md) guide. The network
-and QEMU launchers run at the macOS prompt and dispatch privileged work to the
-Lima VM automatically. External SDR and route-policy launchers require an
-explicit guest shell; they do not dispatch automatically.
+[`Docker and OVS with Lima`](../infrastructure/lima/README.md) guide. The network-profile dispatcher can forward explicit compiled paths to Lima.
+QEMU, laboratory SDR and route-policy wrappers run in an explicit Linux guest shell.
+All wrappers consume an existing compilation; none infer physical-device substitution.
 
 For browser-oriented checks see [`graphical-examples-guide.md`](graphical-examples-guide.md).
 For exact prerequisites and non-interactive verification see

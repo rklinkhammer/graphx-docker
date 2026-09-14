@@ -1,3 +1,0 @@
-# Generated graph services are owned by graphx run.
-include:
-  - "${GX_OUTPUT:?Set GX_OUTPUT to compiled output}/compose.yaml"

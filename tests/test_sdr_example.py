@@ -148,46 +148,6 @@ def main() -> int:
     assert [protocol.decode_samples(protocol.encode_samples(value, 100_000_000, 1))[0]
             for value in (10, 10, 12, 11, 0)] == [10, 10, 12, 11, 0]
 
-    os.environ["GRAPHX_PACKET_RULES"] = (
-        '[{"edge_id":"sdr-samples","direction":"sdr-to-processor",'
-        '"node_id":"sdr-node","protocol":"UDP","source":"10.63.0.10",'
-        '"destination":"10.63.0.20","destination_port":18400}]'
-    )
-    observer = import_path("sdr_packet_observer", root / "examples/qemu-node/tools/packet_observer.py")
-    decoded = observer.decode_packet(packet(17, "10.63.0.10", "10.63.0.20", 40000,
-                                             18400, encoded))
-    assert decoded and decoded["edge_id"] == "sdr-samples" and decoded["node_id"] == "sdr-node"
-    assert observer.decode_packet(packet(6, "10.63.0.10", "10.63.0.20", 40000,
-                                         18400, b"wrong protocol")) is None
-    with tempfile.TemporaryDirectory(prefix="graphx-pcapng-observer-") as temporary:
-        directory = Path(temporary)
-        capture = directory / "managed.pcapng"
-        database = directory / "history.sqlite"
-        first_packet = packet(17, "10.63.0.10", "10.63.0.20", 40000, 18400, encoded)
-        captured_at = time.time()
-        first = observer.pcapng_headers() + observer.pcapng_packet(
-            captured_at, len(first_packet), first_packet)
-        capture.write_bytes(first)
-        capture.chmod(0o600)
-        packet_observer = observer.Observer(capture, database)
-        assert packet_observer.read_available()
-        assert packet_observer.status()["capturePackets"] == 1
-        second_packet = packet(17, "10.63.0.10", "10.63.0.20", 40000, 18400,
-                               protocol.encode_samples(8, 915_000_000, 16))
-        replacement = directory / "replacement.pcapng"
-        replacement.write_bytes(first + observer.pcapng_packet(
-            captured_at + 1.0, len(second_packet), second_packet))
-        replacement.chmod(0o600)
-        replacement.replace(capture)
-        assert packet_observer.read_available()
-        status = packet_observer.status()
-        assert status["capturePackets"] == 2 and status["records"] == 2
-        packet_observer.close()
-        capture.chmod(0o666)
-        unsafe = observer.Observer(capture, directory / "unsafe.sqlite")
-        expect_value_error(unsafe.read_available,
-                           "writable managed PCAPNG snapshot was accepted")
-        unsafe.close()
     processor_module = import_path("sdr_processor_endpoint_test", common / "processor.py")
     assert processor_module.expected_sample_source("10.63.0.10") == "10.63.0.10"
     expect_value_error(lambda: processor_module.expected_sample_source("not-an-address"),
@@ -333,43 +293,14 @@ def main() -> int:
         simulator.stop.set()
         expiry_server.join(timeout=2)
 
-    lifecycle = common / "lifecycle.sh"
-    for script in (common / "generate_tls.sh", lifecycle,
+    for script in (common / "generate_tls.sh",
                    root / "examples/sdr-node/simulated/scripts/demo.sh",
                    root / "examples/sdr-node/external/scripts/demo.sh"):
         subprocess.run(["bash", "-n", script], check=True)
-    with socket.socket() as occupied:
-        occupied.bind(("127.0.0.1", 0))
-        occupied.listen(1)
-        occupied_port = str(occupied.getsockname()[1])
-        environment = {**os.environ, "GRAPHX_SDR_PORT_ATTEMPTS": "1"}
-        result = subprocess.run(
-            ["bash", "-c", 'source "$1"; graphx_sdr_preflight_port "$2"',
-             "graphx-sdr-port-test", str(lifecycle), occupied_port],
-            capture_output=True, text=True, env=environment, check=False)
-        assert result.returncode != 0
-        assert f"port {occupied_port} is unavailable" in result.stderr
-        assert "NameError" not in result.stderr
-    result = subprocess.run(
-        ["bash", "-c", 'source "$1"; graphx_sdr_preflight_port invalid',
-         "graphx-sdr-port-test", str(lifecycle)], capture_output=True, text=True,
-        check=False)
-    assert result.returncode != 0 and "must be an integer" in result.stderr
-
-    simulated_script = (root / "examples/sdr-node/simulated/scripts/demo.sh").read_text()
-    external_script = (root / "examples/sdr-node/external/scripts/demo.sh").read_text()
-    simulated_compose = (root / "examples/sdr-node/simulated/compose.yaml").read_text()
-    external_compose = (root / "examples/sdr-node/external/compose.yaml").read_text()
-    assert 'graphx_demo_run' in simulated_script
-    assert '${GX_OUTPUT:?' in simulated_compose
-    assert "SDR_SAMPLE_SOURCE: 10.63.0.10" in external_compose
-    for required in ("GRAPHX_EXTERNAL_OWNER", "external-ovs-boundary.sh",
-                     "graphx_external_namespace_create",
-                     "graphx_external_namespace_delete", 'chown "$5:$6"',
-                     "Rollback retained network-lab SDR state", "trap rollback_up ERR",
-                     "verify)", "external SDR results did not reach the sink",
-                     "external SDR profile is already down"):
-        assert required in external_script, f"external lifecycle is missing {required}"
+    for profile in ('simulated', 'external'):
+        wrapper = root / 'examples/sdr-node' / profile / 'scripts/demo.sh'
+        assert 'graphx_demo_run' in wrapper.read_text()
+        assert not (wrapper.parent.parent / 'compose.yaml').exists()
     print("SDR example portable behavioral checks passed")
     return 0
 

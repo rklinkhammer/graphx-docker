@@ -344,10 +344,6 @@
     },
     {
       "format": "json",
-      "path": "catalog/graph.schema.json"
-    },
-    {
-      "format": "json",
       "path": "catalog/guests/echo-x86.json"
     },
     {
@@ -357,10 +353,6 @@
     {
       "format": "json",
       "path": "catalog/lock.json"
-    },
-    {
-      "format": "json",
-      "path": "catalog/normalized.schema.json"
     },
     {
       "format": "json",
@@ -377,10 +369,6 @@
     {
       "format": "json",
       "path": "catalog/templates.json"
-    },
-    {
-      "format": "json",
-      "path": "catalog/type.schema.json"
     },
     {
       "format": "json",
@@ -513,6 +501,10 @@
     {
       "format": "md",
       "path": "p9-verification.md"
+    },
+    {
+      "format": "md",
+      "path": "p10-verification.md"
     }
   ],
   "version": 1

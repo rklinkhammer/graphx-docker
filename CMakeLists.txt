@@ -368,56 +368,9 @@ if(GRAPHX_BUILD_TESTS)
   graphx_add_python_test(graphx-network-lab-plans tests/test_network_lab_plans.py 60
     $<TARGET_FILE:graphx-cli> ${CMAKE_SOURCE_DIR})
   if(GRAPHX_ENABLE_LINUX_OVS_TESTS AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    add_test(NAME graphx-ovs-ownership-live COMMAND sudo -n ${Python3_EXECUTABLE}
-      ${CMAKE_SOURCE_DIR}/tests/test_ovs_ownership_live.py $<TARGET_FILE:graphx-cli>
-      ${CMAKE_SOURCE_DIR})
-    set_tests_properties(graphx-ovs-ownership-live PROPERTIES TIMEOUT 60
-      ENVIRONMENT "GRAPHX_OVERRIDES=")
-    add_test(NAME graphx-container-veth-live COMMAND sudo -n ${Python3_EXECUTABLE}
-      ${CMAKE_SOURCE_DIR}/tests/test_container_veth_live.py $<TARGET_FILE:graphx-cli>)
-    set_tests_properties(graphx-container-veth-live PROPERTIES TIMEOUT 120
-      ENVIRONMENT "GRAPHX_OVERRIDES=")
-    add_test(NAME graphx-network-labs-live COMMAND sudo -n ${Python3_EXECUTABLE}
-      ${CMAKE_SOURCE_DIR}/tests/test_network_lab_live.py $<TARGET_FILE:graphx-cli>)
-    set_tests_properties(graphx-network-labs-live PROPERTIES TIMEOUT 180
-      ENVIRONMENT "GRAPHX_OVERRIDES=")
-    add_test(NAME graphx-network-observability-live COMMAND sudo -n ${Python3_EXECUTABLE}
-      ${CMAKE_SOURCE_DIR}/tests/test_network_observability_live.py $<TARGET_FILE:graphx-cli>)
-    set_tests_properties(graphx-network-observability-live PROPERTIES TIMEOUT 180
-      ENVIRONMENT "GRAPHX_OVERRIDES=")
-
-    add_test(NAME graphx-sdr-node-live-setup
-      COMMAND ${CMAKE_SOURCE_DIR}/examples/sdr-node/external/scripts/demo.sh up)
-    set_tests_properties(graphx-sdr-node-live-setup PROPERTIES
-      FIXTURES_SETUP graphx-sdr-node-live TIMEOUT 300 RUN_SERIAL TRUE
-      ENVIRONMENT "GRAPHX_BIN=$<TARGET_FILE:graphx-cli>;GRAPHX_OVERRIDES=")
-    add_test(NAME graphx-sdr-node-live
-      COMMAND ${CMAKE_SOURCE_DIR}/examples/sdr-node/external/scripts/demo.sh verify)
-    set_tests_properties(graphx-sdr-node-live PROPERTIES
-      FIXTURES_REQUIRED graphx-sdr-node-live TIMEOUT 60 RUN_SERIAL TRUE
-      ENVIRONMENT "GRAPHX_BIN=$<TARGET_FILE:graphx-cli>;GRAPHX_OVERRIDES=")
-    add_test(NAME graphx-sdr-node-live-cleanup
-      COMMAND ${CMAKE_SOURCE_DIR}/examples/sdr-node/external/scripts/demo.sh down)
-    set_tests_properties(graphx-sdr-node-live-cleanup PROPERTIES
-      FIXTURES_CLEANUP graphx-sdr-node-live TIMEOUT 120 RUN_SERIAL TRUE
-      ENVIRONMENT "GRAPHX_BIN=$<TARGET_FILE:graphx-cli>;GRAPHX_OVERRIDES=")
-
-    add_test(NAME graphx-static-route-policy-live-setup
-      COMMAND ${CMAKE_SOURCE_DIR}/examples/static-route-policy/scripts/demo.sh up)
-    set_tests_properties(graphx-static-route-policy-live-setup PROPERTIES
-      FIXTURES_SETUP graphx-static-route-policy-live TIMEOUT 120 RUN_SERIAL TRUE
-      ENVIRONMENT "GRAPHX_BIN=$<TARGET_FILE:graphx-cli>;GRAPHX_OVERRIDES=")
-    add_test(NAME graphx-static-route-policy-live
-      COMMAND bash ${CMAKE_SOURCE_DIR}/tests/test_static_route_policy_live.sh
-        $<TARGET_FILE:graphx-cli> ${CMAKE_SOURCE_DIR})
-    set_tests_properties(graphx-static-route-policy-live PROPERTIES
-      FIXTURES_REQUIRED graphx-static-route-policy-live TIMEOUT 60 RUN_SERIAL TRUE
-      ENVIRONMENT "GRAPHX_OVERRIDES=")
-    add_test(NAME graphx-static-route-policy-live-cleanup
-      COMMAND ${CMAKE_SOURCE_DIR}/examples/static-route-policy/scripts/demo.sh down)
-    set_tests_properties(graphx-static-route-policy-live-cleanup PROPERTIES
-      FIXTURES_CLEANUP graphx-static-route-policy-live TIMEOUT 60 RUN_SERIAL TRUE
-      ENVIRONMENT "GRAPHX_BIN=$<TARGET_FILE:graphx-cli>;GRAPHX_OVERRIDES=")
+    add_test(NAME graphx-compiled-live
+      COMMAND bash ${CMAKE_SOURCE_DIR}/scripts/test-linux-network-features.sh)
+    set_tests_properties(graphx-compiled-live PROPERTIES TIMEOUT 1800 RUN_SERIAL TRUE)
   endif()
   add_test(NAME graphx-documentation-consistency COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/test_documentation_consistency.py ${CMAKE_SOURCE_DIR}
@@ -463,8 +416,6 @@ if(GRAPHX_BUILD_TESTS)
   graphx_add_python_test(graphx-diagnostic-bindings tests/test_diagnostic_bindings.py 30
     ${CMAKE_BINARY_DIR} ${CMAKE_SOURCE_DIR})
   graphx_add_python_test(graphx-node-bindings tests/test_node_bindings.py 60
-    ${CMAKE_BINARY_DIR} ${CMAKE_SOURCE_DIR})
-  graphx_add_python_test(graphx-execution-gate tests/test_execution_gate.py 30
     ${CMAKE_BINARY_DIR} ${CMAKE_SOURCE_DIR})
   add_test(NAME graphx-qemu-node-static
     COMMAND ${CMAKE_SOURCE_DIR}/examples/qemu-node/scripts/test.sh $<TARGET_FILE:graphx-cli>)

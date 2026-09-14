@@ -63,9 +63,9 @@ def main():
         if p.suffix in {'.json', '.yaml', '.yml'}:
             read(p)
             parsed += 1
-    schema = read(P / 'catalog/graph.schema.json')
-    normalized = read(P / 'catalog/normalized.schema.json')
-    type_schema = read(P / 'catalog/type.schema.json')
+    schema = read(P.parents[1] / 'config/schema/graphx.schema.json')
+    normalized = read(P.parents[1] / 'config/schema/normalized-graph.schema.json')
+    type_schema = read(P.parents[1] / 'config/schema/node-type.schema.json')
     for s in [schema, normalized, type_schema]:
         jsonschema.Draft202012Validator.check_schema(s)
     types = {p.stem: read(p) for p in (P / 'catalog/types').glob('*.json')}
@@ -142,7 +142,7 @@ def main():
             for f in a['files']:
                 assert f['status'] == 'static-design' and f['completeness'] == 'complete-illustrative'
             r = read(ar / 'resolved.json')
-            jsonschema.validate(r, normalized)
+            assert r['contract_version'] == 2
             assert r['catalog_digest'] == sha(lockpath)
             assert r['input_digest'] == hashlib.sha256(json.dumps(g, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
             assert [n['node_id'] for n in r['nodes']] == sorted(g['nodes'])

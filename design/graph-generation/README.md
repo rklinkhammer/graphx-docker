@@ -2,7 +2,7 @@
 
 **DESIGN ONLY — all files below this directory, including JSON, YAML, INI and
 expected outputs, are non-runtime review artifacts.** I-01 through I-11 are
-accepted future-state premises. P1 now implements authored version 3 and
+accepted design decisions. P1 now implements authored version 3 and
 normalized contract version 2, and P2 implements generic bindings and native
 application verification. P3 implements deterministic compilation; see
 [P3 verification](p3-verification.md). P4 packages shared images and derives release
@@ -14,10 +14,10 @@ P7 implements compiled OVS preparation and ownership with S07–S12 Lima accepta
 see [P7 verification](p7-verification.md). P8 adds owned guest startup with verified artifacts; its actual-boot gate is tracked in
 [P8 verification](p8-verification.md). P9 adds explicit scenario actions and laboratory selection; see [P9 verification](p9-verification.md) for native/OrbStack results and passed privileged Lima cases.
 
-The design meets the simplification objective if the binding and execution
-boundaries in [architecture.md](architecture.md) land together. A topology change
-then edits one graph and ordinarily creates zero Dockerfiles. Review the complete
-example package before starting [the implementation phases](implementation-plan.md).
+The implemented binding and execution boundaries are described in
+[architecture.md](architecture.md). A topology change edits one graph and ordinarily
+creates zero Dockerfiles. [P10 verification](p10-verification.md) records removal,
+current acceptance and remaining release qualification gates.
 S14 physical startup is gated pending a separate physical-uplink ownership contract,
 as selected during P7. Remaining engineering risks and
 selected restrictions are documented in the architecture, not reopened decisions.

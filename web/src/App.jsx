@@ -5,7 +5,7 @@ import { EdgeInspector } from './components/EdgeInspector'
 import { ControlCommandStatus } from './components/ControlCommandStatus'
 import { HistoryPanel } from './components/HistoryPanel'
 import { Topology } from './components/Topology'
-import { applicationEdges, applicationNodes, edgePaths, infrastructureNodes, networkEdges } from './data/topology'
+import { applicationEdges, applicationNodes, infrastructureNodes, networkEdges } from './data/topology'
 import { controlCommandRequest, persistObservationToken } from './auth'
 import { useTelemetry } from './useTelemetry'
 
@@ -23,7 +23,7 @@ function formatLatency(value) {
 export default function App() {
   const [observationToken, setObservationToken] = useState(() => sessionStorage.getItem('graphx-observation-token') || '')
   const { snapshot, connected } = useTelemetry(observationToken)
-  const [selectedId, setSelectedId] = useState('samples')
+  const [selectedId, setSelectedId] = useState('')
   const [controlStatus, setControlStatus] = useState('Enter the control token to pause the source')
   const [activeCommand, setActiveCommand] = useState(null)
   const [controlToken, setControlToken] = useState('')
@@ -80,7 +80,7 @@ export default function App() {
     cpu: Number.isFinite(snapshot?.nodes?.[node.id]?.cpuPercent)
       ? snapshot.nodes[node.id].cpuPercent : null,
   }})), [topology, snapshot])
-  const paths = topology?.edgePaths || edgePaths
+  const paths = topology?.edgePaths || {}
   const runtimeControl = snapshot?.control || { available: false, connectedNodes: 0 }
   const displayedNodes = view === 'application' ? graphNodes : pathNodes
   const displayedEdges = useMemo(() => view === 'application' ? edges : networkEdges(selectedId, topology), [view, edges, selectedId, topology])
