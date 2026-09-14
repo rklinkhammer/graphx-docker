@@ -680,10 +680,11 @@
                       "enum": [
                         "pause",
                         "resume",
-                        "set_frequency"
+                        "set_frequency",
+                        "reset"
                       ]
                     },
-                    "maxItems": 3,
+                    "maxItems": 4,
                     "type": "array"
                   },
                   "credential": {

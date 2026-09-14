@@ -6,6 +6,7 @@ from __future__ import annotations
 from pathlib import Path
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -70,6 +71,34 @@ def main() -> int:
         ["bash", "-c", f'source "{lima / "common.sh"}"; graphx_lima_digest'],
         text=True, capture_output=True, check=True
     ).stdout.strip()
+    # Fingerprints track provisioned inputs, independently of checkout location
+    # and changes to host helpers or acceptance scripts.
+    with tempfile.TemporaryDirectory(prefix="graphx-lima-digest-") as temporary:
+        fixture = Path(temporary) / "first" / "infrastructure" / "lima"
+        shutil.copytree(lima, fixture)
+        def digest(directory):
+            return subprocess.check_output(
+                ["bash", "-c", 'source "$1"; graphx_lima_digest', "digest", str(directory / "common.sh")],
+                text=True).strip()
+        require(digest(fixture) == config_digest, "digest depends on checkout location")
+        for name in ("verify.sh", "common.sh", "start.sh", "stop.sh", "run-bounded.py"):
+            path = fixture / name
+            path.write_text(path.read_text() + "\n# host-only change\n")
+            require(digest(fixture) == config_digest, "host/test helper invalidates provisioned VM")
+        for name in ("graphx.yaml", "provision.sh"):
+            path = fixture / name
+            original = path.read_bytes()
+            path.write_bytes(original + b"\n# changed provisioned input\n")
+            require(digest(fixture) != config_digest, "changed VM input was accepted")
+            path.write_bytes(original)
+        check_identity = ('source "$1"; graphx_lima_instance_record() { printf "%s\\n" "$RECORD"; }; '
+                          'graphx_lima_assert_identity "$2"')
+        for record in (f"graphx|Running|aarch64|vz|{root}|wrong",
+                       f"graphx|Running|aarch64|vz|/foreign|{config_digest}",
+                       f"graphx|Running|x86_64|vz|{root}|{config_digest}"):
+            result = subprocess.run(["bash", "-c", check_identity, "identity", str(lima / "common.sh"), config_digest],
+                                    env={**os.environ, "RECORD": record}, capture_output=True, text=True)
+            require(result.returncode != 0, "mismatched VM identity was accepted")
     with tempfile.TemporaryDirectory(prefix="graphx-network-lab-lima-test-") as temporary:
         temporary_path = Path(temporary)
         invocation_log = temporary_path / "invocations"

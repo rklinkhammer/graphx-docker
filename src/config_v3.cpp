@@ -939,9 +939,14 @@ GraphConfig load_graph(const std::filesystem::path& path, const ConfigLoadOption
   for (const auto& grant : platform.at("control").at("grants").array()) {
     if (!member(graph, "credentials").contains(grant.at("credential").text()))
       reject("E_CREDENTIAL", "platform.control.grants", "unknown grant credential");
-    for (const auto& id : grant.at("nodes").array())
-      if (!graph.at("nodes").contains(id.text()))
+    for (const auto& id : grant.at("nodes").array()) {
+      if (id.text() != "collector" && !graph.at("nodes").contains(id.text()))
         reject("E_REFERENCE", "platform.control.grants", "unknown granted node");
+      for (const auto& action : grant.at("actions").array())
+        if ((action.text() == "reset") != (id.text() == "collector"))
+          reject("E_REFERENCE", "platform.control.grants",
+                 "reset requires the collector target; collector only supports reset");
+    }
   }
   const auto nodes = node_values(graph, catalog, connections, platform, native);
   std::set<std::string> credentials{"observer"};

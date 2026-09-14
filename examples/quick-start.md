@@ -24,7 +24,7 @@ also supports this workflow when run from a checkout, or with `--source CHECKOUT
 ## Start the sample pipeline
 
 ```sh
-graphx example up sample-pipeline --control generator:pause,resume
+graphx example up sample-pipeline --control generator:pause,resume --control collector:reset
 ```
 
 The first run builds and verifies shared images; subsequent runs reuse prepared
@@ -32,8 +32,8 @@ artifacts. This creates a local development candidate, not a published release.
 To reuse your existing verified images, add `--images /absolute/path/to/images`.
 On macOS, select the OrbStack Docker context for this portable example.
 
-Startup prints the console URL, observation token, control token and the exact
-control grant. Paste the tokens into the corresponding console fields. The
+Startup opens an authenticated browser console and prints its URL and control
+grant. Refreshing the page preserves the session. The
 sample sends a message every 500 ms and runs until stopped. Control is optional:
 omit `--control` to leave it disabled. Existing authored grants are respected.
 
@@ -43,6 +43,11 @@ graphx example tokens sample-pipeline
 graphx example logs sample-pipeline --node sink --follow
 graphx example down sample-pipeline
 ```
+
+Use `graphx example open sample-pipeline` to reopen the authenticated console.
+Sessions last up to eight hours and expire when the platform restarts or their
+credentials are revoked. `--no-open` skips browser login; `--json` also suppresses
+browser opening. Manual token entry remains under **Manual authentication**.
 
 `up` and `tokens` support `--json`. Progress and subprocess logs go to stderr;
 stdout contains the result, including the requested credentials. `status` does
@@ -58,7 +63,7 @@ explicit; see [Lima setup](../infrastructure/lima/README.md).
 graphx env up
 graphx example plan sample-pipeline/ovs
 graphx example up sample-pipeline/ovs --allow-privileged \
-  --control generator:pause,resume
+  --control generator:pause,resume --control collector:reset
 graphx example tokens sample-pipeline/ovs --allow-privileged
 graphx example down sample-pipeline/ovs --allow-privileged
 ```
@@ -132,3 +137,8 @@ An interrupted startup keeps its launch reference: use `status` and `down` with
 the same example, target and instance. Never manually rewrite ownership files.
 A Lima identity mismatch stops automatic dispatch; follow the deliberate recovery
 procedure in the Lima guide. The CLI never silently replaces an existing VM.
+
+Reset counters requires `--control collector:reset`. If this example is already
+running with pause/resume only, repeat the `up` command above with `--restart`
+to apply both grants and open a newly authenticated console.
+Reset clears collected metrics; it does not restart the pipeline or erase history.

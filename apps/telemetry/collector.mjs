@@ -1,3 +1,4 @@
+import { createConsoleSessions } from './console-session.mjs'
 import { existsSync } from 'node:fs'
 import { listValidatedCaptures } from './capture-files.mjs'
 import { ControlAuthorizer, ControlConflictError, ControlPlane, CredentialRegistry,
@@ -147,6 +148,13 @@ function json(response, status, value, extra = {}) {
   response.end(JSON.stringify(value))
 }
 
+const consoleSessions = createConsoleSessions({ graph: graph.id, secure: tlsEnabled, json,
+  originAllowed: requestOriginAllowed,
+  observe: token => refreshCredentials(true) && (stagedCredentials
+    ? stagedCredentials.observe(`Bearer ${token}`) : tokenMatches(observationToken, `Bearer ${token}`)),
+  control: token => refreshCredentials(true) && controlAuthorizer.authenticate(`Bearer ${token}`, false),
+})
+
 function authorized(request, token) {
   if (stagedCredentials) return refreshCredentials(true) &&
     requestOriginAllowed(request) && stagedCredentials.observe(request.headers.authorization || '')
@@ -286,10 +294,12 @@ function authorizeWebSocket(request) {
   const protocols = (request.headers['sec-websocket-protocol'] || '').split(',')
     .map(value => value.trim()).filter(Boolean)
   const supplied = webSocketBearer(protocols, observationToken)
+  if (!protocols.some(value => value.startsWith('graphx-auth.'))) consoleSessions.attach(request, true)
+  const authorization = supplied ? `Bearer ${supplied}` : request.headers.authorization || ''
   return url.pathname === websocketPath && requestOriginAllowed(request) &&
     withinRateLimit(request, 120) &&
-    (stagedCredentials ? refreshCredentials(true) && stagedCredentials.observe(`Bearer ${supplied}`) :
-      (!observationToken || tokenMatches(observationToken, `Bearer ${supplied}`)))
+    (stagedCredentials ? refreshCredentials(true) && stagedCredentials.observe(authorization) :
+      (!observationToken || tokenMatches(observationToken, authorization)))
 }
 
 const rateLimits = {
@@ -542,7 +552,7 @@ function prometheus() {
     otlpExporter.close()
   }
   function setPublisher(nextPublisher) { publisher = nextPublisher }
-  return { nodes, edges, nodeIds, edgeIds, serviceState, credentialRegistry, controlPlane,
+  return { consoleSessions, nodes, edges, nodeIds, edgeIds, serviceState, credentialRegistry, controlPlane,
     securityHeaders, observationToken, heartbeatTimeout,
     snapshot, prometheus, json, authorized, controlPrincipal, issueControl, readControlBody,
     getSlo: () => slo,

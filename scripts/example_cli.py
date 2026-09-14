@@ -19,6 +19,10 @@ import sys
 import tarfile
 import tempfile
 import uuid
+import urllib.request
+import urllib.error
+import urllib.parse
+import webbrowser
 
 
 class WorkflowError(RuntimeError):
@@ -105,9 +109,10 @@ def grants(authored, specifications):
     for specification in specifications:
         node, separator, actions = specification.partition(':')
         action_list = actions.split(',')
-        if not separator or node not in value['nodes'] or not action_list or any(
-                action not in ('pause', 'resume', 'reset') for action in action_list):
-            raise WorkflowError('--control requires NODE:pause,resume (or reset) for a declared node')
+        allowed = ('reset',) if node == 'collector' else ('pause', 'resume')
+        if not separator or (node != 'collector' and node not in value['nodes']) or any(
+                action not in allowed for action in action_list):
+            raise WorkflowError('--control requires NODE:pause,resume for a declared node or collector:reset')
         selected.append({'credential': 'example-operator', 'nodes': [node], 'actions': action_list})
     credentials = value.setdefault('credentials', {})
     if 'example-operator' in credentials:
@@ -115,6 +120,59 @@ def grants(authored, specifications):
     credentials['example-operator'] = {'identity': 'operator', 'provider': 'external', 'members': ['token']}
     value.setdefault('platform', {})['control'] = {'enabled': True, 'grants': selected}
     return value
+
+
+def open_console(result, operator=None):
+    """Exchange owned credentials for a short-lived browser handoff; never log it."""
+    parsed = urllib.parse.urlsplit(result['console'])
+    if parsed.scheme not in ('http', 'https') or parsed.hostname not in ('127.0.0.1', '::1') or parsed.username or parsed.password:
+        raise WorkflowError('automatic console login requires a loopback console URL')
+    selected = result.get('control_token')
+    if isinstance(selected, dict):
+        if operator:
+            if operator not in selected:
+                raise WorkflowError('--operator must name an existing control credential')
+            selected = selected[operator]
+        else:
+            selected = None
+            print('Opening observation access; select --operator REF for one of the existing control grants.', file=sys.stderr)
+    elif operator:
+        scope = result.get('control_scope', [])
+        if not isinstance(scope, list) or not any(grant['credential'] == operator for grant in scope):
+            raise WorkflowError('--operator must name an existing control credential')
+    request = urllib.request.Request(result['console'] + '/api/console/handoff',
+        data=json.dumps({'control_token': selected}).encode(), headers={
+            'Authorization': 'Bearer ' + result['observation_token'],
+            'Content-Type': 'application/json', 'Origin': result['console']})
+    # Do not follow redirects while holding bearer credentials.
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, *args, **kwargs):
+            return None
+    try:
+        with urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect()).open(request, timeout=10) as response:
+            value = json.loads(response.read(4096))
+        code = value['code']
+        if not isinstance(code, str) or not re.fullmatch(r'[A-Za-z0-9_-]{43}', code):
+            raise ValueError('invalid handoff')
+    except (OSError, ValueError, KeyError) as error:
+        raise WorkflowError('console login unavailable; use images built from this checkout and retry example open') from error
+    if not webbrowser.open(result['console'] + '/#graphx-login=' + code):
+        raise WorkflowError('no browser opened; run example open in a desktop session or use example tokens')
+
+
+def present_result(result, args):
+    automatic = args.action in ('up', 'open') and not getattr(args, 'no_open', False) and not args.json
+    if automatic:
+        try:
+            open_console(result, getattr(args, 'operator', None))
+            result = {**result, 'browser': 'opened'}
+        except WorkflowError as error:
+            if args.action == 'open':
+                raise
+            print(f'Example is running. {error}', file=sys.stderr)
+            result = {**result, 'browser': 'unavailable'}
+        result = {key: value for key, value in result.items() if key not in ('observation_token', 'control_token')}
+    emit(result, args.json)
 
 
 def emit(value, as_json):
@@ -189,7 +247,7 @@ class Workflow:
                 raise WorkflowError('invalid remote source reference')
         exists = subprocess.run([*prefix, 'test', '-f', remote_source + '/.graphx-source-ready']).returncode == 0
         if not exists:
-            if self.args.action not in ('prepare', 'up', 'plan'):
+            if self.args.action not in ('prepare', 'up', 'plan', 'open'):
                 raise WorkflowError('source snapshot is not prepared; run example prepare first')
             run([*prefix, 'mkdir', '-p', remote_source])
             with tempfile.TemporaryFile() as archive:
@@ -225,6 +283,14 @@ class Workflow:
         # Source is selected explicitly; no Docker socket is forwarded.
         forwarded += ['--source', remote_source]
         write_json(route_file, {'source': remote_source})
+        if self.args.action in ('up', 'open'):
+            if '--json' not in forwarded:
+                forwarded.append('--json')
+            forwarded.append('--no-open')
+            result = subprocess.run([*prefix, *forwarded], stdout=subprocess.PIPE, text=True)
+            if result.returncode == 0:
+                present_result(json.loads(result.stdout), self.args)
+            return result.returncode
         result = subprocess.run([*prefix, *forwarded])
         return result.returncode
 
@@ -458,12 +524,12 @@ class Workflow:
             port = resolved['platform']['console']['port']
             result = {'graph': resolved['graph_id'], 'target': self.target,
                       'console': f'http://127.0.0.1:{18080 if self.target == "lima" and port == 8080 else port}'}
-            if self.args.action in ('up', 'tokens'):
+            if self.args.action in ('up', 'tokens', 'open'):
                 result.update(self.credentials(record, resolved))
                 result['status'] = 'ready'
             else:
                 result['resources'] = self.command('status', record, capture=True)
-            emit(result, self.args.json)
+            present_result(result, self.args)
             return 0
 
 
@@ -502,7 +568,7 @@ def main(argv=None):
             return subprocess.call([str(source / 'infrastructure/lima' / ('start.sh' if rest[1] == 'up' else 'stop.sh'))])
         raise WorkflowError('env requires doctor, or up/down on macOS for explicit Lima lifecycle')
     examples = argparse.ArgumentParser(prog='graphx example', allow_abbrev=False)
-    examples.add_argument('action', choices=['list', 'plan', 'prepare', 'up', 'status', 'tokens', 'logs', 'down', 'scenario'])
+    examples.add_argument('action', choices=['list', 'plan', 'prepare', 'up', 'status', 'tokens', 'open', 'logs', 'down', 'scenario'])
     examples.add_argument('name', nargs='?')
     examples.add_argument('--target', choices=['lima', 'orbstack', 'native-linux', 'native-macos'])
     examples.add_argument('--workspace', type=Path)
@@ -516,6 +582,8 @@ def main(argv=None):
     examples.add_argument('--allow-privileged', action='store_true')
     examples.add_argument('--restart', action='store_true')
     examples.add_argument('--json', action='store_true')
+    examples.add_argument('--no-open', action='store_true', help='do not open or authenticate a browser')
+    examples.add_argument('--operator', help='existing control credential to use when opening the console')
     examples.add_argument('--node')
     examples.add_argument('--follow', action='store_true')
     examples.add_argument('--action', dest='scenario_action')

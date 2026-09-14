@@ -48,3 +48,27 @@ test('command status requests retain the in-memory control bearer', () => {
     options: { method: 'GET', headers: { Authorization: 'Bearer control-token' } },
   })
 })
+
+test('login removes the handoff before exchange, survives refresh and supplies CSRF without tokens', async () => {
+  const { initializeConsoleSession, setSessionCsrf } = await import('./auth.js')
+  const location = {hash:'#graphx-login=one-time',pathname:'/',search:''}
+  const calls=[]
+  const history={replaceState:(_,__,path)=>{calls.push(path);location.hash=''}}
+  const fetcher=async (path, options)=>{
+    assert.deepEqual(calls,['/'])
+    assert.equal(path,'/api/console/session')
+    assert.equal(JSON.parse(options.body).code,'one-time')
+    return {ok:true,json:async()=>({authenticated:true,control:true,csrf:'csrf-value'})}
+  }
+  const first=initializeConsoleSession({location,history,fetcher})
+  const second=initializeConsoleSession({location,history,fetcher})
+  assert.equal(first,second)
+  await first
+  assert.equal(controlCommandRequest('reset').options.headers['X-GraphX-CSRF'],'csrf-value')
+  await initializeConsoleSession({location,history,fetcher:async (_,options)=>{
+    assert.deepEqual(options,{})
+    return {ok:true,json:async()=>({authenticated:true,csrf:'refreshed'})}
+  }})
+  assert.equal(bearerHeaders()['X-GraphX-CSRF'],'refreshed')
+  setSessionCsrf('')
+})

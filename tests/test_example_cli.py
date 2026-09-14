@@ -3,6 +3,7 @@
 import copy
 import importlib.util
 import json
+import io
 import os
 from pathlib import Path
 import subprocess
@@ -42,9 +43,9 @@ for name in ('../config', '/tmp', 'sample-pipeline/../../capture', 'sample pipel
 assert 'up' in call('example', '--help').stdout
 original = json.loads(call('config', 'authored', root / 'examples/sample-pipeline/graphx.yml').stdout)
 assert original['version'] == 3 and 'catalog_digest' not in original
-changed = module.grants(original, ['generator:pause,resume'])
+changed = module.grants(original, ['generator:pause,resume', 'collector:reset'])
 assert 'credentials' not in original and changed['credentials']['example-operator']['provider'] == 'external'
-for grant in ('missing:pause', 'generator:destroy', 'generator:', 'generator'):
+for grant in ('missing:pause', 'generator:destroy', 'generator:', 'generator', 'generator:reset', 'collector:pause', 'collector:reset,resume'):
     rejected(lambda: module.grants(original, [grant]))
 reserved = copy.deepcopy(changed)
 rejected(lambda: module.grants(reserved, ['generator:pause']))
@@ -74,6 +75,18 @@ with tempfile.TemporaryDirectory(prefix='graphx-example-') as tmp:
     generation = workflow.generation(record)
     resolved = module.read_json(generation / 'compiled/resolved.json')
     assert resolved['platform']['control']['grants'][0]['nodes'] == ['generator']
+    assert resolved['platform']['control']['grants'][1]['nodes'] == ['collector']
+    assert resolved['platform']['control']['grants'][1]['actions'] == ['reset']
+    # The authoritative loader also rejects invalid scopes without CLI prevalidation.
+    for nodes, actions in [(['generator'], ['reset']), (['collector'], ['pause']),
+                           (['collector', 'generator'], ['reset']), (['missing'], ['reset'])]:
+        invalid = copy.deepcopy(changed)
+        invalid['platform']['control']['grants'][1].update(nodes=nodes, actions=actions)
+        authored_path = folder / 'invalid-grant.json'
+        authored_path.write_text(json.dumps(invalid))
+        result = call('config', 'normalize', authored_path, '--target', 'orbstack',
+                      '--catalog-root', root / 'config/catalog', ok=False)
+        assert 'E_REFERENCE' in result.stderr, result.stderr
     assert resolved['graph_id'].startswith('sample-pipeline-')
     assert 'http://127.0.0.1:8080' in resolved['platform']['control']['allowed_origins']
     token_file = generation / 'external/example-operator/token'
@@ -130,6 +143,10 @@ with tempfile.TemporaryDirectory(prefix='graphx-example-state-') as tmp:
         first = module.read_json(workflow.folder / 'current.json')
         workflow.local()
         assert actions.count('up') == 1, actions
+        args.action = 'open'
+        workflow.local()
+        assert actions.count('up') == 1
+        args.action = 'up'
         args.control = ['generator:pause,resume']
         rejected(workflow.local)
         assert actions.count('up') == 1
@@ -146,4 +163,35 @@ with tempfile.TemporaryDirectory(prefix='graphx-example-state-') as tmp:
         with patch.object(workflow, 'command', side_effect=module.WorkflowError('interrupted')):
             rejected(workflow.local)
         assert module.read_json(workflow.folder / 'current.json') == second
+# Browser handoff uses authenticated POST, no redirect/proxy, and no token in its URL.
+credentials = {'console': 'http://127.0.0.1:18080', 'observation_token': 'observation-secret',
+               'control_token': 'control-secret', 'control_scope': []}
+code = 'a' * 43
+opener = SimpleNamespace(open=lambda request, timeout: io.BytesIO(json.dumps({'code': code}).encode()))
+requests = []
+def exchange(request, timeout):
+    requests.append(request)
+    assert request.get_header('Authorization') == 'Bearer observation-secret'
+    assert json.loads(request.data)['control_token'] == 'control-secret'
+    assert request.get_header('Origin') == credentials['console']
+    return io.BytesIO(json.dumps({'code': code}).encode())
+with patch.object(module.urllib.request, 'build_opener', return_value=SimpleNamespace(open=exchange)), \
+     patch.object(module.webbrowser, 'open', return_value=True) as browser:
+    module.open_console(credentials)
+    browser.assert_called_once_with(credentials['console'] + '/#graphx-login=' + code)
+    assert len(requests) == 1
+for console in ('http://evil.test', 'file:///tmp/console', 'http://user@127.0.0.1:8080'):
+    rejected(lambda: module.open_console({**credentials, 'console': console}))
+with patch.object(module, 'open_console') as browser, patch.object(module, 'emit') as emit:
+    options = SimpleNamespace(action='up', json=False, no_open=False, operator=None)
+    module.present_result(credentials, options)
+    browser.assert_called_once()
+    assert 'control_token' not in emit.call_args.args[0]
+    assert 'observation_token' not in emit.call_args.args[0]
+    for flag in ('json', 'no_open'):
+        browser.reset_mock()
+        setattr(options, flag, True)
+        module.present_result(credentials, options)
+        browser.assert_not_called()
+        setattr(options, flag, False)
 print('Example CLI: all authored plans, grants, private references, tokens and privilege/Lima boundaries passed')

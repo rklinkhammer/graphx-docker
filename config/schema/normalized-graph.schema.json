@@ -1971,12 +1971,13 @@
                       "enum": [
                         "pause",
                         "resume",
-                        "set_frequency"
+                        "set_frequency",
+                        "reset"
                       ],
                       "maxLength": 4096,
                       "type": "string"
                     },
-                    "maxItems": 3,
+                    "maxItems": 4,
                     "type": "array"
                   },
                   "credential": {

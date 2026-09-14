@@ -52,6 +52,12 @@ require `--restart`. VM identity mismatches fail closed before copying or runnin
 The guarded acceptance entry point remains `tests/test_ovs_execution_live.py`,
 with explicit `--allow-privileged --target lima` and guest-local evidence paths.
 
+The VM configuration fingerprint covers `graphx.yaml` and `provision.sh`, using
+relative filenames. Host launchers and acceptance scripts are not provisioned
+inputs and do not invalidate a running VM when edited. Repository location, VM
+name, architecture and VM type remain independently identity-checked. Changes to
+the VM definition or provisioning script still fail closed.
+
 ## Storage and recovery
 
 Builds, release candidates, ledgers, live capture rings and high-I/O evidence remain

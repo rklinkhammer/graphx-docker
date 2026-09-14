@@ -12,7 +12,7 @@ graphx example logs udp-broadcast --follow
 graphx example down udp-broadcast
 ```
 
-Open the console URL printed by `up` and enter its observation token.
+The CLI opens an authenticated console automatically. Use `graphx example open udp-broadcast` to reopen it without restarting.
 Control is disabled unless explicitly granted or enabled in the authored graph.
 
 

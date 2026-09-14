@@ -4,15 +4,17 @@ set -euo pipefail
 GRAPHX_LIMA_INSTANCE=graphx
 GRAPHX_LIMA_GUEST_ROOT=/workspace/graphx-docker
 GRAPHX_LIMA_STATE_ROOT=/var/lib/graphx
-GRAPHX_LIMA_SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
-GRAPHX_LIMA_REPO_ROOT=$(CDPATH= cd -- "${GRAPHX_LIMA_SCRIPT_DIR}/../.." && pwd -P)
+GRAPHX_LIMA_SCRIPT_DIR=$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
+GRAPHX_LIMA_REPO_ROOT=$(CDPATH='' cd -- "${GRAPHX_LIMA_SCRIPT_DIR}/../.." && pwd -P)
 GRAPHX_LIMA_RUNNER="${GRAPHX_LIMA_SCRIPT_DIR}/run-bounded.py"
 
 graphx_lima_digest() {
-  local path
-  for path in graphx.yaml provision.sh common.sh run-bounded.py start.sh stop.sh verify.sh; do
-    shasum -a 256 "${GRAPHX_LIMA_SCRIPT_DIR}/${path}"
-  done | shasum -a 256 | awk '{print $1}'
+  # VM identity covers provisioned inputs. Host launchers and test scripts do not
+  # change the environment, and checkout paths are checked separately below.
+  (
+    cd -- "${GRAPHX_LIMA_SCRIPT_DIR}"
+    shasum -a 256 graphx.yaml provision.sh
+  ) | shasum -a 256 | awk '{print $1}'
 }
 
 graphx_lima_instance_record() {

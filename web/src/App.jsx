@@ -6,7 +6,7 @@ import { ControlCommandStatus } from './components/ControlCommandStatus'
 import { HistoryPanel } from './components/HistoryPanel'
 import { Topology } from './components/Topology'
 import { applicationEdges, applicationNodes, infrastructureNodes, networkEdges } from './data/topology'
-import { controlCommandRequest, persistObservationToken } from './auth'
+import { controlCommandRequest, persistObservationToken, initializeConsoleSession } from './auth'
 import { useTelemetry } from './useTelemetry'
 
 function formatBytes(value) {
@@ -22,12 +22,32 @@ function formatLatency(value) {
 
 export default function App() {
   const [observationToken, setObservationToken] = useState(() => sessionStorage.getItem('graphx-observation-token') || '')
-  const { snapshot, connected } = useTelemetry(observationToken)
+  const [session, setSession] = useState(null)
+  const { snapshot, connected } = useTelemetry(observationToken, session?.authenticated || false)
   const [selectedId, setSelectedId] = useState('')
-  const [controlStatus, setControlStatus] = useState('Enter the control token to pause the source')
+  const [controlStatus, setControlStatus] = useState('Open an authenticated console with graphx example open')
   const [activeCommand, setActiveCommand] = useState(null)
   const [controlToken, setControlToken] = useState('')
   const [view, setView] = useState('application')
+  useEffect(() => {
+    let active = true
+    const refresh = async () => {
+      try {
+        const result = await initializeConsoleSession({ location: window.location, history: window.history })
+        if (!active) return
+        setSession(result)
+        if (result.authenticated) {
+          if (result.handoff) { setObservationToken(''); setControlToken('') }
+          setControlStatus(result.control ? 'Console authenticated' : 'Observation session; control is disabled')
+        } else if (result.error) setControlStatus(result.error)
+      } catch { if (active) setControlStatus('Console login unavailable; use graphx example open') }
+    }
+    void refresh()
+    const timer = setInterval(refresh, 30_000)
+    return () => { active = false; clearInterval(timer) }
+  }, [])
+  const hasControl = Boolean(controlToken || session?.control)
+
   useEffect(() => {
     persistObservationToken(sessionStorage, observationToken)
   }, [observationToken])
@@ -106,7 +126,7 @@ export default function App() {
       <div className="environment"><span className={`live-dot ${connected ? '' : 'offline'}`}/>{connected ? 'LIVE' : 'CONNECTING'} · GRAPHX <span>{snapshot?.graph || 'loading'}</span></div>
     </header>
     <section className="toolbar"><div><div className="breadcrumb"><Boxes size={15}/> Runtime / <strong>{snapshot?.graph || 'graphx'}</strong></div><h2>Live topology</h2><p>Application, container, virtual-machine, and network observations</p></div>
-      <div className="toolbar-actions"><button className={view === 'application' ? 'active' : ''} onClick={() => setView('application')}><GitBranch/> Application</button><button className={view === 'network' ? 'active' : ''} onClick={() => setView('network')}><Network/> Network path</button><button className={view === 'history' ? 'active' : ''} onClick={() => setView('history')}><Database/> History</button><button className={view === 'capture' ? 'active' : ''} onClick={() => setView('capture')}><Download/> Capture</button><label className="token-field" title="Optional GRAPHX_OBSERVATION_TOKEN"><KeyRound/><input aria-label="Observation token" type="password" value={observationToken} onChange={event => setObservationToken(event.target.value)} placeholder="Observation token"/></label><label className="token-field" title="GRAPHX_CONTROL_TOKEN configured on the telemetry service"><KeyRound/><input aria-label="Control token" type="password" value={controlToken} onChange={event => setControlToken(event.target.value)} placeholder="Control token"/></label><button onClick={() => control('pause')} disabled={!runtimeControl.available || runtimeControl.connectedNodes < 1 || !controlToken || snapshot?.state?.paused} title={runtimeControl.available ? `${runtimeControl.connectedNodes} runtime nodes connected` : 'Set GRAPHX_CONTROL_TOKEN on telemetry'}><CirclePause/> Pause source</button><button onClick={() => control('resume')} disabled={!runtimeControl.available || runtimeControl.connectedNodes < 1 || !controlToken} title="Resume is always available to recover a source after collector restart"><CirclePlay/> Resume</button><button className="danger" disabled title="Use the native Linux netem hooks in the network laboratories"><TriangleAlert/> Fault unavailable</button><button onClick={reset} disabled={!controlToken}><RotateCcw/> Reset counters</button></div>
+      <div className="toolbar-actions"><button className={view === 'application' ? 'active' : ''} onClick={() => setView('application')}><GitBranch/> Application</button><button className={view === 'network' ? 'active' : ''} onClick={() => setView('network')}><Network/> Network path</button><button className={view === 'history' ? 'active' : ''} onClick={() => setView('history')}><Database/> History</button><button className={view === 'capture' ? 'active' : ''} onClick={() => setView('capture')}><Download/> Capture</button><details className="manual-auth"><summary>Manual authentication</summary><label className="token-field" title="Optional GRAPHX_OBSERVATION_TOKEN"><KeyRound/><input aria-label="Observation token" type="password" value={observationToken} onChange={event => setObservationToken(event.target.value)} placeholder="Observation token"/></label><label className="token-field" title="GRAPHX_CONTROL_TOKEN configured on the telemetry service"><KeyRound/><input aria-label="Control token" type="password" value={controlToken} onChange={event => setControlToken(event.target.value)} placeholder="Control token"/></label></details><button onClick={() => control('pause')} disabled={!runtimeControl.available || runtimeControl.connectedNodes < 1 || !hasControl || snapshot?.state?.paused} title={runtimeControl.available ? `${runtimeControl.connectedNodes} runtime nodes connected` : 'Set GRAPHX_CONTROL_TOKEN on telemetry'}><CirclePause/> Pause source</button><button onClick={() => control('resume')} disabled={!runtimeControl.available || runtimeControl.connectedNodes < 1 || !hasControl} title="Resume is always available to recover a source after collector restart"><CirclePlay/> Resume</button><button className="danger" disabled title="Use the native Linux netem hooks in the network laboratories"><TriangleAlert/> Fault unavailable</button><button onClick={reset} disabled={!hasControl}><RotateCcw/> Reset counters</button></div>
     </section>
     <section className="summary"><span><b>{graphNodes.length}</b> nodes</span><span><b>{edges.length}</b> logical edges</span><span><b>{Object.values(snapshot?.nodes || {}).filter(node => !['running', 'ready'].includes(node.status)).length}</b> not ready</span><span className={traffic.flowing ? 'healthy' : 'waiting'}>● {traffic.flowing ? `Traffic flowing · ${traffic.samples.toLocaleString()} samples` : connected ? 'Waiting for samples' : 'Telemetry reconnecting'}</span><ControlCommandStatus command={activeCommand} token={controlToken} fallback={controlStatus}/></section>
     {view === 'history' ? <HistoryPanel observationToken={observationToken} backend={snapshot?.history} packetBackend={snapshot?.packetHistory} preferPackets={edges.some(edge => edge.data.dataPlane === 'external')}/>

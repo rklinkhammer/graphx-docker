@@ -146,10 +146,16 @@ server.on('upgrade', (request, socket, head) => {
     webSockets.handleUpgrade(request, socket, head, websocket => webSockets.emit('connection', websocket, request))
   } catch { socket.destroy() }
 })
-webSockets.on('connection', socket => socket.send(JSON.stringify(snapshot())))
+webSockets.on('connection', (socket, request) => {
+  socket.consoleRequest = request.consoleSession ? request : null
+  socket.send(JSON.stringify(snapshot()))
+})
 collector.setPublisher(value => {
   const message = JSON.stringify(value)
-  for (const socket of webSockets.clients) if (socket.readyState === 1) socket.send(message)
+  for (const socket of webSockets.clients) if (socket.readyState === 1) {
+    if (socket.consoleRequest && !collector.consoleSessions.get(socket.consoleRequest)) socket.close(1008, 'Console session expired')
+    else socket.send(message)
+  }
 })
 
 udp = dgram.createSocket('udp4')

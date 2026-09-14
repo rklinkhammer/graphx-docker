@@ -192,6 +192,7 @@ test('compiled control uses per-node HMAC, replay protection, scoped grants, ide
     const output=compile(root,'examples/variants/credential-rotation/graphx.yml','orbstack')
     const file=join(output,'platform.json'), resolved=join(output,'resolved.json')
     const platform=JSON.parse(readFileSync(file)), config=JSON.parse(readFileSync(resolved))
+    platform.control.grants.push({credential:'operator',nodes:['collector'],actions:['reset']})
     platform.console.port=18984;platform.control.allowed_origins=['http://127.0.0.1:18984']
     platform.telemetry.port=19984;platform.telemetry.host='127.0.0.1'
     platform.history.database_file=join(root,'history/history.sqlite')
@@ -227,7 +228,41 @@ test('compiled control uses per-node HMAC, replay protection, scoped grants, ide
     const first=await command(operator);assert.equal(first.status,202);const issued=await first.json()
     const again=await (await command(operator)).json();assert.equal(again.replayed,true);assert.equal(again.command.id,issued.command.id)
     assert.equal((await command(operator,'resume')).status,409)
+    const reset=token=>fetch('http://127.0.0.1:18984/api/control/commands',{
+      method:'POST',headers:{authorization:`Bearer ${token}`,'content-type':'application/json',
+        origin:'http://127.0.0.1:18984'},body:JSON.stringify({action:'reset'})})
+    assert.equal((await reset(observer)).status,401)
+    const resetResult=await reset(operator);assert.equal(resetResult.status,200)
+    assert.equal((await resetResult.json()).accepted,true)
+    const origin='http://127.0.0.1:18984'
+    const handoff=await fetch(origin+'/api/console/handoff',{method:'POST',headers:{
+      authorization:`Bearer ${observer}`,origin,'content-type':'application/json'},
+      body:JSON.stringify({control_token:operator})})
+    assert.equal(handoff.status,201)
+    const {code}=await handoff.json()
+    const exchange=()=>fetch(origin+'/api/console/session',{method:'POST',headers:{origin,
+      'content-type':'application/json'},body:JSON.stringify({code})})
+    const login=await exchange();assert.equal(login.status,200)
+    const session=await login.json(), cookie=login.headers.get('set-cookie').split(';')[0]
+    assert.equal(session.control,true)
+    assert.ok(!JSON.stringify(session).includes(operator))
+    assert.match(login.headers.get('set-cookie'),/HttpOnly; SameSite=Strict/)
+    assert.equal((await exchange()).status,401)
+    assert.equal((await fetch(origin+'/api/topology',{headers:{cookie}})).status,200)
+    assert.equal((await fetch(origin+'/api/console/session',{headers:{cookie}})).status,200)
+    const cookieReset=extra=>fetch(origin+'/api/control/commands',{method:'POST',headers:{cookie,
+      origin,'content-type':'application/json',...extra},body:JSON.stringify({action:'reset'})})
+    assert.equal((await cookieReset({})).status,401)
+    assert.equal((await cookieReset({'x-graphx-csrf':session.csrf,origin:'http://evil.test'})).status,403)
+    assert.equal((await cookieReset({'x-graphx-csrf':session.csrf})).status,200)
+    const {WebSocket}=await import('ws')
+    const websocket=new WebSocket(origin.replace('http:','ws:')+'/ws',['graphx'],{headers:{cookie,origin}})
+    const firstSnapshot=await once(websocket,'message')
+    assert.equal(JSON.parse(firstSnapshot[0]).graph,config.graph_id)
+    websocket.close();await once(websocket,'close')
     rotateCredential(manifest,credentials,'operator','operator-next',0)
+    assert.equal((await fetch(origin+'/api/topology',{headers:{cookie}})).status,401)
+
     assert.equal((await command(operator)).status,401)
     await sleep(100);await stop(child)
     const db=new DatabaseSync(platform.history.database_file,{readOnly:true})

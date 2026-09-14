@@ -5,14 +5,14 @@ Run from the repository root:
 
 ```sh
 graphx example plan sample-pipeline
-graphx example up sample-pipeline --control generator:pause,resume
+graphx example up sample-pipeline --control generator:pause,resume --control collector:reset
 graphx example status sample-pipeline
 graphx example tokens sample-pipeline
 graphx example logs sample-pipeline --follow
 graphx example down sample-pipeline
 ```
 
-Open the console URL printed by `up` and enter its observation token.
+The CLI opens an authenticated console automatically. Use `graphx example open sample-pipeline` to reopen it without restarting.
 Control is disabled unless explicitly granted or enabled in the authored graph.
 
 The pipeline emits every 500 ms and runs indefinitely until stopped.
@@ -21,3 +21,8 @@ The CLI prepares required verified artifacts and remembers compilation and state
 paths. Use `--images DIR` or `--release DIR` to reuse existing verified artifacts;
 Lima inputs refer to guest-local paths. Use `--restart` after changing source or
 control selection. Cleanup removes only identity-owned resources and retains history.
+
+Reset counters requires `--control collector:reset`. If this example is already
+running with pause/resume only, repeat the `up` command above with `--restart`
+to apply both grants and open a newly authenticated console.
+Reset clears collected metrics; it does not restart the pipeline or erase history.

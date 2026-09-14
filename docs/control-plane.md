@@ -1,9 +1,13 @@
 # Control plane
 
-The telemetry service exposes bounded pause, resume, and reset actions for
-nodes that declare GraphX or origin control. Requests require bearer authentication
+The telemetry service exposes pause and resume for nodes that declare GraphX or
+origin control. Reset clears telemetry counters and targets the reserved `collector`
+identifier. Authorize it with a separate grant using `nodes: [collector]` and
+`actions: [reset]`, or the example CLI option `--control collector:reset`.
+Application nodes cannot receive reset, and collector grants cannot contain node actions. Requests require bearer authentication or a CLI-established browser session
 and authorization for the action and node. When an Origin header is present, it
-must match the same origin or the configured allowlist. An optional
+must match the same origin or the configured allowlist. Cookie-authenticated controls additionally require a session CSRF header.
+See [browser authentication](example-cli.md#browser-authentication). An optional
 `Idempotency-Key` header provides bounded replay detection; the browser supplies
 one for each command. Fault injection uses the privileged Linux infrastructure
 CLI on native Linux or inside Lima, not the telemetry control API.

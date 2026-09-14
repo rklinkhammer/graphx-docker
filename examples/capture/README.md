@@ -12,7 +12,7 @@ graphx example logs capture --follow
 graphx example down capture
 ```
 
-Open the console URL printed by `up` and enter its observation token.
+The CLI opens an authenticated console automatically. Use `graphx example open capture` to reopen it without restarting.
 Control is disabled unless explicitly granted or enabled in the authored graph.
 
 

@@ -12,7 +12,7 @@ graphx example logs udp-multicast --follow
 graphx example down udp-multicast
 ```
 
-Open the console URL printed by `up` and enter its observation token.
+The CLI opens an authenticated console automatically. Use `graphx example open udp-multicast` to reopen it without restarting.
 Control is disabled unless explicitly granted or enabled in the authored graph.
 
 

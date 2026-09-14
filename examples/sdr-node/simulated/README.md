@@ -12,7 +12,7 @@ graphx example logs sdr-node/simulated --follow
 graphx example down sdr-node/simulated
 ```
 
-Open the console URL printed by `up` and enter its observation token.
+The CLI opens an authenticated console automatically. Use `graphx example open sdr-node/simulated` to reopen it without restarting.
 Control is disabled unless explicitly granted or enabled in the authored graph.
 
 

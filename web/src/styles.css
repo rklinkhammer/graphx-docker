@@ -42,3 +42,8 @@ footer { display: flex; align-items: center; gap: 24px; padding: 0 24px; color: 
 .edge-badge.diagnostic-link-down { border-color: #8654a1; color: #dfa2ff; }
 .edge-badge.diagnostic-attachment-missing { border-color: #a45f39; color: #ffad80; }
 .edge-badge.diagnostic-application-unavailable { border-color: #697483; color: #c6cfda; }
+
+.manual-auth { position: relative; color: var(--muted, #94a3b8); font-size: 12px; }
+.manual-auth summary { cursor: pointer; padding: 8px; }
+.manual-auth[open] { display: flex; flex-wrap: wrap; gap: 6px; }
+.manual-auth .token-field { margin-top: 6px; }

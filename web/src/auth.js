@@ -1,5 +1,26 @@
+let sessionCsrf = ''
+export function setSessionCsrf(value = '') { sessionCsrf = value }
+
+let pendingSession = null
+export function initializeConsoleSession(options) {
+  if (!pendingSession) pendingSession = loadConsoleSession(options).finally(() => { pendingSession = null })
+  return pendingSession
+}
+
+async function loadConsoleSession({ location, history, fetcher = fetch }) {
+  const fragment = new URLSearchParams(location.hash.slice(1))
+  const code = fragment.get('graphx-login')
+  if (code) history.replaceState(null, '', location.pathname + location.search)
+  const response = await fetcher('/api/console/session', code ? {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }),
+  } : {})
+  const result = await response.json()
+  setSessionCsrf(response.ok ? result.csrf : '')
+  return response.ok ? { ...result, handoff: Boolean(code) } : { authenticated: false, error: code ? result.error : null }
+}
+
 export function bearerHeaders(token = '') {
-  return token ? { Authorization: `Bearer ${token}` } : {}
+  return token ? { Authorization: `Bearer ${token}` } : sessionCsrf ? { 'X-GraphX-CSRF': sessionCsrf } : {}
 }
 
 export function webSocketProtocols(token = '') {

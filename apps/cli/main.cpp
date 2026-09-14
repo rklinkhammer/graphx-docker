@@ -16,7 +16,7 @@ namespace {
 void usage(std::ostream& out) {
   out << "usage:\n"
       << "  graphx --version\n"
-      << "  graphx example <list|prepare|plan|up|status|tokens|logs|down> [NAME] [--help]\n"
+      << "  graphx example <list|prepare|plan|up|open|status|tokens|logs|down> [NAME] [--help]\n"
       << "  graphx env <doctor|up|down> | graphx verify PROFILE | graphx release TOOL [ARGS]\n"
       << "  graphx node-settings --node ID --config FILE\n"
       << "  graphx <validate|inspect> [graphx.yml] [--target TARGET] [--catalog-root DIR]\n"

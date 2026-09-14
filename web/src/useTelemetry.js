@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { bearerHeaders, webSocketProtocols } from './auth'
 
-export function useTelemetry(observationToken = '') {
+export function useTelemetry(observationToken = '', sessionAuthenticated = false) {
   const [snapshot, setSnapshot] = useState(null)
   const [connected, setConnected] = useState(false)
 
@@ -34,7 +34,7 @@ export function useTelemetry(observationToken = '') {
       connect(initial.telemetry?.websocket || '/ws')
     }).catch(() => connect())
     return () => { stopped = true; clearTimeout(retry); socket?.close() }
-  }, [observationToken])
+  }, [observationToken, sessionAuthenticated])
 
   return { snapshot, connected }
 }

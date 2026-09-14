@@ -7,7 +7,7 @@ commands and terminology these manual observations use.
 ## Portable system
 
 1. Run `graphx example up sample-pipeline --control generator:pause,resume`.
-2. Open the printed console URL and enter both tokens; confirm live metrics and history.
+2. Confirm the automatically opened console shows live metrics and history without token entry; refresh and confirm authentication persists.
 3. Send permitted pause/resume commands and confirm the audit record.
 4. Run `graphx example down sample-pipeline` and confirm its owned containers are gone.
 

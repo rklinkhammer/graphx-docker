@@ -37,6 +37,11 @@ const handleRequest = (request, response) => {
       graphReady: readiness.ready })
   }
   if (!withinRateLimit(request, 120)) return json(response, 429, { error: 'rate limit exceeded' }, { 'retry-after': '60' })
+  if (['/api/console/handoff', '/api/console/session'].includes(url.pathname)) {
+    void context.consoleSessions.handle(request, response, url.pathname)
+    return
+  }
+  context.consoleSessions?.attach(request)
   const observed = ['/api/topology', '/api/captures', '/api/graph/ready', '/api/slo',
     '/api/history', '/api/history/status', '/api/packet-history', '/metrics'].includes(url.pathname) ||
     url.pathname.startsWith('/captures/')
