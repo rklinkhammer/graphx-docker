@@ -54,29 +54,60 @@ std::uint64_t monotonic_nanoseconds() {
          static_cast<std::uint64_t>(value.tv_nsec);
 }
 
-std::uint32_t spawn_fault_timer(std::uint32_t duration, const std::string& interface,
-                                std::uint32_t expected_ifindex, const std::string& expected_qdisc) {
+std::uint32_t spawn_fault_timer(
+    std::uint32_t duration, const std::string& interface, std::uint32_t expected_ifindex,
+    const std::string& expected_qdisc,
+    const std::function<void(std::uint32_t, const std::string&)>& registered) {
+  int gate[2]{};
+  if (::pipe(gate) != 0) throw std::system_error(errno, std::generic_category());
   const auto child = ::fork();
-  if (child < 0) throw std::system_error(errno, std::generic_category());
+  if (child < 0) {
+    ::close(gate[0]);
+    ::close(gate[1]);
+    throw std::system_error(errno, std::generic_category());
+  }
   if (child == 0) {
-    detach_child_io();
+    ::close(gate[1]);
 #if defined(__linux__)
     ::prctl(PR_SET_NAME, "graphx-fault", 0, 0, 0);
 #endif
+    std::signal(SIGINT, SIG_DFL);
+    std::signal(SIGTERM, SIG_DFL);
+    char release{};
+    const auto count = ::read(gate[0], &release, 1);
+    ::close(gate[0]);
+    if (count != 1 || release != '1') ::_exit(1);
+    detach_child_io();
     struct timespec remaining{static_cast<time_t>(duration), 0};
     while (::nanosleep(&remaining, &remaining) != 0 && errno == EINTR) {
     }
     std::ifstream identity("/sys/class/net/" + interface + "/ifindex");
-    std::uint32_t observed_ifindex{};
-    identity >> observed_ifindex;
-    std::string observed_qdisc;
-    if (observed_ifindex != expected_ifindex ||
-        run({"tc", "qdisc", "show", "dev", interface}, &observed_qdisc) != 0 ||
-        observed_qdisc != expected_qdisc)
+    std::uint32_t observed{};
+    identity >> observed;
+    std::string qdisc;
+    if (observed != expected_ifindex ||
+        run({"tc", "qdisc", "show", "dev", interface}, &qdisc) != 0 || qdisc != expected_qdisc)
       ::_exit(0);
     ::execlp("tc", "tc", "qdisc", "del", "dev", interface.c_str(), "root",
              static_cast<char*>(nullptr));
     ::_exit(errno == ENOENT ? 127 : 126);
+  }
+  ::close(gate[0]);
+  try {
+    std::string start;
+    for (int attempt = 0; attempt < 100; ++attempt) {
+      start = process_start_time(static_cast<std::uint32_t>(child));
+      if (timer_owned(static_cast<std::uint32_t>(child), start)) break;
+      ::usleep(10000);
+    }
+    if (!timer_owned(static_cast<std::uint32_t>(child), start))
+      throw std::runtime_error("cannot record fault timer identity");
+    registered(static_cast<std::uint32_t>(child), start);
+    if (::write(gate[1], "1", 1) != 1) throw std::runtime_error("cannot release owned fault timer");
+    ::close(gate[1]);
+  } catch (...) {
+    ::close(gate[1]);
+    throw;
   }
   return static_cast<std::uint32_t>(child);
 }
@@ -87,13 +118,14 @@ std::string qdisc_state(const std::string& interface) {
   return value;
 }
 
-OwnedFault create_fault(const ExpectedFault& expected) {
+OwnedFault create_fault(const ExpectedFault& expected,
+                        const std::function<void(const OwnedFault&)>& register_identity) {
   const auto& definition = expected.definition;
   const auto ifindex = link_ifindex(expected.interface);
   if (!ifindex) throw std::runtime_error("fault target interface is missing");
   if (qdisc_state(expected.interface).find("netem") != std::string::npos)
     throw std::runtime_error("refusing pre-existing netem qdisc on " + expected.interface);
-  std::vector<std::string> command = {"tc",   "qdisc", "replace", "dev", expected.interface,
+  std::vector<std::string> command = {"tc",   "qdisc", "add", "dev", expected.interface,
                                       "root", "netem"};
   if (definition.delay_ms) {
     command.insert(command.end(), {"delay", std::to_string(definition.delay_ms) + "ms"});
@@ -123,15 +155,13 @@ OwnedFault create_fault(const ExpectedFault& expected) {
         static_cast<std::uint64_t>(definition.duration_seconds) * 1'000'000'000ULL;
     if (fault.boot_id.empty() || fault.expires_monotonic_ns <= fault.applied_monotonic_ns)
       throw std::runtime_error("cannot record fault expiry identity");
-    fault.timer_pid = spawn_fault_timer(definition.duration_seconds, expected.interface,
-                                        fault.ifindex, fault.qdisc_identity);
-    for (int attempt = 0;
-         attempt < 100 && !timer_owned(fault.timer_pid, process_start_time(fault.timer_pid));
-         ++attempt)
-      ::usleep(10'000);
-    fault.timer_start_time = process_start_time(fault.timer_pid);
-    if (!timer_owned(fault.timer_pid, fault.timer_start_time))
-      throw std::runtime_error("cannot record fault timer identity");
+    fault.timer_pid =
+        spawn_fault_timer(definition.duration_seconds, expected.interface, fault.ifindex,
+                          fault.qdisc_identity, [&](std::uint32_t pid, const std::string& start) {
+                            fault.timer_pid = pid;
+                            fault.timer_start_time = start;
+                            if (register_identity) register_identity(fault);
+                          });
   } catch (...) {
     if (fault.timer_pid) {
       const auto current_start = process_start_time(fault.timer_pid);

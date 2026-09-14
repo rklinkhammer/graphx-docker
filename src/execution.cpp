@@ -6,6 +6,7 @@
 #include "config_document.hpp"
 #include "infra/ownership_lock.hpp"
 #include "infra/compose_execution.hpp"
+#include "infra/scenario_execution.hpp"
 #include "infra/process_resources.hpp"
 #include <algorithm>
 #include <arpa/inet.h>
@@ -144,7 +145,7 @@ void verify_native_release(const std::filesystem::path& release) {
 
 int execute_graph(const ExecutionOptions& opts, std::ostream& output) {
   if (opts.action != "up" && opts.action != "down" && opts.action != "status" &&
-      opts.action != "plan" && opts.action != "handoff")
+      opts.action != "plan" && opts.action != "handoff" && !opts.action.starts_with("scenario-"))
     throw std::invalid_argument("run requires plan, up, down or status");
   const auto manifest = document(opts.output / "compile-manifest.json");
   verify_compilation(opts.output, manifest);
@@ -154,6 +155,10 @@ int execute_graph(const ExecutionOptions& opts, std::ostream& output) {
   if (!std::regex_match(id, std::regex("^[a-z][a-z0-9_-]{0,63}$")))
     throw std::runtime_error("E_EXECUTION_ID: unsafe graph identity");
   const auto state_directory = opts.state_root / id;
+  if (opts.action.starts_with("scenario-")) {
+    if (opts.action == "scenario-run" && !opts.release.empty()) verify_native_release(opts.release);
+    return execute_scenario(opts, resolved, output);
+  }
   if (opts.action == "handoff") return execute_capture_handoff(opts, resolved, output);
   if (opts.action == "plan") {
     GraphConfig config;
@@ -321,6 +326,16 @@ int execute_graph(const ExecutionOptions& opts, std::ostream& output) {
       }
       command(stage);
     }
+    struct stat credential_metadata{};
+    safe_execution_path(opts.credentials);
+    if (::lstat(opts.credentials.c_str(), &credential_metadata) != 0 ||
+        !S_ISDIR(credential_metadata.st_mode))
+      throw std::runtime_error("E_CREDENTIAL_IDENTITY: staging directory unavailable");
+    state.credential_directory = opts.credentials.string();
+    state.credential_identity = std::to_string(credential_metadata.st_dev) + ":" +
+                                std::to_string(credential_metadata.st_ino);
+    state.actions.clear();
+    save();
     const std::map<std::string, std::string> replacements{
         {"GX_RELEASE", opts.release.string()},
         {"GX_OUTPUT", opts.output.string()},

@@ -12,7 +12,7 @@ expected artifacts; maintained compiler goldens live under `tests/fixtures/compi
 P5 adds the default platform and credential staging; see [P5 verification](p5-verification.md). P6 implements finite native/portable execution; see [P6 verification](p6-verification.md).
 P7 implements compiled OVS preparation and ownership with S07–S12 Lima acceptance verified;
 see [P7 verification](p7-verification.md). P8 adds owned guest startup with verified artifacts; its actual-boot gate is tracked in
-[P8 verification](p8-verification.md). Scenario execution remains gated.
+[P8 verification](p8-verification.md). P9 adds explicit scenario actions and laboratory selection; see [P9 verification](p9-verification.md) for native/OrbStack results and passed privileged Lima cases.
 
 The design meets the simplification objective if the binding and execution
 boundaries in [architecture.md](architecture.md) land together. A topology change
@@ -94,7 +94,7 @@ allows a complete review of the build and boot plans without inventing a guest.
 P1–P6 implement the v3 model, generic bindings, release barrier, pure compiler,
 verified packaging, credential delivery, bounded history, observability services
 and finite native/portable execution. See [P6 verification](p6-verification.md).
-OVS execution has separate P7 evidence; guest execution has a separate P8 gate and scenario execution remains P9 work. Expected output here was authored for review; actual compiler
+OVS execution has separate P7 evidence; guest execution has a separate P8 gate and scenario execution has separate P9 evidence. Expected output here was authored for review; actual compiler
 goldens and matrix tests are under `tests/`. `check_package.py` checks only this
 static package. Design parseability does not establish runtime compatibility,
 isolation, cleanup or guest boot; see the separate phase verification reports.

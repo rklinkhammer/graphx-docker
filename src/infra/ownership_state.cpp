@@ -68,6 +68,18 @@ YAML::Node state_node(const OwnershipState& state) {
     root["handoff_device"] = state.handoff_device;
   }
   root["expected_bridges"] = YAML::Node(YAML::NodeType::Sequence);
+  if (!state.credential_directory.empty()) {
+    root["credential_directory"] = state.credential_directory;
+    root["credential_identity"] = state.credential_identity;
+  }
+  for (const auto& action : state.actions) {
+    YAML::Node item;
+    item["id"] = action.id;
+    item["kind"] = action.kind;
+    item["status"] = action.status;
+    item["identity"] = action.identity;
+    root["scenario_actions"].push_back(item);
+  }
   for (const auto& process : state.processes) {
     YAML::Node item;
     item["kind"] = process.kind;
@@ -421,6 +433,31 @@ OwnershipState load_state(const std::filesystem::path& path) {
     if (!state.handoff_name.starts_with("handoff-") || state.handoff_name.size() != 40 ||
         !hexadecimal(state.handoff_name.substr(8)))
       throw std::runtime_error("invalid handoff directory identity");
+  }
+  if (root["credential_directory"]) {
+    state.credential_directory = required_scalar(root, "credential_directory");
+    state.credential_identity = required_scalar(root, "credential_identity");
+    if (state.credential_directory.size() > 4096 || state.credential_identity.size() > 64)
+      throw std::runtime_error("invalid credential directory identity");
+  }
+  if (root["scenario_actions"]) {
+    if (!root["scenario_actions"].IsSequence() || root["scenario_actions"].size() > 64)
+      throw std::runtime_error("invalid scenario inventory");
+    std::unordered_set<std::string> ids;
+    for (const auto& item : root["scenario_actions"]) {
+      OwnedScenarioAction action{required_scalar(item, "id"), required_scalar(item, "kind"),
+                                 required_scalar(item, "status"),
+                                 item["identity"].as<std::string>()};
+      if (action.id.empty() || action.id.size() > 64 ||
+          action.id.find_first_not_of("abcdefghijklmnopqrstuvwxyz0123456789_-") !=
+              std::string::npos ||
+          !ids.insert(action.id).second || action.identity.size() > 65536 ||
+          (action.kind != "fault" && action.kind != "route-apply" && action.kind != "route-clear" &&
+           action.kind != "credential-rotate" && action.kind != "traffic") ||
+          (action.status != "pending" && action.status != "complete" && action.status != "cleared"))
+        throw std::runtime_error("invalid scenario action identity");
+      state.actions.push_back(std::move(action));
+    }
   }
   if (root["processes"]) {
     if (!root["processes"].IsSequence() || root["processes"].size() > 4096)

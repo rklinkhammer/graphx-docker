@@ -56,12 +56,18 @@ def main() -> int:
     assert all("device" in route for route in routes)
 
     demo = (example / "scripts/demo.sh").read_text(encoding="utf-8")
-    for marker in ("scripts/lib/demo-runtime.sh", "graphx_demo_run", "apply-route|clear-route)"):
+    for marker in ("scripts/lib/demo-runtime.sh", "graphx_demo_run", "graphx_demo_scenario"):
         assert marker in demo, f"compiled route launcher omits {marker}"
     assert 'infra create' not in demo and 'external-ovs-boundary.sh' not in demo
-    for action in ('apply-route', 'clear-route'):
-        result = subprocess.run(['bash', example / 'scripts/demo.sh', action], capture_output=True, text=True)
-        assert result.returncode == 2 and 'E_PHASE_UNAVAILABLE' in result.stderr
+    with tempfile.TemporaryDirectory() as temporary:
+        fake=Path(temporary)/'graphx'
+        fake.write_text("#!/bin/sh\nprintf '%s\\n' \"$@\"\n")
+        fake.chmod(0o755)
+        for action, identifier in (('apply-route','apply-deferred'),('clear-route','clear-deferred'),('verify','verify-flows')):
+            result=subprocess.run(['bash',example/'scripts/demo.sh',action],capture_output=True,text=True,
+                env={**os.environ,'GRAPHX_BIN':str(fake),'GX_OUTPUT':'/compiled path','GX_STATE':'/state path','GX_RELEASE':'','GRAPHX_ALLOW_PRIVILEGED':'1'})
+            assert result.returncode==0,result.stderr
+            assert result.stdout.splitlines()==['scenario','run','--action',identifier,'--output','/compiled path','--state-root','/state path','--allow-privileged']
     assert "--transactional" not in demo
     assert "pkill" not in demo and "killall" not in demo and "rm -rf" not in demo
     assert not (example / "compose.yaml").exists(), "retired route Compose data plane remains"

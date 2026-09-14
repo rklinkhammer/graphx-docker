@@ -1,4 +1,4 @@
-# GraphX version 3. Validation and compilation available; execution adapters are unavailable.
+# GraphX version 3 authored source. Compile before execution.
 catalog: ../../../config/catalog/lock.json
 connections:
   east-iq:

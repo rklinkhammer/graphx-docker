@@ -28,7 +28,9 @@ ownership inventories, process logs and captures from the first successful run.
 Tests retain their private
 working directory on failure for identity-checked recovery.
 
-Scenario execution remains gated. Managed guests require verified artifacts and
+Scenario actions are explicitly selected; see [scenario execution](scenarios.md) and
+[P9 verification](../design/graph-generation/p9-verification.md) for portable evidence
+and separately authorized networking/guest acceptance. Managed guests require verified artifacts and
 separate explicit privileged authorization; see [P8 verification](../design/graph-generation/p8-verification.md). OVS and namespace execution require
 explicit privileged opt-in on the local Linux engine and have S07–S12 Lima acceptance evidence; see [P7 verification](../design/graph-generation/p7-verification.md). See
 [P6 verification](../design/graph-generation/p6-verification.md) for actual

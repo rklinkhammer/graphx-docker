@@ -79,6 +79,22 @@ std::filesystem::path secure_fixture_copy(const TemporaryDirectory& temporary,
   return destination;
 }
 
+void test_scenario_recovery_records() {
+  TemporaryDirectory temporary;
+  const auto path = secure_fixture_copy(temporary, "current");
+  auto state = load_state(path);
+  state.actions.push_back({"route", "route-apply", "pending", ""});
+  save_state(path, state);
+  require(load_state(path).actions.front().status == "pending", "interrupted scenario intent lost");
+  state.actions.front().kind = "shell";
+  save_state(path, state);
+  expect_failure([&] { (void)load_state(path); }, "unknown scenario operation accepted");
+  state.actions.front().kind = "route-apply";
+  state.actions.push_back(state.actions.front());
+  save_state(path, state);
+  expect_failure([&] { (void)load_state(path); }, "duplicate scenario identity accepted");
+}
+
 void test_round_trip_and_publication() {
   TemporaryDirectory temporary;
   const auto source = secure_fixture_copy(temporary, "current");
@@ -281,6 +297,7 @@ void test_identity_and_hash_helpers() {
 int main() {
   try {
     test_round_trip_and_publication();
+    test_scenario_recovery_records();
     test_process_inventory();
     test_network_extensions();
     test_rejected_state_files();

@@ -165,7 +165,7 @@
   ],
   "graph_id": "qemu-tap",
   "graph_version": 3,
-  "input_digest": "6833126a180ea34de5ae051ea32da599f8dd41a2c4db1c3170d60dd0f84e648e",
+  "input_digest": "2e419d4d107cd4f2f4e1662f0c8fc5ed48dde7ff4752967de6d7370de88ee43f",
   "network": {
     "attachments": [
       {

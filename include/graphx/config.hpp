@@ -217,6 +217,7 @@ struct ObservabilityConfig {
 struct ConfigLoadOptions {
   std::filesystem::path catalog_root;
   std::string target{"native-linux"};
+  std::string laboratory_action;
 };
 
 struct TypePortCapability {
@@ -245,6 +246,7 @@ struct GraphConfig {
   // Authoritative v3 value and its schema-checked normalized model. Nodes/edges
   // above are typed transport projections. Resource and observability structs are
   // used only by isolated module callers; v3 graph execution is explicitly gated.
+  std::string laboratory_action;
   ConfigValue authored;
   ConfigValue resolved;
   // Verified catalog content retained for pure artifact compilation.

@@ -881,7 +881,13 @@ namespace graphx {
 GraphConfig load_graph(const std::filesystem::path& path, const ConfigLoadOptions& options) {
   using namespace config_internal;
   const auto source = read_document(path);
-  const auto graph = parse_document(source);
+  auto graph = parse_document(source);
+  if (!options.laboratory_action.empty()) {
+    auto baseline_options = options;
+    baseline_options.laboratory_action.clear();
+    (void)load_graph(path, baseline_options);
+    select_laboratory(graph, options.laboratory_action);
+  }
   if (!graph.is_object() || !graph.contains("version") || graph.at("version") != Value(3))
     reject("E_VERSION", "version", "only configuration version 3 is accepted");
   static const auto schema = parse_document(authored_schema);
@@ -948,6 +954,7 @@ GraphConfig load_graph(const std::filesystem::path& path, const ConfigLoadOption
   config.version = 3;
   config.id = graph.at("graph").at("id").text();
   config.authored = graph;
+  config.laboratory_action = options.laboratory_action;
   config.catalog = catalog.snapshot;
   config.input_directory = std::filesystem::absolute(path).parent_path().lexically_normal();
   config.catalog_directory = catalog.root;
@@ -972,6 +979,7 @@ GraphConfig load_graph(const std::filesystem::path& path, const ConfigLoadOption
   if (config_value_json(config.resolved).size() > 4 * kMaxConfigBytes)
     reject("E_BOUND", "$", "normalized contract exceeds 4 MiB");
   project_runtime_types(config, catalog);
+  (void)scenario_plan(config);
   return config;
 }
 }  // namespace graphx

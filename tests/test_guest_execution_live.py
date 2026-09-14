@@ -26,6 +26,7 @@ def main():
     parser.add_argument('--images', type=Path, required=True)
     parser.add_argument('--guests', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--scenario', action='store_true', help='run the declared P9 guest traffic action')
     args = parser.parse_args()
     if not args.allow_privileged or sys.platform != 'linux' or os.geteuid() != 0:
         parser.error('requires separate explicit authorization, --allow-privileged and local Linux root')
@@ -165,6 +166,11 @@ print(json.dumps(processor.control(sys.argv[3],int(sys.argv[4]) if len(sys.argv)
             for node in ('processor-east','processor-west','sink-east','sink-west'):
                 (root/(node+'.log')).write_text(logs(node))
             checks.append('actual radio guest UDP samples, processor TCP results, mutually authenticated tune/start/stop and independent container radio')
+        if args.scenario:
+            assert args.case == 'S15', 'guest scenario action is declared by S15'
+            scenario = call(cli,'scenario','run',*options,'--action','verify-guest',timeout=60)
+            (root/'scenario.log').write_text(scenario.stdout+scenario.stderr)
+            checks.append('declared S15 scenario traffic, VLAN isolation, capture and QMP checks')
         completed = True
     finally:
         down = call(cli,'run','down',*options,ok=False)

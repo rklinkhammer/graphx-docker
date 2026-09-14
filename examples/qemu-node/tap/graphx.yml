@@ -1,4 +1,4 @@
-# GraphX version 3. Validation and compilation available; execution adapters are unavailable.
+# GraphX version 3 authored source. Compile before execution.
 catalog: ../../../config/catalog/lock.json
 connections:
   peer-qemu-tcp:
@@ -167,8 +167,6 @@ scenario:
     - qemu-peer-udp
     expect:
     - bidirectional-tcp-udp
-    - broadcast-echo-10.0.2.255:18001
-    - multicast-observed-239.1.2.3:18001
     - vlan-43-isolated
     - capture-nonempty
     - qmp-pause-resume

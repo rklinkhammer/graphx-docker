@@ -137,3 +137,15 @@ graphx_demo_run() {
   [[ ${GRAPHX_ALLOW_PRIVILEGED:-0} != 1 ]] || args+=(--allow-privileged)
   "$graphx" "${args[@]}"
 }
+
+# Scenario actions are always explicitly selected, separate from graph startup.
+graphx_demo_scenario() {
+  local operation=${1:?scenario operation required} action=${2:?scenario action ID required}
+  : "${GX_OUTPUT:?Set GX_OUTPUT to the compiled package}"
+  : "${GX_STATE:?Set GX_STATE to the graph state parent}"
+  local graphx=${GRAPHX_BIN:-${GX_RELEASE:-}/bin/graphx}
+  local -a args=(scenario "$operation" --action "$action" --output "$GX_OUTPUT" --state-root "$GX_STATE")
+  [[ -z ${GX_RELEASE:-} ]] || args+=(--release "$GX_RELEASE")
+  [[ ${GRAPHX_ALLOW_PRIVILEGED:-0} != 1 ]] || args+=(--allow-privileged)
+  "$graphx" "${args[@]}"
+}

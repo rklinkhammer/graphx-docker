@@ -71,7 +71,17 @@ struct OwnedFault {
   std::uint64_t expires_monotonic_ns{};
 };
 
+struct OwnedScenarioAction {
+  std::string id;
+  std::string kind;
+  std::string status;
+  std::string identity;
+};
+
 struct OwnershipState {
+  std::vector<OwnedScenarioAction> actions;
+  std::string credential_directory;
+  std::string credential_identity;
   std::string graph_id;
   std::string config_hash;
   std::string owner_token;

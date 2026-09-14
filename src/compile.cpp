@@ -551,11 +551,12 @@ CompiledGraph compile_graph(const GraphConfig& graph) {
                  {"permissions",
                   "sealed read-only snapshots to platform group; live rings remain privileged"}});
   }
-  if (graph.authored.contains("scenario"))
-    put("scenario-plan.json", Object{{"version", 1},
-                                     {"implicit_start", false},
-                                     {"baseline_config", "resolved.json"},
-                                     {"actions", graph.authored.at("scenario").at("actions")}});
+  if (graph.authored.contains("scenario")) put("scenario-plan.json", scenario_plan(graph));
+  if (!graph.laboratory_action.empty())
+    put("laboratory-selection.json", Object{{"version", 1},
+                                            {"action", graph.laboratory_action},
+                                            {"physical_device", false},
+                                            {"trust", "isolated laboratory credentials"}});
   Array stages{Object{{"operation", "preflight"},
                       {"checks", strings({"manifest hashes", "verified release identities",
                                           "target capabilities", "roots and listener availability",

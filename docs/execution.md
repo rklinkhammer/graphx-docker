@@ -147,3 +147,6 @@ resolve a 180-second application release wait to cover the shared 120-second
 guest handshake. Source-catalog placeholder artifacts cannot boot. See
 [P8 verification](../design/graph-generation/p8-verification.md) for build/check
 evidence and the separately authorized actual-boot gate.
+
+Scenario actions never run during startup. Use the separately selected
+[scenario interface](scenarios.md) for routes, faults, traffic and credential rotation.

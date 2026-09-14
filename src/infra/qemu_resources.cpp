@@ -295,6 +295,46 @@ struct GuestSession::Impl {
     return parse_document(bytes);
   }
 };
+ConfigValue inspect_guest(const OwnedResourceIdentity& process, bool pause_resume) {
+  verify_guest_directory(process);
+  GuestSession::Impl session;
+  session.process = process;
+  session.cancelled = [] { return false; };
+  session.deadline = Clock::now() + std::chrono::seconds(5);
+  session.directory =
+      ::open(process.runtime_directory.c_str(), O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+  require(session.directory >= 0, "E_GUEST_IDENTITY: directory unavailable");
+  const auto fd = session.connect("qmp");
+  require(session.qmp_receive(fd).contains("QMP"), "E_GUEST_CHANNEL: invalid QMP greeting");
+  session.qmp_command(fd, "qmp_capabilities");
+  require(session.qmp_command(fd, "query-status").at("running") == Value(true),
+          "E_GUEST_STATE: guest is not running");
+  if (pause_resume) {
+    session.qmp_command(fd, "stop");
+    try {
+      require(session.qmp_command(fd, "query-status").at("running") == Value(false),
+              "E_GUEST_STATE: guest did not pause");
+      session.qmp_command(fd, "cont");
+      require(session.qmp_command(fd, "query-status").at("running") == Value(true),
+              "E_GUEST_STATE: guest did not resume");
+    } catch (...) {
+      try {
+        session.qmp_command(fd, "cont");
+      } catch (...) {
+      }
+      throw;
+    }
+  }
+  std::string serial;
+  for (unsigned chunk = 0; chunk < 128; ++chunk) {
+    const auto part =
+        session.qmp_command(fd, "ringbuf-read", Object{{"device", "serial"}, {"size", 8192}})
+            .text();
+    if (part.empty()) break;
+    serial += part;
+  }
+  return serial;
+}
 GuestSession::~GuestSession() = default;
 GuestSession::GuestSession(
     const ExecutionOptions& options, const ConfigValue& guest, const ConfigValue& node,

@@ -223,6 +223,7 @@ int execute_compose(const ExecutionOptions& opts, const ConfigValue& resolved,
     state.config_hash = configuration;
     state.owner_token = random_token();
     state.status = "creating";
+    state.actions.clear();
   }
   const auto save = [&] { save_state(state_file, state); };
   const auto network_action = [&](OvsLifecycleAction action, bool validate_only = false) {
@@ -447,6 +448,7 @@ int execute_compose(const ExecutionOptions& opts, const ConfigValue& resolved,
       throw std::runtime_error("E_BARRIER_IDENTITY: unexpected barrier directory identity");
   }
   state.status = "creating";
+  state.actions.clear();
   save();
   cancelled = 0;
   const auto old_int = std::signal(SIGINT, cancel);

@@ -20,6 +20,8 @@ std::string sha256(std::string_view value);
 std::string resource_name(std::string_view graph, std::string_view kind, std::string_view id);
 void validate_shape(const Value& value, const Value& schema, std::string_view path = "$",
                     const Value* root = nullptr);
+Value scenario_plan(const GraphConfig& graph);
+void select_laboratory(Value& graph, const std::string& id);
 Value compiled_guest_plan(const Value& node, const Value& recipe, const Value& network);
 NetworkInfrastructureConfig resolved_network(const Value& network);
 TransportSettings resolved_transport(const ConfigValue& connection);

@@ -52,11 +52,11 @@
     },
     {
       "path": "resolved.json",
-      "sha256": "72b8232e6c89611e964971911fc442ffd387014c18e4a55cdde9f586fdb1ba80"
+      "sha256": "b844f57931f895cf8fd380104830fbc126d62e46e1b9bab279a93e20c17cabba"
     },
     {
       "path": "scenario-plan.json",
-      "sha256": "1b1de48fc3a2427a57031854ee8629c1c5649b365c62d690b630ae5a50a0560b"
+      "sha256": "3dcb82841fb075c1aa2efdd59badeaa9e35e5a7cb95fdd03cad115b4f2612b4f"
     },
     {
       "path": "substitutions.json",

@@ -4,7 +4,7 @@ All 24 authored v3 examples support validation, normalization and deterministic
 compilation on their listed targets. Native and portable container graphs support [owned execution](../docs/execution.md).
 OVS and namespace graphs have a compiled runner behind explicit Linux privileged
 opt-in, with [P7 Lima acceptance evidence](../design/graph-generation/p7-verification.md).
-Container network and static-route startup wrappers use the compiled runner. QEMU and scenario launchers remain gated. See [compilation instructions](../docs/user-guide.md#compile-inspectable-artifacts). Images use the [shared release recipes](../docs/release-process.md#shared-images-and-catalog-pins);
+Container network and static-route startup wrappers use the compiled runner. Verified QEMU guest startup is supported; [P8](../design/graph-generation/p8-verification.md) records actual Lima TCG boot. [Scenario actions](../docs/scenarios.md) are selected explicitly after baseline startup; the laboratory simulator is an explicit pre-start compilation selection. See [compilation instructions](../docs/user-guide.md#compile-inspectable-artifacts). Images use the [shared release recipes](../docs/release-process.md#shared-images-and-catalog-pins);
 source Compose files contain no per-graph builds. Run from the repository root:
 
 ```sh

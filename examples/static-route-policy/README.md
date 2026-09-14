@@ -16,7 +16,9 @@ state parent, Linux executable and image release. Runtime artifacts belong under
 Inside the authorized Linux environment, set `GX_RELEASE` to the verified native
 installation containing `graphx-diagnostic`, then use `scripts/demo.sh up`, `status`
 or `down`. `scripts/inspect.sh` prints the compiled plan. Deferred routes remain
-absent at startup; `apply-route` and `clear-route` remain gated until P9.
+absent at startup. `scripts/demo.sh apply-route`, `clear-route` and `verify`
+select the declared `apply-deferred`, `clear-deferred` and `verify-flows` scenario
+actions through the common CLI. See [scenario execution](../../docs/scenarios.md).
 
 See [execution](../../docs/execution.md), [release packaging](../../docs/release-process.md)
 and the [example matrix](../README.md) for prerequisites and supported targets.

@@ -6,6 +6,7 @@
 namespace graphx {
 struct ExecutionOptions {
   std::string action;
+  std::string scenario_action;
   bool allow_privileged{};
   std::string owner_token;
   std::filesystem::path output;

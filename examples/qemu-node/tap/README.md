@@ -13,3 +13,8 @@ external; this profile does not attach to or adopt it.
 Live acceptance requires separately authorized native Linux or GraphX Lima
 execution. `tests/test_guest_execution_live.py --case S15` checks actual TCG boot
 and bidirectional TCP/UDP. Scenario actions remain gated until P9.
+
+Select `graphx scenario run --action verify-guest --output COMPILED --state-root
+STATE --release RELEASE --allow-privileged` for the declared bounded unicast TCP/UDP,
+VLAN isolation, capture and QMP checks. Guest broadcast echo and multicast reception
+are not part of the current guest contract. See [scenario execution](../../../docs/scenarios.md).

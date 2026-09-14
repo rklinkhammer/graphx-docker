@@ -16,7 +16,10 @@ state parent, Linux executable and image release. Runtime artifacts belong under
 Use `graphx run up|status|down --output COMPILED --state-root STATE --images IMAGES
 --allow-privileged` in the authorized Linux environment. This graph owns a TAP and
 bounded Ethernet capture. It does not boot a guest or apply its scenario fault at
-startup. The acceptance harness injects bounded frames through that owned TAP.
+startup. Select `graphx scenario run --action source-delay --output COMPILED
+--state-root STATE --allow-privileged` to apply the declared timed fault.
+`scenario clear` with the same action ID clears it early. The acceptance harness
+injects bounded frames through the owned TAP. See [scenario execution](../../docs/scenarios.md).
 
 See [execution](../../docs/execution.md), [release packaging](../../docs/release-process.md)
 and the [example matrix](../README.md) for prerequisites and supported targets.

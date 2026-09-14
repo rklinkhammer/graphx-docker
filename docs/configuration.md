@@ -162,3 +162,7 @@ artifact matrix, reproducibility evidence and remaining execution boundaries.
 Catalog node-type revisions are positive integers from 1 through 2147483647.
 Release image packaging increments the affected container type revisions and
 repins the catalog lock together; see the [release process](release-process.md).
+
+Scenario action fields and references are validated by the C++ loader. See
+[explicit scenario execution](scenarios.md) for selection, laboratory compilation,
+rotation bounds and recovery behavior.

@@ -509,6 +509,10 @@
     {
       "format": "md",
       "path": "verification.md"
+    },
+    {
+      "format": "md",
+      "path": "p9-verification.md"
     }
   ],
   "version": 1

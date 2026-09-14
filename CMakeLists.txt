@@ -97,6 +97,8 @@ add_library(graphx
   src/capture.cpp
   src/config_document.cpp
   src/config_v3.cpp
+  src/scenario_config.cpp
+  src/infra/scenario_execution.cpp
   src/resolved_transport.cpp
   src/resolved_network.cpp
   src/node_settings.cpp
@@ -454,6 +456,8 @@ if(GRAPHX_BUILD_TESTS)
     ${CMAKE_SOURCE_DIR})
   graphx_add_python_test(graphx-guest-agent tests/test_guest_agent.py 30
     ${CMAKE_SOURCE_DIR})
+  graphx_add_python_test(graphx-scenario tests/test_scenario.py 60
+    $<TARGET_FILE:graphx-cli> ${CMAKE_CURRENT_SOURCE_DIR})
   graphx_add_python_test(graphx-compile tests/test_compile.py 120
     $<TARGET_FILE:graphx-cli> ${CMAKE_SOURCE_DIR})
   graphx_add_python_test(graphx-diagnostic-bindings tests/test_diagnostic_bindings.py 30

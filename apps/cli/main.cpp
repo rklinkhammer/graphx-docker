@@ -24,6 +24,9 @@ void usage(std::ostream& out) {
       << "  graphx run <plan|up|status|down> --output DIR --state-root DIR\n"
       << "             [--release DIR --credentials DIR] [--images DIR] [--external DIR]\n"
       << "             [--allow-privileged] (local Linux OVS only)\n"
+      << "  graphx scenario <plan|run|status|clear> --action ID --output DIR --state-root DIR\n"
+      << "                  [--release DIR] [--allow-privileged]\n"
+      << "  graphx compile FILE ... [--laboratory ACTION_ID]\n"
       << "Targets: native-linux (validation default), native-macos, orbstack, lima\n"
       << "Execution requires verified releases; OVS and guest boot require explicit Linux "
          "authorization.\n";
@@ -53,10 +56,10 @@ int main(int argc, char** argv) {
           graphx::load_node_settings(args.config, args.node).resolved);
       return 0;
     }
-    if (command == "run") {
+    if (command == "run" || command == "scenario") {
       if (argc < 3) throw std::invalid_argument("run requires plan, up, down or status");
       graphx::ExecutionOptions options;
-      options.action = argv[2];
+      options.action = command == "scenario" ? "scenario-" + std::string(argv[2]) : argv[2];
       std::map<std::string, std::filesystem::path*> fields{
           {"--output", &options.output},   {"--state-root", &options.state_root},
           {"--release", &options.release}, {"--credentials", &options.credentials},
@@ -64,6 +67,10 @@ int main(int argc, char** argv) {
       std::set<std::string> seen;
       for (int i = 3; i < argc; ++i) {
         const std::string key = argv[i];
+        if (command == "scenario" && key == "--action" && seen.insert(key).second && i + 1 < argc) {
+          options.scenario_action = argv[++i];
+          continue;
+        }
         if (key == "--owner" && seen.insert(key).second && i + 1 < argc) {
           options.owner_token = argv[++i];
           continue;
@@ -96,7 +103,7 @@ int main(int argc, char** argv) {
           throw std::invalid_argument(
               "E_OUTPUT_OWNERSHIP: replacement is unavailable; use a fresh directory");
         if ((key != "--output" && key != "--source-root" && key != "--credential-root" &&
-             key != "--target" && key != "--catalog-root") ||
+             key != "--target" && key != "--catalog-root" && key != "--laboratory") ||
             i + 1 == argc || !opts.emplace(key, argv[++i]).second)
           throw std::invalid_argument(
               "E_ARGUMENT: unknown, duplicate or incomplete compile option");
@@ -104,6 +111,7 @@ int main(int argc, char** argv) {
       for (const auto* key : {"--output", "--source-root", "--credential-root"})
         if (!opts.contains(key))
           throw std::invalid_argument(std::string("E_ARGUMENT: compile requires ") + key);
+      if (opts.contains("--laboratory")) load.laboratory_action = opts.at("--laboratory");
       if (opts.contains("--target")) load.target = opts.at("--target");
       if (opts.contains("--catalog-root")) load.catalog_root = opts.at("--catalog-root");
       const auto graph = graphx::load_graph(source, load);

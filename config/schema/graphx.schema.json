@@ -71,7 +71,7 @@
           "type": "array"
         },
         "grace_seconds": {
-          "maximum": 3600,
+          "maximum": 60,
           "minimum": 1,
           "type": "integer"
         },

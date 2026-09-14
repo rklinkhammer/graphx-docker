@@ -397,6 +397,9 @@ ProcessIdentity inspect_process(std::uint32_t pid) {
     }
     identity.start_time = std::move(field);
   }
+  // Linux can remove exe before publishing the zombie state. Treat that
+  // intermediate observation as unavailable, never as a substituted executable.
+  if (identity.executable.empty() && !identity.exited) identity.start_time.clear();
 #elif defined(__APPLE__)
   std::array<char, PROC_PIDPATHINFO_MAXSIZE> path{};
   if (::proc_pidpath(static_cast<int>(pid), path.data(), sizeof(path)) > 0)
