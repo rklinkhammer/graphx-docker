@@ -1,13 +1,13 @@
 {
   "artifact_identities_verified": false,
-  "catalog_digest": "d351a4f93ab74be9bd8e30dc37b2ac4d59f98ba2badc63f7ccc0ce4f112e35b1",
+  "catalog_digest": "9f8a65ada1cfbd81f285cfa948fd351e39f10676d876dddd41f031607a5392cb",
   "compiler": "graphx-compiler-1",
   "compiler_version": "1.1.0",
   "execution_available": true,
   "files": [
     {
       "path": "catalog-pins.json",
-      "sha256": "53cecc05bb5522e0bce9de6b5627ad320d3c3089b89d4f21759af8521bd04fdc"
+      "sha256": "07c899753b7164f03cc80971c6d1b1b3c6e1445c87693b3a78f00d7ac3fe20ad"
     },
     {
       "path": "compose.yaml",
@@ -23,15 +23,15 @@
     },
     {
       "path": "nodes/generator.json",
-      "sha256": "20be6b5099cb55e3c30190ebf5a95d663187040c7fb640b8d60876f7f7cf8505"
+      "sha256": "4d8442e98e1c4c9080ce35f5fa5cdf5ab271cdbc84ed69ec178ef0a9a161a14a"
     },
     {
       "path": "nodes/sink.json",
-      "sha256": "b7f5ee442abe0b0caee3a9467f66c2d747d87a8e305c18aa5b14f3b1804c877d"
+      "sha256": "aee6459f40b5f73b62a324c1e382793c3f58387046d3d4f993bfa090f68ea51e"
     },
     {
       "path": "nodes/transform.json",
-      "sha256": "1d39b42efa639b093bd32c590a2cd367c68ca2512e45a221768237e1f8e3cb34"
+      "sha256": "6fb16514372245efe9ed241744ee4f33682bef9edcc5b13299221951f820fb24"
     },
     {
       "path": "platform.json",
@@ -39,7 +39,7 @@
     },
     {
       "path": "resolved.json",
-      "sha256": "ff102bbbc6fae1a55563715ab8d6ff40feda16d52e9ac9369a840a5311d1d4f6"
+      "sha256": "b0bc237e856c768a1229e9d0ee8040d4eeb1a1dadae71829c959a8389454cd84"
     },
     {
       "path": "substitutions.json",
@@ -47,7 +47,7 @@
     }
   ],
   "graph_id": "sample-pipeline",
-  "input_digest": "def601bb3287c206e2760b8ad8db4613770a58bb816dceed1d90226fece3a6d8",
+  "input_digest": "0eff37c92cfb19299ae16b45da9526354ff8ad7cd88600caba0c90f07ebcb8f3",
   "replacement": "refused; use fresh output until owned-consumer inactivity can be verified",
   "serializer": "graphx-json-1-yaml12-subset",
   "target": "native-linux",

@@ -1,6 +1,9 @@
 # GraphX examples
 
-All 24 authored v3 examples support validation, normalization and deterministic
+**Start here: [Run an example](quick-start.md).** Complete commands for sample-pipeline
+and simulated SDR, including image preparation, console access and cleanup.
+
+All 25 authored v3 examples support validation, normalization and deterministic
 compilation on their listed targets. Native and portable container graphs support [owned execution](../docs/execution.md).
 OVS and namespace graphs have a compiled runner behind explicit Linux privileged
 opt-in, with [P7 Lima acceptance evidence](../design/graph-generation/p7-verification.md).
@@ -21,6 +24,7 @@ build/dev/graphx config normalize examples/sample-pipeline/graphx.yml --target o
 | [network-observability/graphx.yml](network-observability/graphx.yml) | `native-linux`, `lima` |
 | [qemu-node/tap/graphx.yml](qemu-node/tap/graphx.yml) | `native-linux`, `lima` |
 | [sample-pipeline/graphx.yml](sample-pipeline/graphx.yml) | `native-linux`, `orbstack`, `lima` |
+| [sample-pipeline/ovs/graphx.yml](sample-pipeline/ovs/graphx.yml) | `native-linux`, `lima` |
 | [sdr-node/external/graphx.yml](sdr-node/external/graphx.yml) | `native-linux`, `lima` |
 | [sdr-node/simulated/graphx.yml](sdr-node/simulated/graphx.yml) | `native-linux`, `orbstack`, `lima` |
 | [shared-memory/graphx.yml](shared-memory/graphx.yml) | `native-linux`, `native-macos`, `lima` |
@@ -43,7 +47,8 @@ veth/TAP resources; MACVLAN/IPVLAN are semantic profiles. Compose owns processes
 and management connectivity. No Docker engine or VM is needed for normalization.
 
 Catalog images and guest artifacts remain illustrative until release packaging.
-Every retained launcher delegates to the common compiled execution path.
+Use `graphx example up|status|tokens|logs|down NAME` for every demo.
+The [CLI reference](../docs/example-cli.md) describes preparation and artifact overrides.
 See [configuration](../docs/configuration.md), [phase status](../design/graph-generation/p1-verification.md),
 and [test procedure](../docs/test-procedure.md).
 

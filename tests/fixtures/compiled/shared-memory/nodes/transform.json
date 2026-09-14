@@ -89,5 +89,5 @@
     "port": 9000
   },
   "type": "sample.transform",
-  "type_revision": 1
+  "type_revision": 2
 }

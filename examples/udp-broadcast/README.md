@@ -1,21 +1,22 @@
 # UDP broadcast example
 
-This authored v3 graph supports compilation and owned portable execution.
-Compile it with a verified release, then use `graphx run up|status|down` as
-described in the repository's `docs/execution.md`. The local launcher delegates
-to that adapter and requires explicit compiled output and state roots.
-
+Complete the [CLI quick start](../quick-start.md) to build `graphx` and prepare your environment.
 Run from the repository root:
 
 ```sh
-build/dev/graphx validate examples/udp-broadcast/graphx.yml
-build/dev/graphx config normalize examples/udp-broadcast/graphx.yml > resolved.json
+graphx example plan udp-broadcast
+graphx example up udp-broadcast
+graphx example status udp-broadcast
+graphx example tokens udp-broadcast
+graphx example logs udp-broadcast --follow
+graphx example down udp-broadcast
 ```
 
-Select `--target native-linux`, `native-macos`, `orbstack`, or `lima` to check
-placement capabilities. Managed OVS and QEMU require Linux or Lima; this command
-does not run a laboratory. The graph declares its catalog, typed node instances,
-connections, bounded platform policy and any explicit scenario actions.
+Open the console URL printed by `up` and enter its observation token.
+Control is disabled unless explicitly granted or enabled in the authored graph.
 
-See the [example matrix](../README.md) for all supported inputs and
-[configuration contract](../../docs/configuration.md) for diagnostics and limits.
+
+The CLI prepares required verified artifacts and remembers compilation and state
+paths. Use `--images DIR` or `--release DIR` to reuse existing verified artifacts;
+Lima inputs refer to guest-local paths. Use `--restart` after changing source or
+control selection. Cleanup removes only identity-owned resources and retains history.

@@ -12,7 +12,7 @@
     "max_messages": {
       "default": 20,
       "maximum": 1000000,
-      "minimum": 1,
+      "minimum": 0,
       "type": "integer"
     }
   },
@@ -40,6 +40,6 @@
     "memory_bytes": 134217728,
     "pids": 64
   },
-  "revision": 1,
+  "revision": 2,
   "template": "node-v1"
 }

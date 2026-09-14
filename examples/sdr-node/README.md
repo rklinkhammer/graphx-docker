@@ -1,12 +1,14 @@
-# SDR node examples
+# SDR examples
 
-The [simulated](simulated/README.md) and [external](external/README.md) profiles
-are authored v3 graphs. Their catalogs describe raw samples, control, mutual TLS
-credential references and observation. Validation and normalization are implemented;
-use the common compiled runner. Physical startup stays gated; the laboratory
-substitute requires explicit `compile --laboratory laboratory-radio` selection.
+Use the [CLI quick start](../quick-start.md), then select:
 
-The simulated graph supports Linux, OrbStack and Lima target validation. The
-external graph requires Linux or Lima for its logical OVS attachments. Physical
-radio ownership stays external. Optional laboratory simulation is an explicit
-scenario action and never starts during normalization.
+```sh
+graphx example up sdr-node/simulated
+graphx example tokens sdr-node/simulated
+graphx example down sdr-node/simulated
+```
+
+The [simulated graph](simulated/README.md) runs in portable containers.
+The [external graph](external/README.md) supports an explicit isolated laboratory
+selection on Linux/Lima. Physical-device startup remains gated pending its uplink
+ownership contract. No physical substitution happens implicitly.

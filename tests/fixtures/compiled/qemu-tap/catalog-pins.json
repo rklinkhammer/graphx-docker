@@ -1,6 +1,6 @@
 {
   "artifacts_verified": false,
-  "catalog_digest": "d351a4f93ab74be9bd8e30dc37b2ac4d59f98ba2badc63f7ccc0ce4f112e35b1",
+  "catalog_digest": "9f8a65ada1cfbd81f285cfa948fd351e39f10676d876dddd41f031607a5392cb",
   "documents": {
     "guests/echo-x86.json": {
       "accelerators": [
@@ -650,7 +650,7 @@
         "max_messages": {
           "default": 20,
           "maximum": 1000000,
-          "minimum": 1,
+          "minimum": 0,
           "type": "integer"
         }
       },
@@ -678,7 +678,7 @@
         "memory_bytes": 134217728,
         "pids": 64
       },
-      "revision": 1,
+      "revision": 2,
       "template": "node-v1"
     },
     "types/sample.source.json": {
@@ -702,7 +702,7 @@
         "max_messages": {
           "default": 20,
           "maximum": 1000000,
-          "minimum": 1,
+          "minimum": 0,
           "type": "integer"
         }
       },
@@ -730,7 +730,7 @@
         "memory_bytes": 134217728,
         "pids": 64
       },
-      "revision": 1,
+      "revision": 2,
       "template": "node-v1"
     },
     "types/sample.transform.json": {
@@ -753,7 +753,7 @@
         "max_messages": {
           "default": 20,
           "maximum": 1000000,
-          "minimum": 1,
+          "minimum": 0,
           "type": "integer"
         }
       },
@@ -795,7 +795,7 @@
         "memory_bytes": 134217728,
         "pids": 64
       },
-      "revision": 1,
+      "revision": 2,
       "template": "node-v1"
     },
     "types/sdr.processor.json": {
@@ -1213,15 +1213,15 @@
       },
       {
         "path": "types/sample.sink.json",
-        "sha256": "231abba718dd470ba1b888a0d2b24a00aaa4bc3092238359d049f19fb0c96153"
+        "sha256": "3dae0dfd51e9d9c5aa9fbe0a165cb0f813ec5109ca9f1f37b4ed59c02b155ac1"
       },
       {
         "path": "types/sample.source.json",
-        "sha256": "ef4090b6ef034be9dc83ad6ce05df236c5de992b73ac0d5787e414d0464075b8"
+        "sha256": "2e45fdfb6d029366be55b449027d3f4a2363cc7d5f57308b2986d83a506b2e6f"
       },
       {
         "path": "types/sample.transform.json",
-        "sha256": "a942759dda088b3ab178fabf565407e74a421b920f25db05319f5b6d72b4bbd5"
+        "sha256": "b717d1963e44e2fffddc6461788f1106fccea84a62dff50e3e89a04c83b27f35"
       },
       {
         "path": "types/sdr.processor.json",

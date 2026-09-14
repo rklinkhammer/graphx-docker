@@ -1,4 +1,5 @@
 #include "graphx/config.hpp"
+#include "graphx/example_cli.hpp"
 #include "graphx/compile.hpp"
 #include "graphx/execution.hpp"
 #include "graphx/node_settings.hpp"
@@ -15,6 +16,8 @@ namespace {
 void usage(std::ostream& out) {
   out << "usage:\n"
       << "  graphx --version\n"
+      << "  graphx example <list|prepare|plan|up|status|tokens|logs|down> [NAME] [--help]\n"
+      << "  graphx env <doctor|up|down> | graphx verify PROFILE | graphx release TOOL [ARGS]\n"
       << "  graphx node-settings --node ID --config FILE\n"
       << "  graphx <validate|inspect> [graphx.yml] [--target TARGET] [--catalog-root DIR]\n"
       << "  graphx config normalize [graphx.yml] [--format json] [--target TARGET]\n"
@@ -45,6 +48,8 @@ int main(int argc, char** argv) {
   }
   try {
     const std::string command = argv[1];
+    if (command == "example" || command == "env" || command == "verify" || command == "release")
+      return graphx::execute_example_cli(argc, argv);
     if (command == "platform-lock") {
       if (argc < 6 || std::string_view(argv[2]) != "--lock" || std::string_view(argv[4]) != "--")
         throw std::invalid_argument("platform-lock requires --lock FILE -- PROGRAM [ARGS]");
@@ -126,8 +131,9 @@ int main(int argc, char** argv) {
     int first = 2;
     const bool normalize = command == "config";
     if (normalize) {
-      if (argc < 3 || std::string_view(argv[2]) != "normalize")
-        throw std::invalid_argument("config requires normalize");
+      if (argc < 3 ||
+          (std::string_view(argv[2]) != "normalize" && std::string_view(argv[2]) != "authored"))
+        throw std::invalid_argument("config requires normalize or authored");
       first = 3;
     } else if (command != "validate" && command != "inspect")
       throw std::invalid_argument("unknown command");
@@ -161,7 +167,9 @@ int main(int argc, char** argv) {
       }
     }
     const auto graph = graphx::load_graph(path, options);
-    if (normalize || command == "inspect")
+    if (normalize && std::string_view(argv[2]) == "authored")
+      std::cout << graphx::config_value_json(graph.authored);
+    else if (normalize || command == "inspect")
       std::cout << graphx::normalize_config_json(graph);
     else
       std::cout << path.string() << ": valid GraphX configuration version 3 (" << graph.nodes.size()

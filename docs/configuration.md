@@ -165,3 +165,10 @@ repins the catalog lock together; see the [release process](release-process.md).
 Scenario action fields and references are validated by the C++ loader. See
 [explicit scenario execution](scenarios.md) for selection, laboratory compilation,
 rotation bounds and recovery behavior.
+
+The `sample.source`, `sample.transform`, and `sample.sink` types accept
+`parameters.max_messages: 0` to run until explicitly stopped. A positive value
+limits processing to that many messages (the type default is 20). Use the same
+limit on every node in a sample pipeline. An unexpected upstream disconnect is
+an error, including in continuous mode. The sample-pipeline example explicitly
+selects continuous mode; its source emits every 500 ms by default.

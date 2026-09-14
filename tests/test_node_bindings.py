@@ -78,7 +78,7 @@ def publish_release(path, token):
     staged.replace(path)
 
 
-def run_nodes(nodes, directory):
+def run_nodes(nodes, directory, continuous=False):
     release = directory / 'release'
     token = secrets.token_hex(32)
     processes = []
@@ -99,6 +99,18 @@ def run_nodes(nodes, directory):
             time.sleep(0.02)
         assert all(' value=' not in f.read_text() for _, f, _ in processes), 'traffic escaped release barrier'
         publish_release(release, token)
+        if continuous:
+            deadline = time.monotonic() + 5
+            while not all(' seq=30 ' in log.read_text() for _, log, _ in processes):
+                assert time.monotonic() < deadline, [f.read_text() for _, f, _ in processes]
+                assert all(p.poll() is None for p, _, _ in processes), [f.read_text() for _, f, _ in processes]
+                time.sleep(0.02)
+            assert all(p.poll() is None for p, _, _ in processes)
+            # Stop downstream first so its blocking receive is interrupted explicitly.
+            sink = next((p, f) for p, f, n in processes if n['type'] == 'sample.sink')
+            sink[0].terminate()
+            assert sink[0].wait(timeout=2) == 130, sink[1].read_text()
+            return
         for process, log, n in processes:
             assert process.wait(timeout=8) == 0, log.read_text()
             text = log.read_text()
@@ -134,6 +146,14 @@ for label, scenario in scenarios:
     print(f'{label}: native application semantics passed')
 
 graph = normalize('examples/sample-pipeline/graphx.yml')
+assert all(n['parameters']['max_messages'] == 0 for n in graph['nodes'])
+with tempfile.TemporaryDirectory(prefix='graphx-continuous-') as tmp:
+    directory = Path(tmp).resolve()
+    nodes = fixtures(graph, directory, 'continuous')
+    for node in nodes:
+        node['parameters']['max_messages'] = 0
+    run_nodes(nodes, directory, continuous=True)
+print('Continuous sample: traffic beyond finite default and explicit shutdown passed')
 with tempfile.TemporaryDirectory(prefix='graphx-p2-two-') as tmp:
     directory = Path(tmp).resolve()
     run_nodes(fixtures(graph, directory, 'alpha') + fixtures(graph, directory, 'beta'), directory)
@@ -224,7 +244,7 @@ with tempfile.TemporaryDirectory(prefix='graphx-p2-negative-') as tmp:
         changed['bindings']['samples'] = peers
         reject(changed, 'E_PORT_CARDINALITY')
     changed = copy.deepcopy(node)
-    changed['parameters']['max_messages'] = 0
+    changed['parameters']['max_messages'] = -1
     reject(changed, 'E_')
     changed = copy.deepcopy(node)
     del changed['bindings']['samples']

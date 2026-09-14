@@ -1,15 +1,17 @@
 # Credential rotation
 
-Compile `graphx.yml` with verified image pins and stage explicit private external
-`operator/token` and `operator-next/token` files through `run up --external DIR`.
-Baseline startup performs no rotation. With the graph ready:
+Provide private `operator/token` and `operator-next/token` files in an external
+credential directory. From the repository root:
 
 ```sh
-"$GX_RELEASE/bin/graphx" scenario run --action rollover --output "$GX_OUTPUT" --state-root "$GX_STATE"
-"$GX_RELEASE/bin/graphx" scenario run --action runtime-rollover --output "$GX_OUTPUT" --state-root "$GX_STATE"
+graphx example up variants/credential-rotation --external /absolute/credentials
+graphx example scenario variants/credential-rotation --action rollover
+graphx example tokens variants/credential-rotation
+graphx example scenario variants/credential-rotation --action runtime-rollover
+graphx example down variants/credential-rotation
 ```
 
-The first action rotates the operator token; the second rotates only the generator's
-runtime HMAC. Both preserve identity and allow the declared 60-second overlap.
-Expired previous credentials are rejected. Plans and action logs contain references,
-never secret values. See [scenario execution](../../../docs/scenarios.md).
+Baseline startup performs no rotation. The first action rotates the operator token;
+the second rotates the generator runtime HMAC. Both use the declared 60-second
+overlap. See [scenario execution](../../../docs/scenarios.md) and the
+[CLI quick start](../../quick-start.md).

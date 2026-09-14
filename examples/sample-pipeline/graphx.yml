@@ -15,13 +15,16 @@ nodes:
   generator:
     execution:
       kind: container
+    parameters: {max_messages: 0}
     type: sample.source
   sink:
     execution:
       kind: container
+    parameters: {max_messages: 0}
     type: sample.sink
   transform:
     execution:
       kind: container
+    parameters: {max_messages: 0}
     type: sample.transform
 version: 3

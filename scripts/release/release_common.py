@@ -59,6 +59,7 @@ ARCHIVE_PUBLIC_HEADERS = frozenset({
     "include/graphx/config.hpp",
     "include/graphx/compile.hpp",
     "include/graphx/execution.hpp",
+    "include/graphx/example_cli.hpp",
     "include/graphx/config_value.hpp",
     "include/graphx/envelope.hpp",
     "include/graphx/framing.hpp",
@@ -82,6 +83,7 @@ ARCHIVE_PUBLIC_HEADERS = frozenset({
 })
 
 ARCHIVE_DOCUMENTATION_FILES = frozenset({
+    "share/doc/graphx/docs/example-cli.md",
     "share/doc/graphx/docs/GraphX_Architecture.md",
     "share/doc/graphx/docs/capture.md",
     "share/doc/graphx/docs/complete-system-demo.md",
@@ -114,6 +116,7 @@ ARCHIVE_DOCUMENTATION_FILES = frozenset({
 })
 
 ARCHIVE_DATA_FILES = frozenset({
+    "libexec/graphx/example_cli.py",
     "share/graphx/catalog/README.md",
     "share/graphx/catalog/guests/echo-x86.json",
     "share/graphx/catalog/guests/radio-x86.json",

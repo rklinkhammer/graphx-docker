@@ -1,13 +1,13 @@
 {
   "artifact_identities_verified": false,
-  "catalog_digest": "d351a4f93ab74be9bd8e30dc37b2ac4d59f98ba2badc63f7ccc0ce4f112e35b1",
+  "catalog_digest": "9f8a65ada1cfbd81f285cfa948fd351e39f10676d876dddd41f031607a5392cb",
   "compiler": "graphx-compiler-1",
   "compiler_version": "1.1.0",
   "execution_available": true,
   "files": [
     {
       "path": "catalog-pins.json",
-      "sha256": "53cecc05bb5522e0bce9de6b5627ad320d3c3089b89d4f21759af8521bd04fdc"
+      "sha256": "07c899753b7164f03cc80971c6d1b1b3c6e1445c87693b3a78f00d7ac3fe20ad"
     },
     {
       "path": "compose.yaml",
@@ -39,7 +39,7 @@
     },
     {
       "path": "resolved.json",
-      "sha256": "e05c4a2c64e1db65288faa41ac6db4ddd019217623f1602fa586b341e4d74e83"
+      "sha256": "5c377854c3249c453d17163277f1c547cd1c42655660fd459d576dfdd984ff21"
     },
     {
       "path": "substitutions.json",

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import copy
 import io
+import json
 import os
 import stat
 import subprocess
@@ -79,6 +80,9 @@ with tempfile.TemporaryDirectory(prefix="graphx-package-test-") as temporary:
     assert all(path.is_file() for path in required), [str(path) for path in required if not path.is_file()]
     assert subprocess.check_output([executable, "--version"], text=True) == f"graphx {VERSION}\n"
 
+    prepared_plan = json.loads(subprocess.check_output(
+        [executable, 'example', 'plan', 'sample-pipeline', '--json', '--source', SOURCE], text=True))
+    assert prepared_plan['example'] == 'sample-pipeline'
     assert not (prefix / "share/graphx/graphx.yml").exists()
     installed_graph = root / "graphx.yml"
     installed_graph.write_text((SOURCE / "examples/sample-pipeline/graphx.yml").read_text().replace(

@@ -107,6 +107,7 @@ add_library(graphx
   src/packet_application.cpp
   src/config.cpp
   src/compile.cpp
+  src/example_cli.cpp
   src/execution.cpp
   src/infra/process_resources.cpp
   src/infra/qemu_resources.cpp
@@ -171,7 +172,7 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
   "${CMAKE_CURRENT_SOURCE_DIR}/deploy/observability/alerts.yml")
 configure_file(cmake/platform_assets.hpp.in generated/graphx/platform_assets.hpp @ONLY)
 configure_file(cmake/config_schemas.hpp.in generated/graphx/config_schemas.hpp @ONLY)
-target_compile_definitions(graphx PRIVATE GRAPHX_CATALOG_ROOT="${CMAKE_CURRENT_SOURCE_DIR}/config/catalog")
+target_compile_definitions(graphx PRIVATE GRAPHX_EXAMPLE_HELPER="${CMAKE_CURRENT_SOURCE_DIR}/scripts/example_cli.py" GRAPHX_CATALOG_ROOT="${CMAKE_CURRENT_SOURCE_DIR}/config/catalog")
 install(DIRECTORY config/catalog DESTINATION ${CMAKE_INSTALL_DATADIR}/graphx)
 configure_file(include/graphx/version.hpp.in generated/graphx/version.hpp @ONLY)
 configure_file(cmake/GraphXBuildDependencies.json.in
@@ -353,6 +354,7 @@ if(GRAPHX_BUILD_TESTS)
   else()
     message(STATUS "tshark not found; graphx-wireshark-dissector runtime test is unavailable")
   endif()
+  graphx_add_python_test(graphx-example-cli tests/test_example_cli.py 90 "$<TARGET_FILE:graphx-cli>" "${CMAKE_CURRENT_SOURCE_DIR}")
   graphx_add_python_test(graphx-config-cli tests/test_example_configs.py 45
     $<TARGET_FILE:graphx-cli> ${CMAKE_SOURCE_DIR})
   graphx_add_python_test(graphx-config-v3-matrix tests/test_config_v3_matrix.py 120
@@ -474,3 +476,5 @@ if(GRAPHX_BUILD_FUZZERS)
     target_link_options(graphx-${fuzzer}-fuzz PRIVATE -fsanitize=fuzzer)
   endforeach()
 endif()
+
+install(FILES scripts/example_cli.py DESTINATION ${CMAKE_INSTALL_LIBEXECDIR}/graphx)

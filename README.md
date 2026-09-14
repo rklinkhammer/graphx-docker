@@ -2,8 +2,8 @@
 
 GraphX accepts authored v3 graphs, resolves normalized JSON contract 2, and
 compiles deterministic artifacts. Verified releases support finite native and
-unprivileged container execution with owned cleanup. OVS, guest and scenario
-execution remain gated. Follow the [user guide](docs/user-guide.md),
+unprivileged container execution with owned cleanup. OVS and guest execution require explicit Linux privileged opt-in; scenario actions
+are selected explicitly. Follow the [user guide](docs/user-guide.md),
 [execution guide](docs/execution.md), and [phase status](design/graph-generation/implementation-plan.md).
 
 
@@ -21,10 +21,19 @@ infrastructure with system Open vSwitch: containers use veth pairs and QEMU gues
 use TAP devices. Docker Compose manages application processes and management
 connectivity, not the GraphX data plane.
 
+## Run your first example
+
+Follow the [example quick start](examples/quick-start.md) for copyable commands to
+build shared images, compile the sample pipeline, start it, open the console and
+stop it. The same sequence runs the simulated SDR and UDP broadcast examples.
+
+Example launchers require a compiled graph and explicit paths; running a launcher
+alone does not build or configure the example.
+
 ## Validate a graph
 
 ```sh
-build/dev/graphx validate examples/sample-pipeline/graphx.yml --target orbstack
+graphx example up sample-pipeline --control generator:pause,resume
 ```
 
 The [configuration guide](docs/configuration.md) explains type instances, catalog

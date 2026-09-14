@@ -66,5 +66,5 @@
     "port": 9000
   },
   "type": "sample.source",
-  "type_revision": 1
+  "type_revision": 2
 }

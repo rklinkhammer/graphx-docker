@@ -158,7 +158,7 @@ with tempfile.TemporaryDirectory(prefix='graphx-p3-') as temporary:
     # Equivalent authored JSON also checks YAML/JSON normalization without a Python parser.
     authored = {'version': 3, 'catalog': '../../config/catalog/lock.json',
         'graph': {'id': 'sample-pipeline'},
-        'nodes': {name: {'type': kind, 'execution': {'kind': 'container'}} for name, kind in
+        'nodes': {name: {'type': kind, 'execution': {'kind': 'container'}, 'parameters': {'max_messages': 0}} for name, kind in
                   [('generator', 'sample.source'), ('sink', 'sample.sink'), ('transform', 'sample.transform')]},
         'connections': {'samples': {'from': 'generator.samples', 'to': 'transform.samples', 'transport': 'tcp'},
                         'transformed': {'from': 'transform.transformed', 'to': 'sink.transformed', 'transport': 'tcp'}}}

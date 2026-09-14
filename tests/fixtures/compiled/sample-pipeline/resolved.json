@@ -1,5 +1,5 @@
 {
-  "catalog_digest": "d351a4f93ab74be9bd8e30dc37b2ac4d59f98ba2badc63f7ccc0ce4f112e35b1",
+  "catalog_digest": "9f8a65ada1cfbd81f285cfa948fd351e39f10676d876dddd41f031607a5392cb",
   "connections": [
     {
       "attachments": {},
@@ -88,7 +88,7 @@
   ],
   "graph_id": "sample-pipeline",
   "graph_version": 3,
-  "input_digest": "def601bb3287c206e2760b8ad8db4613770a58bb816dceed1d90226fece3a6d8",
+  "input_digest": "0eff37c92cfb19299ae16b45da9526354ff8ad7cd88600caba0c90f07ebcb8f3",
   "network": {
     "attachments": [],
     "captures": [],
@@ -161,7 +161,7 @@
       ],
       "parameters": {
         "interval_ms": 500,
-        "max_messages": 20
+        "max_messages": 0
       },
       "readiness": {
         "kind": "local-bound",
@@ -178,7 +178,7 @@
         "port": 9000
       },
       "type": "sample.source",
-      "type_revision": 1
+      "type_revision": 2
     },
     {
       "bindings": {
@@ -235,7 +235,7 @@
         "graphx"
       ],
       "parameters": {
-        "max_messages": 20
+        "max_messages": 0
       },
       "readiness": {
         "kind": "local-bound",
@@ -252,7 +252,7 @@
         "port": 9000
       },
       "type": "sample.sink",
-      "type_revision": 1
+      "type_revision": 2
     },
     {
       "bindings": {
@@ -339,7 +339,7 @@
       ],
       "parameters": {
         "factor": 2,
-        "max_messages": 20
+        "max_messages": 0
       },
       "readiness": {
         "kind": "local-bound",
@@ -356,7 +356,7 @@
         "port": 9000
       },
       "type": "sample.transform",
-      "type_revision": 1
+      "type_revision": 2
     }
   ],
   "ordering": "lexicographic-ascii",

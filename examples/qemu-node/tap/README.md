@@ -1,20 +1,23 @@
 # QEMU TAP profile
 
-`graphx.yml` declares a `guest.echo` node, a namespace `diagnostic.peer`, an
-owned OVS TAP and VLAN capture. The fixed guest application obtains all TCP/UDP
-addresses and ports from its resolved node bindings.
+Complete the [CLI quick start](../../quick-start.md) to build `graphx` and prepare your environment.
+Run from the repository root:
 
-Use the [common guest release and runtime instructions](../README.md).
-`scripts/ovs-lab.sh plan|up|status|down` consumes the existing `GX_OUTPUT`
-compilation and common ownership ledger. It has no independent QEMU argv, PID
-file, peer daemon or capture-export process. The S11 external endpoint remains
-external; this profile does not attach to or adopt it.
+```sh
+graphx example plan qemu-node/tap
+graphx example up qemu-node/tap --allow-privileged
+graphx example status qemu-node/tap --allow-privileged
+graphx example tokens qemu-node/tap --allow-privileged
+graphx example logs qemu-node/tap --follow --allow-privileged
+graphx example down qemu-node/tap --allow-privileged
+```
 
-Live acceptance requires separately authorized native Linux or GraphX Lima
-execution. `tests/test_guest_execution_live.py --case S15` checks actual TCG boot
-and bidirectional TCP/UDP. Explicit scenario actions verify the declared traffic, VLAN, capture and QMP expectations.
+On macOS the CLI selects the existing identity-matched Lima VM; the default
+console URL is http://127.0.0.1:18080. On native Linux it uses port 8080.
 
-Select `graphx scenario run --action verify-guest --output COMPILED --state-root
-STATE --release RELEASE --allow-privileged` for the declared bounded unicast TCP/UDP,
-VLAN isolation, capture and QMP checks. Guest broadcast echo and multicast reception
-are not part of the current guest contract. See [scenario execution](../../../docs/scenarios.md).
+This example boots the declared x86_64 TCG guest. Preparation includes verified native, platform and guest artifacts. Runtime state remains in Linux; TAP creation alone is not proof of guest boot.
+
+The CLI prepares required verified artifacts and remembers compilation and state
+paths. Use `--images DIR` or `--release DIR` to reuse existing verified artifacts;
+Lima inputs refer to guest-local paths. Use `--restart` after changing source or
+control selection. Cleanup removes only identity-owned resources and retains history.

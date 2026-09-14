@@ -1,24 +1,22 @@
 # Static route and policy lab
 
-This v3 graph supports validation, compilation and explicitly authorized OVS
-execution on native Linux or the GraphX Lima guest. S07–S12 have
-[Lima acceptance evidence](../../design/graph-generation/p7-verification.md).
+Complete the [CLI quick start](../quick-start.md) to build `graphx` and prepare your environment.
+Run from the repository root:
 
 ```sh
-build/dev/graphx config normalize examples/static-route-policy/graphx.yml --target lima
+graphx example plan static-route-policy
+graphx example up static-route-policy --allow-privileged
+graphx example status static-route-policy --allow-privileged
+graphx example tokens static-route-policy --allow-privileged
+graphx example logs static-route-policy --follow --allow-privileged
+graphx example down static-route-policy --allow-privileged
 ```
 
-Compile with a verified shared-image release catalog, then set `GX_OUTPUT`,
-`GX_STATE`, `GRAPHX_BIN` and `GRAPHX_IMAGE_RELEASE` to the compiled package,
-state parent, Linux executable and image release. Runtime artifacts belong under
-`/var/lib/graphx`. Set `GRAPHX_ALLOW_PRIVILEGED=1` only for an authorized run.
+On macOS the CLI selects the existing identity-matched Lima VM; the default
+console URL is http://127.0.0.1:18080. On native Linux it uses port 8080.
 
-Inside the authorized Linux environment, set `GX_RELEASE` to the verified native
-installation containing `graphx-diagnostic`, then use `scripts/demo.sh up`, `status`
-or `down`. `scripts/inspect.sh` prints the compiled plan. Deferred routes remain
-absent at startup. `scripts/demo.sh apply-route`, `clear-route` and `verify`
-select the declared `apply-deferred`, `clear-deferred` and `verify-flows` scenario
-actions through the common CLI. See [scenario execution](../../docs/scenarios.md).
 
-See [execution](../../docs/execution.md), [release packaging](../../docs/release-process.md)
-and the [example matrix](../README.md) for prerequisites and supported targets.
+The CLI prepares required verified artifacts and remembers compilation and state
+paths. Use `--images DIR` or `--release DIR` to reuse existing verified artifacts;
+Lima inputs refer to guest-local paths. Use `--restart` after changing source or
+control selection. Cleanup removes only identity-owned resources and retains history.

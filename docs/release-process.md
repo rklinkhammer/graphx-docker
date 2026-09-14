@@ -79,7 +79,7 @@ unverified development input. Offline OCI digests do not imply registry
 availability; publishing requires preserving or independently verifying the
 registry manifest. `graphx run` verifies these offline archives against the
 compiled release catalog, then runs an immutable local image-ID projection.
-Native execution uses the verified combined installation. Guest execution remains gated.
+Native execution uses the verified combined installation. Guest execution requires a verified guest artifact set and combined installation.
 
 The release workflow builds, attests, validates SPDX inventories and promotes
 all three shared registry images together. It refuses existing version tags and

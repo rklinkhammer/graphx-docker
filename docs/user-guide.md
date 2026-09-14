@@ -46,14 +46,15 @@ credential material and creating it starts no processes. SQLite history is enabl
 by default with bounded queues, retention and database size. Application capture,
 OVS capture and telemetry defaults are visible in `platform`.
 
-`graphx run up|status|down` executes native or unprivileged container graphs from
+Use the [example CLI](example-cli.md) for automatic demo preparation and tokens.
+The lower-level `graphx run up|status|down` executes native or unprivileged container graphs from
 verified compiled artifacts and releases. See [execution](execution.md) for
 installation, credentials, ownership and cleanup. Compiled OVS/namespace execution
 requires explicit local Linux privileged opt-in, with S07–S12 Lima acceptance verified.
 QEMU and scenario actions remain gated. Target validation alone is not execution evidence.
 
-Use `scripts/verify.sh quick`, `scripts/verify.sh quality`, and
-`scripts/verify.sh portable` for the implemented contract and reusable modules.
+Use `graphx verify quick`, `graphx verify quality`, and
+`graphx verify portable` for the implemented contract and reusable modules.
 The [test procedure](test-procedure.md) describes prerequisites and separates
 privileged evidence, which always requires explicit authorization.
 

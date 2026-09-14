@@ -4,7 +4,7 @@
 artifact hashes, target, executable/image identity, resource paths and listener
 ports before launching applications. Native and container applications must use
 separate graphs. OVS and namespace execution require explicit local Linux privileged
-opt-in and have S07–S12 Lima acceptance evidence. QEMU and scenario actions remain gated.
+opt-in and have S07–S12 Lima acceptance evidence. QEMU uses verified guest artifacts; scenario actions require explicit selection.
 
 Startup is finite: stage credentials, start the platform, wait for listeners,
 credentials and SQLite history, start applications held at their local readiness

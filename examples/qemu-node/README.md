@@ -1,27 +1,15 @@
 # QEMU node
 
-The [TAP profile](tap/README.md) declares an x86_64 TCG guest, namespace peer,
-OVS VLANs and bounded mirror capture. Compile it with a verified guest release
-catalog and run the compilation through the common owned runner.
-
-The [guest release guide](../../guests/README.md) describes the shared echo/radio
-Buildroot recipe, artifact verification and combined native/guest installation.
-The source catalog contains unavailable illustrative guest pins; it cannot boot.
+Use the [TAP example](tap/README.md) through the common CLI:
 
 ```sh
-examples/qemu-node/scripts/build.sh --catalog "$IMAGE_CATALOG" --output "$GUEST_CANDIDATE"
+graphx example up qemu-node/tap --allow-privileged
+graphx example status qemu-node/tap --allow-privileged
+graphx example down qemu-node/tap --allow-privileged
 ```
 
-`examples/qemu-node/scripts/demo.sh start|status|stop` maps to common
-`run up|status|down`. Set `GX_OUTPUT`, `GX_STATE`, `GX_RELEASE`,
-`GRAPHX_IMAGE_RELEASE`, and, only after explicit authorization,
-`GRAPHX_ALLOW_PRIVILEGED=1`. The TAP wrapper also accepts `plan|up|status|down`.
-Run on native Linux or explicitly inside the existing GraphX Lima guest. These
-wrappers do not provision a VM or invoke sudo.
-
-Runtime state and high-I/O artifacts stay under `/var/lib/graphx`. No privileged
-socket is forwarded to macOS. Explicit scenario actions verify the implemented unicast TCP/UDP contract, VLAN
-isolation, capture and QMP pause/resume. Broadcast/multicast guest support requires
-a separate application contract. See
-[P8 verification](../../design/graph-generation/p8-verification.md) for actual
-boot evidence and unrun environments; TAP lifecycle tests alone prove no guest boot.
+Preparation builds verified native, platform and guest artifacts. To reuse a
+combined native/guest installation, pass `--release DIR`, `--images DIR` and
+`--catalog DIR` with its verified guest catalog. See the [quick start](../quick-start.md) and
+[guest release guide](../../guests/README.md). The TAP example declares an x86_64
+TCG guest; inspect QMP and guest telemetry for actual boot evidence.

@@ -1,0 +1,105 @@
+# GraphX version 3. OVS execution requires explicit authorization on Linux or Lima.
+catalog: ../../../config/catalog/lock.json
+connections:
+  samples:
+    attachments:
+      from: generator-data
+      to: transform-data
+    from: generator.samples
+    settings:
+      bind: 0.0.0.0
+      connect_timeout_ms: 1000
+      framing: u32be
+      host: 10.73.0.20
+      port: 7001
+      reconnect: true
+      retry:
+        initial_backoff_ms: 100
+        max_attempts: 60
+        max_backoff_ms: 2000
+      send_timeout_ms: 5000
+    to: transform.samples
+    transport: tcp
+  transformed:
+    attachments:
+      from: transform-data
+      to: sink-data
+    from: transform.transformed
+    settings:
+      bind: 0.0.0.0
+      connect_timeout_ms: 1000
+      framing: u32be
+      host: 10.73.0.30
+      port: 7002
+      reconnect: true
+      retry:
+        initial_backoff_ms: 100
+        max_attempts: 60
+        max_backoff_ms: 2000
+      send_timeout_ms: 5000
+    to: sink.transformed
+    transport: tcp
+graph:
+  id: sample-pipeline-ovs
+network:
+  attachments:
+  - address: 10.73.0.10/24
+    id: generator-data
+    kind: container_veth
+    mac: 02:73:00:00:00:10
+    network: pipeline-data
+    owner: generator
+    switch: pipeline-switch
+  - address: 10.73.0.20/24
+    id: transform-data
+    kind: container_veth
+    mac: 02:73:00:00:00:20
+    network: pipeline-data
+    owner: transform
+    switch: pipeline-switch
+  - address: 10.73.0.30/24
+    id: sink-data
+    kind: container_veth
+    mac: 02:73:00:00:00:30
+    network: pipeline-data
+    owner: sink
+    switch: pipeline-switch
+  edge_paths:
+    samples:
+    - generator
+    - pipeline-data
+    - pipeline-switch
+    - transform
+    transformed:
+    - transform
+    - pipeline-data
+    - pipeline-switch
+    - sink
+  networks:
+  - id: pipeline-data
+    profile: macvlan
+    realization: ovs
+    subnets:
+    - 10.73.0.0/24
+  switches:
+  - datapath: system
+    id: pipeline-switch
+    kind: openvswitch
+    ports: []
+nodes:
+  generator:
+    execution:
+      kind: container
+    parameters: {max_messages: 0}
+    type: sample.source
+  sink:
+    execution:
+      kind: container
+    parameters: {max_messages: 0}
+    type: sample.sink
+  transform:
+    execution:
+      kind: container
+    parameters: {max_messages: 0}
+    type: sample.transform
+version: 3

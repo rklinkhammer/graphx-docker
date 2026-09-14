@@ -1,25 +1,23 @@
 # Declarative network observation and faults
 
-This v3 graph supports validation, compilation and explicitly authorized OVS
-execution on native Linux or the GraphX Lima guest. S07–S12 have
-[Lima acceptance evidence](../../design/graph-generation/p7-verification.md).
+Complete the [CLI quick start](../quick-start.md) to build `graphx` and prepare your environment.
+Run from the repository root:
 
 ```sh
-build/dev/graphx config normalize examples/network-observability/graphx.yml --target lima
+graphx example plan network-observability
+graphx example up network-observability --allow-privileged
+graphx example status network-observability --allow-privileged
+graphx example tokens network-observability --allow-privileged
+graphx example logs network-observability --follow --allow-privileged
+graphx example down network-observability --allow-privileged
 ```
 
-Compile with a verified shared-image release catalog, then set `GX_OUTPUT`,
-`GX_STATE`, `GRAPHX_BIN` and `GRAPHX_IMAGE_RELEASE` to the compiled package,
-state parent, Linux executable and image release. Runtime artifacts belong under
-`/var/lib/graphx`. Set `GRAPHX_ALLOW_PRIVILEGED=1` only for an authorized run.
+On macOS the CLI selects the existing identity-matched Lima VM; the default
+console URL is http://127.0.0.1:18080. On native Linux it uses port 8080.
 
-Use `graphx run up|status|down --output COMPILED --state-root STATE --images IMAGES
---allow-privileged` in the authorized Linux environment. This graph owns a TAP and
-bounded Ethernet capture. It does not boot a guest or apply its scenario fault at
-startup. Select `graphx scenario run --action source-delay --output COMPILED
---state-root STATE --allow-privileged` to apply the declared timed fault.
-`scenario clear` with the same action ID clears it early. The acceptance harness
-injects bounded frames through the owned TAP. See [scenario execution](../../docs/scenarios.md).
+This graph owns a TAP and bounded capture; it does not boot a guest. Select the declared fault separately with `graphx example scenario network-observability --action source-delay --allow-privileged`.
 
-See [execution](../../docs/execution.md), [release packaging](../../docs/release-process.md)
-and the [example matrix](../README.md) for prerequisites and supported targets.
+The CLI prepares required verified artifacts and remembers compilation and state
+paths. Use `--images DIR` or `--release DIR` to reuse existing verified artifacts;
+Lima inputs refer to guest-local paths. Use `--restart` after changing source or
+control selection. Cleanup removes only identity-owned resources and retains history.

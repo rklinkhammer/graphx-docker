@@ -65,5 +65,5 @@
     "port": 9000
   },
   "type": "sample.sink",
-  "type_revision": 1
+  "type_revision": 2
 }

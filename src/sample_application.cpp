@@ -76,7 +76,7 @@ int run_sample_application(int argc, char** argv, std::string_view type) {
         parameters.contains("interval_ms") ? parameters.at("interval_ms").integer() : 100);
     const auto factor = parameters.contains("factor") ? parameters.at("factor").integer() : 1;
     std::uint64_t count{};
-    for (; count < maximum && !demo::stopping();) {
+    for (; (maximum == 0 || count < maximum) && !demo::stopping();) {
       trace.heartbeat();
       if (!input && trace.paused()) {
         demo::interruptible_pause(std::chrono::milliseconds(50));
@@ -116,10 +116,10 @@ int run_sample_application(int argc, char** argv, std::string_view type) {
       std::cout << "node=" << settings.id() << " seq=" << envelope.sequence
                 << " value=" << envelope.payload << " trace=" << envelope.trace_id << std::endl;
       ++count;
-      if (!input && count < maximum) demo::interruptible_pause(interval);
+      if (!input && (maximum == 0 || count < maximum)) demo::interruptible_pause(interval);
     }
-    if (!demo::stopping() && count != maximum)
-      throw std::runtime_error("E_STREAM_INCOMPLETE: peer closed before max_messages");
+    if (!demo::stopping() && (maximum == 0 || count != maximum))
+      throw std::runtime_error("E_STREAM_INCOMPLETE: peer closed before completion");
     return demo::stopping() ? 130 : 0;
   } catch (const std::exception& error) {
     std::cerr << type << ": " << error.what() << '\n';

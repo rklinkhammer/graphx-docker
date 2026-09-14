@@ -1,5 +1,5 @@
 {
-  "catalog_digest": "d351a4f93ab74be9bd8e30dc37b2ac4d59f98ba2badc63f7ccc0ce4f112e35b1",
+  "catalog_digest": "9f8a65ada1cfbd81f285cfa948fd351e39f10676d876dddd41f031607a5392cb",
   "connections": [
     {
       "attachments": {},
@@ -161,7 +161,7 @@
         "port": 9000
       },
       "type": "sample.source",
-      "type_revision": 1
+      "type_revision": 2
     },
     {
       "bindings": {
@@ -230,7 +230,7 @@
         "port": 9000
       },
       "type": "sample.sink",
-      "type_revision": 1
+      "type_revision": 2
     },
     {
       "bindings": {
@@ -323,7 +323,7 @@
         "port": 9000
       },
       "type": "sample.transform",
-      "type_revision": 1
+      "type_revision": 2
     }
   ],
   "ordering": "lexicographic-ascii",

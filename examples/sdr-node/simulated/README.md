@@ -1,21 +1,22 @@
-# Portable simulated-SDR profile
+# Portable simulated SDR
 
-This authored v3 graph supports compilation and owned portable execution.
-Compile it with a verified release, then use `graphx run up|status|down` as
-described in the repository's `docs/execution.md`. The local launcher delegates
-to that adapter and requires explicit compiled output and state roots.
-
+Complete the [CLI quick start](../../quick-start.md) to build `graphx` and prepare your environment.
 Run from the repository root:
 
 ```sh
-build/dev/graphx validate examples/sdr-node/simulated/graphx.yml
-build/dev/graphx config normalize examples/sdr-node/simulated/graphx.yml > resolved.json
+graphx example plan sdr-node/simulated
+graphx example up sdr-node/simulated
+graphx example status sdr-node/simulated
+graphx example tokens sdr-node/simulated
+graphx example logs sdr-node/simulated --follow
+graphx example down sdr-node/simulated
 ```
 
-Select `--target native-linux`, `native-macos`, `orbstack`, or `lima` to check
-placement capabilities. Managed OVS and QEMU require Linux or Lima; this command
-does not run a laboratory. The graph declares its catalog, typed node instances,
-connections, bounded platform policy and any explicit scenario actions.
+Open the console URL printed by `up` and enter its observation token.
+Control is disabled unless explicitly granted or enabled in the authored graph.
 
-See the [example matrix](../../README.md) for all supported inputs and
-[configuration contract](../../../docs/configuration.md) for diagnostics and limits.
+
+The CLI prepares required verified artifacts and remembers compilation and state
+paths. Use `--images DIR` or `--release DIR` to reuse existing verified artifacts;
+Lima inputs refer to guest-local paths. Use `--restart` after changing source or
+control selection. Cleanup removes only identity-owned resources and retains history.

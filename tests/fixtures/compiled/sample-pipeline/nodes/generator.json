@@ -54,7 +54,7 @@
   ],
   "parameters": {
     "interval_ms": 500,
-    "max_messages": 20
+    "max_messages": 0
   },
   "readiness": {
     "kind": "local-bound",
@@ -71,5 +71,5 @@
     "port": 9000
   },
   "type": "sample.source",
-  "type_revision": 1
+  "type_revision": 2
 }
