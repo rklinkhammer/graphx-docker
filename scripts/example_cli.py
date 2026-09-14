@@ -109,10 +109,10 @@ def grants(authored, specifications):
     for specification in specifications:
         node, separator, actions = specification.partition(':')
         action_list = actions.split(',')
-        allowed = ('reset',) if node == 'collector' else ('pause', 'resume')
+        allowed = ('reset',) if node == 'collector' else ('pause', 'resume', 'serial')
         if not separator or (node != 'collector' and node not in value['nodes']) or any(
                 action not in allowed for action in action_list):
-            raise WorkflowError('--control requires NODE:pause,resume for a declared node or collector:reset')
+            raise WorkflowError('--control requires NODE:pause,resume,serial for a declared node or collector:reset (serial requires QEMU)')
         selected.append({'credential': 'example-operator', 'nodes': [node], 'actions': action_list})
     credentials = value.setdefault('credentials', {})
     if 'example-operator' in credentials:

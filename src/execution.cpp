@@ -1,3 +1,4 @@
+#include "infra/node_console.hpp"
 #include "graphx/execution.hpp"
 #include "graphx/ownership.hpp"
 #include "graphx/config_schemas.hpp"
@@ -145,7 +146,8 @@ void verify_native_release(const std::filesystem::path& release) {
 
 int execute_graph(const ExecutionOptions& opts, std::ostream& output) {
   if (opts.action != "up" && opts.action != "down" && opts.action != "status" &&
-      opts.action != "plan" && opts.action != "handoff" && !opts.action.starts_with("scenario-"))
+      opts.action != "plan" && opts.action != "console-relay" && opts.action != "handoff" &&
+      !opts.action.starts_with("scenario-"))
     throw std::invalid_argument("run requires plan, up, down or status");
   const auto manifest = document(opts.output / "compile-manifest.json");
   verify_compilation(opts.output, manifest);
@@ -159,6 +161,7 @@ int execute_graph(const ExecutionOptions& opts, std::ostream& output) {
     if (opts.action == "scenario-run" && !opts.release.empty()) verify_native_release(opts.release);
     return execute_scenario(opts, resolved, output);
   }
+  if (opts.action == "console-relay") return execute_node_console(opts, resolved);
   if (opts.action == "handoff") return execute_capture_handoff(opts, resolved, output);
   if (opts.action == "plan") {
     GraphConfig config;
@@ -300,6 +303,7 @@ int execute_graph(const ExecutionOptions& opts, std::ostream& output) {
   ensure_state_root(state_directory / "barriers");
   state.status = "creating";
   save();
+  prepare_node_console(state_directory, state);
   interrupted = 0;
   const auto old_int = std::signal(SIGINT, interrupt);
   const auto old_term = std::signal(SIGTERM, interrupt);
@@ -401,6 +405,8 @@ int execute_graph(const ExecutionOptions& opts, std::ostream& output) {
           start.environment["GRAPHX_TELEMETRY_SHARED_SECRET_FILE"] =
               (opts.credentials / credential.text() / "hmac").string();
       }
+      if (name == "platform")
+        start.environment["GX_CONSOLE"] = (state_directory / state.console_name).string();
       for (const auto& [key, value] : replacements) start.environment[key] = value;
       start.environment["PATH"] = (opts.release / "bin").string() + ":/usr/bin:/bin";
       start.environment["HOME"] =
@@ -437,6 +443,7 @@ int execute_graph(const ExecutionOptions& opts, std::ostream& output) {
     publish_execution_file(barrier, state.owner_token, 0444);
     state.status = "ready";
     save();
+    start_node_console(opts, state);
     output << "ready graph=" << id << " owner=" << state.owner_token << "\n";
     restore();
     return 0;

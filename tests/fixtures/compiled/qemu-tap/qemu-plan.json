@@ -48,7 +48,11 @@
         "-chardev",
         "ringbuf,id=serial,size=1048576",
         "-serial",
-        "chardev:serial"
+        "chardev:serial",
+        "-chardev",
+        "socket,id=interactive,path=${GX_STATE}/console/qemu-node.sock,server=on,wait=off",
+        "-serial",
+        "chardev:interactive"
       ],
       "artifact_verification": [
         {

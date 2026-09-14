@@ -7,7 +7,8 @@
 #include <memory>
 
 namespace graphx::infra::detail {
-ConfigValue inspect_guest(const OwnedResourceIdentity& process, bool pause_resume);
+ConfigValue inspect_guest(const OwnedResourceIdentity& process, bool pause_resume,
+                          bool console_bytes = false);
 ConfigValue verify_guest_artifacts(const ExecutionOptions& options, const ConfigValue& resolved);
 void require_guest_account();
 void verify_guest_directory(const OwnedResourceIdentity& resource);
@@ -25,7 +26,7 @@ class GuestSession {
   void release();
 
  private:
-  friend ConfigValue inspect_guest(const OwnedResourceIdentity&, bool);
+  friend ConfigValue inspect_guest(const OwnedResourceIdentity&, bool, bool);
   struct Impl;
   std::unique_ptr<Impl> impl_;
 };

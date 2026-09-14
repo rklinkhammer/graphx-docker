@@ -15,6 +15,8 @@ struct NativeProcessOptions {
   std::filesystem::path network_namespace;
   std::uint64_t namespace_inode{};
   bool guest_identity{};
+  // QEMU receives only this directory capability at descriptor 198 on Linux.
+  std::filesystem::path console_directory;
   std::uint64_t log_bytes{2097152};
   std::uint64_t file_bytes_limit{};
 };

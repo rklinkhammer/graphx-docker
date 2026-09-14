@@ -62,6 +62,13 @@ YAML::Node state_node(const OwnershipState& state) {
   root["config_sha256"] = state.config_hash;
   root["owner_token"] = state.owner_token;
   root["status"] = state.status;
+  if (!state.console_name.empty()) {
+    for (const auto& [node, identity] : state.console_sockets)
+      root["console_sockets"][node] = identity;
+    root["console_name"] = state.console_name;
+    root["console_inode"] = state.console_inode;
+    root["console_device"] = state.console_device;
+  }
   if (!state.handoff_name.empty()) {
     root["handoff_name"] = state.handoff_name;
     root["handoff_inode"] = state.handoff_inode;
@@ -426,6 +433,29 @@ OwnershipState load_state(const std::filesystem::path& path) {
   state.config_hash = required_scalar(root, "config_sha256");
   state.owner_token = required_scalar(root, "owner_token");
   state.status = required_scalar(root, "status");
+  if (root["console_name"]) {
+    state.console_name = required_scalar(root, "console_name");
+    state.console_inode = root["console_inode"].as<std::uint64_t>(0);
+    state.console_device = root["console_device"].as<std::uint64_t>(0);
+    if (!state.console_name.starts_with("console-") || state.console_name.size() != 40 ||
+        !hexadecimal(state.console_name.substr(8)))
+      throw std::runtime_error("invalid console directory identity");
+  }
+  if (root["console_sockets"]) {
+    const auto sockets = root["console_sockets"];
+    if (!sockets.IsMap() || sockets.size() > 4096)
+      throw std::runtime_error("invalid console socket inventory");
+    for (const auto& item : sockets) {
+      const auto node = item.first.as<std::string>();
+      const auto identity = item.second.as<std::string>();
+      if (node.empty() || node.size() > 64 ||
+          node.find_first_not_of("abcdefghijklmnopqrstuvwxyz0123456789_-") != std::string::npos ||
+          identity.empty() || identity.size() > 64 ||
+          identity.find_first_not_of("0123456789:") != std::string::npos ||
+          !state.console_sockets.emplace(node, identity).second)
+        throw std::runtime_error("invalid console socket identity");
+    }
+  }
   if (root["handoff_name"]) {
     state.handoff_name = root["handoff_name"].as<std::string>();
     state.handoff_inode = root["handoff_inode"].as<std::uint64_t>(0);

@@ -231,6 +231,9 @@ Value qemu_guest(const Value& node, const Value& recipe, const Value& network) {
          "virtserialport,chardev=" + std::string(channel) + ",name=org.graphx." + channel});
   }
   append(argv, {"-chardev", "ringbuf,id=serial,size=1048576", "-serial", "chardev:serial"});
+  append(argv, {"-chardev",
+                "socket,id=interactive,path=${GX_STATE}/console/" + id + ".sock,server=on,wait=off",
+                "-serial", "chardev:interactive"});
   return Object{{"node", id},
                 {"recipe", recipe_id},
                 {"argv", argv},
@@ -415,11 +418,13 @@ CompiledGraph compile_graph(const GraphConfig& graph) {
     service["command"] = strings({"--config", "/run/graphx/platform.json"});
     service["environment"] = Object{{"GX_CREDENTIALS", "/run/secrets"},
                                     {"GX_STATE", "/var/lib/graphx"},
+                                    {"GX_CONSOLE", "/run/graphx/console"},
                                     {"GX_OWNER", "${GX_OWNER}"}};
     Array volumes =
         strings({"./resolved.json:/run/graphx/resolved.json:ro",
                  "./platform.json:/run/graphx/platform.json:ro",
                  "./credentials.json:/run/graphx/credentials.json:ro",
+                 "${GX_STATE}/console:/run/graphx/console:ro",
                  "${GX_STATE}/history:/var/lib/graphx/history", "${GX_STATE}/handoff:/captures:ro"})
             .array();
     for (const auto& ref : p_refs)

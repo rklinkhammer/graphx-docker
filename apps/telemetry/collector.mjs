@@ -555,6 +555,7 @@ function prometheus() {
   return { consoleSessions, nodes, edges, nodeIds, edgeIds, serviceState, credentialRegistry, controlPlane,
     securityHeaders, observationToken, heartbeatTimeout,
     snapshot, prometheus, json, authorized, controlPrincipal, issueControl, readControlBody,
+    serialPermitted: (principal, node) => controlAuthorizer.permits(principal, "serial", [node]),
     getSlo: () => slo,
     requestOriginAllowed, withinRateLimit, authorizeWebSocket, refreshCredentials,
     handleDatagram, setPublisher,

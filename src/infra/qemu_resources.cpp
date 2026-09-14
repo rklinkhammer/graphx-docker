@@ -1,3 +1,4 @@
+#include <openssl/evp.h>
 #include "infra/qemu_resources.hpp"
 #include "config_document.hpp"
 #include "graphx/config_schemas.hpp"
@@ -295,7 +296,8 @@ struct GuestSession::Impl {
     return parse_document(bytes);
   }
 };
-ConfigValue inspect_guest(const OwnedResourceIdentity& process, bool pause_resume) {
+ConfigValue inspect_guest(const OwnedResourceIdentity& process, bool pause_resume,
+                          bool console_bytes) {
   verify_guest_directory(process);
   GuestSession::Impl session;
   session.process = process;
@@ -327,12 +329,42 @@ ConfigValue inspect_guest(const OwnedResourceIdentity& process, bool pause_resum
   }
   std::string serial;
   for (unsigned chunk = 0; chunk < 128; ++chunk) {
-    const auto part =
-        session.qmp_command(fd, "ringbuf-read", Object{{"device", "serial"}, {"size", 8192}})
-            .text();
+    Object args{{"device", "serial"}, {"size", 8192}};
+    if (console_bytes) args["format"] = "base64";
+    const auto part = session.qmp_command(fd, "ringbuf-read", args).text();
     if (part.empty()) break;
-    serial += part;
+    if (console_bytes) {
+      std::string bytes(part.size(), '\0');
+      const auto count = EVP_DecodeBlock(reinterpret_cast<unsigned char*>(bytes.data()),
+                                         reinterpret_cast<const unsigned char*>(part.data()),
+                                         static_cast<int>(part.size()));
+      require(count >= 0 && part.size() % 4 == 0, "E_GUEST_CHANNEL: invalid console encoding");
+      const auto padding = part.ends_with("==") ? 2 : part.ends_with("=") ? 1 : 0;
+      require(count >= padding, "E_GUEST_CHANNEL: invalid console padding");
+      bytes.resize(static_cast<std::size_t>(count - padding));
+      serial += bytes;
+    } else
+      serial += part;
   }
+  // All ring consumers mirror bytes into the same bounded output window. The
+  // caller holds the graph lock (relay: shared, scenarios: exclusive).
+  const auto root = std::filesystem::path(process.runtime_directory).parent_path();
+  const auto state = load_state(root / "ownership.yml");
+  const auto console = root / state.console_name;
+  struct stat console_stat{};
+  require(!state.console_name.empty() && ::lstat(console.c_str(), &console_stat) == 0 &&
+              static_cast<std::uint64_t>(console_stat.st_ino) == state.console_inode &&
+              static_cast<std::uint64_t>(console_stat.st_dev) == state.console_device,
+          "E_CONSOLE_IDENTITY: boot log directory changed");
+  const auto cache = console / (process.name + ".boot");
+  std::string retained;
+  if (std::filesystem::exists(cache)) {
+    safe_execution_path(cache);
+    retained = read_document(cache, 65536);
+  }
+  retained += serial;
+  if (retained.size() > 65536) retained.erase(0, retained.size() - 65536);
+  publish_execution_file(cache, retained, 0444);
   return serial;
 }
 GuestSession::~GuestSession() = default;
@@ -367,6 +399,14 @@ GuestSession::GuestSession(
   start.log = directory / "qemu.log";
   start.executable = std::filesystem::canonical("/usr/bin/qemu-system-x86_64");
   start.guest_identity = true;
+  const auto console_state = load_state(directory.parent_path() / "ownership.yml");
+  start.console_directory = directory.parent_path() / console_state.console_name;
+  safe_execution_path(start.console_directory);
+  struct stat console_identity{};
+  require(::lstat(start.console_directory.c_str(), &console_identity) == 0 &&
+              static_cast<std::uint64_t>(console_identity.st_ino) == console_state.console_inode &&
+              static_cast<std::uint64_t>(console_identity.st_dev) == console_state.console_device,
+          "E_CONSOLE_IDENTITY: console directory replaced");
   start.file_bytes_limit = 2 * 1024 * 1024;
   start.argv.push_back(start.executable.string());
   const auto& planned = guest.at("argv").array();
@@ -376,6 +416,7 @@ GuestSession::GuestSession(
       for (auto pos = argument.find(key); pos != std::string::npos; pos = argument.find(key))
         argument.replace(pos, key.size(), value);
     };
+    replace("${GX_STATE}/console", "/proc/self/fd/198");
     replace("${GX_RELEASE}/guests/" + recipe + "/", "./");
     replace("${GX_STATE}/" + start.id + "/", "./");
     require(argument.find("${") == std::string::npos, "E_GUEST_PLAN: unresolved guest argv");

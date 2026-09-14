@@ -48,6 +48,7 @@ The compiled web application contains these production dependency trees:
 | Package(s) | Locked version(s) | License |
 | --- | --- | --- |
 | `@types/d3-color`, `@types/d3-drag`, `@types/d3-interpolate`, `@types/d3-selection`, `@types/d3-transition`, `@types/d3-zoom` | 3.1.3, 3.0.7, 3.0.4, 3.0.11, 3.0.9, 3.0.8 | MIT |
+| `@xterm/xterm` | 5.5.0 | MIT |
 | `@xyflow/react`, `@xyflow/system` | 12.11.5, 0.0.81 | MIT |
 | `classcat` | 5.0.5 | MIT |
 | `d3-color`, `d3-dispatch`, `d3-drag`, `d3-interpolate`, `d3-selection`, `d3-timer`, `d3-transition`, `d3-zoom` | 3.1.0, 3.0.1, 3.0.0, 3.0.1, 3.0.0, 3.0.1, 3.0.1, 3.0.0 | ISC |

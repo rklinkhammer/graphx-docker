@@ -425,6 +425,49 @@ bind retries to intent; conflicting reuse is rejected. Durable audit records rem
 separate from ordinary observation history queries. Fault injection uses the
 privileged scenario lifecycle, not a browser fault shortcut.
 
+### Node-console boundary
+
+The owned `mg-node-console` relay projects node output into an identity-checked
+console directory. It reads atomically published ownership state without holding
+the mutation lock, checks each process or container identity, and writes bounded
+read-only snapshots. QMP ring consumption is coordinated with scenario actions
+through the graph lock; each consumer mirrors output into the same bounded boot
+window, preserving diagnostics for the relay. Containers are queried by exact ID, graph/owner labels and
+image identity. The existing stop lifecycle stops the relay; restart verifies and
+replaces its retained directory. The ledger records directory device/inode and a
+fresh console generation, plus recorded device/inode identities for each serial socket. A stable release executable, or a private verified copy
+for container-only launches, keeps development rebuilds from replacing a live relay.
+
+The platform mounts only the console directory read-only. It receives no Docker,
+QMP, guest-provisioning socket or ownership-ledger access. File handoff supports
+OrbStack without forwarding a privileged socket to macOS. QEMU boot output remains
+on its bounded ttyS0 ring, read internally through QMP with byte-safe encoding.
+QEMU also receives a directory descriptor before dropping host privileges, allowing
+its dedicated ttyS1 socket to be created without opening traversal through the
+private graph state directory. That descriptor is the only additional inherited
+capability; it is not a browser interface.
+
+`GET /api/nodes/ID/logs` and `GET /api/nodes/ID/serial` require observation access.
+`POST /api/control/serial/ID` supports acquire, renew, input and release under an
+explicit QEMU-node `serial` grant. The existing console-session attachment applies
+CSRF and origin checks. Credentials are checked on each request and writer leases
+are also swept for expiry/revocation. The platform maintains at most 64 serial
+connections, one writer per guest, and a 64 KiB output ring per serial connection.
+Polling responses are bounded; serial byte offsets expose replay gaps. A guest
+restart invalidates its writer and output cursor. Browser-session expiry bounds
+writer lifetime even when its underlying operator token remains valid.
+
+The serial renderer is pinned `@xterm/xterm` 5.5.0 (MIT), using its byte-stream API.
+Guest clipboard, title and link activation are disabled. Keyboard input is bounded,
+never placed in URLs and never included in audit events. Audit records cover serial
+connections, writer changes and denials. Guest login is an image responsibility:
+this access transport does not provision an account or authorize a host shell.
+
+Sources: [relay](../src/infra/node_console.cpp),
+[platform API](../apps/telemetry/node-console.mjs),
+[panel](../web/src/components/NodeConsolePanel.jsx), and
+[implementation verification](../design/node-console/verification.md).
+
 ## Bounds and failure handling
 
 | Boundary | Implemented constraint or failure response |

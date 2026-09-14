@@ -15,7 +15,7 @@
     },
     {
       "path": "compose.yaml",
-      "sha256": "194620279550ddcc39c8d2ae37b23baca3c68acdb75af5e1cedbd7dd40fb3ec3"
+      "sha256": "1d59c6d3b9a08350b04707e42a2ad68a3a06de75012c61fecffc2ec0290ee3a6"
     },
     {
       "path": "credentials.json",
@@ -51,7 +51,7 @@
     },
     {
       "path": "qemu-plan.json",
-      "sha256": "e0810ed7d9844809f8c144c96f98abb5b6aec7726f64a99246c933083ec8cbcc"
+      "sha256": "b3bcf82509a7a2f00e5b431e5f4c754d950f8e5d1418e624ffaf360f8491bec1"
     },
     {
       "path": "resolved.json",

@@ -1,3 +1,4 @@
+import { NodeConsolePanel } from './components/NodeConsolePanel'
 import { useEffect, useMemo, useState } from 'react'
 import { Boxes, CirclePause, CirclePlay, Database, Download, GitBranch, KeyRound, Network, RotateCcw, TriangleAlert } from 'lucide-react'
 import { CapturePanel } from './components/CapturePanel'
@@ -25,6 +26,7 @@ export default function App() {
   const [session, setSession] = useState(null)
   const { snapshot, connected } = useTelemetry(observationToken, session?.authenticated || false)
   const [selectedId, setSelectedId] = useState('')
+  const [consoleNode, setConsoleNode] = useState('')
   const [controlStatus, setControlStatus] = useState('Open an authenticated console with graphx example open')
   const [activeCommand, setActiveCommand] = useState(null)
   const [controlToken, setControlToken] = useState('')
@@ -131,7 +133,7 @@ export default function App() {
     <section className="summary"><span><b>{graphNodes.length}</b> nodes</span><span><b>{edges.length}</b> logical edges</span><span><b>{Object.values(snapshot?.nodes || {}).filter(node => !['running', 'ready'].includes(node.status)).length}</b> not ready</span><span className={traffic.flowing ? 'healthy' : 'waiting'}>● {traffic.flowing ? `Traffic flowing · ${traffic.samples.toLocaleString()} samples` : connected ? 'Waiting for samples' : 'Telemetry reconnecting'}</span><ControlCommandStatus command={activeCommand} token={controlToken} fallback={controlStatus}/></section>
     {view === 'history' ? <HistoryPanel observationToken={observationToken} backend={snapshot?.history} packetBackend={snapshot?.packetHistory} preferPackets={edges.some(edge => edge.data.dataPlane === 'external')}/>
       : view === 'capture' ? <CapturePanel capture={snapshot?.capture} observationToken={observationToken}/>
-      : <section className="workspace"><div className="graph-panel"><div className="panel-label"><span>{view === 'application' ? 'APPLICATION DATAFLOW' : 'CONFIGURED NETWORK PATH'}</span><span>Drag nodes · Click edges to inspect</span></div><Topology nodes={displayedNodes} edges={displayedEdges} onEdgeSelect={setSelectedId}/></div><EdgeInspector edge={selected} networkPath={paths[selectedId]} observationToken={observationToken}/></section>}
+      : <section className="workspace"><div className="graph-panel"><div className="panel-label"><span>{view === 'application' ? 'APPLICATION DATAFLOW' : 'CONFIGURED NETWORK PATH'}</span><span>Click nodes for console · Click edges to inspect</span></div><Topology nodes={displayedNodes} edges={displayedEdges} onNodeSelect={setConsoleNode} onEdgeSelect={id => { setConsoleNode(''); setSelectedId(id) }}/></div>{graphNodes.some(node => node.id === consoleNode) ? <NodeConsolePanel key={consoleNode} node={graphNodes.find(node => node.id === consoleNode)} observationToken={observationToken} controlToken={controlToken} hasControl={hasControl}/> : <EdgeInspector edge={selected} networkPath={paths[selectedId]} observationToken={observationToken}/>}</section>}
     <footer><span>graphx.yaml</span><span>Telemetry · WebSocket</span><span>Capture · {snapshot?.capture?.enabled ? snapshot.capture.provider : 'disabled'}</span></footer>
   </main>
 }

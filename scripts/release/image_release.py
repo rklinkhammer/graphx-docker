@@ -241,7 +241,7 @@ def inspect_image(path: Path, role: str, version: str, commit: str, platform: st
             installed = files.get("usr/local/bin/" + executable)
             require(installed and installed["mode"] & 0o111, "missing installed " + executable)
         if role == "telemetry":
-            require(all(name in files for name in ("app/server.mjs", "app/web/dist/index.html",
+            require(all(name in files for name in ("app/server.mjs", "app/node-console.mjs", "app/web/dist/index.html",
                                                    "config/schema/normalized-graph.schema.json")),
                     "platform service or console missing")
         packages = {}

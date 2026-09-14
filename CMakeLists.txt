@@ -118,6 +118,7 @@ add_library(graphx
   src/in_process_transport.cpp
   src/infra/capture_resources.cpp
   src/infra/capture_handoff.cpp
+  src/infra/node_console.cpp
   src/infra/command_runner.cpp
   src/infra/endpoint_resources.cpp
   src/infra/management_policy.cpp
@@ -256,9 +257,10 @@ install(FILES wireshark/graphx.lua wireshark/README.md
 install(FILES LICENSE THIRD_PARTY.md README.md VERSION SECURITY.md SUPPORT.md
   CONTRIBUTING.md
   DESTINATION ${CMAKE_INSTALL_DATADIR}/doc/graphx COMPONENT documentation)
-install(DIRECTORY docs/ DESTINATION ${CMAKE_INSTALL_DATADIR}/doc/graphx/docs
-  COMPONENT documentation FILES_MATCHING PATTERN "*.md"
-  PATTERN "archive" EXCLUDE)
+install(FILES docs/GraphX_Architecture.md docs/README.md
+  docs/documentation-verification.md docs/project-decisions.md
+  docs/release-license-inventory.md docs/test-procedure.md docs/user-guide.md
+  DESTINATION ${CMAKE_INSTALL_DATADIR}/doc/graphx/docs COMPONENT documentation)
 if(APPLE)
   set(CPACK_POST_BUILD_SCRIPTS
     "${CMAKE_CURRENT_SOURCE_DIR}/cmake/GraphXCpackCanonicalize.cmake")
@@ -315,6 +317,9 @@ if(GRAPHX_BUILD_TESTS)
   target_include_directories(graphx-command-runner-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
   add_test(NAME graphx-command-runner COMMAND graphx-command-runner-tests)
   set_tests_properties(graphx-command-runner PROPERTIES TIMEOUT 15)
+  graphx_add_test_target(graphx-node-console-tests tests/test_node_console.cpp)
+  target_include_directories(graphx-node-console-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+  add_test(NAME graphx-node-console COMMAND graphx-node-console-tests)
   graphx_add_test_target(graphx-ownership-state-tests tests/test_ownership_state.cpp)
   target_include_directories(graphx-ownership-state-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
   target_compile_definitions(graphx-ownership-state-tests

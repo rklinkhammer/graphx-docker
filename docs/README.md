@@ -4,7 +4,7 @@ The documentation is organized into two books. Start with the user guide to run
 GraphX, or the architecture document to review how the system works.
 
 | Book | Contents |
-|---|---|
+| --- | --- |
 | [User guide](user-guide.md) | Installation, example selection, console and CLI, configuration, execution, observability, history, capture, scenarios, QEMU, release administration, troubleshooting and glossary. |
 | [Architecture](GraphX_Architecture.md) | Components and deployments, configuration contracts, ownership and lifecycle, networking, transports and protocol, telemetry, credentials, security, failure handling and the review checklist. |
 
@@ -19,6 +19,7 @@ These records remain separate because they govern changes, record evidence or
 provide a versioned compliance inventory:
 
 - [Project decisions](project-decisions.md): accepted constraints for contributors.
+- [Simplification report](simplification-report.md): current complexity assessment and staged reduction plan.
 - [Test procedure](test-procedure.md): verification environments, authorization and test families.
 - [Release license inventory](release-license-inventory.md): dependency and redistribution inventory.
 - [Documentation verification](documentation-verification.md): checked scope and evidence limitations.

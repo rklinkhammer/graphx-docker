@@ -1,3 +1,4 @@
+#include "infra/node_console.hpp"
 #include "infra/compose_execution.hpp"
 #include "infra/qemu_resources.hpp"
 #include "infra/process_resources.hpp"
@@ -435,6 +436,7 @@ int execute_compose(const ExecutionOptions& opts, const ConfigValue& resolved,
       throw std::runtime_error("E_COMPOSE_SECURITY: unsupported service policy");
   }
   ensure_state_root(root / "logs");
+  prepare_node_console(root, state);
   const auto barriers = root / "barriers";
   if (!std::filesystem::exists(barriers)) {
     ensure_state_root(barriers);
@@ -665,6 +667,11 @@ process.stdout.write(JSON.stringify(guests));
                                      {"target", target},
                                      {"read_only", true},
                                      {"volume", Object{{"subpath", "credentials/" + ref}}}});
+        } else if (target == "/run/graphx/console" && name == "platform") {
+          mounts.emplace_back(Object{{"type", "bind"},
+                                     {"source", (root / state.console_name).string()},
+                                     {"target", target},
+                                     {"read_only", true}});
         } else if (target == "/captures" && name == "platform") {
           if (ovs && !state.handoff_name.empty())
             mounts.emplace_back(Object{{"type", "bind"},
@@ -844,6 +851,13 @@ process.stdout.write(JSON.stringify(guests));
               save();
             },
             [] { return cancelled != 0; }));
+        struct stat serial{};
+        const auto socket = root / state.console_name / (name + ".sock");
+        if (::lstat(socket.c_str(), &serial) || !S_ISSOCK(serial.st_mode) || serial.st_uid != 65532)
+          throw std::runtime_error("E_CONSOLE_IDENTITY: guest serial socket unavailable");
+        state.console_sockets[name] =
+            std::to_string(serial.st_dev) + ":" + std::to_string(serial.st_ino);
+        save();
       }
     }
     const auto application_deadline = Clock::now() + std::chrono::seconds(30);
@@ -916,6 +930,7 @@ process.stdout.write(JSON.stringify(guests));
       });
 #endif
     }
+    start_node_console(opts, state);
     restore();
     output << "ready graph=" << graph << " owner=" << state.owner_token << '\n';
     return 0;

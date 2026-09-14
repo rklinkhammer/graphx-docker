@@ -7,7 +7,7 @@ import { positionedNodes } from '../topologyLayout.mjs'
 const nodeTypes = { graphx: NodeCard }
 const edgeTypes = { telemetry: TelemetryEdge }
 
-export function Topology({ nodes, edges, onEdgeSelect }) {
+export function Topology({ nodes, edges, onEdgeSelect, onNodeSelect }) {
   // React Flow requires every node to have a position on its first render. Most
   // runtime topology nodes intentionally rely on ELK, so give them a harmless
   // initial position while the asynchronous layout is running.
@@ -53,7 +53,7 @@ export function Topology({ nodes, edges, onEdgeSelect }) {
 
   return <div className="topology-canvas">
     <ReactFlow nodes={layoutNodes} edges={layoutReady ? edges : []} onNodesChange={onNodesChange} nodeTypes={nodeTypes} edgeTypes={edgeTypes}
-      onInit={setFlow} onEdgeClick={(_, edge) => onEdgeSelect(edge.data?.logicalEdge || edge.id)} fitView minZoom={0.25} maxZoom={1.5} nodesDraggable>
+      onInit={setFlow} onNodeClick={(_, node) => onNodeSelect?.(node.id)} onEdgeClick={(_, edge) => onEdgeSelect(edge.data?.logicalEdge || edge.id)} fitView minZoom={0.25} maxZoom={1.5} nodesDraggable>
       <Background color="#253245" gap={24} size={1}/><Controls showInteractive={false}/>
       <MiniMap pannable zoomable nodeColor="#3b82f6" maskColor="rgba(5,10,18,.72)"/>
     </ReactFlow>

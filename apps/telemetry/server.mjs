@@ -1,3 +1,4 @@
+import { NodeConsole } from './node-console.mjs'
 import dgram from 'node:dgram'
 import { boundOutput } from './output-bound.mjs'
 boundOutput([process.stdout, process.stderr], process.env.GRAPHX_LOG_MAX_BYTES)
@@ -123,9 +124,19 @@ const collector = createTelemetryCollector({ stagedCredentials, graph, topology,
 const { serviceState, snapshot } = collector
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
   '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png' }
-const requestHandler = createHttpRequestHandler({ ...collector, graphReadiness, historyStore,
+const nodeConsole = new NodeConsole({ directory: resolvedPlatform ? process.env.GX_CONSOLE : null,
+  graph: graph.id, nodes: config.nodes,
+  validWriter: (credential, node) => {
+    const principal = collector.controlPrincipal({ headers: { authorization: credential } })
+    return principal && collector.serialPermitted(principal, node)
+  },
+  audit: event => collector.controlPlane.record({ action: 'serial', targets: [event.node],
+    actor: event.actor || 'console', decision: event.event, reason: event.reason || '' }),
+})
+const requestHandler = createHttpRequestHandler({ ...collector, nodeConsole, graphReadiness, historyStore,
   configuredHistory, packetHistoryUrl, captureDirectory, captureConfig, root, types,
   securityHeaders: collector.securityHeaders, tlsEnabled: Boolean(tlsCertificateFile) })
+process.on('exit', () => nodeConsole.close())
 const serverOptions = { maxHeaderSize: 16 * 1024, requestTimeout: 10000,
   headersTimeout: 10000, keepAliveTimeout: 5000 }
 const server = tlsCertificateFile ? createSecureServer({ ...serverOptions,

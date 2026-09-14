@@ -31,8 +31,26 @@ void secrets_are_references() {
            "no secret in diagnostics");
   }
 }
+void serial_grants_are_qemu_scoped() {
+  using Value = graphx::ConfigValue;
+  auto v = authored("qemu-node/tap");
+  v["credentials"]["console-operator"] = Value::Object{
+      {"identity", "operator"}, {"provider", "external"}, {"members", Value::Array{"token"}}};
+  v["platform"]["control"] =
+      Value::Object{{"enabled", true},
+                    {"grants", Value::Array{Value::Object{{"credential", "console-operator"},
+                                                          {"nodes", Value::Array{"qemu-node"}},
+                                                          {"actions", Value::Array{"serial"}}}}}};
+  expect(load_value(v).resolved.at("platform").at("control").at("grants").array().size() == 1,
+         "QEMU serial grant preserved");
+  v["platform"]["control"]["grants"].array()[0]["nodes"] = Value::Array{"host-peer"};
+  rejected(v, "E_REFERENCE", "platform.control.grants");
+  v["platform"]["control"]["grants"].array()[0]["nodes"] = Value::Array{"collector"};
+  rejected(v, "E_REFERENCE", "platform.control.grants");
+}
 }  // namespace
 int main() {
   return run_tests({{"bounded platform defaults", bounded_platform_defaults},
-                    {"credential references", secrets_are_references}});
+                    {"credential references", secrets_are_references},
+                    {"serial grants", serial_grants_are_qemu_scoped}});
 }

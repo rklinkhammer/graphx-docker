@@ -4,6 +4,10 @@ This report covers the customer documentation and architecture review package.
 It is documentation evidence, not release certification. No workload, privileged
 operation, VM lifecycle, image build or publication is part of this audit.
 
+Node-console implementation and its separate runtime checks are recorded in
+[the node-console verification report](../design/node-console/verification.md).
+The consolidation checks below do not certify that later runtime change.
+
 ## Document organization
 
 The documentation directory contains seven Markdown files. Topic pages are

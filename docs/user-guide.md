@@ -354,6 +354,55 @@ OVS/guest example. Refresh retains the session. Use [troubleshooting](#troublesh
 for expired login, missing traffic or an unauthorized control. A **LIVE** connection
 means the console is receiving platform data, not that every application is healthy.
 
+### Node logs and QEMU serial
+
+Re-prepare and restart an existing graph with the updated artifacts before using
+node consoles; changing the checkout does not update a running platform image.
+Click an application node in the graph to open its Console panel. **Logs** shows
+recent output and refreshes automatically. Pause scrolling to inspect output,
+search the loaded text, or download the retained bytes. Reading requires the
+same observation credentials as the graph; automatic browser login supplies them.
+
+Native processes and namespace applications expose their merged stdout/stderr.
+Containers expose bounded Docker output. QEMU nodes show guest boot output from
+`ttyS0`, with QEMU process errors in a separate expandable section. An external
+device has no logs unless a supported log source is provided. Unavailable or stale
+sources are shown explicitly, rather than inferred from network traffic.
+
+Each snapshot retains at most 64 KiB per source. It is a recent-output window,
+not a complete archive; older output, rotation and time spent disconnected can
+leave gaps. Snapshots show graph generation and runtime identity. Logs remain on
+the host after stop, but the stopped platform cannot serve them. The next startup
+replaces the retained console directory after ownership checks. Existing native
+and Docker log retention remains separate from this console window.
+
+For a QEMU node, select **Serial** to view its separate interactive `ttyS1` port.
+Use **Acquire keyboard** to become its single writer and **Release keyboard** to
+return to observation. Other viewers remain read-only. Provision permission when
+starting the graph, for example:
+
+```sh
+graphx example up qemu-node/tap --allow-privileged --control qemu-node:serial
+```
+
+This command starts a privileged graph and requires the documented Linux/Lima
+prerequisites. A serial grant permits guest console input; pause/resume grants do
+not. It uses the existing operator credential and automatic browser session.
+
+**The guest image must provide its own login service on ttyS1.** GraphX does not
+create a guest account, generate a password or enable a shell. The maintained
+images do not promise an interactive login. Boot diagnostics remain on ttyS0.
+A connected, blank Serial view can therefore be correct for an image without a
+service on ttyS1. No guest password is the same thing as a GraphX control token.
+
+The terminal is 80 columns by 24 rows, with bounded scrollback. Input is limited to
+4 KiB per batch. Writer leases expire after ten seconds without authenticated
+renewal and last at most fifteen minutes, bounded further by browser-session expiry.
+Closing the view releases the writer when possible; lease expiry handles lost
+connections. Stopping a viewer does not stop the guest. Node restarts and credential
+revocation invalidate access. Terminal input is not recorded in control audit logs;
+guest output can still contain sensitive information.
+
 ## CLI reference
 
 `graphx example` is the common workspace interface for the authored examples.
@@ -390,7 +439,7 @@ Common options:
   or OrbStack/native macOS/Lima according to the authored execution model on macOS.
 - `--images DIR`, `--release DIR`, `--catalog DIR`, `--external DIR`: existing artifact and external
   credential inputs. Paths are guest-local when targeting Lima from macOS.
-- `--control NODE:pause,resume`: explicit operator grant on a working copy; repeat
+- `--control NODE:pause,resume` or `--control QEMU_NODE:serial`: explicit operator grant on a working copy; repeat
   for additional nodes. Add `--control collector:reset` to authorize Reset counters.
   Reset clears collected metrics; it does not restart applications or erase history.
 - `--allow-privileged`: required for OVS/guest work and its ownership checks.
@@ -1310,10 +1359,14 @@ commands and terminology these manual observations use.
 
 ### QEMU TAP
 
-1. Run `graphx example up qemu-node/tap --allow-privileged`.
+1. Run `graphx example up qemu-node/tap --allow-privileged --control qemu-node:serial`.
 2. Confirm bidirectional TCP/UDP traffic, VLAN isolation, SPAN capture growth,
    packet history, and QMP runtime evidence.
-3. Stop it and confirm TAP, bridge, namespace, QEMU and live ownership resources are
+3. Select the QEMU node in the web console. Confirm Logs shows guest boot output,
+   then connect Serial and acquire/release its writer. Serial input requires the
+   explicit grant above; a guest login service on ttyS1 must be supplied by the
+   selected image. The maintained image does not promise a login prompt.
+4. Stop it and confirm TAP, bridge, namespace, QEMU and live ownership resources are
    removed by the owned lifecycle.
 
 ## Troubleshooting

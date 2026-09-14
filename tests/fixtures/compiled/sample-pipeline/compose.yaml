@@ -98,6 +98,7 @@
         "graphx-platform"
       ],
       "environment": {
+        "GX_CONSOLE": "/run/graphx/console",
         "GX_CREDENTIALS": "/run/secrets",
         "GX_OWNER": "${GX_OWNER}",
         "GX_STATE": "/var/lib/graphx"
@@ -146,6 +147,7 @@
         "./resolved.json:/run/graphx/resolved.json:ro",
         "./platform.json:/run/graphx/platform.json:ro",
         "./credentials.json:/run/graphx/credentials.json:ro",
+        "${GX_STATE}/console:/run/graphx/console:ro",
         "${GX_STATE}/history:/var/lib/graphx/history",
         "${GX_STATE}/handoff:/captures:ro",
         "${GX_CREDENTIALS}/observer:/run/secrets/observer:ro",

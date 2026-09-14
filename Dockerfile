@@ -88,7 +88,7 @@ USER root
 COPY --from=web /usr/local/bin/node /usr/local/bin/node
 COPY --from=web /app/node_modules /app/node_modules
 COPY --from=web /app/web/dist /app/web/dist
-COPY apps/telemetry/console-session.mjs apps/telemetry/output-bound.mjs apps/telemetry/server.mjs apps/telemetry/security.mjs apps/telemetry/control.mjs \
+COPY apps/telemetry/node-console.mjs apps/telemetry/console-session.mjs apps/telemetry/output-bound.mjs apps/telemetry/server.mjs apps/telemetry/security.mjs apps/telemetry/control.mjs \
   apps/telemetry/operations.mjs apps/telemetry/history.mjs apps/telemetry/history-worker.mjs \
   apps/telemetry/capture-files.mjs apps/telemetry/normalized-config.mjs apps/telemetry/topology.mjs \
   apps/telemetry/metric-store.mjs apps/telemetry/runtime-evidence.mjs apps/telemetry/http-routes.mjs \

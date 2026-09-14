@@ -105,13 +105,24 @@ void stop_native_process(const OwnedResourceIdentity& resource) {
   const auto pid = process_id(resource);
   if (!native_process_status(resource)) return;
   ::kill(pid, SIGTERM);
+  const auto exited_after_signal = [&] {
+    try {
+      return native_process_status(resource) == 0;
+    } catch (const std::runtime_error& error) {
+      // macOS can briefly lose proc metadata during exit. Wait without sending
+      // another signal; the escalation below still requires an exact identity.
+      if (std::string_view(error.what()) != "E_PROCESS_IDENTITY: process identity unavailable")
+        throw;
+      return false;
+    }
+  };
   for (int attempt = 0; attempt < 100; ++attempt) {
-    if (!native_process_status(resource)) return;
+    if (exited_after_signal()) return;
     std::this_thread::sleep_for(std::chrono::milliseconds(20));
   }
   if (native_process_status(resource)) ::kill(pid, SIGKILL);
   for (int attempt = 0; attempt < 100; ++attempt) {
-    if (!native_process_status(resource)) return;
+    if (exited_after_signal()) return;
     std::this_thread::sleep_for(std::chrono::milliseconds(20));
   }
   throw std::runtime_error("E_PROCESS_TIMEOUT: owned process did not stop");
@@ -183,6 +194,17 @@ OwnedResourceIdentity start_native_process(
       ::_exit(125);
 #endif
     if (::setsid() < 0 || ::chdir(options.cwd.c_str()) != 0) ::_exit(125);
+    if (!options.console_directory.empty()) {
+#if defined(__linux__)
+      if (!options.guest_identity || executed[1] == 198) ::_exit(125);
+      const int console = ::open(options.console_directory.c_str(),
+                                 O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+      if (console < 0 || ::dup2(console, 198) < 0 || ::fcntl(198, F_SETFD, 0) < 0) ::_exit(125);
+      if (console != 198) ::close(console);
+#else
+      ::_exit(125);
+#endif
+    }
     if (options.guest_identity) {
 #if defined(__linux__)
       ::umask(0077);
@@ -199,7 +221,7 @@ OwnedResourceIdentity start_native_process(
       ::_exit(125);
     const auto maximum = ::sysconf(_SC_OPEN_MAX);
     for (int fd = 3; fd < maximum; ++fd)
-      if (fd != executed[1]) ::close(fd);
+      if (fd != executed[1] && (options.console_directory.empty() || fd != 198)) ::close(fd);
     if (options.file_bytes_limit) {
       const rlimit limit{static_cast<rlim_t>(options.file_bytes_limit),
                          static_cast<rlim_t>(options.file_bytes_limit)};

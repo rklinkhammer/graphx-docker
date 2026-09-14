@@ -1,3 +1,4 @@
+import { nodeConsoleRequest } from './node-console.mjs'
 import { closeSync, createReadStream, existsSync } from 'node:fs'
 import { extname, join, normalize, resolve } from 'node:path'
 import { openValidatedCapture, capturePath } from './capture-files.mjs'
@@ -36,12 +37,16 @@ const handleRequest = (request, response) => {
         credentialRegistry.lastError == null,
       graphReady: readiness.ready })
   }
-  if (!withinRateLimit(request, 120)) return json(response, 429, { error: 'rate limit exceeded' }, { 'retry-after': '60' })
+  if (!withinRateLimit(request, url.pathname.startsWith('/api/control/serial/') || /^\/api\/nodes\/[^/]+\/(logs|serial)$/.test(url.pathname) ? 600 : 120)) return json(response, 429, { error: 'rate limit exceeded' }, { 'retry-after': '60' })
   if (['/api/console/handoff', '/api/console/session'].includes(url.pathname)) {
     void context.consoleSessions.handle(request, response, url.pathname)
     return
   }
   context.consoleSessions?.attach(request)
+  if (/^\/api\/nodes\/[^/]+\/(logs|serial)$/.test(url.pathname) || url.pathname.startsWith('/api/control/serial/')) {
+    void nodeConsoleRequest(context, context.nodeConsole, request, response, url)
+    return
+  }
   const observed = ['/api/topology', '/api/captures', '/api/graph/ready', '/api/slo',
     '/api/history', '/api/history/status', '/api/packet-history', '/metrics'].includes(url.pathname) ||
     url.pathname.startsWith('/captures/')

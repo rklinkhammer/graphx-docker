@@ -3,6 +3,7 @@
 #include "graphx/ownership.hpp"
 
 #include <cstdint>
+#include <map>
 #include <filesystem>
 #include <string>
 #include <string_view>
@@ -86,6 +87,10 @@ struct OwnershipState {
   std::string config_hash;
   std::string owner_token;
   std::string status;
+  std::map<std::string, std::string> console_sockets;
+  std::string console_name;
+  std::uint64_t console_inode{};
+  std::uint64_t console_device{};
   std::string handoff_name;
   std::uint64_t handoff_inode{};
   std::uint64_t handoff_device{};

@@ -15,6 +15,8 @@ import subprocess
 import sys
 import time
 import uuid
+import urllib.request
+import urllib.error
 
 
 def main():
@@ -27,6 +29,7 @@ def main():
     parser.add_argument('--guests', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--scenario', action='store_true', help='run the declared P9 guest traffic action')
+    parser.add_argument('--node-console', action='store_true', help='verify logs and serial transport authorization; does not certify a guest login')
     args = parser.parse_args()
     if not args.allow_privileged or sys.platform != 'linux' or os.geteuid() != 0:
         parser.error('requires separate explicit authorization, --allow-privileged and local Linux root')
@@ -71,6 +74,13 @@ def main():
     with socket.socket() as available:
         available.bind(('127.0.0.1', 0))
         authored.setdefault('platform', {})['console'] = {'port':available.getsockname()[1]}
+    if args.node_console:
+        guest_nodes = [name for name, node in authored['nodes'].items() if node.get('execution', {}).get('kind') == 'qemu']
+        assert guest_nodes
+        authored.setdefault('credentials', {})['console-operator'] = {
+            'identity': 'operator', 'provider': 'runtime-generated', 'members': ['token']}
+        authored['platform']['control'] = {'enabled': True, 'grants': [
+            {'credential': 'console-operator', 'nodes': guest_nodes, 'actions': ['serial']}]}
     workspace = root/'workspace'
     shutil.copytree(args.guests/'catalog', workspace/'catalog')
     config = workspace/'graphx.yml'
@@ -114,20 +124,65 @@ def main():
             with Qmp(process) as qmp:
                 assert qmp.command('query-status')['running'] is True
                 assert qmp.command('query-kvm')['enabled'] is False
-                deadline = time.monotonic()+20
-                serial = ''
-                while time.monotonic() < deadline:
-                    serial += qmp.command('ringbuf-read', {'device':'serial','size':1048576})
-                    assert len(serial.encode()) <= 2*1024*1024, 'serial evidence exceeded bound'
-                    if 'guest boot architecture=x86_64' in serial:
-                        if args.case == 'T03' or (' tcp bytes=' in serial and ' udp bytes=' in serial):
-                            break
-                    time.sleep(.2)
-                assert 'guest boot architecture=x86_64' in serial, 'no actual guest kernel/agent evidence'
-                if args.case == 'S15':
-                    assert ' tcp bytes=' in serial and ' udp bytes=' in serial
-                (root/(process['name']+'-serial.log')).write_text(serial)
+            # The owned relay is the ongoing ring reader. Read its retained boot
+            # window instead of competing for QMP and consuming its evidence.
+            deadline = time.monotonic()+20
+            serial = ''
+            boot = state/graph/active['console_name']/(process['name']+'.boot')
+            while time.monotonic() < deadline:
+                if boot.exists():
+                    assert boot.stat().st_size <= 65536
+                    serial = boot.read_text(errors='replace')
+                if 'guest boot architecture=x86_64' in serial:
+                    if args.case == 'T03' or (' tcp bytes=' in serial and ' udp bytes=' in serial):
+                        break
+                time.sleep(.2)
+            assert 'guest boot architecture=x86_64' in serial, 'no actual guest kernel/agent evidence'
+            if args.case == 'S15':
+                assert ' tcp bytes=' in serial and ' udp bytes=' in serial
+            (root/(process['name']+'-serial.log')).write_text(serial)
             checks.append('actual x86_64 guest boot, TCG, UID 65532, one TAP, identity-checked local QMP and framed readiness')
+        if args.node_console:
+            base = f"http://127.0.0.1:{authored['platform']['console']['port']}"
+            def credential(ref):
+                return call('docker','exec',container('platform'),'node','-e',
+                    "process.stdout.write(require('node:fs').readFileSync('/run/secrets/'+process.argv[1]+'/token','utf8'))", ref).stdout.strip()
+            observation, operator = credential('observer'), credential('console-operator')
+            def request(path, token, body=None, expected=200):
+                headers = {'Authorization':'Bearer '+token, 'Origin':base}
+                data = None if body is None else json.dumps(body).encode()
+                if data is not None: headers['Content-Type'] = 'application/json'
+                try:
+                    response = urllib.request.urlopen(urllib.request.Request(base+path, data=data, headers=headers),timeout=5)
+                except urllib.error.HTTPError as error:
+                    assert error.code == expected, (error.code, expected)
+                    return json.load(error)
+                assert response.status == expected
+                with response: return json.load(response)
+            for node in resolved['nodes']:
+                if node['execution']['kind'] != 'external':
+                    value = request('/api/nodes/'+node['node_id']+'/logs', observation)
+                    assert value['node'] == node['node_id'] and value['graph'] == graph and not value['stale']
+                    assert value['status'] == 'running', (node['node_id'], value['status'])
+                    assert 0 < len(bytes.fromhex(value['hex'])) <= 65536, node['node_id']
+            for process in guests:
+                name = process['name']; path = '/api/nodes/'+name+'/serial'
+                deadline = time.monotonic()+10
+                while True:
+                    view = request(path, observation)
+                    if view['status'] == 'connected': break
+                    assert time.monotonic() < deadline
+                    time.sleep(.2)
+                endpoint = '/api/control/serial/'+name
+                acquire = {'action':'acquire', 'generation':view['generation']}
+                request(endpoint, observation, acquire, 401)
+                lease = request(endpoint, operator, acquire)
+                request(endpoint, operator, acquire, 409)
+                writer = {'generation':view['generation'], 'lease':lease['lease']}
+                request(endpoint, operator, {**writer, 'action':'input', 'hex':'0d'})
+                request(endpoint, operator, {**writer, 'action':'input', 'generation':'stale', 'hex':'0d'}, 409)
+                request(endpoint, operator, {**writer, 'action':'release'})
+            checks.append('authenticated node logs and ttyS1 socket/input transport, exclusive writer and stale-generation refusal; no guest login claimed')
         if args.case == 'S15':
             peer = state/graph/'logs/host-peer.log'
             deadline = time.monotonic()+10

@@ -55,6 +55,7 @@ export function createConsoleSessions({ graph, observe, control, originAllowed, 
         (request.method !== 'GET' && request.headers.origin !== entry.origin))) return false
     const token = controlling ? entry.control : entry.observation
     if (!token) return false
+    request.consoleExpires = entry.expires
     request.consoleSession = true
     request.headers.authorization = `Bearer ${token}`
     return true

@@ -942,10 +942,15 @@ GraphConfig load_graph(const std::filesystem::path& path, const ConfigLoadOption
     for (const auto& id : grant.at("nodes").array()) {
       if (id.text() != "collector" && !graph.at("nodes").contains(id.text()))
         reject("E_REFERENCE", "platform.control.grants", "unknown granted node");
-      for (const auto& action : grant.at("actions").array())
+      for (const auto& action : grant.at("actions").array()) {
+        if (action.text() == "serial" &&
+            (id.text() == "collector" ||
+             graph.at("nodes").at(id.text()).at("execution").at("kind") != Value("qemu")))
+          reject("E_REFERENCE", "platform.control.grants", "serial requires a QEMU node");
         if ((action.text() == "reset") != (id.text() == "collector"))
           reject("E_REFERENCE", "platform.control.grants",
                  "reset requires the collector target; collector only supports reset");
+      }
     }
   }
   const auto nodes = node_values(graph, catalog, connections, platform, native);

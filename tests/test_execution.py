@@ -14,6 +14,8 @@ import sys
 import tarfile
 import tempfile
 import time
+import urllib.request
+import urllib.error
 
 build, source = (Path(p).resolve() for p in sys.argv[1:3])
 example = sys.argv[3] if len(sys.argv)>3 else 'examples/shared-memory/graphx.yml'
@@ -92,6 +94,31 @@ with contextlib.nullcontext(tempfile.mkdtemp(prefix='graphx-p6-')) as temporary:
         assert 'platform running' in status.stdout
         logs=state/graph['graph_id']/'logs'
         assert any(marker in '\n'.join(p.read_text() for p in logs.glob('*.log')) for marker in ('value=', 'received'))
+        # The owned relay publishes observation-protected output through the platform.
+        port = graph['platform']['console']['port']
+        node_id = graph['nodes'][0]['node_id']
+        log_url = f'http://127.0.0.1:{port}/api/nodes/{node_id}/logs'
+        try:
+            urllib.request.urlopen(log_url, timeout=2)
+            raise AssertionError('unauthenticated logs accepted')
+        except urllib.error.HTTPError as error:
+            assert error.code == 401
+        token = (credentials/'observer/token').read_text().strip()
+        request = urllib.request.Request(log_url, headers={'Authorization': 'Bearer '+token})
+        deadline = time.monotonic() + 10
+        while True:
+            try:
+                with urllib.request.urlopen(request, timeout=2) as response:
+                    console = json.load(response)
+                if console['status'] in ('running', 'stopped') and console['hex']:
+                    break
+            except urllib.error.HTTPError as error:
+                assert error.code == 503
+            assert time.monotonic() < deadline, 'node log relay did not produce output'
+            time.sleep(.2)
+        assert console['graph'] == graph['graph_id'] and console['node'] == node_id
+        assert len(bytes.fromhex(console['hex'])) <= 65536
+        assert console['generation'].startswith('console-') and not console['stale']
         if example == 'examples/capture/graphx.yml':
             assert len(list((state/graph['graph_id']/'captures').rglob('*.pcapng'))) == 3
         run('run','up',*options,ok=False)

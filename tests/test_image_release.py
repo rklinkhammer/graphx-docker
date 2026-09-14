@@ -34,17 +34,19 @@ def tar_bytes(files, timestamp=0):
     return buffer.getvalue()
 
 
-def image(role, *, platform="arm64", user="65532:65532", extra=None, corrupt=False, timestamp=0):
+def image(role, *, platform="arm64", user="65532:65532", extra=None, corrupt=False, timestamp=0, omit=()):
     files = {"usr/local/bin/" + name: b"test executable" for name in RECIPES[role][1]}
     files.update({"lib/apk/db/installed": b"P:libc\nV:1.0\nL:MIT\n"})
     if role in RECIPES:
         files["usr/local/share/graphx/build-dependencies.json"] = b'{"yamlCpp":"0.9.0","openssl":"3.0.0"}'
     if role == "telemetry":
-        files.update({name: b"{}" for name in ("app/server.mjs", "app/web/dist/index.html",
+        files.update({name: b"{}" for name in ("app/server.mjs", "app/node-console.mjs", "app/web/dist/index.html",
                                                "config/schema/normalized-graph.schema.json")})
         files["app/node_modules/ws/package.json"] = b'{"name":"ws","version":"1.0"}'
         files["usr/local/share/graphx/web-package-lock.json"] = b'{"packages":{}}'
     files.update(extra or {})
+    for name in omit:
+        files.pop(name)
     layer = tar_bytes(files, timestamp)
     config = encoded({"os": "linux", "architecture": platform,
                       "rootfs": {"diff_ids": [digest(layer)]},
@@ -74,6 +76,10 @@ def rejected(action):
 
 with tempfile.TemporaryDirectory() as temporary:
     root = Path(temporary)
+    incomplete = root / 'missing-console.oci.tar'
+    incomplete.write_bytes(image('telemetry', omit=('app/node-console.mjs',)))
+    rejected(lambda: inspect_image(incomplete, 'telemetry', '1.1.0', COMMIT, 'linux/arm64'))
+    incomplete.unlink()
     manifest = {"version": 1, "release_version": "1.1.0", "commit": COMMIT,
                 "source_date_epoch": 1700000000, "dirty_candidate": True,
                 "platform": "linux/arm64", "images": {}}

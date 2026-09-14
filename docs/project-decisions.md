@@ -40,3 +40,7 @@ This page records the active design constraints for GraphX 1.1.0.
   It never substitutes for an already running physical device or mutates physical trust.
 - S15 scenario verification follows the resolved P8 unicast TCP/UDP contract. Guest
   broadcast echo and multicast reception require a separate application contract.
+
+- QEMU interactive serial login is supplied by explicitly selected guest images.
+  GraphX console access does not provision guest accounts or passwords. Boot
+  diagnostics use ttyS0; the dedicated interactive endpoint uses ttyS1.

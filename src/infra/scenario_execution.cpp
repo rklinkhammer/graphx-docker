@@ -90,6 +90,13 @@ void traffic(const ExecutionOptions& opts, const Value& resolved, const Value& a
         state.processes, [](const auto& value) { return !value.runtime_directory.empty(); });
     require(process != state.processes.end(), "guest process missing");
     std::string serial;
+    if (!state.console_name.empty()) {
+      const auto retained = root / state.console_name / (process->name + ".boot");
+      if (std::filesystem::exists(retained)) {
+        safe_execution_path(retained);
+        serial = read_document(retained, 65536);
+      }
+    }
     const auto deadline = Clock::now() + std::chrono::seconds(10);
     while (Clock::now() < deadline) {
       checkpoint();

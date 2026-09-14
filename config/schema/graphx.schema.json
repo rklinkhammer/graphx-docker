@@ -678,6 +678,7 @@
                   "actions": {
                     "items": {
                       "enum": [
+                        "serial",
                         "pause",
                         "resume",
                         "set_frequency",
