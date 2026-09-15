@@ -358,7 +358,10 @@ means the console is receiving platform data, not that every application is heal
 
 Re-prepare and restart an existing graph with the updated artifacts before using
 node consoles; changing the checkout does not update a running platform image.
-Click an application node in the graph to open its Console panel. **Logs** shows
+The Node console stays at the bottom of the window across Application, Network
+path, History and Capture views. Select a node in its dropdown or click an
+application node in the graph. Selecting an edge keeps the node console open while
+updating the edge inspector. **Logs** shows
 recent output and refreshes automatically. Pause scrolling to inspect output,
 search the loaded text, or download the retained bytes. Reading requires the
 same observation credentials as the graph; automatic browser login supplies them.
