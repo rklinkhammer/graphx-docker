@@ -111,9 +111,14 @@ NodeSettings load_node_settings(const std::filesystem::path& file, std::string_v
       EdgeConfig edge;
       edge.edge.id = peer.at("connection").text();
       edge.transport = resolved_transport(peer);
-      if (auto* tcp = std::get_if<TcpTransportConfig>(&edge.transport))
-        tcp->source_address = peer.at("source_address").text();
-      if (auto* tcp = std::get_if<TcpTransportConfig>(&edge.transport); tcp && tcp->tls.enabled) {
+      auto* tcp = std::get_if<TcpTransportConfig>(&edge.transport);
+      auto* udp = std::get_if<UdpTransportConfig>(&edge.transport);
+      if (auto* external = std::get_if<ExternalTransportConfig>(&edge.transport)) {
+        tcp = std::get_if<TcpTransportConfig>(&external->protocol);
+        udp = std::get_if<UdpTransportConfig>(&external->protocol);
+      }
+      if (tcp) tcp->source_address = peer.at("source_address").text();
+      if (tcp && tcp->tls.enabled) {
         const auto* root = std::getenv("GRAPHX_CREDENTIALS");
         // Settings inspection stays pure; transport realization requires these files.
         const std::filesystem::path directory =
@@ -127,9 +132,7 @@ NodeSettings load_node_settings(const std::filesystem::path& file, std::string_v
       }
       edge.data_plane = peer.at("encoding") == Value("graphx") ? "graphx" : "external";
       // A UDP sender binds its own resolved interface/address, not the listener's bind address.
-      if (auto* udp = std::get_if<UdpTransportConfig>(&edge.transport);
-          udp && std::string_view(role) == "connect")
-        udp->bind = peer.at("source_address").text();
+      if (udp && std::string_view(role) == "connect") udp->bind = peer.at("source_address").text();
       bindings.push_back(
           {std::move(edge),
            std::string_view(role) == "listen" ? ConnectionMode::listen : ConnectionMode::connect,

@@ -1,0 +1,82 @@
+{
+  "credentials": [
+    "control"
+  ],
+  "executable": "graphx-vita-radio",
+  "execution": [
+    "native"
+  ],
+  "id": "vita.radio",
+  "image": "graphx-design/sdr@sha256:928533888c6b3ecff6123dd69342931275216f99fce32367d76a000ba4a5dd82",
+  "observation": "graphx",
+  "parameters": {
+    "radio_index": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4,
+      "default": 1
+    },
+    "signal_frequency_hz": {
+      "type": "integer",
+      "minimum": 1000000,
+      "maximum": 6000000000,
+      "default": 100050000
+    },
+    "burst_samples": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 262144,
+      "default": 262144
+    },
+    "amplitude_ppm": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1000000,
+      "default": 250000
+    },
+    "initial_phase_mdeg": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 359999,
+      "default": 0
+    }
+  },
+  "ports": {
+    "control": {
+      "default_port": 18401,
+      "direction": "input",
+      "encoding": "raw",
+      "feedback": true,
+      "listener": true,
+      "max_connections": 1,
+      "min_connections": 1,
+      "schema": "VitaControl",
+      "transports": [
+        "tcp"
+      ]
+    },
+    "samples": {
+      "default_port": 18400,
+      "direction": "output",
+      "encoding": "raw",
+      "feedback": true,
+      "listener": false,
+      "max_connections": 1,
+      "min_connections": 1,
+      "schema": "VitaIq",
+      "transports": [
+        "udp"
+      ]
+    }
+  },
+  "readiness": {
+    "kind": "local-bound",
+    "timeout_ms": 30000
+  },
+  "resources": {
+    "memory_bytes": 134217728,
+    "pids": 64
+  },
+  "revision": 1,
+  "template": "node-v1"
+}

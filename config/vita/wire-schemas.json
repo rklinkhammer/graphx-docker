@@ -1,0 +1,12 @@
+{
+  "VitaIq": {
+    "encoding": "raw",
+    "layout": "VITA radio profile config/vita/radio.yaml; signed big-endian I,Q; required trailer",
+    "maximum_bytes": 4128
+  },
+  "VitaControl": {
+    "encoding": "raw",
+    "layout": "VITA radio profile config/vita/radio.yaml over mutually authenticated TLS",
+    "maximum_bytes": 1024
+  }
+}

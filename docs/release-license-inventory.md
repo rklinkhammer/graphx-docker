@@ -157,3 +157,21 @@ docker build --build-arg GRAPHX_VERSION=1.1.0 \
 docker scout sbom --format spdx local://graphx-license-audit-runtime:1.1.0
 docker scout sbom --format spdx local://graphx-license-audit-telemetry:1.1.0
 ```
+
+## Opt-in standalone VITA radio (not in current release archives/images)
+
+The P1 build selected by `GRAPHX_BUILD_VITA_RADIO` uses these additional inputs:
+
+| Component | Pinned source | Relationship | Upstream notice |
+| --- | --- | --- | --- |
+| SoapySDR 0.8.1 | `1cf5a539a21414ff509ff7d0eedfc5fa8edb90c6` | Shared device API library | BSL-1.0 |
+| Geontech/vrtgen | `5e7497d24069c140be431d8468655f67d25f382d` | Packet generator, generated classes and support headers | LGPL-3.0-or-later notices in sources/templates |
+
+Archive hashes are enforced by `cmake/VitaRadio.cmake`; generator tool versions are
+listed in `scripts/vita/requirements.txt`. `scripts/vita/generate.py` applies
+recorded template compatibility fixes to a build-local source copy. Preserve those
+changes, generation inputs and upstream source/license texts with any distribution.
+The opt-in build emits a separate dependency inventory; existing native/OCI release
+SBOMs do not yet claim these components. Integration into the full release artifacts
+belongs to P5 and must include exact license texts, source provenance and applicable
+redistribution materials before shipping the radio.
