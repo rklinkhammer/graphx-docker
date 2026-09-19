@@ -32,9 +32,6 @@ standard. Generator/backend verification is distinct from independent wire decod
 
 ## Packet profile
 
-Use [VITA packet formats](../../docs/vita_packet_formats.md) as the common field
-mapping reference, including byte layouts and the CAP/MAP decision tables.
-
 `config/vita/radio.yaml` is the generation input. Data: stream ID 1–4, present zero
 class identifier, UTC-encoded simulated integer seconds, real-time picosecond fraction,
 I then Q signed big-endian components and one required trailer with enabled sample-frame
@@ -59,27 +56,6 @@ Reject unsupported fields, malformed layouts, nonfinite settings and mismatched 
 Bound packets to 1024 bytes, pending command work and replay history; identical IDs
 with different content are errors. TLS peers are restricted by staged test/production
 trust and controller identity. No unencrypted fallback.
-
-## Selected capability-query contract
-
-Capability discovery uses a read-only VITA command and correlated VITA response
-over the existing per-radio TCP/mTLS control connection. Reuse controller/controllee
-identity, packet-size framing, authorization, replay handling and resource bounds.
-Streaming context continues to describe applied settings; capability discovery does
-not depend on receiving UDP context or starting acquisition.
-
-The response describes supported RF center-frequency, sample-rate, bandwidth and
-gain ranges from the same SoapySDR device owner. Distinguish limits from applied
-values, and express dependencies such as bandwidth versus sample rate explicitly.
-The query must work before initial configuration and while stopped or streaming,
-without applying settings, resetting phase/timestamps or changing streaming state.
-
-The transport and command/response architecture are decided. Exact field selectors,
-range/increment encodings and acknowledgment details still need a verified mapping.
-CIF7 remains an encoding candidate, not an accepted interpretation of capability
-limits. Its missing acknowledgment inheritance in the pinned vrtgen generator is an
-implementation issue to correct and test if that mapping is selected, not a VITA
-protocol prohibition. The runtime capability endpoint is not implemented yet.
 
 ## Time and pacing
 

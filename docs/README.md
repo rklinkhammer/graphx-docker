@@ -19,7 +19,6 @@ These records remain separate because they govern changes, record evidence or
 provide a versioned compliance inventory:
 
 - [Project decisions](project-decisions.md): accepted constraints for contributors.
-- [VITA packet formats](vita_packet_formats.md): four-radio packet layouts and field-mapping decisions under development.
 - [Simplification report](simplification-report.md): current complexity assessment and staged reduction plan.
 - [Test procedure](test-procedure.md): verification environments, authorization and test families.
 - [Release license inventory](release-license-inventory.md): dependency and redistribution inventory.

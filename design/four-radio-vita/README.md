@@ -2,16 +2,8 @@
 
 [Implementation plan](implementation-plan.md) · [Accepted brief](../../docs/vita_system.md)
 
-[VITA packet formats and field decisions](../../docs/vita_packet_formats.md) is the
-shared reference for implemented layouts and unresolved capability mappings.
-
 [P1.1 command analysis](command-analysis.md) records the vrtgen command mappings,
 reproduced query-generation limitations and remaining command work.
-
-P1 capability discovery will use a read-only VITA command/response on the existing
-TCP/mTLS connection; streaming context reports applied settings. See the
-[selected contract](radio-design.md#selected-capability-query-contract). Its wire
-encoding and runtime implementation remain outstanding.
 
 The P1 standalone radio is an opt-in development target. It is not yet part of a
 verified GraphX native release or OCI image. OVS integration and the four-radio
