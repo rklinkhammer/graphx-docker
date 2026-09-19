@@ -46,8 +46,13 @@ Apply [P1.1 command analysis](command-analysis.md) to the P1 exit criteria:
 | P1.1 | Inspect vrtgen examples, query/ack generation and supported mappings | Analysis complete |
 | P1.2 | Explicit NO_ACTION status selectors, separate generated query acknowledgment, replies matching requested execution/status modes | Implemented; focused wire tests pass |
 | P1.3 | Field-specific range/precision errors, late-start timing error, atomic rejected configuration | Implemented for supported settings; focused wire tests pass |
-| P1.4 | Authoritative capability-range semantics, then generated query/response and independent vectors | Unresolved semantics; CIF7 inheritance limitation reproduced |
+| P1.4 | Read-only VITA capability command/response over existing TCP/mTLS; verified field mapping, generated codec and independent vectors | Command/response architecture selected; encoding and runtime implementation remain open |
 | P1.5 | Complete independent context/ack coverage, non-divisor timing, replay exhaustion, stalled-client and resource-bound tests | Remaining acceptance work |
+
+P1.4 uses the [selected capability-query contract](radio-design.md#selected-capability-query-contract).
+Streaming context remains applied-state information; it is not the capability
+discovery channel. Reuse the existing authenticated control connection and device
+owner. This architecture is decided and does not require another protocol choice.
 
 P1.4 must distinguish supported limits from current values and statistical
 attributes, and distinguish global bandwidth limits from constraints imposed by
@@ -59,6 +64,35 @@ Preserve the existing source pin, notices and reproducible generation inputs.
 P1.5 proceeds independently of P1.4. No OVS deployment or privileged permission is
 needed for these local tests. P1 cannot close while capability queries remain
 unimplemented; do not replace that requirement with status or static documentation.
+
+### Framework and codec progression
+
+Own the controller/controllee framework and buffer policies in GraphX. Retain
+vrtgen as the first packet codec behind a replaceable adapter. This progression
+does not select a custom codec or claim comprehensive VITA 49.2 support.
+
+| Step | Work and evidence | Phase boundary |
+|---|---|---|
+| 1. Define interfaces | Define GraphX-owned command, query, acknowledgment, context and IQ types using the [packet-format reference](../../docs/vita_packet_formats.md). Separate profile validation from byte encoding and device operations. Keep generated types behind the codec adapter. | P1 design and implementation |
+| 2. Extract framework and buffers | Extract controller request/correlation/retry logic, controllee dispatch/replay/atomic-apply state machines and streaming buffer ownership. Define bounded pools/queues, overload behavior, deadlines and shutdown. Exercise the reusable controller with the standalone radio harness. | P1; P2 integrates that controller into the IQ application |
+| 3. Integrate the initial codec | Put the pinned vrtgen implementation behind the interfaces, preserving source pins, notices, reproducible generation and narrowly tested corrections. Reuse existing TLS, resolved bindings and lifecycle facilities. | P1 |
+| 4. Establish independent evidence | Add independent wire vectors, malformed-input/fuzz tests, sanitizer checks and state-machine failure tests. Measure allocations, copies, queue bounds and throughput under a declared load. Codec round trips alone are insufficient. | P1 local evidence; P3/P6 validate actual network paths/load |
+| 5. Evaluate a custom codec | Compare a bounded, explicitly supported VITA subset against the same interfaces, vectors, safety checks and performance measurements. Record maintenance, interoperability and license implications before selecting replacement. | Optional follow-on evaluation; not a prerequisite for P1 completion |
+
+Steps 1–4 are planned work; the current standalone radio is not evidence that this
+framework extraction is complete. Record its implementation and tests in
+`radio-design.md` and `p1-verification.md`. P1 exits with the owned framework and
+verified vrtgen adapter; a custom-codec evaluation must not delay unrelated P1 work.
+
+Use reusable buffers with explicit ownership first. Introduce zero-copy packet
+views only where measurement justifies them and their lifetimes cannot outlast or
+prematurely recycle the backing buffer. Keep control responsive under streaming
+overload. Unsupported packet combinations must fail before field access/allocation.
+
+Changing codecs does not resolve open capability-field semantics. Resolve those
+through the common packet reference and authoritative evidence. Any eventual
+replacement must retain the agreed wire profile, independent verification and
+dependency/license inventory; do not silently substitute proprietary fields.
 
 ### Design and dependency integration
 
@@ -124,6 +158,11 @@ it does not prove an OVS jumbo path or absence of fragmentation on that path.
    Check field-specific range/precision errors and late-start timestamp errors,
    verifying unchanged settings after rejection. Keep malformed-query tests separate
    from execute-packet payload validation.
+8. Query capabilities before configuration, while stopped and while streaming.
+   Verify response correlation, supported ranges and cross-field constraints against
+   the device API using independent packet decoding. Prove no settings, phase,
+   timestamps or streaming state change, and no dependency on UDP context reception.
+   Exercise unauthorized queries, unsupported selectors and bounded response sizes.
 
 **Exit evidence:** `p1-verification.md` records commands, environment, measured
 results and failures. The production radio passes standalone wire/device tests;
@@ -149,6 +188,8 @@ bounded power spectra consumed by the real feature detector.
 - Implement the application controller using the P1 wire contract: bounded
   configuration window, common scheduled start for successful radios, independent
   connection handling, no reinitialization on ordinary reconnect.
+  Reuse the P1 controller framework and codec interfaces rather than creating a
+  second command encoder, correlation mechanism or retry state machine.
 - Assemble FFT windows across consecutive bursts. Zero-pad missing sample positions
   after a bounded reorder deadline, retain quality/count metadata and avoid filling
   an unlimited outage with unlimited synthetic work. A short packet alone is not

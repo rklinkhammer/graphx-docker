@@ -67,6 +67,13 @@ matching encoder/decoder round trip is insufficient.
 
 ## Capability scope
 
+Selected architecture: a read-only VITA command with a correlated VITA capability
+response on the existing TCP/mTLS channel. Streaming context retains applied-setting
+semantics. VITA command packets are not excluded from capability discovery, and the
+CIF7 generator limitation is not a protocol prohibition. The remaining uncertainty
+concerns exact field meanings/encoding, not transport or the use of VITA commands.
+See the [selected contract](radio-design.md#selected-capability-query-contract).
+
 Do not equate numeric range discovery with discovery of every operation, waveform,
 format or cross-field constraint. The immediate P1 range scope is RF center
 frequency, sample rate, bandwidth and gain. A maximum bandwidth also depends on the

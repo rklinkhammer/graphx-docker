@@ -7,7 +7,10 @@ certification. The remaining P1 work below must be completed before closing P1.
 [P1.1 command analysis](command-analysis.md) is complete. It identifies status
 selector and acknowledgment corrections now applied to the radio, and reproduces missing CIF7 inheritance
 in the pinned dependency's query acknowledgment model. Capability semantics remain
-unverified; this finding does not block independent timing/failure tests.
+unverified; this finding does not block independent timing/failure tests. The
+capability architecture is selected: read-only VITA command/response on the existing
+TCP/mTLS control channel, with streaming context reserved for applied settings.
+That design decision is not evidence of a working capability endpoint.
 
 ## Implemented surface
 
@@ -111,7 +114,7 @@ establish normative VITA compliance or a complete P1 exit.
 | Simulated timestamps and pacing | Integer sample time; scheduled steady-clock start; bounded overdue-sample skipping | Sample progression and first-emission timing | Tested at 1 MSample/s; other rates/overrun injection remain |
 | Authenticated control | Staged credential hashes, mTLS, controller identity, bounded framing, configuration/status/start/stop | Fragmented/coalesced requests, unauthorized identity, malformed size, invalid settings, duplicate start | Tested for listed cases |
 | Controller reconnect and receiver loss | Replay history survives connections; UDP reception never blocks control | Reconnect/replay during streaming, close UDP receiver then stop/query | Tested |
-| Capability query | SoapySDR range API and documented bounds | Local device range assertions | VITA wire query remains unimplemented |
+| Capability query | Selected read-only VITA command/response over existing TCP/mTLS; SoapySDR range API available | Local device range assertions only; pre-configuration/stopped/streaming wire checks required | Architecture decided; field mapping and runtime query remain unimplemented |
 | Status and acknowledgments | Selector-only queries; separate generated query reply; requested execution/status replies | Independent CAM, selector, size, field-value and correlation checks; combined execution/status request | Tested for selected cases |
 | Setting errors | Per-field range/precision errors; late-start timestamp error | Independent EIF/reason bits and unchanged applied state after rejection | Tested for selected cases |
 | Context | Generated context before first data/each burst | Data decoder does not independently validate every context field | Broader independent vectors required |

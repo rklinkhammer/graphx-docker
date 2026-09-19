@@ -206,16 +206,16 @@ Inspect the existing implementation and current primary sources when integrating
 SoapySDR and VITA packet support. An external synthetic-device
 plugin is not required: implement the selected virtual device in the workspace.
 Use [Geontech/vrtgen](https://github.com/Geontech/vrtgen) as the selected dependency
-for generating the VITA packet implementation, including its required supporting
+for the initial VITA packet codec behind a GraphX-owned interface, including its required supporting
 library in the build/release dependency inventory. It is not merely a reference.
 Maintain packet definitions and reproducible generation inputs in the workspace.
 The inspected
 reference revision is `5e7497d24069c140be431d8468655f67d25f382d`; this identifies the
 source reviewed, not yet a verified production dependency pin. Pin and verify the
 version used by the implementation. Dependency selection does not itself establish
-standards compliance. Replacing `vrtgen` would require the project to implement and
-verify its own VITA packet implementation; that alternative is not the selected
-approach and must not be introduced silently.
+standards compliance. A custom codec may be evaluated after the interfaces and
+independent evidence are established. Replacement is not selected: it would require
+an explicit dependency decision and verified support for the agreed VITA subset.
 
 Record each dependency's exact upstream source/version, purpose, license, maintenance
 status, supported VITA subset, transmit/receive direction, ARM64 Linux compatibility,
@@ -242,7 +242,59 @@ The reference provides concrete starting points at that revision:
 These are implementation-source findings, not verification against the normative
 VITA standard or proof that a complete GraphX profile has been tested.
 
+### Framework ownership and development progression
+
+GraphX owns controller/controllee behavior, profile validation and streaming buffer
+policies. The packet codec encodes and decodes bytes; it does not own authentication,
+device state, command authorization or the application lifecycle. Implement reusable
+contracts under `include/graphx/` and behavior under `src/`, with thin application
+entry points. Reuse existing GraphX transport and lifecycle facilities.
+
+Proceed in this order:
+
+1. Define GraphX-owned interfaces for commands, queries, acknowledgments, context
+   and IQ packets from [the shared field-mapping reference](vita_packet_formats.md).
+   Keep generated packet classes behind an adapter so application code does not
+   depend on generator-specific types or layout details.
+2. Extract controller and controllee state machines plus bounded buffer management.
+   The controller owns correlation, deadlines, retries and scheduled-start requests.
+   The controllee owns dispatch, replay protection and serialized atomic device
+   operations. Streaming owns pacing, context emission, buffer lifetimes and drops.
+3. Retain the pinned vrtgen implementation as the first codec. Preserve its required
+   supporting library, reproducible generation, tested corrections and notices.
+4. Establish independent wire vectors, malformed-input/fuzz coverage, sanitizer
+   checks and failure-injection tests. Measure allocation/copy costs, bounded queues
+   and throughput under stated conditions. Test the reusable controller against
+   the standalone radio before integrating it into the IQ processor.
+5. Evaluate a custom codec only against those same interfaces and acceptance tests.
+   Limit any proposed implementation to the documented VITA subset. Compare safety,
+   interoperability, measured performance and ongoing maintenance cost before
+   deciding to replace vrtgen.
+
+This is the development direction, not a claim that the reusable framework has
+already been implemented. P1 delivers the framework with the vrtgen adapter;
+P2 reuses it in the application controller. Custom-codec evaluation is an optional
+follow-on and is not a gate for completing the demonstration with vrtgen.
+
+Start with reusable buffers and explicit ownership. Define pool/queue capacity,
+exhaustion policy, observability and bounded shutdown. A slow receiver must not
+create unbounded memory growth or starve control. Introduce zero-copy views only
+when measurements justify them and their backing-buffer lifetime is guaranteed.
+Validate packet lengths, field combinations and arithmetic before accessing fields
+or allocating payload storage, regardless of the codec used.
+
+Framework ownership does not establish capability-field meanings or eliminate
+standards work. Resolve mappings independently of codec selection. A future custom
+codec needs authoritative specifications and independent interoperability evidence;
+shared encoder/decoder mistakes can survive round-trip tests. Preserve applicable
+licenses when reusing or adapting dependency code and update release inventories
+when the implementation changes.
+
 ### VITA packet and timing requirements
+
+Use [VITA packet formats](vita_packet_formats.md) for the current packet layouts,
+field encodings and open mapping decisions. Keep that reference aligned with the
+packet definitions and this system brief when accepting a mapping.
 
 Assign the VITA stream ID from the source radio index: `radio1` uses `1`, `radio2`
 uses `2`, `radio3` uses `3`, and `radio4` uses `4`. Preserve that mapping through
@@ -539,6 +591,14 @@ ranges and reject unsupported values explicitly. Report requested versus applied
 settings and errors without claiming a change succeeded before the device applied
 it. Coordinate settings that require stream reconfiguration with acquisition and
 VITA context emission; keep control reachable while streaming is stopped.
+
+Capability discovery uses a read-only VITA command and correlated VITA response on
+the existing authenticated TCP control channel. Streaming context reports applied
+settings, rather than serving as the capability-discovery channel. Support capability
+queries before initial configuration and while stopped or streaming, without device
+mutation or dependence on UDP reception. Verify the exact supported-limit and
+constraint encodings in the wire profile; this choice does not itself assign CIF7
+attribute semantics or establish that the runtime capability query is implemented.
 
 Use bounded control request and response sizes, a bounded command queue, connection
 limits and deadlines. Define these limits in the implementation design and test
