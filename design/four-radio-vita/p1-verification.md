@@ -1,13 +1,15 @@
 # P1 standalone radio verification
 
-Status: **in progress**, with a working opt-in radio and passing standalone tests.
-This is development evidence, not a released four-radio example or VITA standards
-certification. The remaining P1 work below must be completed before closing P1.
+Status: **migration blocked**. The maintained opt-in executable still uses its
+existing generated codec; it is not the selected `vrt_framework` integration.
+The pinned library `60a290c9b1da2396d3d704ebe52ea6cbcf2fa398` shifts the simulated
+sample epoch when a device honestly reports delayed execution. See the
+[migration blocker, exact reproducer commands and evidence matrix](migration-blocker.md).
+P1 remains open. Library qualification does not qualify the GraphX application.
 
-[P1.1 command analysis](command-analysis.md) is complete. It identifies status
-selector and acknowledgment corrections now applied to the radio, and reproduces missing CIF7 inheritance
-in the pinned dependency's query acknowledgment model. Capability semantics remain
-unverified; this finding does not block independent timing/failure tests.
+The [command contract](command-analysis.md) establishes capability semantics and
+AckV/AckX/AckS behavior for the replacement. The executable surface and checks
+below describe the existing application, not acceptance of that replacement.
 
 ## Implemented surface
 

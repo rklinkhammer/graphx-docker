@@ -60,6 +60,12 @@ unimplemented; do not replace that requirement with status or static documentati
 
 ### Verified library migration pin
 
+**Application migration blocked:** the pinned runtime uses actual device execution
+time for the simulated first-sample epoch, violating the common scheduled start.
+See [the deterministic reproducer and required upstream change](migration-blocker.md).
+Resume adapter integration only with a verified fix; do not compensate by falsifying
+AckX time or implementing packet timestamp rewriting in GraphX.
+
 Use `vrt_framework` commit `60a290c9b1da2396d3d704ebe52ea6cbcf2fa398` for
 this migration. Its `docs/implementation/P17-graphx-profile.md` contains the public
 APIs, host binding requirements and requirement-to-evidence matrix;
