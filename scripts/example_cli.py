@@ -54,6 +54,22 @@ def private_dir(path):
     return path
 
 
+@contextlib.contextmanager
+def lima_lock():
+    # Shared across checkouts and --workspace selections: the VM is host-wide.
+    folder = private_dir(Path.home() / '.graphx')
+    path = safe_path(folder / 'lima.lock')
+    with os.fdopen(os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600), 'w') as lock:
+        info = os.fstat(lock.fileno())
+        if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or info.st_nlink != 1 or info.st_mode & 0o077:
+            raise WorkflowError('invalid Lima lifecycle lock')
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            raise WorkflowError('another GraphX command is using Lima; retry when it completes') from error
+        yield
+
+
 def read_json(path):
     path = safe_path(path)
     with os.fdopen(os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)) as stream:
@@ -229,12 +245,39 @@ class Workflow:
         self.key = fingerprint(source) if args.action in ('prepare', 'up') else None
 
     def lima(self):
-        # Reuse the repository's exact VM identity contract; never provision implicitly.
-        run(['bash', '-c', 'source "$1"; graphx_lima_require_host; graphx_lima_assert_identity "$(graphx_lima_digest)"',
-             'graphx-env', self.source / 'infrastructure/lima/common.sh'])
-        state = run(['limactl', 'list', 'graphx', '--format', '{{.Status}}'], capture=True)
-        if state != 'Running':
-            raise WorkflowError('GraphX Lima is stopped; use graphx env up explicitly')
+        if self.privileged and self.args.action != 'prepare' and not self.args.allow_privileged:
+            raise WorkflowError('this operation requires --allow-privileged on Linux/Lima')
+        with lima_lock():
+            if self.args.action in ('prepare', 'up'):
+                run([self.source / 'infrastructure/lima/start.sh'])
+            else:
+                state = run(['bash', '-c',
+                             'source "$1"; graphx_lima_require_host; graphx_lima_assert_identity "$(graphx_lima_digest)"',
+                             'graphx-env', self.source / 'infrastructure/lima/common.sh'], capture=True)
+                if state != 'Running':
+                    raise WorkflowError('GraphX Lima is stopped; use example up to start a demo, or graphx env up to inspect retained state')
+            result = self.lima_dispatch()
+            if result == 0 and self.args.action in ('prepare', 'down'):
+                self.lima_stop_if_idle()
+            return result
+
+    def lima_stop_if_idle(self):
+        probe = self.source / 'infrastructure/lima/idle.py'
+        try:
+            result = subprocess.run(
+                ['limactl', 'shell', '--workdir', '/var/lib/graphx', 'graphx', '--',
+                 'sudo', '-n', 'python3', '-'], input=probe.read_text(), text=True,
+                stdout=sys.stderr, stderr=sys.stderr, timeout=45)
+            if result.returncode != 0:
+                print('Lima remains running: workloads remain or idle state could not be verified.', file=sys.stderr)
+                return
+        except (OSError, subprocess.SubprocessError) as error:
+            print(f'Lima remains running: idle check failed: {error}', file=sys.stderr)
+            return
+        # stop.sh rechecks the complete VM identity immediately before stopping.
+        run([self.source / 'infrastructure/lima/stop.sh'])
+
+    def lima_dispatch(self):
         prefix = ['limactl', 'shell', '--workdir', '/var/lib/graphx', 'graphx', '--']
         remote_base = '/var/lib/graphx/examples'
         # A source snapshot includes Git metadata for the existing release builders.
@@ -571,7 +614,8 @@ def main(argv=None):
             print('Environment checks passed')
             return 0
         if rest[1:] in (['up'], ['down']) and sys.platform == 'darwin':
-            return subprocess.call([str(source / 'infrastructure/lima' / ('start.sh' if rest[1] == 'up' else 'stop.sh'))])
+            with lima_lock():
+                return subprocess.call([str(source / 'infrastructure/lima' / ('start.sh' if rest[1] == 'up' else 'stop.sh'))])
         raise WorkflowError('env requires doctor, or up/down on macOS for explicit Lima lifecycle')
     examples = argparse.ArgumentParser(prog='graphx example', allow_abbrev=False)
     examples.add_argument('action', choices=['list', 'plan', 'prepare', 'up', 'status', 'tokens', 'open', 'logs', 'down', 'scenario'])

@@ -56,11 +56,11 @@ the CLI's launch reference.
 
 ## Connect the sample through OVS
 
-On macOS, use the identity-matched GraphX Lima VM. Environment creation/startup is
-explicit; see [Lima setup](../infrastructure/lima/README.md).
+On macOS, the CLI creates or starts the identity-matched GraphX Lima VM
+automatically. Successful shutdown stops the VM when idle, retaining its disk;
+see [Lima setup](../infrastructure/lima/README.md).
 
 ```sh
-graphx env up
 graphx example plan sample-pipeline/ovs
 graphx example up sample-pipeline/ovs --allow-privileged \
   --control generator:pause,resume --control collector:reset

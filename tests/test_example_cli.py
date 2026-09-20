@@ -222,3 +222,75 @@ with tempfile.TemporaryDirectory(prefix='graphx-vita-artifacts-') as directory:
                          {'images': {'vita': {}}, 'qualification_hooks': True}):
             module.write_json(images / 'images.json', manifest)
             rejected(workflow.artifacts)
+
+# Host environment lifecycle is mocked: portable tests never create a VM.
+with tempfile.TemporaryDirectory(prefix='graphx-lima-lifecycle-') as temporary:
+    home = Path(temporary).resolve()
+    with patch.object(module.Path, 'home', return_value=home):
+        with module.lima_lock():
+            rejected(lambda: module.lima_lock().__enter__())
+        (home / '.graphx/lima.lock').unlink()
+        (home / '.graphx/lima.lock').symlink_to(home / 'foreign')
+        rejected(lambda: module.lima_lock().__enter__())
+
+workflow = object.__new__(module.Workflow)
+workflow.source = root
+workflow.privileged = True
+for action in ('up', 'prepare', 'down', 'status'):
+    workflow.args = SimpleNamespace(action=action, allow_privileged=True)
+    with patch.object(module, 'lima_lock', module.contextlib.nullcontext), \
+         patch.object(module, 'run', return_value='Running') as command, \
+         patch.object(workflow, 'lima_dispatch', return_value=0) as dispatch, \
+         patch.object(workflow, 'lima_stop_if_idle') as stop:
+        assert workflow.lima() == 0
+        assert dispatch.call_count == 1
+        assert stop.call_count == (1 if action in ('prepare', 'down') else 0)
+        assert ('start.sh' in str(command.call_args)) == (action in ('prepare', 'up'))
+workflow.args = SimpleNamespace(action='up', allow_privileged=False)
+with patch.object(module, 'run') as command:
+    rejected(workflow.lima)
+    command.assert_not_called()
+workflow.args.allow_privileged = True
+with patch.object(module, 'lima_lock', module.contextlib.nullcontext), \
+     patch.object(module, 'run', side_effect=module.WorkflowError('foreign VM')), \
+     patch.object(workflow, 'lima_dispatch') as dispatch:
+    rejected(workflow.lima)
+    dispatch.assert_not_called()
+workflow.args.action = 'down'
+with patch.object(module, 'lima_lock', module.contextlib.nullcontext), \
+     patch.object(module, 'run', return_value='Running'), \
+     patch.object(workflow, 'lima_dispatch', return_value=1), \
+     patch.object(workflow, 'lima_stop_if_idle') as stop:
+    assert workflow.lima() == 1
+    stop.assert_not_called()
+for result in (0, 1, 2):
+    with patch.object(module.subprocess, 'run', return_value=SimpleNamespace(returncode=result)), \
+         patch.object(module, 'run') as command:
+        workflow.lima_stop_if_idle()
+        assert command.call_count == (1 if result == 0 else 0)
+with patch.object(module.subprocess, 'run', side_effect=subprocess.TimeoutExpired('probe', 45)), \
+     patch.object(module, 'run') as command:
+    workflow.lima_stop_if_idle()
+    command.assert_not_called()
+
+idle_spec = importlib.util.spec_from_file_location('lima_idle', root / 'infrastructure/lima/idle.py')
+idle_module = importlib.util.module_from_spec(idle_spec)
+idle_spec.loader.exec_module(idle_module)
+with tempfile.TemporaryDirectory(prefix='graphx-idle-proc-') as temporary:
+    proc = Path(temporary)
+    empty = ['', '', '', '[]', '', '[]']
+    with patch.object(idle_module, 'output', side_effect=empty):
+        assert idle_module.idle(proc)
+    for inventory in (['container'], ['', 'bridge'], ['', '', 'namespace'],
+                      ['', '', '', '[{"linkinfo":{"info_kind":"veth"}}]'],
+                      ['', '', '', '[]', 'table inet graphx_test'],
+                      ['', '', '', '[]', '', '[{"kind":"netem"}]']):
+        with patch.object(idle_module, 'output', side_effect=inventory):
+            assert not idle_module.idle(proc)
+    process = proc / '999999'
+    process.mkdir()
+    (process / 'cmdline').write_bytes(b'node\0/var/lib/graphx/example.js\0')
+    (process / 'exe').symlink_to('/usr/bin/node')
+    with patch.object(idle_module, 'output', side_effect=empty):
+        assert not idle_module.idle(proc)
+print('Lima automatic lifecycle checks passed')
