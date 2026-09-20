@@ -4,12 +4,14 @@
 #include "infra/namespace_resources.hpp"
 #include "infra/ovs_resources.hpp"
 
+#include <yaml-cpp/yaml.h>
 #include <algorithm>
 #include <charconv>
 #include <cctype>
 #include <climits>
 #include <fstream>
 #include <stdexcept>
+#include <sstream>
 #include <sys/stat.h>
 #include <utility>
 #include <vector>
@@ -25,6 +27,25 @@ int run(const std::vector<std::string>& arguments, std::string* captured = nullp
   if (captured) *captured = std::move(result.output);
   if (result.output_truncated) throw std::runtime_error("command output exceeded safety limit");
   return result.status;
+}
+
+void configure_jumbo_offloads(const ExpectedEndpoint& endpoint) {
+  if (endpoint.mtu <= 1500 && !endpoint.mirror_container) return;
+  // Configure both veth ends before the peer leaves the host namespace.
+  for (const auto& interface : {endpoint.host_interface, endpoint.target_interface})
+    if (run({"ethtool", "-K", interface, "tso", "off", "gso", "off", "gro", "off", "tx", "off"}) !=
+        0)
+      throw std::runtime_error("jumbo frame offload prerequisite: " + endpoint.id);
+}
+
+bool jumbo_offloads_healthy(const ExpectedEndpoint& endpoint,
+                            std::vector<std::string> peer_prefix) {
+  if (endpoint.mtu <= 1500 && !endpoint.mirror_container) return true;
+  std::string host, peer;
+  peer_prefix.insert(peer_prefix.end(), {"ethtool", "-k", endpoint.target_interface});
+  return run({"ethtool", "-k", endpoint.host_interface}, &host) == 0 &&
+         jumbo_offloads_disabled(host) && run(peer_prefix, &peer) == 0 &&
+         jumbo_offloads_disabled(peer);
 }
 
 std::vector<std::string> lines(std::string value) {
@@ -121,6 +142,13 @@ std::optional<std::uint32_t> link_ifindex(const std::string& name) {
   return value;
 }
 
+std::optional<std::uint32_t> link_peer_ifindex(const std::string& name) {
+  std::ifstream input("/sys/class/net/" + name + "/iflink");
+  std::uint32_t value{};
+  if (!(input >> value) || !value) return std::nullopt;
+  return value;
+}
+
 std::string link_alias(const std::string& name) {
   std::ifstream input("/sys/class/net/" + name + "/ifalias");
   std::string value;
@@ -184,7 +212,18 @@ bool endpoint_names_absent_or_recorded(const OwnedResourceIdentity& endpoint) {
          (interface_uuid.empty() || interface_uuid == endpoint.secondary_id);
 }
 
-bool delete_owned_endpoint(const OwnedResourceIdentity& endpoint, const OwnershipState& state) {
+bool delete_owned_endpoint(const OwnedResourceIdentity& endpoint, const OwnershipState& state,
+                           const GraphConfig* config) {
+  const auto& expected = expected_endpoint(state, endpoint.attachment_id);
+  if (expected.mirror_container && link_ifindex(endpoint.name)) {
+    if (!host_endpoint_owned(endpoint, state)) return false;
+    const bool pending_move = link_ifindex(expected.target_interface) == endpoint.peer_ifindex &&
+                              link_alias(expected.target_interface) ==
+                                  endpoint_alias(state, endpoint.attachment_id, "peer");
+    if (!pending_move && (!config || !mirror_peer_owned(expected, endpoint, state, *config)))
+      return false;
+  }
+
   if (!endpoint_names_absent_or_recorded(endpoint)) return false;
   if (!endpoint.route_identity.empty()) {
     if (ovs_get("Mirror", endpoint.route_identity, "external_ids:graphx_owner") !=
@@ -252,7 +291,7 @@ bool tap_endpoint_healthy(const ExpectedEndpoint& expected, const OwnedResourceI
          endpoint_vlan_matches(expected, endpoint) && tap_owner_matches(expected) &&
          endpoint.tap_owner == tap_owner_identity(expected.tap_uid, expected.tap_gid) &&
          run({"ip", "-d", "-o", "link", "show", "dev", expected.host_interface}, &link) == 0 &&
-         link.find("mtu " + std::to_string(expected.mtu)) != std::string::npos &&
+         link.find("mtu " + std::to_string(expected.mtu) + " ") != std::string::npos &&
          link.find("UP") != std::string::npos;
 }
 
@@ -272,7 +311,7 @@ bool container_endpoint_healthy(const ExpectedEndpoint& expected,
   if (colon == std::string::npos || !endpoint.peer_ifindex ||
       std::stoul(link.substr(0, colon)) != *endpoint.peer_ifindex)
     return false;
-  if (link.find("mtu " + std::to_string(expected.mtu)) == std::string::npos ||
+  if (link.find("mtu " + std::to_string(expected.mtu) + " ") == std::string::npos ||
       link.find(endpoint_alias(state, endpoint.attachment_id, "peer")) == std::string::npos ||
       (!expected.mac.empty() && link.find(expected.mac) == std::string::npos))
     return false;
@@ -295,7 +334,14 @@ bool container_endpoint_healthy(const ExpectedEndpoint& expected,
         (!route.via.empty() && observed.find("via " + route.via) == std::string::npos))
       return false;
   }
-  return host_endpoint_owned(endpoint, state) && ovs_endpoint_owned(endpoint, state);
+  std::string host_link;
+  if (!jumbo_offloads_healthy(expected,
+                              {"nsenter", "-t", std::to_string(container.pid), "-n", "--"}))
+    return false;
+  return host_endpoint_owned(endpoint, state) && ovs_endpoint_owned(endpoint, state) &&
+         run({"ip", "-o", "link", "show", "dev", expected.host_interface}, &host_link) == 0 &&
+         host_link.find("mtu " + std::to_string(expected.mtu) + " ") != std::string::npos &&
+         ovs_get("Interface", endpoint.secondary_id, "mtu") == std::to_string(expected.mtu);
 }
 
 bool namespace_endpoint_healthy(const ExpectedEndpoint& expected,
@@ -317,20 +363,117 @@ bool namespace_endpoint_healthy(const ExpectedEndpoint& expected,
     return false;
   for (const auto& alias : expected.aliases)
     if (address.find(alias) == std::string::npos) return false;
-  return host_endpoint_owned(endpoint, state) && ovs_endpoint_owned(endpoint, state);
+  std::string host_link;
+  if (!jumbo_offloads_healthy(expected, {"ip", "netns", "exec", expected.namespace_name}))
+    return false;
+  return link.find("mtu " + std::to_string(expected.mtu) + " ") != std::string::npos &&
+         host_endpoint_owned(endpoint, state) && ovs_endpoint_owned(endpoint, state) &&
+         run({"ip", "-o", "link", "show", "dev", expected.host_interface}, &host_link) == 0 &&
+         host_link.find("mtu " + std::to_string(expected.mtu) + " ") != std::string::npos &&
+         ovs_get("Interface", endpoint.secondary_id, "mtu") == std::to_string(expected.mtu);
+}
+
+bool jumbo_offloads_disabled(std::string_view features) {
+  std::istringstream input{std::string(features)};
+  unsigned found = 0;
+  for (std::string line; std::getline(input, line);) {
+    std::istringstream field(line);
+    std::string key, value;
+    field >> key >> value;
+    unsigned bit = key == "tcp-segmentation-offload:"       ? 1U
+                   : key == "generic-segmentation-offload:" ? 2U
+                   : key == "generic-receive-offload:"      ? 4U
+                   : key == "tx-checksumming:"              ? 8U
+                                                            : 0U;
+    if (bit) {
+      if ((found & bit) || value != "off") return false;
+      found |= bit;
+    }
+  }
+  return found == 15;
+}
+
+bool passive_mirror_filter_matches(std::string_view json) {
+  try {
+    const auto documents = YAML::LoadAll(std::string(json));
+    if (documents.size() != 1) return false;
+    const auto& filters = documents.front();
+    if (!filters.IsSequence() || filters.size() != 1) return false;
+    const auto filter = filters[0];
+    const auto actions = filter["options"]["actions"];
+    return filter["kind"].as<std::string>() == "matchall" &&
+           filter["protocol"].as<std::string>() == "all" && filter["pref"].as<int>() == 1 &&
+           filter["chain"].as<int>(0) == 0 && actions.IsSequence() && actions.size() == 1 &&
+           actions[0]["kind"].as<std::string>() == "gact" &&
+           actions[0]["control_action"]["type"].as<std::string>() == "drop";
+  } catch (const YAML::Exception&) {
+    return false;
+  }
+}
+
+bool mirror_peer_link_matches(std::string_view link, std::uint32_t index, std::string_view alias) {
+  std::istringstream input{std::string(link)};
+  std::string token;
+  if (!(input >> token) || token != std::to_string(index) + ":") return false;
+  while (input >> token) {
+    if (token == "alias") {
+      return static_cast<bool>(input >> token) && token == alias;
+    }
+  }
+  return false;
+}
+
+bool mirror_peer_owned(const ExpectedEndpoint& expected, const OwnedResourceIdentity& endpoint,
+                       const OwnershipState& state, const GraphConfig& config) {
+  const auto container = resolve_owned_container(config, expected.owner, state);
+  if (container.id != endpoint.container_id ||
+      container.namespace_inode != endpoint.namespace_inode)
+    return false;
+  std::string link;
+  return run({"nsenter", "-t", std::to_string(container.pid), "-n", "--", "ip", "-d", "-o", "link",
+              "show", "dev", expected.target_interface},
+             &link) == 0 &&
+         endpoint.peer_ifindex &&
+         mirror_peer_link_matches(link, *endpoint.peer_ifindex,
+                                  endpoint_alias(state, expected.id, "peer"));
 }
 
 bool mirror_endpoint_healthy(const ExpectedEndpoint& expected,
-                             const OwnedResourceIdentity& endpoint, const OwnershipState& state) {
-  return host_endpoint_owned(endpoint, state) && ovs_endpoint_owned(endpoint, state) &&
-         link_ifindex(expected.target_interface) == endpoint.peer_ifindex &&
-         link_alias(expected.target_interface) ==
-             endpoint_alias(state, endpoint.attachment_id, "peer") &&
+                             const OwnedResourceIdentity& endpoint, const OwnershipState& state,
+                             const GraphConfig* config) {
+  std::string peer_link;
+  if (expected.mirror_container) {
+    if (!config || !mirror_peer_owned(expected, endpoint, state, *config)) return false;
+    const auto container = resolve_owned_container(*config, expected.owner, state);
+    std::string filter;
+    if (!jumbo_offloads_healthy(expected,
+                                {"nsenter", "-t", std::to_string(container.pid), "-n", "--"}))
+      return false;
+    if (run({"nsenter", "-t", std::to_string(container.pid), "-n", "--", "ip", "-o", "link", "show",
+             "dev", expected.target_interface},
+            &peer_link) != 0 ||
+        run({"tc", "-j", "filter", "show", "dev", expected.host_interface, "ingress"}, &filter) !=
+            0 ||
+        !passive_mirror_filter_matches(filter))
+      return false;
+  } else if (link_ifindex(expected.target_interface) != endpoint.peer_ifindex ||
+             link_alias(expected.target_interface) != endpoint_alias(state, expected.id, "peer") ||
+             run({"ip", "-o", "link", "show", "dev", expected.target_interface}, &peer_link) != 0)
+    return false;
+  if (!expected.mirror_container && !jumbo_offloads_healthy(expected, {})) return false;
+  std::string link;
+  return peer_link.find("mtu " + std::to_string(expected.mtu) + " ") != std::string::npos &&
+         host_endpoint_owned(endpoint, state) && ovs_endpoint_owned(endpoint, state) &&
+         run({"ip", "-o", "link", "show", "dev", expected.host_interface}, &link) == 0 &&
+         link.find("mtu " + std::to_string(expected.mtu) + " ") != std::string::npos &&
+         ovs_get("Interface", endpoint.secondary_id, "mtu") == std::to_string(expected.mtu) &&
          !endpoint.route_identity.empty() &&
          ovs_get("Mirror", endpoint.route_identity, "external_ids:graphx_owner") ==
              state.owner_token &&
          ovs_get("Mirror", endpoint.route_identity, "external_ids:graphx_attachment") ==
-             endpoint.attachment_id;
+             expected.id &&
+         ovs_get("Mirror", endpoint.route_identity, "select_all") == "true" &&
+         ovs_get("Mirror", endpoint.route_identity, "output_port") == endpoint.stable_id;
 }
 
 void check_endpoint_collision(const ExpectedEndpoint& endpoint, std::uint32_t pid) {
@@ -361,6 +504,7 @@ OwnedResourceIdentity create_endpoint(const ExpectedEndpoint& endpoint, std::uin
            std::to_string(endpoint.mtu)}) != 0)
     throw std::runtime_error("cannot mark veth ownership for attachment " + endpoint.id);
   const auto ifindex = link_ifindex(endpoint.host_interface);
+  configure_jumbo_offloads(endpoint);
   const auto peer_ifindex = link_ifindex(endpoint.target_interface);
   if (!ifindex || !peer_ifindex)
     throw std::runtime_error("cannot capture veth ifindices for attachment " + endpoint.id);
@@ -371,6 +515,7 @@ OwnedResourceIdentity create_endpoint(const ExpectedEndpoint& endpoint, std::uin
       "create",
       "Interface",
       "name=" + endpoint.host_interface,
+      "mtu_request=" + std::to_string(endpoint.mtu),
       "external_ids:graphx_owner=" + state.owner_token,
       "external_ids:graphx_attachment=" + endpoint.id,
       "external_ids:graphx_graph=" + state.graph_id,
@@ -452,6 +597,7 @@ OwnedResourceIdentity create_namespace_endpoint(const ExpectedEndpoint& endpoint
            std::to_string(endpoint.mtu)}) != 0)
     throw std::runtime_error("cannot mark namespace veth " + endpoint.id);
   const auto ifindex = link_ifindex(endpoint.host_interface);
+  configure_jumbo_offloads(endpoint);
   const auto peer_ifindex = link_ifindex(endpoint.target_interface);
   if (!ifindex || !peer_ifindex) throw std::runtime_error("cannot capture namespace veth identity");
   if (run({"ovs-vsctl",
@@ -460,6 +606,7 @@ OwnedResourceIdentity create_namespace_endpoint(const ExpectedEndpoint& endpoint
            "create",
            "Interface",
            "name=" + endpoint.host_interface,
+           "mtu_request=" + std::to_string(endpoint.mtu),
            "external_ids:graphx_owner=" + state.owner_token,
            "external_ids:graphx_attachment=" + endpoint.id,
            "external_ids:graphx_graph=" + state.graph_id,
@@ -545,6 +692,7 @@ OwnedResourceIdentity create_tap_endpoint(const ExpectedEndpoint& endpoint,
            "create",
            "Interface",
            "name=" + endpoint.host_interface,
+           "mtu_request=" + std::to_string(endpoint.mtu),
            "external_ids:graphx_owner=" + state.owner_token,
            "external_ids:graphx_attachment=" + endpoint.id,
            "external_ids:graphx_graph=" + state.graph_id,
@@ -588,7 +736,7 @@ OwnedResourceIdentity create_tap_endpoint(const ExpectedEndpoint& endpoint,
 }
 
 OwnedResourceIdentity create_mirror_endpoint(const ExpectedEndpoint& endpoint,
-                                             const OwnershipState& state) {
+                                             const OwnershipState& state, std::uint32_t pid) {
   if (run({"ip", "link", "add", endpoint.host_interface, "type", "veth", "peer", "name",
            endpoint.target_interface}) != 0)
     throw std::runtime_error("cannot create mirror veth " + endpoint.id);
@@ -597,7 +745,13 @@ OwnedResourceIdentity create_mirror_endpoint(const ExpectedEndpoint& endpoint,
       run({"ip", "link", "set", "dev", endpoint.target_interface, "alias",
            endpoint_alias(state, endpoint.id, "peer")}) != 0)
     throw std::runtime_error("cannot mark mirror veth " + endpoint.id);
+  if (run({"ip", "link", "set", "dev", endpoint.host_interface, "mtu",
+           std::to_string(endpoint.mtu)}) != 0 ||
+      run({"ip", "link", "set", "dev", endpoint.target_interface, "mtu",
+           std::to_string(endpoint.mtu)}) != 0)
+    throw std::runtime_error("mirror MTU prerequisite");
   const auto ifindex = link_ifindex(endpoint.host_interface);
+  configure_jumbo_offloads(endpoint);
   const auto peer_ifindex = link_ifindex(endpoint.target_interface);
   if (!ifindex || !peer_ifindex) throw std::runtime_error("cannot capture mirror veth identity");
   if (run({"ovs-vsctl",
@@ -606,6 +760,7 @@ OwnedResourceIdentity create_mirror_endpoint(const ExpectedEndpoint& endpoint,
            "create",
            "Interface",
            "name=" + endpoint.host_interface,
+           "mtu_request=" + std::to_string(endpoint.mtu),
            "external_ids:graphx_owner=" + state.owner_token,
            "external_ids:graphx_attachment=" + endpoint.id,
            "external_ids:graphx_graph=" + state.graph_id,
@@ -629,7 +784,7 @@ OwnedResourceIdentity create_mirror_endpoint(const ExpectedEndpoint& endpoint,
     throw std::runtime_error("cannot attach mirror veth " + endpoint.id);
   const auto port_uuid = ovs_get("Port", endpoint.host_interface, "_uuid");
   const auto interface_uuid = ovs_get("Interface", endpoint.host_interface, "_uuid");
-  if (run({"ovs-vsctl", "--", "--id=@m", "create", "Mirror", "name=" + endpoint.id,
+  if (run({"ovs-vsctl", "--", "--id=@m", "create", "Mirror", "name=" + endpoint.host_interface,
            "select_all=true", "output-port=" + port_uuid,
            "external_ids:graphx_owner=" + state.owner_token,
            "external_ids:graphx_attachment=" + endpoint.id,
@@ -637,12 +792,23 @@ OwnedResourceIdentity create_mirror_endpoint(const ExpectedEndpoint& endpoint,
            "external_ids:graphx_config_hash=" + state.config_hash, "--", "add", "Bridge",
            endpoint.network_switch, "mirrors", "@m"}) != 0)
     throw std::runtime_error("cannot create OVS mirror " + endpoint.id);
-  const auto mirror_uuid = ovs_get("Mirror", endpoint.id, "_uuid");
+  const auto mirror_uuid = ovs_get("Mirror", endpoint.host_interface, "_uuid");
   if (mirror_uuid.empty()) throw std::runtime_error("cannot capture OVS mirror identity");
-  if (run({"ip", "link", "set", "dev", endpoint.host_interface, "up"}) != 0 ||
-      run({"ip", "link", "set", "dev", endpoint.target_interface, "up"}) != 0)
-    throw std::runtime_error("cannot enable mirror veth " + endpoint.id);
+  if (endpoint.mirror_container) {
+    if (!pid || run({"tc", "qdisc", "add", "dev", endpoint.host_interface, "clsact"}) != 0 ||
+        run({"tc", "filter", "add", "dev", endpoint.host_interface, "ingress", "pref", "1",
+             "handle", "1", "matchall", "action", "drop"}) != 0 ||
+        run({"ip", "link", "set", "dev", endpoint.target_interface, "netns",
+             std::to_string(pid)}) != 0 ||
+        run({"nsenter", "-t", std::to_string(pid), "-n", "--", "ip", "link", "set", "dev",
+             endpoint.target_interface, "up"}) != 0)
+      throw std::runtime_error("cannot create passive container mirror");
+  } else if (run({"ip", "link", "set", "dev", endpoint.target_interface, "up"}) != 0)
+    throw std::runtime_error("cannot enable mirror peer");
+  if (run({"ip", "link", "set", "dev", endpoint.host_interface, "up"}) != 0)
+    throw std::runtime_error("cannot enable mirror host");
   OwnedResourceIdentity identity;
+  identity.container_id = endpoint.container_id;
   identity.kind = "mirror_veth";
   identity.name = endpoint.host_interface;
   identity.target_interface = endpoint.target_interface;
@@ -651,7 +817,8 @@ OwnedResourceIdentity create_mirror_endpoint(const ExpectedEndpoint& endpoint,
   identity.secondary_id = interface_uuid;
   identity.route_identity = mirror_uuid;
   identity.ifindex = *ifindex;
-  identity.peer_ifindex = *peer_ifindex;
+  identity.peer_ifindex = link_peer_ifindex(endpoint.host_interface);
+  if (!identity.peer_ifindex) throw std::runtime_error("cannot verify moved mirror peer index");
   identity.namespace_inode = endpoint.namespace_inode;
   return identity;
 }

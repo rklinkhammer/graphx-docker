@@ -6,7 +6,8 @@ Status: production native applications implemented; acceptance results are in
 The native opt-in `vita.processor` owns four separately bound UDP inputs and four
 ControllerSession instances. `vita.detector` consumes a distinct raw UDP power
 spectrum schema. All endpoint, credential and parameter bindings use the existing
-normalizer and node lifecycle. P3 network attachment and P5 publication are deferred.
+normalizer and node lifecycle. P3 adds optional container execution and managed jumbo attachments; live path
+qualification is pending. P5 publication remains deferred.
 The VRT pin remains dbe85d37155145842da60367af1c4beef8801b0c.
 
 ## Samples and control

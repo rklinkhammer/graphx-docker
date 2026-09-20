@@ -92,6 +92,7 @@ NetworkInfrastructureConfig resolved_network(const Value& value) {
     a.interface = string_or(item, "interface");
     a.peer = string_or(item, "peer");
     if (item.contains("switch")) a.network_switch = switches.at(item.at("switch").text());
+    a.mirror_container = string_or(item, "delivery", "host") == "container";
     a.mtu = static_cast<std::uint32_t>(integer_or(item, "mtu", 1500));
     a.tap_uid = static_cast<std::uint32_t>(integer_or(item, "tap_uid", 0));
     a.tap_gid = static_cast<std::uint32_t>(integer_or(item, "tap_gid", 0));

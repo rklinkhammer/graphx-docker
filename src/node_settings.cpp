@@ -46,6 +46,8 @@ NodeSettings load_node_settings(const std::filesystem::path& file, std::string_v
   if (type == types.array().end() || type->at("revision") != value.at("type_revision") ||
       (!expected_type.empty() && value.at("type") != Value(std::string(expected_type))))
     reject("E_NODE_TYPE", "type", "unsupported application type or revision");
+  if ((value.at("type") == Value("vita.recorder")) != value.contains("recorder"))
+    reject("E_BINDING", "recorder", "passive attachment metadata must match recorder type");
   const auto& parameters = value.at("parameters").object();
   if (parameters.size() != type->at("parameters").object().size())
     reject("E_PARAMETER", "parameters", "resolved parameters must match the type");

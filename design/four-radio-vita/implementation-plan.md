@@ -12,7 +12,9 @@ for native functional acceptance: the four-stream processor and frequency detect
 pass independent wire/numerical tests and real-radio integration, including bounded
 loss handling, control reconnect and display saturation. See
 [P2 verification](p2-verification.md) for every exit criterion, exact message sizes,
-nominal rates and normal/UBSan/fuzz evidence. P3–P6 remain planned and unstarted.
+nominal rates and normal/UBSan/fuzz evidence. P3 implementation and portable qualification are recorded in
+[P3 verification](p3-verification.md); actual privileged path acceptance remains
+pending, so P3 is not complete. P4–P6 remain unstarted.
 This plan does not authorize privileged execution.
 
 The first deliverable is a real, independently tested radio. Do not make its
@@ -193,6 +195,10 @@ and exact message-size accounting for every supported FFT size. Record nominal
 output rate at supported overlap settings and bound the display/processing load.
 
 ## P3 — OVS jumbo paths and the recorder application
+
+**Status:** implementation present; privileged acceptance pending. See
+[network design](network-design.md) and [P3 verification](p3-verification.md).
+No P4 degraded-startup policy is enabled.
 
 **Outcome:** the authoritative graph can express the required packet paths and
 deliver mirrored frames to a separate bounded receive/discard application.

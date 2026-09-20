@@ -663,6 +663,17 @@
                   "access_tag"
                 ],
                 "type": "object"
+              },
+              "mtu": {
+                "type": "integer",
+                "minimum": 576,
+                "maximum": 9000
+              },
+              "delivery": {
+                "enum": [
+                  "host",
+                  "container"
+                ]
               }
             },
             "required": [
@@ -1836,6 +1847,25 @@
             "type": "integer",
             "minimum": 1,
             "maximum": 2147483647
+          },
+          "recorder": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "interface",
+              "mtu"
+            ],
+            "properties": {
+              "interface": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9]{1,14}$"
+              },
+              "mtu": {
+                "type": "integer",
+                "minimum": 576,
+                "maximum": 9000
+              }
+            }
           }
         },
         "required": [

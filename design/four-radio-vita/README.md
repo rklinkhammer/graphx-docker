@@ -5,8 +5,9 @@
 The opt-in standalone radio uses `vrt_framework` as its only VITA codec and
 protocol runtime, with one virtual SoapySDR device per radio process. The reusable
 `ControllerSession` uses the same runtime and authenticated transport boundary.
-The opt-in `graphx-vita-processor` and `graphx-vita-detector` implement P2; OVS, images and the complete graph are later
-phases. This target is not part of published native/OCI releases.
+The opt-in `graphx-vita-processor` and `graphx-vita-detector` implement P2. P3 adds authoritative jumbo attachments and the separate Linux
+`graphx-vita-recorder`; privileged OVS acceptance is pending. Images and the
+complete graph remain P5 work. These targets are not part of published native/OCI releases.
 
 ## Build and test
 
@@ -63,4 +64,5 @@ valid normalized fixtures rather than bypassing the loader or startup barrier.
 
 See [radio design](radio-design.md), [command contract](command-analysis.md),
 [epoch regression](migration-blocker.md) and [P1 verification](p1-verification.md),
-[processing design](processing-design.md) and [P2 verification](p2-verification.md).
+[processing design](processing-design.md), [P2 verification](p2-verification.md),
+[network design](network-design.md) and [P3 verification](p3-verification.md).

@@ -1,29 +1,14 @@
 {
   "credentials": [],
-  "executable": "graphx-vita-detector",
+  "executable": "graphx-vita-recorder",
   "execution": [
-    "native",
     "container"
   ],
-  "id": "vita.detector",
+  "id": "vita.recorder",
   "image": "graphx-design/sdr@sha256:928533888c6b3ecff6123dd69342931275216f99fce32367d76a000ba4a5dd82",
   "observation": "graphx",
   "parameters": {},
-  "ports": {
-    "spectra": {
-      "default_port": 18500,
-      "direction": "input",
-      "encoding": "raw",
-      "feedback": false,
-      "listener": true,
-      "max_connections": 1,
-      "min_connections": 1,
-      "schema": "VitaPowerSpectrum",
-      "transports": [
-        "udp"
-      ]
-    }
-  },
+  "ports": {},
   "readiness": {
     "kind": "local-bound",
     "timeout_ms": 30000

@@ -187,6 +187,17 @@
         },
         "vlan": {
           "$ref": "#/$defs/vlan"
+        },
+        "mtu": {
+          "type": "integer",
+          "minimum": 576,
+          "maximum": 9000
+        },
+        "delivery": {
+          "enum": [
+            "host",
+            "container"
+          ]
         }
       },
       "required": [

@@ -13,6 +13,7 @@
 
 #include <array>
 #include <algorithm>
+#include <thread>
 #include <cerrno>
 #include <cctype>
 #include <cstdlib>
@@ -299,7 +300,7 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
         else if (expected.kind == AttachmentKind::qemu_tap)
           owned = tap_endpoint_healthy(expected, item, state);
         else
-          owned = mirror_endpoint_healthy(expected, item, state);
+          owned = mirror_endpoint_healthy(expected, item, state, &config);
       } catch (const std::exception& error) {
         errors << "graphx: endpoint identity check failed for " << item.attachment_id << ": "
                << error.what() << '\n';
@@ -389,6 +390,7 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
       endpoint.address = item.address;
       endpoint.mac = item.mac;
       endpoint.mtu = item.mtu;
+      endpoint.mirror_container = item.mirror_container;
       endpoint.routes = item.routes;
       endpoint.aliases = item.aliases;
       endpoint.tap_uid = item.tap_uid;
@@ -428,6 +430,13 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
         endpoint.host_interface = item.interface;
         endpoint.target_interface = port->peer;
         endpoint.namespace_inode = static_cast<std::uint64_t>(host_namespace.st_ino);
+        if (endpoint.mirror_container) {
+          auto [entry, inserted] = containers.try_emplace(item.owner);
+          if (inserted) entry->second = resolve_owned_container(config, item.owner, state);
+          endpoint.container_id = entry->second.id;
+          endpoint.namespace_inode = entry->second.namespace_inode;
+          check_endpoint_collision(endpoint, entry->second.pid);
+        }
         if (link_ifindex(endpoint.host_interface) || link_ifindex(endpoint.target_interface) ||
             !ovs_get("Port", endpoint.host_interface, "_uuid").empty())
           throw std::runtime_error("refusing mirror endpoint collision: " + item.id);
@@ -449,7 +458,9 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
       if (endpoint == state.expected_endpoints.end() || endpoint->kind != AttachmentKind::mirror)
         throw std::runtime_error("network capture references unrealized mirror " +
                                  capture.attachment);
-      state.expected_captures.push_back({capture, endpoint->target_interface});
+      state.expected_captures.push_back({capture, endpoint->mirror_container
+                                                      ? endpoint->host_interface
+                                                      : endpoint->target_interface});
     }
     for (const auto& fault : config.network_infrastructure.faults) {
       const auto endpoint =
@@ -517,7 +528,8 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
         else if (endpoint.kind == AttachmentKind::qemu_tap)
           state.endpoints.push_back(create_tap_endpoint(endpoint, state));
         else
-          state.endpoints.push_back(create_mirror_endpoint(endpoint, state));
+          state.endpoints.push_back(create_mirror_endpoint(
+              endpoint, state, endpoint.mirror_container ? containers.at(endpoint.owner).pid : 0));
         ++mutation;
         inject_test_interruption(mutation);
         save_state(state_path, state);
@@ -580,6 +592,33 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
         ++mutation;
         inject_test_interruption(mutation);
       }
+      // Do not publish the application barrier until observed jumbo paths match.
+      for (const auto& item : state.endpoints) {
+        const auto& expected = expected_endpoint(state, item.attachment_id);
+        if (expected.mtu <= 1500 && !expected.mirror_container) continue;
+        bool healthy = false;
+        for (int attempt = 0; attempt < 20 && !healthy; ++attempt) {
+          checkpoint();
+          switch (expected.kind) {
+            case AttachmentKind::container_veth:
+              healthy = container_endpoint_healthy(expected, item, state, config);
+              break;
+            case AttachmentKind::namespace_veth:
+              healthy = namespace_endpoint_healthy(expected, item, state);
+              break;
+            case AttachmentKind::qemu_tap:
+              healthy = tap_endpoint_healthy(expected, item, state);
+              break;
+            case AttachmentKind::mirror:
+              healthy = mirror_endpoint_healthy(expected, item, state, &config);
+              break;
+            case AttachmentKind::external:
+              break;
+          }
+          if (!healthy) std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
+        if (!healthy) throw std::runtime_error("jumbo path readiness failed: " + expected.id);
+      }
       state.status = "ready";
       save_state(state_path, state);
       output << "GraphX OVS laboratory state ready: " << state_path << '\n';
@@ -614,9 +653,12 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
         discovered.name = expected.host_interface;
         discovered.target_interface = expected.target_interface;
         discovered.ifindex = ifindex.value_or(0);
-        discovered.peer_ifindex = expected.kind == AttachmentKind::mirror
-                                      ? link_ifindex(expected.target_interface).value_or(0)
-                                      : ifindex.value_or(0);
+        discovered.peer_ifindex =
+            expected.kind == AttachmentKind::mirror && !expected.mirror_container
+                ? link_ifindex(expected.target_interface).value_or(0)
+                : (expected.mirror_container
+                       ? link_peer_ifindex(expected.host_interface).value_or(0)
+                       : ifindex.value_or(0));
         discovered.namespace_inode = expected.namespace_inode;
         discovered.container_id = expected.container_id;
         if (expected.kind == AttachmentKind::qemu_tap)
@@ -624,8 +666,8 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
         discovered.stable_id = port_uuid;
         discovered.secondary_id = ovs_get("Interface", expected.host_interface, "_uuid");
         if (expected.kind == AttachmentKind::mirror)
-          discovered.route_identity =
-              ovs_find_uuid("Mirror", "external_ids:graphx_attachment", expected.id);
+          discovered.route_identity = ovs_find_uuid("Mirror", "external_ids:graphx_attachment",
+                                                    expected.id, state.owner_token);
         state.endpoints.push_back(std::move(discovered));
       }
       // Include atomic mutations that happened before their ledger update.
@@ -653,7 +695,7 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
                                   item.session_directory.string());
           });
       for (auto iterator = state.endpoints.rbegin(); iterator != state.endpoints.rend(); ++iterator)
-        if (!delete_owned_endpoint(*iterator, state)) {
+        if (!delete_owned_endpoint(*iterator, state, &config)) {
           cleanup_complete = false;
           errors << "graphx: retained ownership state after rollback could not safely remove "
                  << iterator->attachment_id << '\n';
@@ -735,14 +777,16 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
     // Container and namespace cleanup only needs the host identity. Mirrors
     // retain both host-side links, so recover their actual peer identity for
     // the complete-set replacement check.
-    if (expected.kind == AttachmentKind::mirror) {
+    if (expected.kind == AttachmentKind::mirror && !expected.mirror_container) {
       const auto peer_ifindex = link_ifindex(expected.target_interface);
       if (!peer_ifindex ||
           link_alias(expected.target_interface) != endpoint_alias(state, expected.id, "peer"))
         throw std::runtime_error("refusing unowned or replaced mirror peer: " + expected.id);
       discovered.peer_ifindex = *peer_ifindex;
     } else {
-      discovered.peer_ifindex = *ifindex;
+      discovered.peer_ifindex = expected.mirror_container
+                                    ? link_peer_ifindex(expected.host_interface).value_or(0)
+                                    : *ifindex;
     }
     discovered.namespace_inode = expected.namespace_inode;
     discovered.container_id = expected.container_id;
@@ -755,7 +799,7 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
     discovered.secondary_id = ovs_get("Interface", expected.host_interface, "_uuid");
     if (expected.kind == AttachmentKind::mirror)
       discovered.route_identity =
-          ovs_find_uuid("Mirror", "external_ids:graphx_attachment", expected.id);
+          ovs_find_uuid("Mirror", "external_ids:graphx_attachment", expected.id, state.owner_token);
     state.endpoints.push_back(std::move(discovered));
   }
   // Refuse the entire cleanup before the first mutation when any recorded
@@ -785,7 +829,13 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
          !endpoint_vlan_matches(expected, item)))
       throw std::runtime_error("refusing replaced QEMU TAP ownership or VLAN: " +
                                item.attachment_id);
-    if (expected.kind == AttachmentKind::mirror &&
+    if (expected.mirror_container && link_ifindex(item.name) &&
+        !(link_ifindex(expected.target_interface) == item.peer_ifindex &&
+          link_alias(expected.target_interface) ==
+              endpoint_alias(state, item.attachment_id, "peer")) &&
+        !mirror_peer_owned(expected, item, state, config))
+      throw std::runtime_error("refusing replaced container mirror peer: " + item.attachment_id);
+    if (expected.kind == AttachmentKind::mirror && !expected.mirror_container &&
         (link_ifindex(expected.target_interface) != item.peer_ifindex ||
          link_alias(expected.target_interface) !=
              endpoint_alias(state, item.attachment_id, "peer")))
@@ -827,7 +877,7 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
   }
   for (auto iterator = state.endpoints.rbegin(); iterator != state.endpoints.rend(); ++iterator) {
     output << "- " << iterator->kind << ' ' << iterator->attachment_id << '\n';
-    if (!delete_owned_endpoint(*iterator, state))
+    if (!delete_owned_endpoint(*iterator, state, &config))
       throw std::runtime_error("identity changed while deleting owned container endpoint " +
                                iterator->attachment_id);
   }

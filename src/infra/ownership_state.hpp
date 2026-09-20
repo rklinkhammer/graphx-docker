@@ -12,6 +12,7 @@
 namespace graphx::infra::detail {
 
 struct ExpectedEndpoint {
+  bool mirror_container{};
   AttachmentKind kind{AttachmentKind::container_veth};
   std::string id;
   std::string owner;

@@ -4,7 +4,8 @@
   ],
   "executable": "graphx-vita-radio",
   "execution": [
-    "native"
+    "native",
+    "container"
   ],
   "id": "vita.radio",
   "image": "graphx-design/sdr@sha256:928533888c6b3ecff6123dd69342931275216f99fce32367d76a000ba4a5dd82",

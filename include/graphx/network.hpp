@@ -48,6 +48,7 @@ struct RouteDefinition {
 };
 
 struct AttachmentDefinition {
+  bool mirror_container{};
   std::string id;
   AttachmentKind kind{AttachmentKind::external};
   std::string owner;

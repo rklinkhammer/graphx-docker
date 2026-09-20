@@ -70,6 +70,12 @@ the separate `fuzz` mode and is not duplicated when `verify.sh full` runs both.
 CI uses this digest-pinned verifier image as the single Linux toolchain owner for
 quality, sanitizers, and fuzzing; macOS sanitizer acceptance remains native.
 
+P3 jumbo veth paths additionally require `ethtool` on the Linux host/guest.
+The common lifecycle disables and verifies TSO/GSO/GRO and transmit checksum
+offload on both veth ends so diagnostic capture sees complete MTU-bounded frames.
+The Lima provisioning package list includes this prerequisite; changing the list
+does not provision or authorize a guest run.
+
 Run privileged tests only with explicit authorization, on native Linux or inside
 the GraphX Lima guest. Report
 host architecture, guest architecture, and QEMU accelerator with results. A passing

@@ -115,6 +115,7 @@ YAML::Node state_node(const OwnershipState& state) {
     for (const auto& alias : endpoint.aliases) item["aliases"].push_back(alias);
     if (!endpoint.mac.empty()) item["mac"] = endpoint.mac;
     item["mtu"] = endpoint.mtu;
+    if (endpoint.mirror_container) item["mirror_container"] = true;
     if (!endpoint.container_id.empty()) item["container_id"] = endpoint.container_id;
     if (!endpoint.namespace_name.empty()) item["namespace_name"] = endpoint.namespace_name;
     item["namespace_inode"] = endpoint.namespace_inode;
@@ -629,6 +630,7 @@ OwnershipState load_state(const std::filesystem::path& path) {
       }
       if (value["mac"]) endpoint.mac = value["mac"].as<std::string>();
       endpoint.mtu = value["mtu"].as<std::uint32_t>(1500);
+      endpoint.mirror_container = value["mirror_container"].as<bool>(false);
       if (value["container_id"]) endpoint.container_id = value["container_id"].as<std::string>();
       if (value["namespace_name"])
         endpoint.namespace_name = value["namespace_name"].as<std::string>();
@@ -639,7 +641,11 @@ OwnershipState load_state(const std::filesystem::path& path) {
       if (value["trunks"])
         for (const auto& trunk : value["trunks"])
           endpoint.vlan.trunks.push_back(trunk.as<std::uint16_t>());
-      if (!expected_endpoint_ids.insert(endpoint.id).second || endpoint.namespace_inode == 0 ||
+      if (endpoint.mtu < 576 || endpoint.mtu > 9000 ||
+          (endpoint.mirror_container &&
+           (endpoint.kind != AttachmentKind::mirror || endpoint.container_id.size() != 64 ||
+            !hexadecimal(endpoint.container_id))) ||
+          !expected_endpoint_ids.insert(endpoint.id).second || endpoint.namespace_inode == 0 ||
           (endpoint.kind == AttachmentKind::container_veth && endpoint.container_id.empty()) ||
           (endpoint.kind == AttachmentKind::namespace_veth && endpoint.namespace_name.empty()) ||
           (endpoint.kind == AttachmentKind::qemu_tap &&
@@ -730,6 +736,14 @@ OwnershipState load_state(const std::filesystem::path& path) {
             !*endpoint.peer_ifindex || !*endpoint.namespace_inode ||
             (kind == "qemu_tap" && endpoint.tap_owner.empty()))
           throw std::runtime_error("invalid owned endpoint");
+        const auto expected = std::ranges::find(state.expected_endpoints, endpoint.attachment_id,
+                                                &ExpectedEndpoint::id);
+        if (expected->mirror_container &&
+            (kind != "mirror_veth" || endpoint.container_id != expected->container_id ||
+             endpoint.namespace_inode != expected->namespace_inode ||
+             endpoint.name != expected->host_interface ||
+             endpoint.target_interface != expected->target_interface))
+          throw std::runtime_error("container mirror ownership mismatch");
         state.endpoints.push_back(std::move(endpoint));
         continue;
       }

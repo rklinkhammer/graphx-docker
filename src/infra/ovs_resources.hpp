@@ -10,7 +10,7 @@ namespace graphx::infra::detail {
 std::string ovs_get(const std::string& bridge, const std::string& column);
 std::string ovs_get(const std::string& table, const std::string& record, const std::string& column);
 std::string ovs_find_uuid(const std::string& table, const std::string& column,
-                          const std::string& value);
+                          const std::string& value, const std::string& owner);
 bool bridge_exists(const std::string& name);
 std::string planned_create(const SwitchDefinition& network_switch, std::string_view graph_id,
                            std::string_view token, std::string_view hash);

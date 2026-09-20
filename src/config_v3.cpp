@@ -180,7 +180,25 @@ void validate_network(const Value& graph) {
       reject("E_NAME_CONFLICT", path, "duplicate attachment ID");
     if (a.contains("switch") && !switches.contains(a.at("switch").text()))
       reject("E_REFERENCE", path + ".switch", "unknown switch");
-    if (a.at("kind").text() == "mirror") continue;
+    if (a.contains("delivery") && a.at("kind") != Value("mirror"))
+      reject("E_NETWORK", path, "delivery is only valid for mirrors");
+    if (a.at("kind").text() == "mirror") {
+      if (!a.contains("switch") || !a.contains("port"))
+        reject("E_REFERENCE", path, "mirror requires switch and port");
+      if (a.contains("address") || a.contains("routes") || a.contains("aliases"))
+        reject("E_NETWORK", path, "mirror must be unaddressed");
+      if (string_or(a, "delivery", "host") == "container") {
+        auto owner = a.at("owner").text();
+        if (!graph.at("nodes").contains(owner) ||
+            graph.at("nodes").at(owner).at("type") != Value("vita.recorder") ||
+            graph.at("nodes").at(owner).at("execution").at("kind") != Value("container"))
+          reject("E_NETWORK", path, "container mirror requires a container vita.recorder owner");
+        for (const auto& other : entries(net, "attachments"))
+          if (other.at("owner") == a.at("owner") && other.at("id") != a.at("id"))
+            reject("E_NETWORK", path, "recorder may only own its passive attachment");
+      }
+      continue;
+    }
     if (!a.contains("network") || !subnets.contains(a.at("network").text()))
       reject("E_REFERENCE", path + ".network", "unknown network");
     if (!a.contains("address"))
@@ -199,6 +217,33 @@ void validate_network(const Value& graph) {
       if (route.contains("via")) (void)ip(route.at("via").text(), path + ".routes.via");
     }
   }
+  for (const auto& a : entries(net, "attachments"))
+    if (a.at("kind") == Value("mirror")) {
+      auto sw = std::ranges::find_if(entries(net, "switches"),
+                                     [&](const auto& s) { return s.at("id") == a.at("switch"); });
+      if (sw == entries(net, "switches").end() || !sw->contains("mirror") ||
+          sw->at("mirror").at("output_port") != a.at("port") ||
+          !bool_or(sw->at("mirror"), "select_all", true))
+        reject("E_NETWORK", "network.attachments",
+               "mirror must use the dedicated select-all output port");
+      for (const auto& other : entries(net, "attachments"))
+        if (other.at("id") != a.at("id") && other.contains("switch") &&
+            other.at("switch") == a.at("switch") &&
+            (other.at("kind") == Value("mirror") ||
+             (other.contains("port") && other.at("port") == a.at("port"))))
+          reject("E_NETWORK", "network.attachments",
+                 "mirror output must be exclusive and unique per bridge");
+      auto mtu = integer_or(a, "mtu", 1500);
+      for (const auto& other : entries(net, "attachments"))
+        if (other.contains("switch") && other.at("switch") == a.at("switch") &&
+            integer_or(other, "mtu", 1500) > mtu)
+          reject("E_MTU", "network.attachments", "mirror MTU is below selected bridge path");
+      for (const auto& capture : entries(net, "captures"))
+        if (capture.at("attachment") == a.at("id") &&
+            integer_or(capture, "snaplen", 65535) < mtu + 22)
+          reject("E_MTU", "network.captures",
+                 "capture snaplen cannot retain complete Ethernet/VLAN frames");
+    }
   std::set<std::string> router_ids;
   for (const auto& router : entries(net, "routers")) {
     const auto id = router.at("id").text();
@@ -568,6 +613,30 @@ Value connection_values(const Value& graph, const Catalog& catalog, const Value&
       destination_address = address_of(attachments.at(selected.at("to").text()));
     }
     Value settings = member(connection, "settings");
+    if (connection.contains("attachments") &&
+        (out.at("schema") == Value("VitaIq") || out.at("schema") == Value("VitaPowerSpectrum"))) {
+      auto required = out.at("schema") == Value("VitaIq") ? 4156LL : 8864LL;
+      if (out.at("schema") == Value("VitaPowerSpectrum"))
+        required = std::max(
+            required, static_cast<long long>(integer_or(
+                          member(graph.at("nodes").at(source), "parameters"), "path_mtu", 9000)));
+      const auto& first = attachments.at(connection.at("attachments").at("from").text());
+      const auto& last = attachments.at(connection.at("attachments").at("to").text());
+      if (!first.contains("switch") || !last.contains("switch") ||
+          first.at("switch") != last.at("switch"))
+        reject("E_MTU", path, "managed VITA jumbo paths require one owned application bridge");
+
+      for (const auto& side : {"from", "to"}) {
+        const auto& endpoint = attachments.at(connection.at("attachments").at(side).text());
+        if (integer_or(endpoint, "mtu", 1500) < required)
+          reject("E_MTU", path, "VITA path MTU is below complete IP packet budget");
+        for (const auto& other : entries(net, "attachments"))
+          if (other.contains("switch") && endpoint.contains("switch") &&
+              other.at("switch") == endpoint.at("switch") &&
+              integer_or(other, "mtu", 1500) < required)
+            reject("E_MTU", path, "selected bridge includes an insufficient attachment MTU");
+      }
+    }
     if (connection.contains("attachments") && transport == "udp" &&
         string_or(settings, "mode", "unicast") == "unicast" && settings.contains("destination")) {
       const auto& attachment = attachments.at(connection.at("attachments").at("to").text());
@@ -744,7 +813,7 @@ Value connection_values(const Value& graph, const Catalog& catalog, const Value&
 }
 
 Value node_values(const Value& graph, const Catalog& catalog, const Value& connections,
-                  const Value& platform, bool native) {
+                  const Value& platform, bool native, const Value& net) {
   Array nodes;
   const bool has_guests = std::ranges::any_of(graph.at("nodes").object(), [](const auto& entry) {
     return entry.second.at("execution").at("kind") == Value("qemu");
@@ -792,9 +861,18 @@ Value node_values(const Value& graph, const Catalog& catalog, const Value& conne
       }
     }
     validate_vita_bindings(node.at("type").text(), bindings, parameters);
+    std::optional<Value> recorder;
+    if (node.at("type") == Value("vita.recorder")) {
+      for (const auto& a : entries(net, "attachments"))
+        if (a.at("owner") == Value(id) && string_or(a, "delivery", "host") == "container")
+          recorder = Object{{"interface", a.at("peer")}, {"mtu", integer_or(a, "mtu", 1500)}};
+      if (!recorder)
+        reject("E_NETWORK", "nodes." + id, "recorder requires a passive container mirror");
+    }
     const bool emitting = node.at("execution").at("kind") != Value("external") &&
                           type.at("observation") == Value("graphx");
     Value capture = platform.at("capture");
+    if (recorder) capture["enabled"] = false;
     capture["directory"] = native ? "${GX_STATE}/captures/" + id : "/captures";
     nodes.emplace_back(
         Object{{"contract_version", 2},
@@ -818,6 +896,7 @@ Value node_values(const Value& graph, const Catalog& catalog, const Value& conne
                 Object{{"bind_before_connect", true},
                        {"release_barrier", node.at("execution").at("kind") != Value("external")},
                        {"max_wait_ms", has_guests ? 180000 : 30000}}}});
+    if (recorder) nodes.back()["recorder"] = *recorder;
   }
   return nodes;
 }
@@ -956,7 +1035,7 @@ GraphConfig load_graph(const std::filesystem::path& path, const ConfigLoadOption
       }
     }
   }
-  const auto nodes = node_values(graph, catalog, connections, platform, native);
+  const auto nodes = node_values(graph, catalog, connections, platform, native, network);
   std::set<std::string> credentials{"observer"};
   for (const auto& [id, value] : member(graph, "credentials").object()) {
     (void)value;

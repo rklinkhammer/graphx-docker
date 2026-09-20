@@ -348,6 +348,7 @@ CompiledGraph compile_graph(const GraphConfig& graph) {
     const auto refs = credential_refs(credentials, id);
     if (kind == "container") {
       auto service = service_base(type.at("image"));
+      if (node.contains("recorder")) service["cap_add"] = strings({"NET_RAW"});
       auto argv = node_argv(node, type, true);
       service["entrypoint"] = Array{argv.front()};
       argv.erase(argv.begin());

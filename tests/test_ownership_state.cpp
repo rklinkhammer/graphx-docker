@@ -1,4 +1,5 @@
 #include "infra/ownership_lock.hpp"
+#include "infra/endpoint_resources.hpp"
 #include "infra/ownership_state.hpp"
 
 #include <sys/stat.h>
@@ -167,6 +168,106 @@ void test_network_extensions() {
   save_state(path, state);
   expect_failure([&] { static_cast<void>(load_state(path)); }, "invalid policy identity accepted");
 }
+void test_passive_mirror_contract() {
+  using graphx::infra::detail::jumbo_offloads_disabled;
+  using graphx::infra::detail::mirror_peer_link_matches;
+  using graphx::infra::detail::passive_mirror_filter_matches;
+  const std::string offloads =
+      "tcp-segmentation-offload: off\ngeneric-segmentation-offload: off\ngeneric-receive-offload: "
+      "off\ntx-checksumming: off\n";
+  require(jumbo_offloads_disabled(offloads), "disabled offloads rejected");
+  require(!jumbo_offloads_disabled(""), "missing offload evidence accepted");
+  require(!jumbo_offloads_disabled(offloads + "generic-receive-offload: on\n"),
+          "duplicate/enabled GRO accepted");
+  for (std::size_t pos = 0; (pos = offloads.find("off\n", pos)) != std::string::npos; pos += 4) {
+    auto enabled = offloads;
+    enabled.replace(pos, 3, "on");
+    require(!jumbo_offloads_disabled(enabled), "active jumbo offload accepted");
+  }
+  require(mirror_peer_link_matches("43: gxpeer: mtu 9000 alias owned", 43, "owned"),
+          "peer identity rejected");
+  require(!mirror_peer_link_matches("44: gxpeer: mtu 9000 alias owned", 43, "owned"),
+          "replacement index accepted");
+  require(!mirror_peer_link_matches("43: gxpeer: mtu 9000 alias owned-foreign", 43, "owned"),
+          "alias prefix accepted");
+  require(!mirror_peer_link_matches("43: gxpeer: mtu 9000 alias foreign-owned", 43, "owned"),
+          "alias substring accepted");
+  const std::string filter =
+      R"([{"kind":"matchall","protocol":"all","pref":1,"chain":0,"options":{"actions":[{"kind":"gact","control_action":{"type":"drop"}}]}}])";
+  require(passive_mirror_filter_matches(filter), "valid passive filter rejected");
+  for (const auto& invalid :
+       {std::string("[]"), std::string("{"), std::string("{}"), filter + filter})
+    require(!passive_mirror_filter_matches(invalid), "malformed filter accepted");
+  for (const auto& [from, to] :
+       std::array<std::pair<std::string, std::string>, 4>{{{"drop", "pass"},
+                                                           {"matchall", "flower"},
+                                                           {"all", "ip"},
+                                                           {"\"pref\":1", "\"pref\":2"}}}) {
+    auto changed = filter;
+    changed.replace(changed.find(from), from.size(), to);
+    require(!passive_mirror_filter_matches(changed), "non-passive filter accepted");
+  }
+  TemporaryDirectory temporary;
+  auto state = load_state(secure_fixture_copy(temporary, "current"));
+  graphx::infra::detail::ExpectedEndpoint endpoint;
+  endpoint.id = "mirror";
+  endpoint.owner = "recorder";
+  endpoint.kind = graphx::AttachmentKind::mirror;
+  endpoint.host_interface = "gxmirror";
+  endpoint.target_interface = "gxpeer";
+  endpoint.network_switch = "gxbridge";
+  endpoint.namespace_inode = 7;
+  endpoint.container_id = std::string(64, 'a');
+  endpoint.mirror_container = true;
+  endpoint.mtu = 9000;
+  state.expected_endpoints.push_back(endpoint);
+  const auto path = temporary.path() / "mirror.yaml";
+  save_state(path, state);
+  const auto loaded = load_state(path).expected_endpoints.back();
+  require(loaded.mirror_container && loaded.mtu == 9000 &&
+              loaded.container_id == endpoint.container_id && loaded.namespace_inode == 7,
+          "mirror ownership roundtrip");
+  OwnedResourceIdentity mirror;
+  mirror.kind = "mirror_veth";
+  mirror.attachment_id = endpoint.id;
+  mirror.name = endpoint.host_interface;
+  mirror.target_interface = endpoint.target_interface;
+  mirror.container_id = endpoint.container_id;
+  mirror.namespace_inode = endpoint.namespace_inode;
+  mirror.ifindex = 42;
+  mirror.peer_ifindex = 43;
+  mirror.stable_id = "11111111-1111-1111-1111-111111111111";
+  mirror.secondary_id = "22222222-2222-2222-2222-222222222222";
+  mirror.route_identity = "33333333-3333-3333-3333-333333333333";
+  state.status = "creating";
+  state.endpoints.push_back(mirror);
+  save_state(path, state);
+  require(stable_identity_matches(mirror, load_state(path).endpoints.back()),
+          "interrupted mirror identity lost");
+  for (int field = 0; field < 3; ++field) {
+    auto replaced = state;
+    if (field == 0) replaced.endpoints.back().namespace_inode = 8;
+    if (field == 1) replaced.endpoints.back().container_id = std::string(64, 'b');
+    if (field == 2) replaced.endpoints.back().target_interface = "foreign";
+    save_state(path, replaced);
+    expect_failure([&] { static_cast<void>(load_state(path)); },
+                   "replaced mirror identity accepted for cleanup");
+  }
+  auto replaced = mirror;
+  replaced.peer_ifindex = 44;
+  require(!stable_identity_matches(mirror, replaced), "replacement peer authorized");
+  for (int failure = 0; failure < 4; ++failure) {
+    auto changed = state;
+    auto& item = changed.expected_endpoints.back();
+    if (failure == 0) item.mtu = 9001;
+    if (failure == 1) item.mtu = 0;
+    if (failure == 2) item.container_id.clear();
+    if (failure == 3) item.kind = graphx::AttachmentKind::namespace_veth;
+    save_state(path, changed);
+    expect_failure([&] { static_cast<void>(load_state(path)); }, "invalid mirror ledger accepted");
+  }
+}
+
 void test_process_inventory() {
   TemporaryDirectory temporary;
   auto state = load_state(secure_fixture_copy(temporary, "current"));
@@ -300,6 +401,7 @@ int main() {
     test_scenario_recovery_records();
     test_process_inventory();
     test_network_extensions();
+    test_passive_mirror_contract();
     test_rejected_state_files();
     test_state_root_and_lock_security();
     test_identity_and_hash_helpers();

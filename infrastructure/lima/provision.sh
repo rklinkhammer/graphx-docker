@@ -11,7 +11,7 @@ set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 packages=(
   build-essential ca-certificates clang cmake curl docker-buildx docker-compose-v2 docker.io
-  gnupg iproute2 jq libssl-dev libyaml-cpp-dev nftables ninja-build
+  ethtool gnupg iproute2 jq libssl-dev libyaml-cpp-dev nftables ninja-build
   openvswitch-switch openssl pkg-config python3 python3-jsonschema python3-yaml
   qemu-system-arm qemu-system-ppc qemu-system-x86 qemu-utils tshark
 )

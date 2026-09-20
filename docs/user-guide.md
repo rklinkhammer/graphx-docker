@@ -190,6 +190,22 @@ Physical NICs and external switches are not adopted automatically. See
 [network infrastructure](GraphX_Architecture.md#network-ownership-reference) and [scenario actions](#scenario-actions)
 for ordered policy, manual routes and bounded faults.
 
+Managed attachments accept `mtu` from 576 to 9000 (default 1500). The opt-in
+four-radio VITA path uses one owned OVS bridge and 9000-byte IP MTU on every
+application and mirror attachment. Startup verifies observed jumbo endpoints before
+releasing applications. Ethernet/VLAN overhead is separate from IP MTU.
+
+A mirror attachment can select `delivery: container` with a container
+`vita.recorder` owner; the default `delivery: host` preserves diagnostic capture
+attachments. Container recorders have one unaddressed passive endpoint, no
+application ports and no routes. GraphX installs and checks a host ingress drop
+filter, grants initial `NET_RAW` only, and the recorder drops capabilities and
+restricts its receive descriptor before readiness. The recorder reports counters
+and discards frames without writing archives. An explicitly authored network
+capture remains independent; its snap length must cover MTU plus 22 bytes.
+See the [P3 network design](../design/four-radio-vita/network-design.md) and
+[pending live qualification](../design/four-radio-vita/p3-verification.md).
+
 ## Configure telemetry
 
 The platform receives authenticated runtime events and serves live topology,

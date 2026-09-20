@@ -53,10 +53,10 @@ std::vector<std::string> lines(std::string value) {
 }
 
 std::string ovs_find_uuid(const std::string& table, const std::string& column,
-                          const std::string& value) {
+                          const std::string& value, const std::string& owner) {
   std::string found;
   if (run({"ovs-vsctl", "--data=bare", "--no-heading", "--columns=_uuid", "find", table,
-           column + "=" + value},
+           column + "=" + value, "external_ids:graphx_owner=" + owner},
           &found) != 0)
     return {};
   const auto matches = lines(found);
