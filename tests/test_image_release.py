@@ -233,6 +233,40 @@ with patch('image_release.subprocess.run', side_effect=lambda command, **kwargs:
     rejected(lambda: smoke_image(Path('test-image.tar'), 'runtime', config_id, manifest_id))
 assert not any(command[:2] == ['docker', 'create'] for command in calls)
 
+# Expected VITA refusals are labelled passes; unexpected exits and diagnostics fail.
+for failure in (None, 'exit', 'diagnostic', 'state'):
+    selected_command = []
+    calls = []
+    def fake_output(command, **kwargs):
+        calls.append(command)
+        if command[:3] == ['docker', 'image', 'inspect']:
+            return json.dumps([{'Id': config_id}])
+        if command[:2] == ['docker', 'create']:
+            selected_command[:] = [command[command.index('--entrypoint') + 1]]
+            assert command[command.index('--cap-drop') + 1] == 'ALL'
+            return 'b' * 64
+        code = 1 if selected_command[0] == 'graphx-vita-recorder' else 78
+        return 'running 0' if failure == 'state' else f'exited {code}'
+    def fake_run(command, **kwargs):
+        calls.append(command)
+        if command[:2] == ['docker', 'start']:
+            assert kwargs['stdout'] == subprocess.PIPE and kwargs['stderr'] == subprocess.STDOUT
+            recorder = selected_command[0] == 'graphx-vita-recorder'
+            diagnostic = 'recorder requires initial NET_RAW capability' if recorder else 'E_ARGUMENT --help: unknown option'
+            return subprocess.CompletedProcess(command, 127 if failure == 'exit' else 1 if recorder else 78,
+                                               'unrelated failure' if failure == 'diagnostic' else diagnostic)
+        return subprocess.CompletedProcess(command, 0)
+    with patch('image_release.subprocess.run', side_effect=fake_run), patch(
+            'image_release.subprocess.check_output', side_effect=fake_output), patch('sys.stdout', new_callable=io.StringIO) as messages:
+        if failure:
+            rejected(lambda: smoke_image(Path('test-image.tar'), 'vita', config_id, manifest_id))
+            assert 'PASS:' not in messages.getvalue()
+        else:
+            smoke_image(Path('test-image.tar'), 'vita', config_id, manifest_id)
+            assert messages.getvalue().count('PASS:') == 4
+            assert 'expected exit 1' in messages.getvalue()
+        assert ['docker', 'rm', '--force', 'b' * 64] in calls
+
 if len(sys.argv) == 4:
     cli, release = Path(sys.argv[2]).resolve(), Path(sys.argv[3]).resolve()
     manifest = verify(release)

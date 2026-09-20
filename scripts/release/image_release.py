@@ -462,15 +462,29 @@ def smoke_image(archive: Path, role: str, config_digest: str, manifest_digest: s
                 text=True, timeout=30).strip()
             require(re.fullmatch(r"[a-f0-9]{64}", container), "Docker returned an invalid container identity")
             try:
-                result = subprocess.run(["docker", "start", "--attach", container], check=False, timeout=30)
                 # Radio/processor/detector reject missing config. Recorder fails
                 # closed before configuration without NET_RAW; this smoke grants none.
-                expected_exit = (1 if command[0] == "graphx-vita-recorder" else 78) if role == "vita" and command[0] in RECIPES["vita"][1] else 0
-                require(result.returncode == expected_exit, "image smoke executable failed")
+                negative = role == "vita" and command[0] in RECIPES["vita"][1]
+                recorder = command[0] == "graphx-vita-recorder"
+                expected_exit = (1 if recorder else 78) if negative else 0
+                result = subprocess.run(["docker", "start", "--attach", container], check=False, timeout=30,
+                                        stdout=subprocess.PIPE if negative else None,
+                                        stderr=subprocess.STDOUT if negative else None, text=True)
+                diagnostic = result.stdout or ""
+                require(result.returncode == expected_exit,
+                        f"image smoke executable failed: {command[0]} (expected exit {expected_exit}, "
+                        f"received {result.returncode})\n{diagnostic}")
+                if negative:
+                    expected = "recorder requires initial NET_RAW capability" if recorder else "E_ARGUMENT --help:"
+                    require(expected in diagnostic,
+                            f"image smoke rejection differs: {command[0]}\n{diagnostic}")
                 state = subprocess.check_output(["docker", "inspect", "--format",
                                                  "{{.State.Status}} {{.State.ExitCode}}", container],
                                                 text=True, timeout=30).strip()
                 require(state == "exited " + str(expected_exit), "image smoke exit status mismatch")
+                if negative:
+                    reason = "missing NET_RAW capability" if recorder else "missing configuration"
+                    print(f"PASS: {command[0]} rejects {reason} (expected exit {expected_exit})", flush=True)
             finally:
                 # Remove only the exact container ID returned by this create,
                 # including on interruption/timeout of the attached client.

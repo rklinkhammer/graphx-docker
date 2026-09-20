@@ -15,6 +15,13 @@ staged by the existing GraphX mechanism.
 
 ## Build and inspect
 
+From a clean checkout, build the host CLI first:
+
+```sh
+cmake --preset dev
+cmake --build --preset dev --target graphx-cli -j 4
+```
+
 On macOS, prepare images using the ready OrbStack engine:
 
 ```sh
@@ -22,6 +29,13 @@ python3 scripts/release/image_release.py build --with-vita --no-cache --allow-di
   --platform linux/arm64 --output outputs/four-radio-vita/images
 build/dev/graphx example plan four-radio-vita --target lima --json
 ```
+
+A successful build ends with `Verified shared image release and derived catalog`.
+The VITA smoke checks deliberately launch without configuration or capabilities:
+radio, processor and detector must reject missing configuration, and the recorder
+must reject missing `NET_RAW`. These expected refusals are reported as `PASS`;
+an unexpected exit or diagnostic fails verification. The subsequent `plan` command
+prints JSON and does not start the graph.
 
 Choose an absent image output directory. Omit `--allow-dirty` for a clean release
 candidate. Normal VITA builds disable qualification hooks; `--qualification-hooks`
@@ -38,10 +52,10 @@ that guest-local image path with the standard CLI from the Mac:
 
 ```sh
 build/dev/graphx example up four-radio-vita --target lima --allow-privileged \
-  --images /var/lib/graphx/verification/p6/images-recovery
+  --images /var/lib/graphx/images/four-radio-vita
 build/dev/graphx example status four-radio-vita --target lima --allow-privileged
 build/dev/graphx example logs four-radio-vita --target lima --allow-privileged --node detector
-build/dev/graphx example open four-radio-vita --target lima
+build/dev/graphx example open four-radio-vita --target lima --allow-privileged
 build/dev/graphx example down four-radio-vita --target lima --allow-privileged
 ```
 
@@ -100,7 +114,7 @@ inspect `status` and `logs`, then use explicit whole-graph recovery:
 ```sh
 build/dev/graphx example down four-radio-vita --target lima --allow-privileged
 build/dev/graphx example up four-radio-vita --target lima --allow-privileged \
-  --images /var/lib/graphx/verification/p6/images-recovery
+  --images /var/lib/graphx/images/four-radio-vita
 ```
 
 Use the same `--instance` on every command when selecting a named instance.
