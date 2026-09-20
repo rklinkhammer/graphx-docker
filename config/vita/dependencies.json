@@ -1,7 +1,19 @@
 {
   "scope": "standalone-p1-not-published-release",
   "dependencies": [
-    {"name": "SoapySDR", "version": "0.8.1", "revision": "1cf5a539a21414ff509ff7d0eedfc5fa8edb90c6", "sha256": "e680e9a6f741764b9c31b0520e577d91ad4197968d50c78db601c8a59e9ba72a", "license": "BSL-1.0"},
-    {"name": "vrtgen", "revision": "5e7497d24069c140be431d8468655f67d25f382d", "sha256": "63510b707788716e330ccdfbed1c0bde079122388c1785fac66b1aef11bfe752", "license": "LGPL-3.0-or-later", "patches": "scripts/vita/generate.py"}
+    {
+      "name": "SoapySDR",
+      "version": "0.8.1",
+      "revision": "1cf5a539a21414ff509ff7d0eedfc5fa8edb90c6",
+      "sha256": "e680e9a6f741764b9c31b0520e577d91ad4197968d50c78db601c8a59e9ba72a",
+      "license": "BSL-1.0"
+    },
+    {
+      "name": "vrt_framework",
+      "version": "0.1.0",
+      "revision": "dbe85d37155145842da60367af1c4beef8801b0c",
+      "license": "MIT",
+      "source": "https://github.com/rklinkhammer/vrt_framework.git"
+    }
   ]
 }

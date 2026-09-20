@@ -43,41 +43,29 @@ Apply [P1.1 command analysis](command-analysis.md) to the P1 exit criteria:
 
 | Item | Required result | Current state |
 |---|---|---|
-| P1.1 | Library profile/API audit and normative mappings | Library contract implemented and pinned below; application acceptance pending |
-| P1.2 | Library NO_ACTION status and correlated ReqX+ReqS; no generated protocol engine | Application migration and independent interoperability verification required |
-| P1.3 | Atomic device batch with field-specific diagnostics and no partial application | Bind the same Soapy device; verify failures and unknown physical effects |
-| P1.4 | CIF7 supported min/max query/response distinct from current state | Semantics established by VITA Section 9 and 9.12; integration acceptance pending |
-| P1.5 | Independent Context/ack vectors, non-divisor time, replay exhaustion, stalled-peer bounds | Library gates and host adapter evidence required |
+| P1.1 | Library profile/API audit and normative mappings | Implemented and pinned; local application evidence below |
+| P1.2 | Library NO_ACTION status and correlated ReqX+ReqS; no generated protocol engine | Implemented; independent mTLS wire and controller tests |
+| P1.3 | Atomic device batch with field-specific diagnostics and no partial application | Implemented; production binding with test-owned failure injection |
+| P1.4 | CIF7 supported min/max query/response distinct from current state | Implemented; independent supported-limit wire assertions |
+| P1.5 | Independent Context/ack vectors, non-divisor time, replay exhaustion, stalled-peer bounds | Local adapter/wire gates; platform and release limits in P1 verification |
 
 P1.4 uses CIF7 Maximum/Minimum, in that wire order, with Current absent.
 Global bandwidth limits remain distinct from `BW<=Fs` and device constraints.
 CIF7 Precision is not a supported increment. Public device increments/choices must
 be enforced by the same admission owner; do not invent a wire attribute for them.
 
-P1.5 proceeds independently of P1.4. No OVS deployment or privileged permission is
-needed for these local tests. P1 cannot close while capability queries remain
-unimplemented; do not replace that requirement with status or static documentation.
+The P1.4/P1.5 application gates run without OVS or privileged operations.
+Capability discovery remains independently tested from current-state observation.
 
 ### Verified library migration pin
 
-**Application migration blocked:** the pinned runtime uses actual device execution
-time for the simulated first-sample epoch, violating the common scheduled start.
-See [the deterministic reproducer and required upstream change](migration-blocker.md).
-Resume adapter integration only with a verified fix; do not compensate by falsifying
-AckX time or implementing packet timestamp rewriting in GraphX.
-
-Use `vrt_framework` commit `60a290c9b1da2396d3d704ebe52ea6cbcf2fa398` for
-this migration. Its `docs/implementation/P17-graphx-profile.md` contains the public
-APIs, host binding requirements and requirement-to-evidence matrix;
-`docs/implementation/artifacts/P17/results.json` records all six passing gates:
-macOS arm64 Debug (235), Release (239), ASan/UBSan (235), TSan (235), and Linux
-arm64 Debug/Release (235 each). The accompanying source manifest and full logs
-identify the tested implementation. Linux sanitizer gates were not run.
-
-This pin qualifies the library, not the current GraphX executable. Replacing its
-protocol engine and binding the same Soapy device and authenticated TCP transport,
-updating dependency/release inventories, and independent application acceptance
-remain P1 work. No privileged GraphX or OVS tests were run for this library migration.
+The standalone application uses `vrt_framework` commit `dbe85d37155145842da60367af1c4beef8801b0c`.
+Both unchanged start-epoch reproducer modes pass locally; the
+[epoch regression](migration-blocker.md) records the corrected contract.
+The library's `docs/implementation/P17-graphx-profile.md` defines its public APIs
+and host binding requirements. [P1 verification](p1-verification.md) records
+application tests independently of upstream qualification. Privileged OVS and
+release/image qualification remain later-phase work.
 
 ### Design and dependency integration
 
@@ -104,8 +92,8 @@ remain P1 work. No privileged GraphX or OVS tests were run for this library migr
   same executable supports all four radios.
 - Generate signed 16-bit I/Q through the device streaming interface. Implement
   bounded reads, serialized configuration changes and capability/range validation.
-- Generate stream IDs 1–4, zero class ID and required trailer using the selected
-  packet definitions. Emit up to 1,024 pairs per packet and up to 1 MiB per burst;
+- Use stream IDs 1–4, Data Class ID `00 FF FF FF 00 00 00 00`, absent Context/Command
+  Class IDs and the required trailer through the selected library profile. Emit up to 1,024 pairs per packet and up to 1 MiB per burst;
   preserve valid short payloads and continuous sample time/phase across bursts.
 - Implement mutually authenticated TCP control with bounded VITA framing. Provide
   configuration, applied status, capability query, scheduled start and stop. The
@@ -126,7 +114,7 @@ it does not prove an OVS jumbo path or absence of fragmentation on that path.
    a start, receive multiple complete bursts, stop streaming and query it again.
 2. Independently decode received bytes and compare known sample values, tone offset,
    gain, passband rejection, clipping, phase continuity and timestamps. Use vectors
-   or a decoder independent of the generated encoder, not only a codec round trip.
+   or a decoder independent of the library encoder, not only a codec round trip.
 3. Verify full/partial packets, single/multiple-packet bursts, size accounting,
    context, required trailer, marker mapping and packet-count wrap.
 4. Exercise fragmented/coalesced TCP messages, malformed sizes/types, unauthorized
@@ -263,7 +251,7 @@ an unsafe operation.
 four radios, IQ processor/controller, feature detector and recorder.
 
 - Extend shared release/image roles with the verified SoapySDR, `vrt_framework`, FFT and
-  application artifacts. Include generation provenance, required licenses and SBOMs;
+  application artifacts. Include source provenance, required licenses and SBOMs;
   verify ARM64 Linux support and the selected release artifacts rather than inventing
   image digests. Exercise the packaged radio with the P1 harness as a regression.
 - Author `examples/four-radio-vita/graphx.yml`: four radio identities, four distinct

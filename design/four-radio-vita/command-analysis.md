@@ -1,10 +1,10 @@
 # GraphX command and capability contract
 
 The selected VITA implementation is `vrt_framework`, explicitly configured with
-its `graphx_radio` profile. The current standalone application requires migration
-to its public Controller/controllee and host bindings; existing generated-code
-tests are not evidence of this integration. No second VITA parser or encoder may
-remain in GraphX after migration.
+its `graphx_radio` profile. The standalone radio and reusable ControllerSession
+use its public runtime and host bindings. There is no production GraphX VITA parser,
+encoder or parallel transaction engine. Independent Python test vectors are test
+oracles, not application protocol implementations.
 
 ## Acknowledgments
 
@@ -64,8 +64,7 @@ identity; reconnect cannot reset message-ID replay protection.
 ## Required migration evidence
 
 Record the immutable library implementation commit, its requirement-to-evidence
-matrix and exact platform/sanitizer results. Then replace generated packet classes
-and GraphX's protocol engine with library APIs and device/transport adapters.
+matrix and exact platform/sanitizer results. The application uses library APIs and device/transport adapters.
 Update the controller to request AckV for admission and ReqX+ReqS for post-action
 state. Add independent literal vectors for every layout, early-AckV/no-early-AckX,
 actual/observation timestamps, execution-only suppression, atomic backend failures,

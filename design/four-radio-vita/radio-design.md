@@ -1,13 +1,13 @@
 # Standalone radio design (P1)
 
-Status: implementation in progress; no final acceptance claim. P1 is an opt-in
-standalone build, not an OCI image release. P5 remains responsible for published
+Status: application migration implemented and locally verified; see the remaining
+qualification limits in P1 verification. P1 is an opt-in standalone build, not an OCI image release. P5 remains responsible for published
 image/catalog integration. The authoritative normalized node contract is reused.
 
 See [P1.1 command analysis](command-analysis.md) for the upstream example review,
 status/acknowledgment corrections and capability-query findings. The selected
-contract below is the application migration target; the current standalone
-executable still requires adapter integration and independent verification.
+contract below is implemented by the standalone executable and reusable controller
+session. See P1 verification for the precise tested scope.
 
 ## Device and signal
 
@@ -24,15 +24,13 @@ start begins a new sample epoch; duplicate starts never restart acquisition.
 
 Retain the pinned SoapySDR device dependency. Use `vrt_framework` as the sole
 VITA codec and protocol runtime through `vita::core`; consume a verified immutable
-commit `60a290c9b1da2396d3d704ebe52ea6cbcf2fa398`, with gates recorded in the
+commit `dbe85d37155145842da60367af1c4beef8801b0c`, with gates recorded in the
 [implementation plan](implementation-plan.md#verified-library-migration-pin).
 Its `graphx_radio` profile owns packet layouts,
 command validation, execution/state acknowledgments, capabilities and TCP framing.
-GraphX supplies bounded device and transport bindings. Remove vrtgen generation,
-Python generator dependencies and generated VITA classes during the application
-integration, updating notices, dependency locks and the SBOM together.
-The current standalone executable still requires this integration; its existing
-wire tests do not prove acceptance of the selected library profile.
+GraphX supplies bounded device and transport bindings. The build has no packet generator or generated VITA classes. Dependency locks,
+source verification, license copies and SPDX dependency inputs are maintained by
+`cmake/VitaRadio.cmake` and `config/vita/dependencies.json`.
 
 ## Packet profile
 
@@ -67,6 +65,8 @@ trust and controller identity. No unencrypted fallback.
 
 Scheduled time uses UTC seconds/picoseconds as the simulated first-sample epoch and
 is mapped once to the host steady clock using the current system-clock delta. The
+injected software clock then remains in explicit simulated holdover; it does not
+follow wall-clock corrections or repeatedly replace an armed timing mapping. The
 standalone controller schedules 250 ms ahead; accept 20 ms–10 s lead. Reject late
 commands. Sample timestamps use integer cumulative sample arithmetic, not arrival
 or wall-clock reads. Pacing uses the steady clock; batching is bounded, acquisition
@@ -91,7 +91,8 @@ path acceptance. Real image packaging and privileged network tests are later pha
   streaming; device-level setters preserve phase and are independently testable.
 - One TLS connection is accepted at a time, with 2-second handshake/frame/idle and
   pending-output deadlines. Commands are at most 1024 bytes; input/output bounds are
-  2048/4096 bytes. There are 256 replay entries and monotonically increasing nonzero
+  2048/4096 bytes. Ordinary output is limited to 3072 bytes, leaving 1024 for
+  cancellation. There are 256 replay entries with a 2 MiB backing budget and monotonically increasing nonzero
   message IDs; an evicted/changed operation ID cannot apply a setting twice.
 - Staged credential generation hashes are checked before and after TLS context
   loading. The trusted controller certificate must have DNS identity `controller`;
@@ -108,11 +109,39 @@ path acceptance. Real image packaging and privileged network tests are later pha
   override `0 < bandwidth <= sample_rate`. CIF7 Precision is not a device step.
   Unknown selectors report unsupported diagnostics; queries cannot change the
   sample epoch, phase, settings, scheduled operations or streaming state.
-- The event loop services acquisition/control without blocking on a receiver. A
-  pacing delay above 100 ms skips overdue samples, advances waveform phase and
-  reports dropped samples. UDP send errors are counted separately. One heartbeat
+- The event loop services acquisition/control without blocking on a receiver.
+  The library skips overdue packet intervals instead of accumulating catch-up work;
+  the source advances skipped sample phase and metrics report skipped samples. UDP send errors are counted separately. One heartbeat
   and bounded summary log per second avoid per-packet logging.
 - The P1 local sender binds its resolved source address with a kernel-selected UDP
   source port. A production explicit source-port contract remains to be integrated;
   the destination port is resolved and fixed. Do not claim full authored source-port
   control or OVS attachment binding from loopback acceptance.
+
+## Host adapter boundaries
+
+`include/graphx/vita/runtime.hpp` exposes `DeviceBinding`, `HostTransport` and
+`ControllerSession`; `src/vita/host.cpp` implements their reusable behavior.
+The radio owns listener authentication and normalized bindings. A controller
+caller supplies an already authenticated nonblocking SSL connection; the transport
+independently checks completed TLS, chain verification and the expected peer SAN.
+`ControllerSession::commands()` exposes the library's typed operation/observation
+API. Drive `progress()` with host time and poll evidence with a zero wait budget;
+do not advance a real session with the library's deterministic `run_for` helper.
+Disconnect before destroying SSL. Reconnect keeps the same runtime and peer identity.
+
+The virtual device commits a fully validated Settings value in one assignment.
+Rejected batches have no effects. Uncertain lifecycle exceptions return unknown
+physical effect, allowing the runtime to fault the stream; no rollback is claimed.
+Physical Soapy drivers remain outside this binding's supported scope. Capabilities
+come from the same device's range API. Bandwidth reports global limits; the runtime
+and device both enforce bandwidth against the requested sample rate.
+
+Transport storage is fixed: seven datagram slots, four ordinary control slots,
+one cancellation slot, a 1024-byte StreamIngress framer and 2048-byte read buffer.
+Accepted submissions retain library storage until exactly one deferred completion.
+Data/Context progress remains independent of a blocked TLS writer. Disconnection
+fails outstanding writes, releases their leases and clears partial input; it does
+not reset replay history. Handshake, idle, partial-frame and output deadlines are
+2 seconds. Retention lasts at least 30 seconds. Exhaustion refuses new work until
+space expires; expired/changed IDs never acquire fresh execution authority.

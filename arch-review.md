@@ -61,30 +61,17 @@ The specification needs to select and threat-model one mechanism, most likely:
 - Verify that the interface cannot transmit into the mirrored network, access other
   host interfaces or survive ownership cleanup.
 
-### 3. High: the exact VITA profile remains a future design task
+### 3. Standalone VITA profile and integration
 
-The document selects stream IDs, a zero class ID, 1,024 IQ pairs, timestamps and a
-trailer, but still delegates essential wire decisions: component order and scaling,
-packet field presence, context cadence, packet-count behavior, burst identity,
-timed-start encoding, CAM policy, acknowledgment meaning and partial-application
-behavior
-([vita_system.md](docs/vita_system.md#L241-L338),
-[vita_system.md](docs/vita_system.md#L552-L591)).
-
-The cited `vrtgen` control example permits partial application and warnings, but the
-brief correctly says not to inherit that policy. No replacement policy is selected.
-The reviewed revision is also explicitly not a production dependency pin
-([vita_system.md](docs/vita_system.md#L202-L225)).
-
-Before coding, produce a normative profile containing:
-
-- Exact generated packet definitions and checked-in generation inputs.
-- Data, context, control and acknowledgment packet layouts.
-- Timed-start representation and acknowledgment phase.
-- Unsupported fields and packet types.
-- Independent vectors or decoder selection.
-- A verified `vrtgen` pin and LGPL-3.0 distribution plan for its header library and
-  generated output.
+The selected `vrt_framework` `graphx_radio` profile defines IQ16 order/scaling,
+packet layouts, Class ID policy, timestamps, burst markers, CAM semantics and
+capabilities. GraphX supplies one Soapy device owner and bounded mTLS bindings;
+it does not generate packets or maintain a separate VITA transaction engine.
+See [radio design](design/four-radio-vita/radio-design.md),
+[command contract](design/four-radio-vita/command-analysis.md) and
+[P1 evidence](design/four-radio-vita/p1-verification.md).
+Local standalone acceptance does not qualify container releases, OVS jumbo paths
+or the complete four-radio processing graph.
 
 ### 4. High: jumbo frames cannot be requested through authored configuration
 

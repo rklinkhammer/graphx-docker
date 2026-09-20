@@ -13,7 +13,7 @@ void range(double value, double minimum, double maximum) {
 }
 }  // namespace
 VirtualDevice::VirtualDevice(double signal, double amplitude, double phase)
-    : signal_(signal), amplitude_(amplitude), phase_(phase) {
+    : signal_(signal), amplitude_(amplitude), phase_(phase), initial_phase_(phase) {
   range(signal, 1e6, 6e9);
   range(amplitude, 0, 1);
   range(phase, 0, 2 * std::numbers::pi);
@@ -25,6 +25,10 @@ void VirtualDevice::validate(const Settings& s) {
     throw std::invalid_argument("E_RADIO_RATE: integral rate required");
   range(s.bandwidth, 1, s.rate);
   range(s.gain, -60, 60);
+}
+void VirtualDevice::begin_epoch() noexcept {
+  sample_ = 0;
+  phase_ = initial_phase_;
 }
 void VirtualDevice::skip_samples(std::uint64_t count) {
   const long double cycles =
@@ -159,7 +163,7 @@ SoapySDR::RangeList VirtualDevice::getSampleRateRange(int d, size_t c) const {
 }
 SoapySDR::RangeList VirtualDevice::getBandwidthRange(int d, size_t c) const {
   channel(d, c);
-  return {{1, settings_.rate}};
+  return {{1, 2000000}};
 }
 SoapySDR::Range VirtualDevice::getGainRange(int d, size_t c) const {
   channel(d, c);

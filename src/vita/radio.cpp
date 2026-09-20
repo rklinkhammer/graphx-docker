@@ -1,13 +1,7 @@
 #include "graphx/vita/virtual_device.hpp"
 #include "graphx/node_settings.hpp"
 #include "../application_observer.hpp"
-#include "radio_ack.hpp"
-#include "radio_context.hpp"
-#include "radio_control.hpp"
-#include "radio_query.hpp"
-#include "radio_query_ack.hpp"
-#include <type_traits>
-#include "radio_data.hpp"
+#include "graphx/vita/runtime.hpp"
 #include <SoapySDR/Constants.h>
 #include <openssl/ssl.h>
 #include <openssl/x509v3.h>
@@ -31,9 +25,6 @@
 namespace graphx::vita {
 namespace {
 using namespace std::chrono;
-using namespace packets;
-using namespace vrtgen::packing;
-using Bytes = std::vector<std::uint8_t>;
 using Clock = steady_clock;
 volatile std::sig_atomic_t stopping{};
 void stop_signal(int) { stopping = 1; }
@@ -54,317 +45,15 @@ sockaddr_in address(const std::string& ip, std::int64_t port) {
     throw std::runtime_error("invalid resolved endpoint");
   return a;
 }
-std::uint32_t word(std::span<const std::uint8_t> b, size_t n) {
-  if (n + 4 > b.size()) throw std::runtime_error("truncated control");
-  return (std::uint32_t(b[n]) << 24) | (std::uint32_t(b[n + 1]) << 16) |
-         (std::uint32_t(b[n + 2]) << 8) | b[n + 3];
-}
-// Reject unknown layouts and check every optional field extent before invoking
-// upstream generated accessors, which assume a complete, structurally valid span.
-void validate_control(const Bytes& b) {
-  if (b.size() < 40 || b.size() > 1024 || (word(b, 0) & 65535) * 4 != b.size())
-    throw std::runtime_error("control size");
-  auto cif = word(b, 36);
-  constexpr std::uint32_t fields = 0x28a00000;
-  if (word(b, 20) & ~0xa38d7000U) throw std::runtime_error("unsupported CAM bits");
-  if (cif & ~(fields | 2U)) throw std::runtime_error("unsupported CIF0");
-  const bool query = ((word(b, 20) >> 23) & 3) == 0;
-  size_t length = 40;
-  if (query) {
-    if (cif & 2U) {
-      if (word(b, 40) != 64) throw std::runtime_error("unsupported query CIF1");
-      length += 4;
-    }
-    if (cif == 0 || length != b.size()) throw std::runtime_error("query selectors");
-    if (auto mismatch = RadioQuery::match(b)) throw std::runtime_error(*mismatch);
-    return;
-  }
-  if (cif & 2U) {
-    if (word(b, 40) != 64) throw std::runtime_error("unsupported CIF1");
-    if (word(b, b.size() - 4) != 2 && word(b, b.size() - 4) != 3)
-      throw std::runtime_error("unsupported discrete IO");
-    length += 8;
-  }
-  if (cif & (1U << 29)) length += 8;
-  if (cif & (1U << 27)) length += 8;
-  if (cif & (1U << 23)) length += 4;
-  if (cif & (1U << 21)) length += 8;
-  if (length != b.size()) throw std::runtime_error("control layout");
-  auto mismatch = ((word(b, 20) >> 23) & 3) == 0 ? RadioQuery::match(b) : RadioControl::match(b);
-  if (mismatch) throw std::runtime_error(*mismatch);
-}
-template <class P>
-Bytes bytes(P& p) {
-  auto data = p.data();
-  return {data.begin(), data.end()};
-}
-template <class P, class C>
-void identity(P& p, C& command) {
-  p.stream_id(command.stream_id());
-  p.controllee_id(command.controllee_id());
-  p.controller_id(command.controller_id());
-  p.message_id(command.message_id());
-  p.integer_timestamp(command.integer_timestamp());
-  p.fractional_timestamp(command.fractional_timestamp());
-}
 struct Client {
   Fd fd;
   std::unique_ptr<SSL, decltype(&SSL_free)> ssl;
-  bool ready{};
-  Bytes input, output;
+  bool ready{}, bound{};
   Clock::time_point deadline{Clock::now() + seconds(2)};
   Client(int socket, SSL_CTX* ctx) : fd(socket), ssl(SSL_new(ctx), SSL_free) {
     if (!ssl || SSL_set_fd(ssl.get(), fd.value) != 1) throw std::runtime_error("TLS allocation");
     fcntl(fd.value, F_SETFL, O_NONBLOCK);
     SSL_set_accept_state(ssl.get());
-  }
-};
-class Radio {
- public:
-  VirtualDevice device;
-  SoapySDR::Stream* stream;
-  std::uint32_t id, burst;
-  std::uint64_t sample{}, epoch_ps{}, epoch_sec{}, dropped{}, packets{}, udp_errors{};
-  bool configured{}, running{}, armed{};
-  Clock::time_point start{};
-  std::map<std::uint32_t, std::pair<Bytes, Bytes>> replay;
-  std::uint32_t highest{};
-  Radio(std::uint32_t id_, double signal, std::uint32_t burst_, double amplitude, double phase)
-      : device(signal, amplitude, phase), id(id_), burst(burst_) {
-    stream = device.setupStream(SOAPY_SDR_RX, "CS16");
-  }
-  ~Radio() { device.closeStream(stream); }
-  Bytes command(const Bytes& request) {
-    validate_control(request);
-    const auto mode = static_cast<ActionMode>((word(request, 20) >> 23) & 3);
-    RadioControl c;
-    if (mode == ActionMode::NO_ACTION) {
-      // Never decode selector-only bytes with the execute decoder: it reads values.
-      RadioQuery query(request);
-      if (query.cam().permit_partial() || query.cam().permit_warnings() ||
-          query.timing_control() != TimestampControlMode::IGNORE ||
-          query.fractional_timestamp() >= 1000000000000ULL)
-        throw std::runtime_error("unsupported query CAM/timestamp");
-      identity(c, query);
-      c.req_s(true);
-    } else {
-      c = RadioControl(request);
-    }
-    if (c.stream_id() != id || c.controllee_id() != id || c.controller_id() != 1)
-      throw std::runtime_error("command identity");
-    if (auto found = replay.find(c.message_id()); found != replay.end()) {
-      if (found->second.first != request) throw std::runtime_error("message ID reuse");
-      return found->second.second;
-    }
-    if (!c.message_id() || c.message_id() <= highest)
-      throw std::runtime_error("expired message ID");
-    Bytes response;
-    std::uint32_t error_fields = word(request, 36) & 0x28a00000;
-    WarningErrorFields error;
-    error.field_not_executed(true);
-    try {
-      if (c.cam().permit_partial() || c.cam().permit_warnings() ||
-          c.fractional_timestamp() >= 1000000000000ULL)
-        throw std::runtime_error("unsupported CAM/timestamp");
-      const auto mask = word(request, 36) & 0x28a00000;
-      if (mode == ActionMode::NO_ACTION) {
-        // Query packets contain selectors only, not the execute packet's values.
-        if (!c.req_s() || c.timing_control() != TimestampControlMode::IGNORE)
-          throw std::runtime_error("invalid status");
-      } else if (mode == ActionMode::EXECUTE) {
-        if (mask) {
-          if (mask != 0x28a00000 || c.discrete_io_32() || running || armed ||
-              c.timing_control() != TimestampControlMode::IGNORE)
-            throw std::runtime_error("configuration must be complete and stopped");
-          Settings requested{static_cast<double>(*c.rf_ref_frequency()),
-                             static_cast<double>(*c.sample_rate()),
-                             static_cast<double>(*c.bandwidth()), c.gain()->stage_1()};
-          const auto supports = [](double value, const SoapySDR::RangeList& ranges) {
-            return std::isfinite(value) &&
-                   std::any_of(ranges.begin(), ranges.end(), [&](const auto& r) {
-                     return value >= r.minimum() && value <= r.maximum();
-                   });
-          };
-          error_fields = 0;
-          if (!supports(requested.center, device.getFrequencyRange(SOAPY_SDR_RX, 0)))
-            error_fields |= 1U << 27;
-          if (!supports(requested.rate, device.getSampleRateRange(SOAPY_SDR_RX, 0)))
-            error_fields |= 1U << 21;
-          // Bandwidth validity is relative to the requested rate, not the old state.
-          if (!std::isfinite(requested.bandwidth) || requested.bandwidth < 1 ||
-              requested.bandwidth > requested.rate)
-            error_fields |= 1U << 29;
-          const auto gain_range = device.getGainRange(SOAPY_SDR_RX, 0);
-          if (!supports(requested.gain, {gain_range})) error_fields |= 1U << 23;
-          if (error_fields) {
-            error.parameter_out_of_range(true);
-            throw std::runtime_error("setting range");
-          }
-          if (requested.rate != std::floor(requested.rate)) {
-            error_fields = 1U << 21;
-            error.parameter_unsupported_precision(true);
-            throw std::runtime_error("integral sample rate required");
-          }
-          if (c.gain()->stage_2() != 0) {
-            error_fields = 1U << 23;
-            error.field_value_invalid(true);
-            throw std::runtime_error("unsupported gain stage");
-          }
-          error_fields = mask;
-          device.configure(requested);
-          configured = true;
-        } else if (c.discrete_io_32() && c.discrete_io_32()->stream_enable_enable()) {
-          if (c.discrete_io_32()->stream_enable()) {
-            if (!configured || running || armed ||
-                c.timing_control() != TimestampControlMode::DEVICE)
-              throw std::runtime_error("invalid start state");
-            const auto wall_ns =
-                duration_cast<nanoseconds>(system_clock::now().time_since_epoch()).count();
-            const auto target_ns = std::int64_t(c.integer_timestamp()) * 1000000000LL +
-                                   static_cast<std::int64_t>(c.fractional_timestamp() / 1000);
-            const auto lead = target_ns - wall_ns;
-            if (lead < 20000000 || lead > 10000000000LL) {
-              error.timestamp_problem(true);
-              throw std::runtime_error("start deadline");
-            }
-            start = Clock::now() + nanoseconds(lead);
-            epoch_sec = c.integer_timestamp();
-            epoch_ps = c.fractional_timestamp();
-            sample = 0;
-            armed = true;
-          } else {
-            if (c.timing_control() != TimestampControlMode::IGNORE)
-              throw std::runtime_error("timed stop unsupported");
-            running = false;
-            armed = false;
-            device.deactivateStream(stream);
-          }
-        } else
-          throw std::runtime_error("unsupported operation");
-      } else
-        throw std::runtime_error("unsupported action");
-      if (c.req_x()) {
-        RadioAckVX a;
-        identity(a, c);
-        a.ack_x(true);
-        a.scheduled_or_executed(true);
-        a.timing_control(c.timing_control());
-        response = bytes(a);
-      }
-      if (c.req_s()) {
-        const auto status_reply = [&](auto& a) {
-          identity(a, c);
-          const auto& s = device.settings();
-          if (mask & (1U << 29)) a.bandwidth(s.bandwidth);
-          if (mask & (1U << 27)) a.rf_ref_frequency(s.center);
-          if (mask & (1U << 21)) a.sample_rate(s.rate);
-          Gain gain;
-          gain.stage_1(s.gain);
-          if (mask & (1U << 23)) a.gain(gain);
-          typename std::remove_cvref_t<decltype(a.discrete_io_32())>::value_type state;
-          state.stream_enable_enable(true);
-          state.stream_enable(running);
-          if (word(request, 36) & 2U) a.discrete_io_32(state);
-          auto status = bytes(a);
-          response.insert(response.end(), status.begin(), status.end());
-        };
-        if (mode == ActionMode::NO_ACTION) {
-          RadioQueryAckS a;
-          status_reply(a);
-        } else {
-          RadioAckS a;
-          status_reply(a);
-        }
-      }
-    } catch (const std::exception&) {
-      RadioAckVX a;
-      identity(a, c);
-      a.ack_x(true);
-      if (error_fields & (1U << 29)) a.bandwidth_errors(error);
-      if (error_fields & (1U << 27)) a.rf_ref_frequency_errors(error);
-      if (error_fields & (1U << 23)) a.gain_errors(error);
-      if (error_fields & (1U << 21)) a.sample_rate_errors(error);
-      if (!error_fields) a.discrete_io_32_errors(error);
-      if (error.timestamp_problem()) a.timing_control(TimestampControlMode::TIMING_ISSUES);
-      response = bytes(a);
-    }
-    highest = c.message_id();
-    replay.emplace(highest, std::pair{request, response});
-    if (replay.size() > 256) replay.erase(replay.begin());
-    return response;
-  }
-  template <class P>
-  void timestamp(P& p) const {
-    const auto rate = static_cast<std::uint64_t>(device.settings().rate);
-    const auto ps = epoch_ps + (sample % rate) * 1000000000000ULL / rate;
-    p.integer_timestamp(
-        static_cast<std::uint32_t>(epoch_sec + sample / rate + ps / 1000000000000ULL));
-    p.fractional_timestamp(ps % 1000000000000ULL);
-  }
-  void tick(int socket, const sockaddr_in& destination) {
-    auto now = Clock::now();
-    if (armed && now >= start) {
-      armed = false;
-      running = true;
-      device.activateStream(stream);
-    }
-    if (!running) return;
-    const auto rate = static_cast<std::uint64_t>(device.settings().rate);
-    auto due = start + nanoseconds(static_cast<std::int64_t>((sample / rate) * 1000000000 +
-                                                             (sample % rate) * 1000000000 / rate));
-    if (now < due) return;
-    // At most one packet per event-loop iteration; discard overdue whole samples
-    // after 100 ms rather than accumulating an unbounded catch-up backlog.
-    if (now - due > milliseconds(100)) {
-      auto elapsed = duration_cast<nanoseconds>(now - start).count();
-      auto expected = static_cast<std::uint64_t>(elapsed / 1000000000) * rate +
-                      static_cast<std::uint64_t>(elapsed % 1000000000) * rate / 1000000000;
-      device.skip_samples(expected - sample);
-      dropped += expected - sample;
-      sample = expected;
-    }
-    auto send = [&](auto& packet) {
-      auto b = packet.data();
-      auto result = sendto(socket, b.data(), b.size(), 0,
-                           reinterpret_cast<const sockaddr*>(&destination), sizeof(destination));
-      if (result != static_cast<ssize_t>(b.size())) ++udp_errors;
-    };
-    if (sample % burst == 0 || packets == 0) {
-      RadioContext c;
-      c.stream_id(id);
-      timestamp(c);
-      const auto& s = device.settings();
-      c.bandwidth(s.bandwidth);
-      c.rf_ref_frequency(s.center);
-      c.sample_rate(s.rate);
-      Gain gain;
-      gain.stage_1(s.gain);
-      c.gain(gain);
-      send(c);
-    }
-    auto count = std::min<std::uint64_t>(1024, burst - sample % burst);
-    std::array<std::int16_t, 2048> iq{};
-    void* buffers[] = {iq.data()};
-    int flags{};
-    long long time{};
-    if (device.readStream(stream, buffers, count, flags, time) != static_cast<int>(count))
-      throw std::runtime_error("device read");
-    Bytes payload(count * 4);
-    for (size_t i = 0; i < count * 2; ++i) {
-      auto v = static_cast<std::uint16_t>(iq[i]);
-      payload[2 * i] = v >> 8;
-      payload[2 * i + 1] = v & 255;
-    }
-    RadioData p;
-    p.stream_id(id);
-    p.packet_count(packets++ % 16);
-    timestamp(p);
-    p.payload(payload);
-    bool first = sample % burst == 0, last = sample % burst + count == burst;
-    p.trailer().sample_frame(first ? (last ? SSI::SINGLE : SSI::FIRST)
-                                   : (last ? SSI::FINAL : SSI::MIDDLE));
-    send(p);
-    sample += count;
   }
 };
 }  // namespace
@@ -411,11 +100,38 @@ int run_radio(int argc, char** argv) {
     fcntl(listener.value, F_SETFL, O_NONBLOCK);
     fcntl(sender.value, F_SETFL, O_NONBLOCK);
     auto& parameters = node.resolved.at("parameters");
-    Radio radio(parameters.at("radio_index").integer(),
-                parameters.at("signal_frequency_hz").integer(),
-                parameters.at("burst_samples").integer(),
-                parameters.at("amplitude_ppm").integer() / 1000000.0,
-                parameters.at("initial_phase_mdeg").integer() * std::numbers::pi / 180000.0);
+    HostClock clock;
+    auto device = std::make_shared<DeviceBinding>(
+        parameters.at("signal_frequency_hz").integer(),
+        parameters.at("amplitude_ppm").integer() / 1000000.0,
+        parameters.at("initial_phase_mdeg").integer() * std::numbers::pi / 180000.0);
+    device->set_clock(&clock, [](void* p) noexcept { return static_cast<HostClock*>(p)->now(); });
+    auto transport = std::make_shared<HostTransport>(sender.value, destination);
+    auto config = runtime_config();
+    config.transport = transport->factory();
+    auto made = Runtime::create(config, runtime_pools());
+    if (!made)
+      throw std::runtime_error("VITA runtime setup " +
+                               std::to_string(static_cast<int>(made.error().code)));
+    auto runtime = std::move(*made);
+    vr::StreamConfig stream;
+    stream.sid = static_cast<std::uint32_t>(parameters.at("radio_index").integer());
+    stream.controller_id = 1;
+    stream.controllee_id = stream.sid;
+    stream.profile = vr::profiles::iq::Profile::graphx_radio;
+    stream.role = vr::EndpointRole::controllee_only;
+    stream.trailer = true;
+    stream.maximum_samples_per_packet = 1024;
+    stream.burst_pairs = static_cast<std::size_t>(parameters.at("burst_samples").integer());
+    stream.ip_mtu = 9000;
+    stream.bandwidth = 800000;
+    stream.graphx_capabilities = device->capabilities();
+    stream.device = device->binding();
+    stream.source = device->source();
+    auto radio = runtime->add_controllee(stream);
+    if (!radio)
+      throw std::runtime_error("VITA radio setup " +
+                               std::to_string(static_cast<int>(radio.error().code)));
     stopping = 0;
     std::signal(SIGINT, stop_signal);
     std::signal(SIGTERM, stop_signal);
@@ -433,6 +149,7 @@ int run_radio(int argc, char** argv) {
     std::unique_ptr<Client> client;
     auto log_at = Clock::now() + seconds(1);
     while (!stopping) {
+      clock.progress(*runtime);
       sockaddr_in peer{};
       socklen_t size = sizeof(peer);
       int socket = accept(listener.value, reinterpret_cast<sockaddr*>(&peer), &size);
@@ -445,7 +162,7 @@ int run_radio(int argc, char** argv) {
       }
       if (client) {
         auto& c = *client;
-        bool failed = Clock::now() > c.deadline;
+        bool failed = !c.ready && Clock::now() > c.deadline;
         if (!failed && !c.ready) {
           int result = SSL_accept(c.ssl.get());
           if (result == 1) {
@@ -459,57 +176,32 @@ int run_radio(int argc, char** argv) {
           }
         }
         if (!failed && c.ready) {
-          if (c.output.empty()) {
-            std::array<std::uint8_t, 1024> buffer{};
-            int count = SSL_read(c.ssl.get(), buffer.data(), buffer.size());
-            if (count > 0)
-              c.input.insert(c.input.end(), buffer.begin(), buffer.begin() + count);
-            else {
-              auto error = SSL_get_error(c.ssl.get(), count);
-              failed = error != SSL_ERROR_WANT_READ && error != SSL_ERROR_WANT_WRITE;
-            }
-            if (c.input.size() > 2048) failed = true;
-            try {
-              while (!failed && c.input.size() >= 4) {
-                auto length = (word(c.input, 0) & 65535) * 4;
-                if (length < 40 || length > 1024) throw std::runtime_error("frame length");
-                if (c.input.size() < length) break;
-                Bytes request(c.input.begin(), c.input.begin() + length);
-                c.input.erase(c.input.begin(), c.input.begin() + length);
-                auto response = radio.command(request);
-                if (c.output.size() + response.size() > 4096)
-                  throw std::runtime_error("reply bound");
-                c.output.insert(c.output.end(), response.begin(), response.end());
-                c.deadline = Clock::now() + seconds(2);
-              }
-            } catch (const std::exception&) {
-              failed = true;
-            }
+          if (!c.bound) {
+            transport->connect(c.ssl.get());
+            c.bound = true;
           }
-          if (!failed && !c.output.empty()) {
-            int written = SSL_write(c.ssl.get(), c.output.data(), c.output.size());
-            if (written > 0)
-              c.output.erase(c.output.begin(), c.output.begin() + written);
-            else {
-              int error = SSL_get_error(c.ssl.get(), written);
-              failed = error != SSL_ERROR_WANT_READ && error != SSL_ERROR_WANT_WRITE;
-            }
-          }
+          failed = !transport->receive() || !transport->healthy();
         }
-        if (failed) client.reset();
+        if (failed) {
+          transport->disconnect();
+          client.reset();
+        }
       }
-      radio.tick(sender.value, destination);
       if (Clock::now() >= log_at) {
         if (trace) trace->on_heartbeat(node.id(), 0);
-        std::cout << "radio=" << radio.id << " packets=" << radio.packets
-                  << " dropped_samples=" << radio.dropped << " udp_errors=" << radio.udp_errors
-                  << " clipped=" << radio.device.clipped() << std::endl;
+        std::cout << "radio=" << stream.sid << " packets=" << radio->metrics().packets
+                  << " dropped_samples=" << radio->metrics().skipped_samples
+                  << " udp_errors=" << transport->udp_errors
+                  << " clipped=" << device->device.clipped() << std::endl;
         log_at = Clock::now() + seconds(1);
       }
       poll(nullptr, 0, 0);
       // Sub-millisecond pacing without a busy spin; control stays serviced.
       std::this_thread::sleep_for(microseconds(100));
     }
+    transport->disconnect();
+    runtime->shutdown(vr::StopMode::immediate);
+    clock.progress(*runtime);
     return 0;
   } catch (const std::exception& e) {
     std::cerr << "graphx-vita-radio: " << e.what() << '\n';

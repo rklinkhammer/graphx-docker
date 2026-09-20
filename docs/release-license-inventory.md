@@ -165,13 +165,12 @@ The P1 build selected by `GRAPHX_BUILD_VITA_RADIO` uses these additional inputs:
 | Component | Pinned source | Relationship | Upstream notice |
 | --- | --- | --- | --- |
 | SoapySDR 0.8.1 | `1cf5a539a21414ff509ff7d0eedfc5fa8edb90c6` | Shared device API library | BSL-1.0 |
-| Geontech/vrtgen | `5e7497d24069c140be431d8468655f67d25f382d` | Packet generator, generated classes and support headers | LGPL-3.0-or-later notices in sources/templates |
+| vrt_framework | `dbe85d37155145842da60367af1c4beef8801b0c` | Header-only VITA codec and protocol runtime, `vita::core` | MIT |
 
-Archive hashes are enforced by `cmake/VitaRadio.cmake`; generator tool versions are
-listed in `scripts/vita/requirements.txt`. `scripts/vita/generate.py` applies
-recorded template compatibility fixes to a build-local source copy. Preserve those
-changes, generation inputs and upstream source/license texts with any distribution.
-The opt-in build emits a separate dependency inventory; existing native/OCI release
-SBOMs do not yet claim these components. Integration into the full release artifacts
-belongs to P5 and must include exact license texts, source provenance and applicable
-redistribution materials before shipping the radio.
+`cmake/VitaRadio.cmake` verifies the Soapy archive hash and clean VRT Git revision.
+`config/vita/dependencies.json` supplies the opt-in dependency lock and SPDX inputs.
+The build copies exact upstream license texts into `generated/vita-licenses/` and
+emits `generated/vita-dependencies.spdx.json`. Preserve the source pins and notices
+with distribution. There are no Python generator dependencies or generated packet
+classes. Published native/OCI releases do not yet contain this executable; their
+complete runtime SBOM integration remains P5 work.

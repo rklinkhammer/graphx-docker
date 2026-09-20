@@ -2,52 +2,60 @@
 
 [Implementation plan](implementation-plan.md) · [Accepted brief](../../docs/vita_system.md)
 
-[P1.1 command analysis](command-analysis.md) records the vrtgen command mappings,
-reproduced query-generation limitations and remaining command work.
+The opt-in standalone radio uses `vrt_framework` as its only VITA codec and
+protocol runtime, with one virtual SoapySDR device per radio process. The reusable
+`ControllerSession` uses the same runtime and authenticated transport boundary.
+P2 supplies the final IQ processor; OVS, images and the complete graph are later
+phases. This target is not part of published native/OCI releases.
 
-The P1 standalone radio is an opt-in development target. It is not yet part of a
-verified GraphX native release or OCI image. OVS integration and the four-radio
-example remain later phases.
+## Build and test
 
-## Build and test the standalone radio
-
-From the repository root, using a supported C++20 toolchain, CMake, Ninja, OpenSSL 3
-and Python 3.13 (the generator environment tested on macOS):
+Use a C++23 compiler/standard library, CMake, Ninja, Git, OpenSSL 3 and Python 3.
+Apple clang 21 is the tested macOS toolchain. From the repository root:
 
 ```sh
-python3.13 -m venv build/vita-tools
-build/vita-tools/bin/python -m pip install -r scripts/vita/requirements.txt
-cmake -S . -B build/vita -G Ninja \
+cmake -S . -B build/vita-migration -G Ninja \
   -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-  -DGRAPHX_BUILD_VITA_RADIO=ON \
-  -DGRAPHX_VRTPKTGEN="$PWD/build/vita-tools/bin/vrtpktgen"
-cmake --build build/vita --target graphx-cli graphx-vita-radio-app graphx-vita-device-test
-ctest --test-dir build/vita -R graphx-vita --output-on-failure
+  -DGRAPHX_BUILD_TESTS=ON -DGRAPHX_BUILD_VITA_RADIO=ON \
+  -DGRAPHX_VRT_REPOSITORY=/Users/rklinkhammer/workspace/vrt_framework
+cmake --build build/vita-migration -j4
+ctest --test-dir build/vita-migration -R graphx-vita --output-on-failure
 ```
 
-The Python executable name may differ by installation. The configured generator
-must belong to that virtual environment. CMake downloads hash-checked dependency
-sources. Keep the virtual environment out of version control.
+`GRAPHX_VRT_REPOSITORY` selects a Git mirror, not a revision override. CMake checks
+out and verifies the clean pinned commit
+`dbe85d37155145842da60367af1c4beef8801b0c`. Omit the repository argument when that
+commit is available from the default GitHub repository. At migration verification
+it was available locally; the GitHub archive endpoint returned 404. No library
+push is performed by the build. SoapySDR uses its SHA-256-checked source archive.
+No Python packet generator or generated VITA classes are required.
 
-To see standalone packet/timing results directly:
+The build emits `generated/vita-dependencies.json`, upstream texts under
+`generated/vita-licenses/`, and `generated/vita-dependencies.spdx.json`. The SPDX
+file records dependency inputs; release packaging must still inventory the
+complete linked application, OpenSSL, system libraries and artifacts.
+
+To inspect cross-process results directly:
 
 ```sh
-python3.13 tests/test_vita_radio.py build/vita
+python3 tests/test_vita_radio.py build/vita-migration
+python3 tests/test_vita_controller.py build/vita-migration
 ```
 
-The harness starts four independent radio processes with ephemeral loopback sockets,
-creates a private catalog from the authoritative types, normalizes an authored graph
-through `graphx`, stages temporary TLS credentials, issues VITA commands and decodes
-actual UDP bytes independently. It stops only its own processes and removes its
-private temporary files. It does not run Docker, OVS, physical radios or privileged
-operations. It intentionally acts as both the test controller and packet receiver;
-P2 supplies the production processor/controller.
+The independent Python wire harness starts four owned native processes, normalizes
+private authored graph fixtures through the authoritative loader, and stages
+short-lived mTLS credentials. It pauses/resumes only those processes to test
+activation jitter. It independently checks UDP and decrypted control bytes,
+including a common scheduled epoch, rational timestamps and replay expiration.
+The retention-expiration case deliberately waits 31 seconds. The C++ controller
+harness exercises the production `ControllerSession` APIs over actual mTLS.
+Neither harness creates Docker/OVS infrastructure or runs privileged operations.
 
-The executable accepts the existing application arguments:
+The radio uses the existing arguments:
 `--node ID --config NORMALIZED_NODE_JSON --release-file FILE --release-token TOKEN`.
-Use the harness rather than hand-writing normalized nodes or bypassing the release
-barrier. `GRAPHX_CREDENTIALS` points to its private staged credential root. A
-production managed invocation also needs the existing staged telemetry credential.
+`GRAPHX_CREDENTIALS` selects staged credentials; managed telemetry retains its
+existing credential and release-barrier contract. Use the harness to construct
+valid normalized fixtures rather than bypassing the loader or startup barrier.
 
-See [radio-design.md](radio-design.md) for the implemented profile and current limits,
-and [p1-verification.md](p1-verification.md) for evidence and remaining P1 work.
+See [radio design](radio-design.md), [command contract](command-analysis.md),
+[epoch regression](migration-blocker.md) and [P1 verification](p1-verification.md).

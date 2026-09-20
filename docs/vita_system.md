@@ -210,6 +210,11 @@ implementation. Select its explicitly configured `graphx_radio` profile and pin 
 verified implementation commit. GraphX owns the SoapySDR device adapter, mutual TLS,
 socket lifecycle and graph orchestration. Do not retain generated packet classes,
 `vrtgen`, or a second GraphX command parser after the integration migration.
+The standalone P1 application now consumes `vita::core` at `dbe85d37155145842da60367af1c4beef8801b0c` and explicitly
+selects `graphx_radio`. Its Soapy, controller and host-owned mTLS bindings and
+independent application gates are recorded in
+[P1 verification](../design/four-radio-vita/p1-verification.md); the final graph
+and published release remain later phases.
 Dependency selection alone does not establish interoperability or P1 acceptance.
 
 Record each dependency's exact upstream source/version, purpose, license, maintenance

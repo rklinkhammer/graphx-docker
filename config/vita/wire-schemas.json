@@ -1,12 +1,12 @@
 {
   "VitaIq": {
     "encoding": "raw",
-    "layout": "VITA radio profile config/vita/radio.yaml; signed big-endian I,Q; required trailer",
+    "layout": "vrt_framework graphx_radio; Data Class ID 00ffffff00000000; UTC/picoseconds; signed big-endian I,Q; required SSI trailer",
     "maximum_bytes": 4128
   },
   "VitaControl": {
     "encoding": "raw",
-    "layout": "VITA radio profile config/vita/radio.yaml over mutually authenticated TLS",
+    "layout": "vrt_framework graphx_radio Command/Ack without Class ID over mutually authenticated TLS",
     "maximum_bytes": 1024
   }
 }

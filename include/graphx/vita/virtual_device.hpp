@@ -11,6 +11,7 @@ class VirtualDevice final : public SoapySDR::Device {
  public:
   explicit VirtualDevice(double signal, double amplitude = 0.25, double phase = 0);
   static void validate(const Settings& settings);
+  void begin_epoch() noexcept;
   void skip_samples(std::uint64_t count);
   void configure(const Settings& settings);
   const Settings& settings() const { return settings_; }
@@ -44,7 +45,7 @@ class VirtualDevice final : public SoapySDR::Device {
   void check(SoapySDR::Stream* stream) const;
   static void channel(int direction, size_t channel);
   Settings settings_;
-  double signal_, amplitude_, phase_{};
+  double signal_, amplitude_, phase_{}, initial_phase_{};
   std::uint64_t clipped_{}, sample_{};
   bool opened_{}, active_{};
 };

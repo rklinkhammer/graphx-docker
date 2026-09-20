@@ -1,131 +1,124 @@
 # P1 standalone radio verification
 
-Status: **migration blocked**. The maintained opt-in executable still uses its
-existing generated codec; it is not the selected `vrt_framework` integration.
-The pinned library `60a290c9b1da2396d3d704ebe52ea6cbcf2fa398` shifts the simulated
-sample epoch when a device honestly reports delayed execution. See the
-[migration blocker, exact reproducer commands and evidence matrix](migration-blocker.md).
-P1 remains open. Library qualification does not qualify the GraphX application.
-
-The [command contract](command-analysis.md) establishes capability semantics and
-AckV/AckX/AckS behavior for the replacement. The executable surface and checks
-below describe the existing application, not acceptance of that replacement.
+The standalone application uses `vrt_framework` commit
+`dbe85d37155145842da60367af1c4beef8801b0c` as its sole VITA codec and protocol
+runtime. The scheduled sample-epoch blocker is **resolved locally**: both modes
+of the unchanged [reproducer](../../tests/repro_vita_start_epoch.cpp) passed before
+integration resumed. [Exact reproducer commands/results](migration-blocker.md)
+retain the original timestamp assertion.
 
 ## Implemented surface
 
-- `include/graphx/vita/` and `src/vita/` implement the SoapySDR virtual device,
-  paced radio, generated VITA integration and authenticated control service;
-  `apps/vita-radio/main.cpp` is the thin entry point.
-- `config/vita/`, `cmake/VitaRadio.cmake` and `scripts/vita/` provide the opt-in
-  native type, packet definitions, pinned dependencies and reproducible generation.
-  Dependency licenses are copied into the build. Published releases and OCI images
-  do not yet contain this executable.
-- `src/node_settings.cpp` now applies resolved source addresses and staged TLS
-  credentials to raw external transports, as it already did for GraphX transports.
-  The radio exercises that shared binding path through authoritative normalization.
-- `tests/test_vita_device.cpp` and `tests/test_vita_radio.py` exercise the actual
-  device and standalone executable. The Python harness encodes/decodes protocol
-  bytes independently of the generated C++ codec.
+`DeviceBinding`, `HostTransport` and `ControllerSession` are reusable application
+adapters under `include/graphx/vita/runtime.hpp` and `src/vita/host.cpp`.
+The thin radio executable uses the authoritative normalized bindings, staged
+credentials and release barrier. One Soapy device supplies both configuration and
+CS16 samples. The library's explicitly selected `graphx_radio` profile owns
+encoding, parsing, transactions, scheduling, Context association and packet time.
+No GraphX production codec or generated VITA packet classes remain.
 
-See [build and test instructions](README.md) and [radio design](radio-design.md).
+The opt-in CMake target links `vita::core`, enforces the clean immutable library
+revision and emits dependency locks, upstream license texts and SPDX dependency
+inputs. This is P1 native application evidence, not qualification of published
+images, the final IQ processor or an OVS graph. See [build instructions](README.md)
+and [host binding design](radio-design.md#host-adapter-boundaries).
 
-## Executed checks
+## Executed commands and results
 
-Environment: macOS developer host, native processes and unprivileged loopback
-sockets. No Docker engine, OVS, Lima, Linux guest, physical SDR or privileged
-operation was used. Generator environment: Python 3.13; CTest selected Python 3.14
-for the independent standard-library harness. Tests used temporary credentials.
+Environment: native macOS arm64, Apple clang 21, Python 3.14, OpenSSL 3, local
+unprivileged sockets and temporary test credentials. The library was fetched from
+the supplied local Git repository at the exact pin. No Linux guest was used.
 
 ```sh
-cmake --build build/vita --target graphx-cli graphx-vita-radio-app graphx-vita-device-test
-ctest --test-dir build/vita -R graphx-vita -V
+cmake -S . -B build/vita-migration -G Ninja \
+  -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+  -DGRAPHX_BUILD_TESTS=ON -DGRAPHX_BUILD_VITA_RADIO=ON \
+  -DGRAPHX_VRT_REPOSITORY=/Users/rklinkhammer/workspace/vrt_framework
+cmake --build build/vita-migration -j4
+ctest --test-dir build/vita-migration -R graphx-vita --output-on-failure
 PATH=/opt/homebrew/opt/node@24/bin:$PATH scripts/verify.sh quick
 PATH=/opt/homebrew/opt/node@24/bin:$PATH scripts/verify.sh portable
 PATH=/opt/homebrew/opt/node@24/bin:$PATH scripts/verify.sh quality
-/opt/homebrew/opt/llvm@21/bin/clang-tidy -p build/vita \
+/opt/homebrew/opt/llvm@21/bin/clang-tidy -p build/vita-migration \
   --extra-arg=-isysroot \
   --extra-arg=/Library/Developer/CommandLineTools/SDKs/MacOSX26.sdk \
-  src/vita/virtual_device.cpp src/vita/radio.cpp \
-  tests/test_vita_device.cpp apps/vita-radio/main.cpp
+  src/vita/host.cpp src/vita/radio.cpp src/vita/virtual_device.cpp \
+  tests/test_vita_runtime.cpp tests/vita_controller_client.cpp
 cppcheck --enable=warning,portability --inline-suppr \
   --suppress=missingIncludeSystem --error-exitcode=1 -Iinclude \
-  src/vita/virtual_device.cpp src/vita/radio.cpp \
-  tests/test_vita_device.cpp apps/vita-radio/main.cpp
+  src/vita/host.cpp src/vita/radio.cpp src/vita/virtual_device.cpp \
+  tests/test_vita_runtime.cpp tests/vita_controller_client.cpp
 ```
 
-Quick verification passes all 41 development tests. Portable verification and the
-repository quality checks pass. The opt-in native radio type
-is separate from the published catalog. The radio's command-analysis changes also
-pass both standalone tests and explicit clang-tidy/cppcheck checks. The default
-build excludes this radio, so default-suite success alone does not establish its
-protocol behavior.
-No shell scripts were changed; ShellCheck was not applicable.
+Build: **passed**. Focused CTest: **6/6 passed**, 50.23 seconds; the four-radio
+standalone test took 40.91 seconds including retention expiry and stalled peers.
+Quick: **41/41 passed**. Portable: **passed**, including normalized consumers, HTTP,
+web and native execution. The default build excludes the opt-in radio, so the
+focused gates supply its application evidence.
 
-Standalone verification passed both device and process tests. Four concurrent radio
-processes used independent signal settings. The receiver decoded 512 full data
-packets from radio 2 (524,288 IQ pairs, two maximum-size bursts); radios 1 and 4
-each provided 20 packets containing 14,348 pairs including two-pair final packets;
-radio 3 provided 20 single-packet bursts of 32 pairs. Each first packet arrived
-within the tested 100 ms host-start tolerance. Exact observed delays are in the
-standalone log; these are host observations, not a synchronization guarantee.
+Quality: formatting passed; the repository static-analysis build failed in
+unchanged `src/envelope.cpp` through LLVM 21 libc++
+`__random/clamp_to_integral.h:47` (`INFINITY` undeclared). This is an unpassed gate,
+not a clean quality claim. Targeted clang-tidy for the five integration sources
+above passed (dependency/system warnings suppressed); targeted cppcheck passed.
+No shell scripts changed;
+ShellCheck is not applicable.
 
-Generated logs:
+Final focused follow-ups also passed: explicit Context-family counter assertions
+in `ctest --test-dir build/vita-migration -R graphx-vita-standalone --output-on-failure`
+(1/1, 40.83 seconds), and unknown-effect timestamp handling in
+`ctest --test-dir build/vita-migration -R 'graphx-vita-(runtime|controller)$' --output-on-failure`
+(2/2, 6.49 seconds after rebuilding).
 
-- `outputs/four-radio-vita/p1/standalone.log`
-- `outputs/four-radio-vita/p1/clang-tidy.log`
-- `outputs/four-radio-vita/p1/cppcheck.log`
-- `outputs/verification/20260916T013715Z-quick.log`
-- `outputs/verification/20260916T013901Z-portable.log`
-- `outputs/verification/20260916T014059Z-quality.log`
+Generated evidence:
 
-## Applied command-analysis checks
+- `outputs/vita-migration/focused.log`
+- `outputs/vita-migration/context-counters.log`
+- `outputs/vita-migration/device-controller.log`
+- `outputs/vita-migration/clang-tidy.log`
+- `outputs/vita-migration/cppcheck.log`
+- `outputs/verification/20260920T010811Z-quick.log`
+- `outputs/verification/20260920T010919Z-portable.log`
+- `outputs/verification/20260920T010828Z-quality.log`
 
-The standalone harness now independently verifies:
+## Requirement-to-evidence matrix
 
-- execution plus status requests produce two correlated packets, with the expected
-  CAM flags and exact applied setting values;
-- NO_ACTION status selects only sample rate or all supported settings/state, with
-  the query acknowledgment's action mode and exact packet lengths;
-- empty selectors and selector queries containing execute-style values are rejected;
-- RF-frequency, bandwidth and gain range errors identify their fields, nonintegral
-  sample rates report unsupported precision, and rejected settings remain unchanged;
-- late starts carry the discrete-I/O timestamp-error indication and timing-issues
-  acknowledgment mode;
-- execution-only stop does not leave an unsolicited status packet in the stream.
+| Requirement | Application implementation | Independent application evidence |
+|---|---|---|
+| Sole pinned codec/runtime | CMake `vita::core`, explicit `graphx_radio`, no generator | Clean-pin configure/build; independent Python bytes |
+| Atomic four-setting configuration | Same Soapy device validates whole Settings before one assignment | `graphx-vita-runtime`: incomplete/cross-setting rejection, injected known failure, unknown effects fault and invalidate state; wire invalid-setting diagnostics and unchanged settings |
+| Capability limits distinct from settings | Soapy range API into library capabilities; BW<=Fs checked separately | Wire CIF7 Maximum/Minimum and C++ controller before configuration, streaming and stopped; no Precision-as-increment |
+| Controller operations/correlation | `ControllerSession::commands()` exposes library APIs | `graphx-vita-controller`: configure, state, admission, cancellation, start, reconnect, status, stop and capabilities over mTLS |
+| AckV/X/S and read-only observation | Library transactions with backend actual execution clock | Independent CAM/ID/value checks; ReqX+ReqS order; no early AckX; NO_ACTION status/capability |
+| Common scheduled sample epoch | `EffectiveEvent::sample_epoch` resets same source once | Four real processes share one UTC start and activate with distinct induced delays; first Data and preceding Context equal schedule; AckX preserves each actual activation time |
+| Continuous phase and rational sample time | Cumulative source ordinal; skipped samples advance phase; library packetization | 1,000,003-pair/s tone, exact rational Data/Context time across bursts; stop/restart new epoch; duplicate/reconnect does not restart |
+| Wire layout and bounded bursts | Library packetizer, maximum 1024 pairs and 262144-pair bursts | Independent Data class `00ffffff00000000`, absent Context/Command classes, UTC/picoseconds, big-endian I/Q, 52-byte Context fields, SSI transitions, packet counts; 512 full packets from two maximum bursts plus short/single-packet bursts |
+| Timing failure and cancellation | Library scheduling; honest actual backend completion time | Admission then owned process pause beyond tolerance rejects execution; stopped status; controller cancels admitted start |
+| Replay and reconnect | Stable authenticated peer/association; persistent runtime; 256 records/2 MiB | Identical/changed command retries, reconnect while streaming, retention exhaustion, expiry and stale ID rejection without mutation |
+| Bounded host-owned TLS/framing | StreamIngress/StreamFramer, fixed input/output slots, partial writes, two-second deadlines, deferred completions | Fragmented/coalesced requests, malformed/oversized frames, unauthorized SAN, stalled handshake and partial frame, reconnect/cleanup; retention saturation followed by healthy query |
+| Configuration integration | Existing normalizer, private opt-in catalog, raw transport credential bindings | Process harness uses normalized authored fixtures; invalid radio index rejected |
+| Dependency/legal inputs | Immutable lock, copied MIT/BSL notices, SPDX input generator | Native configure/build generates inventory and licenses; published release integration remains P5 |
 
-The query acknowledgment is generated separately from the execute acknowledgment.
-Selector-only requests use the generated query decoder; they are never decoded as
-execute value payloads. After this parsing correction, both focused tests and the
-radio-specific clang-tidy/cppcheck checks passed again. Those final checks used the
-same commands above, with `src/vita/radio.cpp` as the sole static-analysis input.
-The default builds do not compile this opt-in source.
-CIF7 capability-query generation remains unimplemented and unverified. Broader
-state-error, context and failure tests remain listed below. These additions do not
-establish normative VITA compliance or a complete P1 exit.
+`tests/test_vita_radio.py` is an independent test oracle, not a production protocol
+implementation. Library tests alone are not credited as application evidence.
+`graphx-vita-runtime` drives the production device binding through library runtime
+APIs and adds test-owned physical-effect injection; it does not simulate a physical
+Soapy driver or make a hardware atomicity claim.
 
-## Requirement coverage and remaining work
+## Remaining qualification and unrun gates
 
-| Requirement | Implementation | Verification | Status |
-|---|---|---|---|
-| Independent SoapySDR devices | One subclass instance/stream per process | Device isolation and four concurrent processes | Tested |
-| Signal and bounds | Fixed RF tone, tuning, passband, gain, clipping, phase, bounded CS16 reads | Device assertions and independently decoded IQ | Tested for selected cases |
-| VITA data | Generated stream/class/trailer layout, full/short packets, burst markers, count wrap | Independent byte decoder and two maximum bursts | Tested |
-| Simulated timestamps and pacing | Integer sample time; scheduled steady-clock start; bounded overdue-sample skipping | Sample progression and first-emission timing | Tested at 1 MSample/s; other rates/overrun injection remain |
-| Authenticated control | Staged credential hashes, mTLS, controller identity, bounded framing, configuration/status/start/stop | Fragmented/coalesced requests, unauthorized identity, malformed size, invalid settings, duplicate start | Tested for listed cases |
-| Controller reconnect and receiver loss | Replay history survives connections; UDP reception never blocks control | Reconnect/replay during streaming, close UDP receiver then stop/query | Tested |
-| Capability query | SoapySDR range API and documented bounds | Local device range assertions | VITA wire query remains unimplemented |
-| Status and acknowledgments | Selector-only queries; separate generated query reply; requested execution/status replies | Independent CAM, selector, size, field-value and correlation checks; combined execution/status request | Tested for selected cases |
-| Setting errors | Per-field range/precision errors; late-start timestamp error | Independent EIF/reason bits and unchanged applied state after rejection | Tested for selected cases |
-| Context | Generated context before first data/each burst | Data decoder does not independently validate every context field | Broader independent vectors required |
-| Failure/resource bounds | Bounded input/output/replay, 2-second session deadlines, nonblocking loop, signal shutdown | Owned process termination and selected malformed inputs | Stalled-client, replay exhaustion and sustained-load coverage remain |
-| Configuration | Native opt-in type through authoritative loader; raw bindings reuse credential staging | Private catalog normalization; invalid radio index rejected | Tested locally; explicit UDP source-port contract remains |
-| Dependencies | Hash-pinned source archives, pinned generator packages, build-local documented template fixes, license inventory | Native build/generation | Published release/SBOM integration belongs to P5 |
-| OVS/container deployment | Not implemented by P1 | Not run | Later phases |
-
-Remaining P1 work: finish the standards-backed capability-query encoding, extend
-independent context/acknowledgment vectors and failure-case tests, and validate
-non-divisor sample rates and supported setting-change timing. Document these as
-unfinished requirements rather than silently replacing capability discovery with
-status. Credential rotation is not implemented in this server. On-wire dynamic
-retuning while streaming is rejected; device-level changes are a separate tested
-API surface. No new product decision is requested by this checkpoint.
+- The final IQ processor, published catalog/images and full graph remain P2–P6.
+  The dependency SPDX file is an input inventory, not the complete release SBOM.
+- Linux, Lima, OVS/MTU, privileged networking, TCG and KVM gates were **not run**;
+  privileged authorization was not given. Native loopback does not establish them.
+- Docker/full, release, sanitizer and fuzz profiles were not run for this change.
+  No push, deployment, physical SDR or external infrastructure mutation is part of
+  this verification.
+- Dynamic credential rotation, explicit authored UDP source-port control and
+  hardware clock qualification remain outside this P1 server. Its software UTC
+  mapping is simulated, with no GPS/PPS accuracy claim.
+- Sustained slow-reader output saturation and exhaustive socket-failure injection
+  are not established by the handshake/frame-stall tests. Output admission and
+  storage are fixed and deadline bounded; broader transport stress remains useful
+  qualification. Timing measurements are host observations, not guarantees under
+  arbitrary scheduler load.
