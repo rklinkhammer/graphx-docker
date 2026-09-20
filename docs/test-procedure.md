@@ -82,6 +82,15 @@ dependencies when another Node.js major version is selected. Privileged workflow
 are registered as CTests with the `privileged` label; `native-linux` configures that
 test set and runs it after portable acceptance.
 
+For the pinned LLVM 21 toolchain on macOS, `verify.sh` probes `<random>` against
+the selected SDK before quality, sanitizer or fuzz configuration. If the active
+SDK requires newer Clang resource headers, the launcher verifies and selects an
+installed macOS 26 SDK. An explicit `SDKROOT` is respected and must pass the probe.
+This selects compatible headers; it does not suppress analysis or redefine system
+macros. Direct `run-static-analysis.sh`/`run-fuzz.sh` users should supply the same
+compatible `SDKROOT`. The opt-in VITA sanitizer commands and scope are recorded in
+[P1 qualification](../design/four-radio-vita/p1-verification.md).
+
 ## Platform selection and example coverage
 
 | Execution environment | Acceptance command | What the result establishes |

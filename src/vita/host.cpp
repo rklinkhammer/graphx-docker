@@ -125,12 +125,25 @@ void HostTransport::finish(Slot& slot, bool success) noexcept {
   ++slot.generation;
 }
 vr::Result<bool> HostTransport::progress() noexcept {
+  // Datagram priority must not defer control expiry indefinitely. A partially
+  // written TLS record cannot be skipped; fail the entire control connection.
+  const auto now = steady_clock::now();
+  for (const auto& slot : slots_)
+    if (slot.submission && slot.control && now >= slot.deadline) failed_ = true;
+  bool completed = false;
+  if (failed_) {
+    for (auto& slot : slots_)
+      if (slot.submission && slot.control) {
+        finish(slot, false);
+        completed = true;
+      }
+  }
   Slot* next = nullptr;
   for (auto& slot : slots_)
     if (slot.submission && (!next || (next->control && !slot.control) ||
                             (slot.control == next->control && slot.sequence < next->sequence)))
       next = &slot;
-  if (!next) return false;
+  if (!next) return completed;
   auto& slot = *next;
   if (!slot.control) {
     auto count = sendto(udp_, slot.bytes.data(), slot.size, 0,

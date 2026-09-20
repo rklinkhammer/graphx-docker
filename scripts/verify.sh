@@ -138,9 +138,9 @@ select_llvm21_sanitizer_toolchain() {
       return 2
     }
     macos_major=$(sw_vers -productVersion | cut -d. -f1)
-    sdk_root=$(xcrun --show-sdk-path)
+    sdk_root=${SDKROOT:-$(xcrun --show-sdk-path)}
     sdk_major=$(xcrun --show-sdk-version | cut -d. -f1)
-    if test "$sdk_major" -gt "$macos_major"; then
+    if test -z "${SDKROOT:-}" && test "$sdk_major" -gt "$macos_major"; then
       compatible_sdk=$(dirname "$sdk_root")/MacOSX${macos_major}.sdk
       if test -d "$compatible_sdk"; then
         echo "NOTE: LLVM 21 selects installed macOS $macos_major SDK instead of newer SDK $sdk_major."
@@ -151,6 +151,20 @@ select_llvm21_sanitizer_toolchain() {
       echo "active macOS SDK not found: $sdk_root" >&2
       return 2
     }
+    # New Apple SDK headers can require Clang resource-header features absent
+    # from our pinned LLVM. Probe the actual compiler/SDK pair, not host version.
+    if ! printf '#include <random>\n' | "$CXX" -x c++ -std=c++20 -fsyntax-only \
+        -isysroot "$sdk_root" - >/dev/null 2>&1; then
+      compatible_sdk=$(dirname "$sdk_root")/MacOSX26.sdk
+      if test -n "${SDKROOT:-}" || ! test -d "$compatible_sdk" || \
+          ! printf '#include <random>\n' | "$CXX" -x c++ -std=c++20 -fsyntax-only \
+            -isysroot "$compatible_sdk" - >/dev/null 2>&1; then
+        echo "LLVM 21 cannot compile standard <random> with SDK $sdk_root; select a compatible SDKROOT." >&2
+        return 2
+      fi
+      echo "NOTE: active SDK headers are incompatible with LLVM 21; using verified $compatible_sdk."
+      sdk_root=$compatible_sdk
+    fi
     SDKROOT=$sdk_root
     export SDKROOT
     if test "$macos_major" -ge 26 && test -z "${GRAPHX_SANITIZERS:-}"; then

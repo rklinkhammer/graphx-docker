@@ -263,8 +263,16 @@ def acceptance(root,index,barrier,shared):
                 assert abs(i-round(amplitude*math.cos(phase)))<=1
                 assert abs(q-round(amplitude*math.sin(phase)))<=1
             offset+=len(f[3])//2
+        # Disconnect with replies pending: duplicate starts must remain idempotent
+        # across the authenticated reconnect even when the peer stops reading.
+        if index==1:
+            s.setsockopt(socket.SOL_SOCKET,socket.SO_RCVBUF,1024)
+            s.settimeout(.3)
+            try:
+                for _ in range(8): s.sendall(req*256)
+            except (TimeoutError,ssl.SSLError,ConnectionError): pass
         # A controller reconnect must not reconfigure or restart acquisition.
-        s.close();time.sleep(.02)
+        s.close();time.sleep(.05)
         s=connect(credentials,tcp)
         s.sendall(req);assert replay_equal(receive(s),admitted)
         assert replay_equal(receive(s),ack)

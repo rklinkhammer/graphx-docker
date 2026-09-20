@@ -47,7 +47,8 @@ private authored graph fixtures through the authoritative loader, and stages
 short-lived mTLS credentials. It pauses/resumes only those processes to test
 activation jitter. It independently checks UDP and decrypted control bytes,
 including a common scheduled epoch, rational timestamps and replay expiration.
-The retention-expiration case deliberately waits 31 seconds. The C++ controller
+The retention-expiration case deliberately waits 31 seconds. The bounded TLS BIO stress harness checks output backpressure, partial writes,
+deadline expiry and lease/completion cleanup. The C++ controller
 harness exercises the production `ControllerSession` APIs over actual mTLS.
 Neither harness creates Docker/OVS infrastructure or runs privileged operations.
 

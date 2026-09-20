@@ -143,5 +143,7 @@ Accepted submissions retain library storage until exactly one deferred completio
 Data/Context progress remains independent of a blocked TLS writer. Disconnection
 fails outstanding writes, releases their leases and clears partial input; it does
 not reset replay history. Handshake, idle, partial-frame and output deadlines are
-2 seconds. Retention lasts at least 30 seconds. Exhaustion refuses new work until
+2 seconds. Control expiry is checked before selecting prioritized datagrams, so
+continuous UDP output cannot retain a stalled TLS record beyond its deadline.
+Expiry fails all pending control writes before reconnect. Retention lasts at least 30 seconds. Exhaustion refuses new work until
 space expires; expired/changed IDs never acquire fresh execution authority.

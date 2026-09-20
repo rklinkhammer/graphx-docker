@@ -3,10 +3,12 @@
 ## Scope and execution rules
 
 This plan implements [the accepted VITA brief](../../docs/vita_system.md) under
-[the repository decisions](../../docs/project-decisions.md). P1 is in progress:
-the opt-in standalone radio and local wire/device tests are implemented. See
-[P1 verification](p1-verification.md) for evidence and remaining work. P2–P6 are
-planned. This plan does not authorize privileged execution.
+[the repository decisions](../../docs/project-decisions.md). P1 is complete for
+native standalone virtual-radio acceptance: the opt-in radio, controller/device
+bindings, independent wire tests and bounded TLS stress checks pass. See
+[P1 verification](p1-verification.md) for the seven exit-criterion assessments,
+exact normal/UBSan/quality/fuzz commands and platform limitations. P2–P6 remain
+planned and were not started by P1 qualification. This plan does not authorize privileged execution.
 
 The first deliverable is a real, independently tested radio. Do not make its
 development depend on the final IQ processor, feature detector, recorder or OVS
@@ -47,7 +49,7 @@ Apply [P1.1 command analysis](command-analysis.md) to the P1 exit criteria:
 | P1.2 | Library NO_ACTION status and correlated ReqX+ReqS; no generated protocol engine | Implemented; independent mTLS wire and controller tests |
 | P1.3 | Atomic device batch with field-specific diagnostics and no partial application | Implemented; production binding with test-owned failure injection |
 | P1.4 | CIF7 supported min/max query/response distinct from current state | Implemented; independent supported-limit wire assertions |
-| P1.5 | Independent Context/ack vectors, non-divisor time, replay exhaustion, stalled-peer bounds | Local adapter/wire gates; platform and release limits in P1 verification |
+| P1.5 | Independent Context/ack vectors, non-divisor time, replay exhaustion, stalled-peer bounds | Passed native wire/adapter stress and UBSan gates; seven exit criteria assessed in P1 verification |
 
 P1.4 uses CIF7 Maximum/Minimum, in that wire order, with Current absent.
 Global bandwidth limits remain distinct from `BW<=Fs` and device constraints.
