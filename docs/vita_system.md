@@ -205,17 +205,12 @@ packet or replacement for lost data. Keep that distinction in sample/gap account
 Inspect the existing implementation and current primary sources when integrating
 SoapySDR and VITA packet support. An external synthetic-device
 plugin is not required: implement the selected virtual device in the workspace.
-Use [Geontech/vrtgen](https://github.com/Geontech/vrtgen) as the selected dependency
-for generating the VITA packet implementation, including its required supporting
-library in the build/release dependency inventory. It is not merely a reference.
-Maintain packet definitions and reproducible generation inputs in the workspace.
-The inspected
-reference revision is `5e7497d24069c140be431d8468655f67d25f382d`; this identifies the
-source reviewed, not yet a verified production dependency pin. Pin and verify the
-version used by the implementation. Dependency selection does not itself establish
-standards compliance. Replacing `vrtgen` would require the project to implement and
-verify its own VITA packet implementation; that alternative is not the selected
-approach and must not be introduced silently.
+Use `vrt_framework` as the sole VITA 49.2 encoding, decoding and protocol
+implementation. Select its explicitly configured `graphx_radio` profile and pin a
+verified implementation commit. GraphX owns the SoapySDR device adapter, mutual TLS,
+socket lifecycle and graph orchestration. Do not retain generated packet classes,
+`vrtgen`, or a second GraphX command parser after the integration migration.
+Dependency selection alone does not establish interoperability or P1 acceptance.
 
 Record each dependency's exact upstream source/version, purpose, license, maintenance
 status, supported VITA subset, transmit/receive direction, ARM64 Linux compatibility,
@@ -225,31 +220,17 @@ placed beside an unused SoapySDR installation is insufficient.
 Update dependency locks, release verification, SBOMs and
 [license inventory](release-license-inventory.md) for selected dependencies.
 
-The reference provides concrete starting points at that revision:
-
-- [Signal-data example](https://github.com/Geontech/vrtgen/blob/5e7497d24069c140be431d8468655f67d25f382d/examples/packets/signal-data.yaml):
-  stream/class identifiers, picosecond fractional timestamps and a trailer. Its
-  example identifier values are not this demo's selected values.
-- [Trailer implementation](https://github.com/Geontech/vrtgen/blob/5e7497d24069c140be431d8468655f67d25f382d/include/vrtgen/packing/trailer.hpp)
-  and [SSI definitions](https://github.com/Geontech/vrtgen/blob/5e7497d24069c140be431d8468655f67d25f382d/include/vrtgen/packing/enums.hpp):
-  sample-frame indication supports `SINGLE`, `FIRST`, `MIDDLE` and `FINAL`, providing
-  a concrete encoding candidate for the selected burst semantics.
-- [Control/acknowledgment example](https://github.com/Geontech/vrtgen/blob/5e7497d24069c140be431d8468655f67d25f382d/examples/packets/example-control.yaml):
-  CAM settings, controller/controllee identifiers, sample rate, RF reference
-  frequency, bandwidth and gain. Select the demo's supported subset explicitly;
-  do not inherit the example's partial-application policy automatically.
-
-These are implementation-source findings, not verification against the normative
-VITA standard or proof that a complete GraphX profile has been tested.
+The selected mappings and acceptance evidence are specified in
+[command analysis](../design/four-radio-vita/command-analysis.md).
 
 ### VITA packet and timing requirements
 
 Assign the VITA stream ID from the source radio index: `radio1` uses `1`, `radio2`
 uses `2`, `radio3` uses `3`, and `radio4` uses `4`. Preserve that mapping through
-context association, processor validation and downstream results. The class ID is
-zero and is not used for classification or dispatch; no nonzero class assignment is
-required. Encode this choice in the `vrtgen` packet definition and document the
-resulting field-presence bits and layout so packet-length accounting is unambiguous.
+context association, processor validation and downstream results. Data has a present eight-byte Class ID `00 FF FF FF 00 00 00 00`: unknown
+OUI and unspecified Information/Packet Class. Context and Command omit Class ID.
+The selected profile validates presence and identity without using the class codes
+as an application dispatch registry.
 The IQ data-packet trailer is present and must be included in packet-size accounting.
 
 A full data packet contains **1,024 complex IQ samples**, each comprising one
@@ -584,9 +565,12 @@ status/capability queries and start/stop behavior explicitly. Verify field names
 units and encodings against the selected specification and independent test vectors;
 do not invent profile fields to fill gaps in a library.
 
-Specify which acknowledgment modes report receipt, validation, execution or errors
-and how applied settings/status are returned under the chosen profile. A receipt
-or validation acknowledgment alone must not be treated as successful application.
+Use AckV for validation and scheduling acceptance, AckX only after the device
+action completes, and AckS for observed state. AckV cannot confirm execution.
+AckX carries the actual effective timestamp; AckS carries observation time.
+EXECUTE requests for post-action state use ReqX+ReqS and receive AckX then AckS.
+ReqS alone is valid for read-only NO_ACTION queries, not EXECUTE.
+
 Correlate replies with the correct radio and operation; define timeout, negative
 acknowledgment, unsupported-field and partial-application behavior. Preserve bounded
 idempotent retry handling independently of the TCP connection lifetime.

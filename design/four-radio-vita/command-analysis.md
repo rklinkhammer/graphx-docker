@@ -1,142 +1,75 @@
-# P1.1 — VITA command analysis
+# GraphX command and capability contract
 
-Status: analysis complete; command implementation and P1 acceptance remain open.
-Scope: the selected vrtgen revision and the standalone radio. Status selectors,
-requested acknowledgment modes and supported-setting errors are now implemented
-from these findings. Capability discovery and broader P1 acceptance remain open;
-the accepted four-radio architecture is unchanged.
+The selected VITA implementation is `vrt_framework`, explicitly configured with
+its `graphx_radio` profile. The current standalone application requires migration
+to its public Controller/controllee and host bindings; existing generated-code
+tests are not evidence of this integration. No second VITA parser or encoder may
+remain in GraphX after migration.
 
-## Conclusion
+## Acknowledgments
 
-The upstream command examples provide useful configuration and stream-control
-patterns. Status queries also have explicit generator support. Capability discovery
-needs more work: CIF7 provides minimum/maximum attributes, but neither the inspected
-example nor the inspected tests establishes that those attributes describe supported
-device limits rather than other parameter attributes. Do not infer that semantic
-contract from field names alone.
+- AckV reports validation/scheduling admission and the scheduled time. It never
+  confirms execution. A client waiting to learn that a start was accepted requests
+  AckV and continues waiting for AckX when execution evidence is required.
+- AckX follows the device action and carries actual effective time. Successful
+  activation is distinct from observing the first UDP packet at a receiver.
+- AckS reports observation time and selected current values. EXECUTE requesting
+  state must set ReqX+ReqS; the replies are AckX then AckS. EXECUTE+ReqS alone is
+  unsupported. NO_ACTION+ReqS is the read-only query path.
+- Replays retain original semantic results and timestamps. Retries must not
+  restart acquisition, reapply settings or observe fresh state under an old ID.
 
-A concrete dependency limitation was reproduced: the parser accepts CIF7 on a
-control query, but its derived acknowledgment does not inherit CIF7. Thus adding
-minimum/maximum fields to our YAML alone is insufficient. This is a gap in the
-candidate capability-response path, not a blocker for configuration, status,
-start/stop or the remaining independent P1 tests.
+This is the selected peer-profile interpretation of ANSI/VITA 49.2-2017 (R2024)
+Rules 8.3.1.5-4/-7 and 8.4.1.5-4/-5. Table 8.4.1-1's SchX scheduling wording does
+not authorize GraphX clients to interpret early scheduling acceptance as confirmed
+execution. The supplied standard's Execution Timestamp rule uses the label AckE;
+the framework's existing execution-evidence interpretation is retained.
 
-## Evidence inspected
+## Configuration, status and capabilities
 
-Upstream source revision: `5e7497d24069c140be431d8468655f67d25f382d`.
-The local checkout's `git rev-parse HEAD` matched this revision.
+One correlated configuration carries RF frequency, sample rate, bandwidth and
+gain. Validate the entire operation and `0 < BW <= Fs` before device mutation.
+Raw CAM partial flags cannot permit partial configuration. Commit through the
+same device owner used by SoapySDR acquisition. A failed commit must distinguish
+no effect from unknown physical state; uncertain effects fault streaming.
 
-| Source | Relevant evidence |
-|---|---|
-| [Packet example](https://github.com/Geontech/vrtgen/blob/5e7497d24069c140be431d8468655f67d25f382d/examples/packets/example-control.yaml) | CIF0 bandwidth, RF reference frequency, gain and sample rate; CIF1 stream enable; acknowledgment derived with `responds_to`. Its partial-application/warning policy is not our selected policy. |
-| [Example controller](https://github.com/Geontech/vrtgen/blob/5e7497d24069c140be431d8468655f67d25f382d/examples/app/example_controller.cpp) | Sends settings and stream-enable commands, requests execution acknowledgment, reads field warnings. Does not demonstrate a capability-range query. |
-| [Example controllee](https://github.com/Geontech/vrtgen/blob/5e7497d24069c140be431d8468655f67d25f382d/examples/app/example_controllee.cpp) | TCP listener using the generated controllee. Its lifecycle/transport does not supply GraphX mTLS, ownership or device serialization. |
-| [Command model](https://github.com/Geontech/vrtgen/blob/5e7497d24069c140be431d8468655f67d25f382d/src/vrtgen/parser/model/command.py) | CAM request/ack fields, required status request for NO_ACTION, CIF0/1/2 inheritance for status acknowledgments; no corresponding CIF7 copy in that inheritance path. |
-| [CIF7 model](https://github.com/Geontech/vrtgen/blob/5e7497d24069c140be431d8468655f67d25f382d/src/vrtgen/parser/model/cif7.py) | Current, maximum, minimum, precision and other attributes; enabled attributes are required, not individually optional in this model. |
-| [C++ generator](https://github.com/Geontech/vrtgen/blob/5e7497d24069c140be431d8468655f67d25f382d/src/vrtgen/backend/cpp/generator.py) | NO_ACTION controls use CIF enable functions; EXECUTE/DRY_RUN and status acknowledgments use value functions. |
-| [Command test definitions](https://github.com/Geontech/vrtgen/blob/5e7497d24069c140be431d8468655f67d25f382d/tests/codegen/yamls/command.yaml) | Active request/acknowledgment variants; the richer `SampleControlQ` query example is commented out and is not executable test evidence. |
-| [Context byte tests](https://github.com/Geontech/vrtgen/blob/5e7497d24069c140be431d8468655f67d25f382d/tests/codegen/cpp/test_context.cpp) | Active CIF7 current/mean attribute byte checks; these do not establish command capability semantics. Several broader CIF7 cases are commented out. |
-| [Enums](https://github.com/Geontech/vrtgen/blob/5e7497d24069c140be431d8468655f67d25f382d/include/vrtgen/packing/enums.hpp) and [command packing](https://github.com/Geontech/vrtgen/blob/5e7497d24069c140be431d8468655f67d25f382d/include/vrtgen/packing/command.hpp) | Distinguish NO_ACTION, DRY_RUN, EXECUTE; timestamp execution modes; acknowledgment action-scheduled-or-executed flag. Comments cite VITA tables but are not the normative standard. |
+Current-state queries select any of the four settings and streaming state;
+full status selects all five. Supported-limit queries instead select the four
+setting fields with CIF7 Maximum (bit27) and Minimum (bit26), mask `0x0c000000`.
+CIF0 bit7 enables CIF7. AckS returns Maximum then Minimum per selected field;
+Current is absent. Section 9 (printed p124) explicitly describes hardware-supported
+sample-rate limits; Section 9.12 (pp219-220) defines the attributes.
 
-Workspace comparison: [packet definitions](../../config/vita/radio.yaml),
-[radio service](../../src/vita/radio.cpp),
-[independent harness](../../tests/test_vita_radio.py) and
-[template adapter](../../scripts/vita/generate.py).
+Capability limits are global, available before configuration, while stopped,
+armed and streaming. Bandwidth-versus-rate constraints are a separate bounded
+profile hook and admission rule. Device steps/discrete choices are not CIF7
+representational Precision and receive no invented wire selector. Unsupported
+selectors produce explicit diagnostics when requested; no fabricated zero ranges.
+Queries cannot change state, timing, phase or streaming.
 
-## Command mapping and implementation corrections
+## Wire and ownership
 
-| Operation | Selected mapping / direction | Current gap or required verification |
-|---|---|---|
-| Initial configuration | Controller → radio; EXECUTE, complete CIF0 RF frequency/sample rate/bandwidth/gain; no partial application | Atomic validation is preserved. The service returns execution and/or status replies as requested; both requests yield two packets. Independent tests check applied values and execution/status bits. |
-| Applied status | Controller → radio; NO_ACTION plus requested status, selecting supported CIF fields; radio → controller status acknowledgment | `RadioQuery` now has explicit selectors and its own generated acknowledgment. Selector-only lengths are validated separately from execute payloads; empty queries are rejected. Independent tests check selected and full status responses. |
-| Capability/range query | Read-only query and response, with supported limits sourced from the same device owner | CIF7 is only a candidate. Verify allowed-limit semantics, fix/test acknowledgment generation if selected, then add independent bytes and no-mutation tests. Status values are not capabilities. |
-| Scheduled start | EXECUTE with enabled stream-enable=true, DEVICE timestamp-control mode, common seconds/picoseconds start | Keep configuration separate. Current scheduled/executed flag records acceptance for scheduling; it must not be presented as proof that emission has begun. Independently verify response CAM bits, late errors, duplicate behavior and first sample time. |
-| Stop | EXECUTE with enabled stream-enable=false, IGNORE timing | Keep listener alive and report actual stopped state. Verify requested execution acknowledgment and subsequent status. |
-| Rejected setting | Negative acknowledgment with field-specific error indicators | Range and precision failures identify the affected setting; late starts identify a timestamp problem. Independent tests verify field masks/reasons and unchanged applied settings. Broader state/malformed-operation coverage remains. |
-| Replay/reconnect | Correlated message ID, controller/controllee and stream identity, bounded runtime-scoped replay | This is service behavior, not supplied by the packet example. Verify conflicting duplicates, evicted IDs and reconnects without reapplication. |
+Data is type1, SID1-4, IQ16 big-endian I then Q, UTC/picoseconds, with Class ID
+`00 FF FF FF 00 00 00 00`. Context and Command omit Class ID. Context is exactly
+52 bytes carrying BW/RF/Gain/Fs. Data has a required SSI trailer, values
+SINGLE=0/FIRST=1/MIDDLE=2/FINAL=3, at most1024 pairs per packet and262144 pairs
+per burst. Configuration never starts IQ; a separate timed start does.
 
-Keep controller/controllee identifiers as the selected 32-bit words and stream IDs
-1–4; the example's UUID controller identifier does not mandate changing our profile.
-Retain mTLS and packet-size framing over TCP. The example does not justify adopting
-its unauthenticated transport or allowing partial settings to apply.
+GraphX owns mutual TLS, authentication, socket deadlines, CS16 acquisition through
+SoapySDR and graph lifecycle. The library owns Packet Size framing, codec validation,
+correlation, replay, acknowledgments, sample timestamp arithmetic and publication
+ordering. Authentication must bind reconnects to the same radio-lifetime operation
+identity; reconnect cannot reset message-ID replay protection.
 
-Frequency, bandwidth and sample rate use the selected generated field encodings;
-gain uses the generated stage fields. Independent tests must check byte order,
-fixed-point scale, precision rejection and gain stage selection. A successful
-matching encoder/decoder round trip is insufficient.
+## Required migration evidence
 
-## Capability scope
-
-Do not equate numeric range discovery with discovery of every operation, waveform,
-format or cross-field constraint. The immediate P1 range scope is RF center
-frequency, sample rate, bandwidth and gain. A maximum bandwidth also depends on the
-applied sample rate; a response must distinguish a global device limit from a
-currently valid setting. Integer sample-rate restrictions likewise need explicit
-handling; a field named precision does not automatically mean supported step size.
-
-The inspected examples establish no complete generic capability service. Before
-implementing the candidate, obtain an authoritative specification passage or
-independent interoperable profile/vector establishing supported-limit semantics.
-If CIF7 cannot express this contract as intended, report that precise finding before
-introducing extension fields or replacing the requirement with a static document.
-No new product preference is needed for the other command corrections.
-
-## Reproduced parser findings
-
-This unprivileged probe uses the pinned installed dependency, without the workspace
-template adapter. It changes no source or generated packet files:
-
-```sh
-build/vita-tools/bin/python - <<'PY'
-import yaml
-from vrtgen.parser.loader import get_loader
-profile = '''Query: !Control
-  cam: !ControlAcknowledgeMode
-    req_s: true
-    action_mode: none
-  cif_0: !CIF0
-    sample_rate: required
-  cif_7: !CIF7
-    min_value: required
-    max_value: required
-Reply: !Ack
-  responds_to: Query
-'''
-for name, packet in yaml.load(profile, Loader=get_loader()).items():
-    print(name, packet.cif_7.enabled,
-          [f.name for f in packet.cif_7.fields if f.enabled])
-PY
-```
-
-Observed result:
-
-```text
-Query True ['max_value', 'min_value']
-Reply False []
-```
-
-Also reproduced: putting `action_mode: none` before `req_s: true` raises
-`ValueError: When action_mode set to none, req_s must be true`. The pinned parser
-validates while reading the mapping, so YAML key order affects acceptance. Our
-current query definition already uses the accepted order. Record or fix/test this
-upstream behavior; do not mistake it for a protocol constraint.
-
-The CIF7 probe establishes a parser/model limitation only. No generated C++
-capability packet was compiled, transmitted or independently decoded in this
-analysis. No full verification suites or privileged tests were run for this
-documentation-only work.
-
-## Next P1 work
-
-1. Extend the implemented selector/acknowledgment tests beyond the rejected empty
-   and value-bearing queries to other unsupported combinations and context fields.
-2. Extend state-error, interrupted-command and unchanged-state coverage beyond the
-   implemented range, precision and late-start cases.
-3. Resolve capability semantics and reproduce the full generated query/response
-   path. If CIF7 is selected, add a narrowly scoped pinned-source correction and
-   tests for inheritance, generation, lengths and independent decoding.
-4. Continue timing, replay, stalled-client and resource-bound tests independently.
-   These do not depend on resolving capability semantics or on privileged access.
-
-P1.1 analysis is complete. P1 remains open; the command examples reduce uncertainty
-but do not close the capability-query requirement or establish standards compliance.
+Record the immutable library implementation commit, its requirement-to-evidence
+matrix and exact platform/sanitizer results. Then replace generated packet classes
+and GraphX's protocol engine with library APIs and device/transport adapters.
+Update the controller to request AckV for admission and ReqX+ReqS for post-action
+state. Add independent literal vectors for every layout, early-AckV/no-early-AckX,
+actual/observation timestamps, execution-only suppression, atomic backend failures,
+read-only capabilities, replay, fragmented/coalesced TCP, stalled peers and burst
+boundaries. Keep library qualification distinct from Soapy/mTLS loopback and
+privileged OVS deployment qualification. P1 remains open until all required host
+integration evidence exists.

@@ -43,22 +43,35 @@ Apply [P1.1 command analysis](command-analysis.md) to the P1 exit criteria:
 
 | Item | Required result | Current state |
 |---|---|---|
-| P1.1 | Inspect vrtgen examples, query/ack generation and supported mappings | Analysis complete |
-| P1.2 | Explicit NO_ACTION status selectors, separate generated query acknowledgment, replies matching requested execution/status modes | Implemented; focused wire tests pass |
-| P1.3 | Field-specific range/precision errors, late-start timing error, atomic rejected configuration | Implemented for supported settings; focused wire tests pass |
-| P1.4 | Authoritative capability-range semantics, then generated query/response and independent vectors | Unresolved semantics; CIF7 inheritance limitation reproduced |
-| P1.5 | Complete independent context/ack coverage, non-divisor timing, replay exhaustion, stalled-client and resource-bound tests | Remaining acceptance work |
+| P1.1 | Library profile/API audit and normative mappings | Library contract implemented and pinned below; application acceptance pending |
+| P1.2 | Library NO_ACTION status and correlated ReqX+ReqS; no generated protocol engine | Application migration and independent interoperability verification required |
+| P1.3 | Atomic device batch with field-specific diagnostics and no partial application | Bind the same Soapy device; verify failures and unknown physical effects |
+| P1.4 | CIF7 supported min/max query/response distinct from current state | Semantics established by VITA Section 9 and 9.12; integration acceptance pending |
+| P1.5 | Independent Context/ack vectors, non-divisor time, replay exhaustion, stalled-peer bounds | Library gates and host adapter evidence required |
 
-P1.4 must distinguish supported limits from current values and statistical
-attributes, and distinguish global bandwidth limits from constraints imposed by
-the applied sample rate. Do not assume CIF7 precision means a supported increment.
-If CIF7 is selected, correct and test its acknowledgment inheritance in the pinned
-generator before using it; YAML additions alone do not establish a working codec.
-Preserve the existing source pin, notices and reproducible generation inputs.
+P1.4 uses CIF7 Maximum/Minimum, in that wire order, with Current absent.
+Global bandwidth limits remain distinct from `BW<=Fs` and device constraints.
+CIF7 Precision is not a supported increment. Public device increments/choices must
+be enforced by the same admission owner; do not invent a wire attribute for them.
 
 P1.5 proceeds independently of P1.4. No OVS deployment or privileged permission is
 needed for these local tests. P1 cannot close while capability queries remain
 unimplemented; do not replace that requirement with status or static documentation.
+
+### Verified library migration pin
+
+Use `vrt_framework` commit `60a290c9b1da2396d3d704ebe52ea6cbcf2fa398` for
+this migration. Its `docs/implementation/P17-graphx-profile.md` contains the public
+APIs, host binding requirements and requirement-to-evidence matrix;
+`docs/implementation/artifacts/P17/results.json` records all six passing gates:
+macOS arm64 Debug (235), Release (239), ASan/UBSan (235), TSan (235), and Linux
+arm64 Debug/Release (235 each). The accompanying source manifest and full logs
+identify the tested implementation. Linux sanitizer gates were not run.
+
+This pin qualifies the library, not the current GraphX executable. Replacing its
+protocol engine and binding the same Soapy device and authenticated TCP transport,
+updating dependency/release inventories, and independent application acceptance
+remain P1 work. No privileged GraphX or OVS tests were run for this library migration.
 
 ### Design and dependency integration
 
@@ -66,8 +79,8 @@ unimplemented; do not replace that requirement with status or static documentati
   packet layouts, timing model, limits and test approach. Include exact control/CAM
   mappings, applied acknowledgments, timed-start encoding, idempotency and context
   cadence. Choose deterministic defaults rather than reopening accepted behavior.
-- Pin and verify SoapySDR and `vrtgen`; maintain packet generation inputs and
-  reproducible generation steps. Record licenses, generated-code notices, build
+- Pin and verify SoapySDR and `vrt_framework`; remove vrtgen/code generation and
+  consume the library through CMake `vita::core`. Record licenses, source notices, build
   requirements and supporting libraries in dependency/release inventories and SBOM
   inputs. Do not use the reviewed upstream revision as an unverified release pin.
 - Separate VITA codec behavior, virtual device, radio orchestration and thin app
@@ -243,7 +256,7 @@ an unsafe operation.
 **Outcome:** the standard GraphX CLI runs the complete seven-application graph:
 four radios, IQ processor/controller, feature detector and recorder.
 
-- Extend shared release/image roles with the verified SoapySDR, `vrtgen`, FFT and
+- Extend shared release/image roles with the verified SoapySDR, `vrt_framework`, FFT and
   application artifacts. Include generation provenance, required licenses and SBOMs;
   verify ARM64 Linux support and the selected release artifacts rather than inventing
   image digests. Exercise the packaged radio with the P1 harness as a regression.

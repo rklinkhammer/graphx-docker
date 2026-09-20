@@ -5,8 +5,9 @@ standalone build, not an OCI image release. P5 remains responsible for published
 image/catalog integration. The authoritative normalized node contract is reused.
 
 See [P1.1 command analysis](command-analysis.md) for the upstream example review,
-status/acknowledgment corrections and capability-query findings. The implemented
-command subset below is not yet the final independently verified wire profile.
+status/acknowledgment corrections and capability-query findings. The selected
+contract below is the application migration target; the current standalone
+executable still requires adapter integration and independent verification.
 
 ## Device and signal
 
@@ -21,19 +22,22 @@ start begins a new sample epoch; duplicate starts never restart acquisition.
 
 ## Dependencies and reproducibility
 
-SoapySDR 0.8.1 commit `1cf5a539a21414ff509ff7d0eedfc5fa8edb90c6` and vrtgen
-`5e7497d24069c140be431d8468655f67d25f382d` are downloaded as SHA-256 checked archives.
-The latter's Python generator requires setuptools 80.9.0 (its entry point imports
-pkg_resources). Record Python tool versions alongside generation outputs. Generated
-packet classes use the upstream support headers; there is no proprietary VITA codec.
-Preserve upstream notices and include dependency sources/licenses with distribution.
-This is implementation-source validation, not certification against a supplied VITA
-standard. Generator/backend verification is distinct from independent wire decoding.
+Retain the pinned SoapySDR device dependency. Use `vrt_framework` as the sole
+VITA codec and protocol runtime through `vita::core`; consume a verified immutable
+commit `60a290c9b1da2396d3d704ebe52ea6cbcf2fa398`, with gates recorded in the
+[implementation plan](implementation-plan.md#verified-library-migration-pin).
+Its `graphx_radio` profile owns packet layouts,
+command validation, execution/state acknowledgments, capabilities and TCP framing.
+GraphX supplies bounded device and transport bindings. Remove vrtgen generation,
+Python generator dependencies and generated VITA classes during the application
+integration, updating notices, dependency locks and the SBOM together.
+The current standalone executable still requires this integration; its existing
+wire tests do not prove acceptance of the selected library profile.
 
 ## Packet profile
 
-`config/vita/radio.yaml` is the generation input. Data: stream ID 1–4, present zero
-class identifier, UTC-encoded simulated integer seconds, real-time picosecond fraction,
+The library profile is the wire authority. Data: stream ID 1–4, present
+Class ID `00 FF FF FF 00 00 00 00` (unknown OUI, unspecified class codes), UTC-encoded simulated integer seconds, real-time picosecond fraction,
 I then Q signed big-endian components and one required trailer with enabled sample-frame
 SSI. SINGLE/FIRST/MIDDLE/FINAL map to 0/1/2/3. Header count wraps modulo 16.
 Sample counts derive from packet size minus the selected prologue and trailer.
@@ -41,17 +45,19 @@ Emit context before data and at each burst boundary with RF frequency, bandwidth
 sample rate and gain. Full packets have 1024 pairs; the final packet is short when
 needed. Configurable burst length is 1–262144 pairs, default 262144.
 
-Control uses generated VITA command/ack packets, TLS, numeric controller ID 1 and
+Context and Command omit Class ID. Context contains exactly bandwidth, RF reference
+frequency, gain and sample rate (52 bytes). Control uses library VITA command/ack packets, TLS, numeric controller ID 1 and
 controllee/stream ID matching the radio. Message IDs are scoped to the running radio.
 Configure carries all four settings, executed atomically; partial application is not
 permitted. NO_ACTION requests status using CIF0/CIF1 selectors without setting-value
-payloads; a separate generated query acknowledgment returns only selected fields.
+payloads; the state acknowledgment returns only selected fields.
 Empty selectors and execute-style value payloads are rejected. EXECUTE with discrete
-stream-enable sets start or stop. An execution request returns an execution reply;
-a status request returns status; requesting both returns execution then status as
-two VITA packets on the same TLS stream. Status acknowledges current values; capability ranges are the published
-profile bounds. Timed start uses the CAM timestamp-control mode, never timestamp
-presence alone. Receive/schedule acknowledgments are not execution acknowledgments.
+stream-enable sets start or stop. Requested AckV reports validation/scheduling admission, never execution. AckX is
+emitted only after the device action completes, with actual effective time. AckS
+reports observation time and current values. EXECUTE requesting state must request
+ReqX+ReqS, returned in that order; EXECUTE+ReqS alone is rejected. NO_ACTION+ReqS
+remains a read-only status/capability request. Timestamp presence alone never
+schedules an action; start uses the CAM timestamp-control mode.
 Reject unsupported fields, malformed layouts, nonfinite settings and mismatched IDs.
 Bound packets to 1024 bytes, pending command work and replay history; identical IDs
 with different content are errors. TLS peers are restricted by staged test/production
@@ -91,25 +97,21 @@ path acceptance. Real image packaging and privileged network tests are later pha
   loading. The trusted controller certificate must have DNS identity `controller`;
   controller ID is 1 and the resolved control source address is enforced. TLS
   credential rotation during the run is not implemented in this P1 server.
-- Configuration returns execution and/or applied state as requested; a timed-start acknowledgment means scheduled,
-  not already emitting. Subsequent status indicates running; data proves execution.
-  Status does not reset streaming. Invalid settings return errors for the affected
-  RF-frequency, sample-rate, bandwidth or gain field. Nonintegral rates report
-  unsupported precision, and late starts report a timestamp problem with the
-  timing-issues mode. All validation precedes device mutation. Malformed framing
-  or unknown layouts close the session. State/operation errors retain a generic
-  field-not-executed response and are not represented as successful application.
-- Capability ranges are queryable through the actual SoapySDR device API and recorded
-  in this fixed profile. A VITA wire capability-range query is not implemented yet;
-  do not describe the status response as dynamic capability discovery.
+- Configuration returns requested AckV followed by terminal AckX and requested
+  AckS. Scheduled start returns early AckV; AckX follows activation, and does not
+  claim that a receiver has received IQ. Invalid settings identify the affected
+  field; every setting is validated before any physical effect. A batch failure
+  with uncertain hardware effects faults the stream rather than claiming rollback.
+- Supported-limit queries use NO_ACTION selectors with CIF7 Maximum/Minimum
+  (`0x0c000000`), returned in AckS independently of current settings. Section 9
+  explicitly permits hardware-supported limits. Global bandwidth bounds do not
+  override `0 < bandwidth <= sample_rate`. CIF7 Precision is not a device step.
+  Unknown selectors report unsupported diagnostics; queries cannot change the
+  sample epoch, phase, settings, scheduled operations or streaming state.
 - The event loop services acquisition/control without blocking on a receiver. A
   pacing delay above 100 ms skips overdue samples, advances waveform phase and
   reports dropped samples. UDP send errors are counted separately. One heartbeat
   and bounded summary log per second avoid per-packet logging.
-- `scripts/vita/generate.py` fixes upstream error-field member declaration guards
-  and an acknowledgment action-mode declaration mismatch in a build-local copy of
-  the pinned templates. macOS supplies a three-function byte-swap compatibility
-  header. Generated files are never hand-edited. Upstream notices are retained.
 - The P1 local sender binds its resolved source address with a kernel-selected UDP
   source port. A production explicit source-port contract remains to be integrated;
   the destination port is resolved and fixed. Do not claim full authored source-port
