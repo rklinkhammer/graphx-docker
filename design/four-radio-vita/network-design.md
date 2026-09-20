@@ -48,8 +48,8 @@ It receives/discards Ethernet bytes in fixed storage, counts received bytes,
 truncation and available kernel drops/errors, and reports bounded summaries. It
 never opens packet files or archives. Normalization disables its application
 capture and the compiler omits a writable capture mount. Shutdown is bounded and may lose queued
-packets. Recorder readiness uses the existing transactional default; degraded
-startup is P4 and is not implemented here.
+packets. Recorder readiness follows the selected common lifecycle policy; degraded
+startup is specified in [lifecycle design](lifecycle-design.md).
 
 Optional diagnostic capture remains the existing owned dumpcap/PCAPNG lifecycle,
 with bounded retention. For container mirror delivery it observes the host veth

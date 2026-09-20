@@ -315,6 +315,7 @@ if(GRAPHX_BUILD_TESTS)
       ENVIRONMENT "GRAPHX_OVERRIDES=")
   endfunction()
 
+  graphx_add_test_target(graphx-lifecycle-application tests/lifecycle_application.cpp)
   graphx_add_test_target(graphx-tests tests/test_main.cpp)
   target_compile_definitions(graphx-tests PRIVATE GRAPHX_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
   add_test(NAME graphx-tests COMMAND graphx-tests)

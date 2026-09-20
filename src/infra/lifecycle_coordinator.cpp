@@ -293,7 +293,13 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
       const auto& expected = expected_endpoint(state, item.attachment_id);
       bool owned{};
       try {
-        if (expected.kind == AttachmentKind::container_veth)
+        if (context && context->unavailable_containers.contains(expected.owner) &&
+            (expected.kind == AttachmentKind::container_veth || expected.mirror_container)) {
+          // Only the common runner can classify an exact, still-owned stopped container.
+          // Its missing veth is acceptable; retained OVS records must still be ours.
+          owned = !link_ifindex(item.name) && !link_ifindex(expected.target_interface) &&
+                  endpoint_names_absent_or_recorded(item) && ovs_endpoint_owned(item, state);
+        } else if (expected.kind == AttachmentKind::container_veth)
           owned = container_endpoint_healthy(expected, item, state, config);
         else if (expected.kind == AttachmentKind::namespace_veth)
           owned = namespace_endpoint_healthy(expected, item, state);
@@ -332,7 +338,21 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
              << " interface=" << item.interface << " pid=" << item.pid
              << " directory=" << item.session_directory
              << " state=" << (owned ? "capturing" : "missing-replaced-or-completed") << '\n';
-      healthy = healthy && owned;
+      bool unavailable_delivery = false;
+      if (!owned && context && expected != state.expected_captures.end()) {
+        const auto& endpoint = expected_endpoint(state, item.attachment_id);
+        // A stopped recorder loses its namespace/veth. Retain independent capture
+        // evidence, but never call this reception or accept a replaced capture PID.
+        unavailable_delivery =
+            context->unavailable_containers.contains(endpoint.owner) &&
+            !link_ifindex(endpoint.host_interface) && directory_identity_matches(item) &&
+            (process_owned(item.pid, item.process_start_time, item.session_directory.string()) ||
+             (::kill(static_cast<pid_t>(item.pid), 0) == -1 && errno == ESRCH));
+        if (unavailable_delivery)
+          output << "capture=" << item.id
+                 << " status=unavailable reason=delivery-endpoint-absent\n";
+      }
+      healthy = healthy && (owned || unavailable_delivery);
     }
     for (const auto& item : state.faults) {
       const bool owned = fault_healthy(item);
@@ -342,7 +362,9 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
              << (owned ? (active ? "active" : "expired") : "missing-or-replaced") << '\n';
       healthy = healthy && owned;
     }
-    healthy = healthy && management_policy_matches(config, state);
+    healthy = healthy && management_policy_matches(
+                             config, state, false,
+                             context ? context->unavailable_containers : std::set<std::string>{});
     return healthy ? 0 : 2;
   }
 

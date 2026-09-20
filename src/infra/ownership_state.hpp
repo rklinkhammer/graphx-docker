@@ -88,6 +88,7 @@ struct OwnershipState {
   std::string config_hash;
   std::string owner_token;
   std::string status;
+  std::map<std::string, std::string> applications;
   std::map<std::string, std::string> console_sockets;
   std::string console_name;
   std::uint64_t console_inode{};

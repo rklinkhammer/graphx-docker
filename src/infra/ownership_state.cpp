@@ -62,6 +62,7 @@ YAML::Node state_node(const OwnershipState& state) {
   root["config_sha256"] = state.config_hash;
   root["owner_token"] = state.owner_token;
   root["status"] = state.status;
+  for (const auto& [name, admission] : state.applications) root["applications"][name] = admission;
   if (!state.console_name.empty()) {
     for (const auto& [node, identity] : state.console_sockets)
       root["console_sockets"][node] = identity;
@@ -488,6 +489,19 @@ OwnershipState load_state(const std::filesystem::path& path) {
           (action.status != "pending" && action.status != "complete" && action.status != "cleared"))
         throw std::runtime_error("invalid scenario action identity");
       state.actions.push_back(std::move(action));
+    }
+  }
+  if (root["applications"]) {
+    if (!root["applications"].IsMap() || root["applications"].size() > 4096)
+      throw std::runtime_error("invalid application admission inventory");
+    for (const auto& item : root["applications"]) {
+      const auto name = item.first.as<std::string>();
+      const auto admission = item.second.as<std::string>();
+      if (name.empty() || name.size() > 64 ||
+          name.find_first_not_of("abcdefghijklmnopqrstuvwxyz0123456789_-") != std::string::npos ||
+          (admission != "ready" && admission != "exited" && admission != "timeout") ||
+          !state.applications.emplace(name, admission).second)
+        throw std::runtime_error("invalid application admission");
     }
   }
   if (root["processes"]) {

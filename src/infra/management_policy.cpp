@@ -126,7 +126,7 @@ void install_management_policy(const GraphConfig& config, OwnershipState& state)
 }
 
 bool management_policy_matches(const GraphConfig& config, const OwnershipState& state,
-                               bool allow_absent) {
+                               bool allow_absent, const std::set<std::string>& unavailable) {
   std::set<std::string> seen;
   for (const auto& endpoint : state.expected_endpoints) {
     if (endpoint.kind != AttachmentKind::container_veth || !seen.insert(endpoint.owner).second)
@@ -135,6 +135,10 @@ bool management_policy_matches(const GraphConfig& config, const OwnershipState& 
       if (allow_absent) continue;
       return false;
     }
+    if (unavailable.contains(endpoint.owner) &&
+        !inspect(endpoint.container_id).at("State").at("Running").boolean() &&
+        !link_ifindex(endpoint.host_interface))
+      continue;
     if (allow_absent && (!link_ifindex(endpoint.host_interface) ||
                          !inspect(endpoint.container_id).at("State").at("Running").boolean()))
       continue;

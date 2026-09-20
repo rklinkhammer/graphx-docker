@@ -1149,6 +1149,26 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
+    "lifecycle": {
+      "additionalProperties": false,
+      "properties": {
+        "readiness_ms": {
+          "maximum": 30000,
+          "minimum": 100,
+          "type": "integer"
+        },
+        "startup": {
+          "enum": [
+            "transactional",
+            "available"
+          ]
+        }
+      },
+      "required": [
+        "startup"
+      ],
+      "type": "object"
+    },
     "catalog": {
       "minLength": 1,
       "type": "string"

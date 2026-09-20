@@ -8,6 +8,7 @@
 #include <csignal>
 #include <iostream>
 #include <sstream>
+#include <system_error>
 #include <thread>
 namespace graphx::vita {
 namespace {
@@ -37,7 +38,8 @@ sockaddr_in address(const std::string& host, std::int64_t port) {
 }
 void bind_socket(int fd, const std::string& host, std::int64_t port) {
   auto a = address(host, port);
-  if (bind(fd, reinterpret_cast<sockaddr*>(&a), sizeof(a))) throw std::runtime_error("bind");
+  if (bind(fd, reinterpret_cast<sockaddr*>(&a), sizeof(a)))
+    throw std::system_error(errno, std::generic_category(), "bind");
 }
 void udp_options(int fd, const UdpTransportConfig& cfg) {
   if (cfg.mode != UdpMode::unicast || cfg.framing != "none")
@@ -89,7 +91,7 @@ struct Connection {
   std::unique_ptr<SSL_CTX, decltype(&SSL_CTX_free)> ctx{nullptr, SSL_CTX_free};
   std::unique_ptr<SSL, decltype(&SSL_free)> ssl{nullptr, SSL_free};
   Clock::time_point deadline{}, retry{}, query_after{};
-  bool connected{}, initial_sent{}, configured{}, start_sent{};
+  bool connected{}, initial_sent{}, configured{}, start_sent{}, authentication_failed{};
   std::optional<vr::TransactionHandle> pending, start_handle;
   bool executed{}, reported{}, ever_connected{};
   std::uint32_t attempts{};
@@ -139,7 +141,7 @@ struct Connection {
     auto now = Clock::now();
     if (!connected) session.progress();
     if (!socket) {
-      if (now < retry || attempts >= config.retry.max_attempts ||
+      if (authentication_failed || now < retry || attempts >= config.retry.max_attempts ||
           (ever_connected && !config.reconnect))
         return;
       ++attempts;
@@ -166,7 +168,10 @@ struct Connection {
       int n = SSL_connect(ssl.get());
       if (n != 1) {
         int error = SSL_get_error(ssl.get(), n);
-        if (error != SSL_ERROR_WANT_READ && error != SSL_ERROR_WANT_WRITE) disconnect();
+        if (error != SSL_ERROR_WANT_READ && error != SSL_ERROR_WANT_WRITE) {
+          authentication_failed = SSL_get_verify_result(ssl.get()) != X509_V_OK;
+          disconnect();
+        }
         return;
       }
       session.connect(ssl.get());
@@ -254,6 +259,7 @@ int run_processor(int argc, char** argv) try {
   std::array<std::unique_ptr<SampleAssembler>, 4> assemblers;
   std::array<std::unique_ptr<Connection>, 4> connections;
   std::array<in_addr_t, 4> sources{};
+  std::array<std::optional<Clock::time_point>, 4> fresh{};
   for (int i = 0; i < 4; ++i) {
     auto suffix = std::to_string(i + 1);
     auto rate = integer(node, "rate" + suffix);
@@ -269,6 +275,7 @@ int run_processor(int argc, char** argv) try {
         out.max_datagram_bytes < spectrum_bytes(c.size))
       throw std::runtime_error("FFT datagram budget");
     assemblers[i] = std::make_unique<SampleAssembler>(i + 1, c, [&](Spectrum spectrum) {
+      if (spectrum.valid) fresh.at(spectrum.stream - 1) = Clock::now();
       auto wire = encode_spectrum(spectrum);
       ++spectra;
       auto sent = sendto(output.fd, wire.data(), wire.size(), 0,
@@ -350,6 +357,18 @@ int run_processor(int argc, char** argv) try {
            << " skipped_samples=" << skipped << " sequence_gaps=" << sequence_gaps
            << " display_drops=" << log.drops;
       log.push(text.str());
+      for (std::size_t i = 0; i < connections.size(); ++i) {
+        const auto& c = *connections[i];
+        const auto availability = !fresh[i] ? "unavailable"
+                                  : Clock::now() - *fresh[i] > std::chrono::seconds(2)
+                                      ? "stale"
+                                      : "available";
+        log.push("stream=" + std::to_string(i + 1) + " results=" + availability + " control=" +
+                 (c.authentication_failed ? "authentication-failed"
+                  : c.connected           ? "connected"
+                                          : "unavailable") +
+                 " attempts=" + std::to_string(c.attempts));
+      }
       summary = Clock::now() + std::chrono::seconds(1);
       if (trace) trace->on_heartbeat(node.id(), 0);
     }
@@ -357,9 +376,12 @@ int run_processor(int argc, char** argv) try {
     std::this_thread::sleep_for(std::chrono::microseconds(100));
   }
   return 0;
+} catch (const std::system_error& e) {
+  std::cerr << e.what() << '\n';
+  return e.code() == std::errc::address_in_use ? 75 : 78;
 } catch (const std::exception& e) {
   std::cerr << "graphx-vita-processor: " << e.what() << '\n';
-  return 1;
+  return 78;
 }
 int run_detector(int argc, char** argv) try {
   auto args = node_arguments(argc, argv);
@@ -381,6 +403,7 @@ int run_detector(int argc, char** argv) try {
   auto summary = Clock::now();
   std::uint64_t received{}, invalid{}, sequence_gaps{}, duplicates{};
   std::array<std::optional<std::uint32_t>, 4> last{};
+  std::array<std::optional<Clock::time_point>, 4> fresh{};
   while (!stopped) {
     for (int work = 0; work < 32; ++work) {
       std::array<std::byte, 8837> bytes{};
@@ -394,16 +417,19 @@ int run_detector(int argc, char** argv) try {
         if (from.sin_addr.s_addr != source || n > 8836) throw std::invalid_argument("source/size");
         auto spectrum = decode_spectrum(std::span{bytes}.first(n));
         auto& previous = last[spectrum.stream - 1];
+        bool advanced = !previous;
         if (previous) {
           auto delta = spectrum.sequence - *previous;
           if (delta == 0 || delta > 0x80000000u)
             ++duplicates;
           else {
+            advanced = true;
             sequence_gaps += delta - 1;
             previous = spectrum.sequence;
           }
         } else
           previous = spectrum.sequence;
+        if (advanced && spectrum.valid) fresh[spectrum.stream - 1] = Clock::now();
         auto frequency = detect(spectrum);
         std::ostringstream text;
         text.precision(15);
@@ -426,6 +452,11 @@ int run_detector(int argc, char** argv) try {
                std::to_string(invalid) + " sequence_gaps=" + std::to_string(sequence_gaps) +
                " duplicates=" + std::to_string(duplicates) +
                " display_drops=" + std::to_string(log.drops));
+      for (std::size_t i = 0; i < fresh.size(); ++i)
+        log.push("detection stream=" + std::to_string(i + 1) + " results=" +
+                 (!fresh[i]                                            ? "unavailable"
+                  : Clock::now() - *fresh[i] > std::chrono::seconds(2) ? "stale"
+                                                                       : "available"));
       summary = Clock::now() + std::chrono::seconds(1);
       if (trace) trace->on_heartbeat(node.id(), 0);
     }
@@ -434,8 +465,11 @@ int run_detector(int argc, char** argv) try {
   }
   log.progress();
   return 0;
+} catch (const std::system_error& e) {
+  std::cerr << e.what() << '\n';
+  return e.code() == std::errc::address_in_use ? 75 : 78;
 } catch (const std::exception& e) {
   std::cerr << "graphx-vita-detector: " << e.what() << '\n';
-  return 1;
+  return 78;
 }
 }  // namespace graphx::vita

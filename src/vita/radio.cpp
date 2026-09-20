@@ -1,3 +1,4 @@
+#include <system_error>
 #include "graphx/vita/virtual_device.hpp"
 #include "graphx/node_settings.hpp"
 #include "../application_observer.hpp"
@@ -96,7 +97,7 @@ int run_radio(int argc, char** argv) {
     if (bind(listener.value, reinterpret_cast<sockaddr*>(&local), sizeof(local)) ||
         listen(listener.value, 4) ||
         bind(sender.value, reinterpret_cast<sockaddr*>(&source), sizeof(source)))
-      throw std::runtime_error("radio bind");
+      throw std::system_error(errno, std::generic_category(), "radio bind");
     fcntl(listener.value, F_SETFL, O_NONBLOCK);
     fcntl(sender.value, F_SETFL, O_NONBLOCK);
     auto& parameters = node.resolved.at("parameters");
@@ -203,9 +204,12 @@ int run_radio(int argc, char** argv) {
     runtime->shutdown(vr::StopMode::immediate);
     clock.progress(*runtime);
     return 0;
+  } catch (const std::system_error& e) {
+    std::cerr << "graphx-vita-radio: " << e.what() << '\n';
+    return e.code() == std::errc::address_in_use ? 75 : 78;
   } catch (const std::exception& e) {
     std::cerr << "graphx-vita-radio: " << e.what() << '\n';
-    return 1;
+    return 78;
   }
 }
 }  // namespace graphx::vita

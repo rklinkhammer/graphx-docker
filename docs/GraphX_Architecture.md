@@ -256,6 +256,19 @@ application exec while data interfaces and management ACLs are prepared. Listene
 must then report readiness before connectors are released. Guest graphs allow a
 longer release wait to accommodate provisioning.
 
+Authored `lifecycle: {startup: available, readiness_ms: 5000}` selects bounded
+subset startup for native or container application graphs. The default remains
+transactional. Temporary application exits (75), signal termination and readiness
+timeouts permit degraded release; unknown startup errors, invalid configuration,
+authentication, release and infrastructure identity failures reject startup.
+Timed-out applications are stopped before release and are not restarted. `status`
+reports application admission and current process availability, not throughput.
+A missing VITA processor or all radios unavailable reports acquisition unavailable.
+Use per-stream result freshness in processor/detector logs to distinguish live
+processes from fresh output. Restore failed applications with explicit whole-graph
+restart; this interrupts healthy nodes. See the
+[P4 lifecycle contract](../design/four-radio-vita/lifecycle-design.md).
+
 Startup is finite and the CLI returns; there is no continuous reconciliation or
 automatic restart service. Interruptions before release trigger bounded rollback.
 Creation intents are recorded before mutation so a later invocation can inspect

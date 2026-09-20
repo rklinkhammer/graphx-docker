@@ -582,7 +582,8 @@ CompiledGraph compile_graph(const GraphConfig& graph) {
   if (!guests.empty())
     stages.emplace_back(Object{{"operation", "start-guests-held"}, {"plan", "qemu-plan.json"}});
   stages.emplace_back(Object{{"operation", "await-local-listeners"},
-                             {"timeout_ms", 30000},
+                             {"timeout_ms", resolved.at("lifecycle").at("readiness_ms")},
+                             {"startup", resolved.at("lifecycle").at("startup")},
                              {"protocol", "ready node=ID on owned process stdout"}});
   stages.emplace_back(Object{{"operation", "release-connectors"},
                              {"file", "${GX_STATE}/barriers/release"},
@@ -594,9 +595,12 @@ CompiledGraph compile_graph(const GraphConfig& graph) {
              {"config", "resolved.json"},
              {"executable", execution_available},
              {"stages", stages},
+             {"lifecycle", resolved.at("lifecycle")},
              {"external", external},
              {"scenario_actions", "never implicit"},
-             {"on_failure", "reverse newly owned resources; retain mismatch evidence and history"},
+             {"on_failure",
+              "classified application unavailability follows lifecycle policy; other failures "
+              "reverse newly owned resources and retain evidence"},
              {"stop_order", strings({"applications and guests", "capture handoff", "OVS resources",
                                      "platform", "ephemeral credentials"})}});
   Object substitutions;

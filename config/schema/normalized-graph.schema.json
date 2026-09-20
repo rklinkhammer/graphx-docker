@@ -3,6 +3,27 @@
   "additionalProperties": false,
   "maxProperties": 4096,
   "properties": {
+    "lifecycle": {
+      "additionalProperties": false,
+      "properties": {
+        "readiness_ms": {
+          "maximum": 30000,
+          "minimum": 100,
+          "type": "integer"
+        },
+        "startup": {
+          "enum": [
+            "transactional",
+            "available"
+          ]
+        }
+      },
+      "required": [
+        "startup",
+        "readiness_ms"
+      ],
+      "type": "object"
+    },
     "catalog_digest": {
       "maxLength": 4096,
       "type": "string"

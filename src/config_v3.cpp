@@ -1035,7 +1035,17 @@ GraphConfig load_graph(const std::filesystem::path& path, const ConfigLoadOption
       }
     }
   }
-  const auto nodes = node_values(graph, catalog, connections, platform, native, network);
+  const auto lifecycle = merged(Object{{"startup", "transactional"}, {"readiness_ms", 30000}},
+                                member(graph, "lifecycle"));
+  if (lifecycle.at("startup") == Value("available"))
+    for (const auto& [id, node] : graph.at("nodes").object())
+      if (node.at("execution").at("kind") != Value("native") &&
+          node.at("execution").at("kind") != Value("container"))
+        reject("E_LIFECYCLE", "nodes." + id,
+               "available startup requires native or container applications");
+  auto nodes = node_values(graph, catalog, connections, platform, native, network);
+  if (lifecycle.at("startup") == Value("available"))
+    for (auto& node : nodes.array()) node["startup"]["max_wait_ms"] = 600000;
   std::set<std::string> credentials{"observer"};
   for (const auto& [id, value] : member(graph, "credentials").object()) {
     (void)value;
@@ -1062,6 +1072,7 @@ GraphConfig load_graph(const std::filesystem::path& path, const ConfigLoadOption
       {"catalog_digest", catalog.digest},
       {"input_digest", sha256(config_value_json(graph, false))},
       {"nodes", nodes},
+      {"lifecycle", lifecycle},
       {"connections", connections},
       {"network", network},
       {"portable_network", portable},

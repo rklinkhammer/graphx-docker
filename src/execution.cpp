@@ -1,4 +1,5 @@
 #include "infra/node_console.hpp"
+#include "infra/application_lifecycle.hpp"
 #include "graphx/execution.hpp"
 #include "graphx/ownership.hpp"
 #include "graphx/config_schemas.hpp"
@@ -277,6 +278,24 @@ int execute_graph(const ExecutionOptions& opts, std::ostream& output) {
       save();
     }
   };
+  if (opts.action == "status" && available_startup(resolved) && !state.processes.empty()) {
+    std::map<std::string, bool> live;
+    bool platform_live = false;
+    for (const auto& process : state.processes) {
+      const bool running = native_process_status(process) != 0;
+      if (process.name == "platform") platform_live = running;
+      if (state.applications.contains(process.name)) {
+        live[process.name] = running && state.applications.at(process.name) == "ready";
+        output << "application=" << process.name
+               << " admission=" << state.applications.at(process.name)
+               << " status=" << (live[process.name] ? "ready" : "unavailable") << '\n';
+      }
+    }
+    output << "graph=" << id
+           << " status=" << (platform_live ? application_status(resolved, live) : "unavailable")
+           << " evidence=process-liveness throughput=unverified\n";
+    return 0;
+  }
   if (opts.action == "status") {
     for (const auto& process : state.processes)
       output << process.name << ' ' << (native_process_status(process) ? "running" : "exited")
@@ -302,6 +321,7 @@ int execute_graph(const ExecutionOptions& opts, std::ostream& output) {
   }
   ensure_state_root(state_directory / "barriers");
   state.status = "creating";
+  state.applications.clear();
   save();
   prepare_node_console(state_directory, state);
   interrupted = 0;
@@ -416,7 +436,10 @@ int execute_graph(const ExecutionOptions& opts, std::ostream& output) {
         state.processes.push_back(resource);
         save();
       });
-      const auto deadline = Clock::now() + std::chrono::seconds(30);
+      if (available_startup(resolved) && name != "platform") continue;
+      const auto deadline =
+          Clock::now() + std::chrono::milliseconds(
+                             name == "platform" ? 30000 : application_readiness_ms(resolved));
       while (true) {
         checkpoint();
         if (Clock::now() >= deadline) throw std::runtime_error("E_READINESS_TIMEOUT: " + name);
@@ -427,24 +450,74 @@ int execute_graph(const ExecutionOptions& opts, std::ostream& output) {
                       &exit_status, WNOHANG) > 0)
           throw std::runtime_error("E_READINESS_EXIT: " + name +
                                    " status=" + std::to_string(exit_status));
-        const auto log = read_document(start.log, start.log_bytes + 1);
+        const auto log = read_process_log(start.log, start.log_bytes + 1);
         if ((name == "platform" && identity.executable == node &&
              healthy(static_cast<std::uint16_t>(
                  resolved.at("platform").at("console").at("port").integer()))) ||
-            (name != "platform" && log.find("ready node=" + name + "\n") != std::string::npos))
+            (name != "platform" && application_ready(log, name)))
           break;
         std::this_thread::sleep_for(std::chrono::milliseconds(20));
       }
     }
-    for (const auto& process : state.processes)
-      if (!native_process_status(process))
+    if (available_startup(resolved)) {
+      const auto deadline =
+          Clock::now() + std::chrono::milliseconds(application_readiness_ms(resolved));
+      while (true) {
+        checkpoint();
+        bool pending = false;
+        for (const auto& process : state.processes) {
+          if (process.name == "platform") {
+            if (!native_process_status(process))
+              throw std::runtime_error("E_READINESS_EXIT: platform");
+            continue;
+          }
+          if (state.applications.contains(process.name)) continue;
+          int status{};
+          const bool running = native_process_status(process, &status) != 0;
+          if (!running) {
+            if (status < 0 || (!WIFSIGNALED(status) &&
+                               (!WIFEXITED(status) || !unavailable_exit(WEXITSTATUS(status)))))
+              throw std::runtime_error("E_APPLICATION_STARTUP: unclassified failure " +
+                                       process.name);
+            state.applications[process.name] = "exited";
+          } else if (Clock::now() < deadline &&
+                     application_ready(
+                         read_process_log(state_directory / "logs" / (process.name + ".log"),
+                                          2097152),
+                         process.name)) {
+            state.applications[process.name] = "ready";
+          } else if (Clock::now() >= deadline) {
+            stop_native_process(process);
+            state.applications[process.name] = "timeout";
+          } else
+            pending = true;
+        }
+        save();
+        if (!pending) break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+      }
+    }
+    for (const auto& process : state.processes) {
+      int status{};
+      if (native_process_status(process, &status)) continue;
+      if (!available_startup(resolved) || process.name == "platform")
         throw std::runtime_error("E_READINESS_EXIT: application exited before release");
+      if (state.applications.at(process.name) == "ready") {
+        if (status < 0 || (!WIFSIGNALED(status) &&
+                           (!WIFEXITED(status) || !unavailable_exit(WEXITSTATUS(status)))))
+          throw std::runtime_error("E_APPLICATION_STARTUP: unclassified failure " + process.name);
+        state.applications[process.name] = "exited";
+      }
+    }
     checkpoint();
     publish_execution_file(barrier, state.owner_token, 0444);
     state.status = "ready";
     save();
     start_node_console(opts, state);
-    output << "ready graph=" << id << " owner=" << state.owner_token << "\n";
+    std::map<std::string, bool> live;
+    for (const auto& [name, admission] : state.applications) live[name] = admission == "ready";
+    output << (available_startup(resolved) ? application_status(resolved, live) : "ready")
+           << " graph=" << id << " owner=" << state.owner_token << "\n";
     restore();
     return 0;
   } catch (...) {

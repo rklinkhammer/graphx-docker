@@ -2,7 +2,11 @@
   "config": "resolved.json",
   "executable": true,
   "external": [],
-  "on_failure": "reverse newly owned resources; retain mismatch evidence and history",
+  "lifecycle": {
+    "readiness_ms": 30000,
+    "startup": "transactional"
+  },
+  "on_failure": "classified application unavailability follows lifecycle policy; other failures reverse newly owned resources and retain evidence",
   "scenario_actions": "never implicit",
   "stages": [
     {
@@ -33,6 +37,7 @@
     {
       "operation": "await-local-listeners",
       "protocol": "ready node=ID on owned process stdout",
+      "startup": "transactional",
       "timeout_ms": 30000
     },
     {

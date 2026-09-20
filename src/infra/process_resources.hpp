@@ -25,8 +25,10 @@ OwnedResourceIdentity start_native_process(
     const NativeProcessOptions& options,
     const std::function<void(const OwnedResourceIdentity&)>& register_identity);
 // 0: absent, 1: exact identity, throws on substitution.
-int native_process_status(const OwnedResourceIdentity& resource);
+int native_process_status(const OwnedResourceIdentity& resource, int* exit_status = nullptr);
 void stop_native_process(const OwnedResourceIdentity& resource);
+// Read a bounded prefix of an actively appended log, never an immutable document.
+std::string read_process_log(const std::filesystem::path& path, std::size_t maximum);
 void require_available_tcp_port(std::uint16_t port);
 void publish_execution_file(const std::filesystem::path& path, const std::string& bytes,
                             unsigned mode = 0600);

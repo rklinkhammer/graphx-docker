@@ -77,6 +77,10 @@
   "graph_id": "shared-memory",
   "graph_version": 3,
   "input_digest": "9ff6d454a434f6f558d3513344e6a7ae4649e8e9cc95e703d72486868a228a8a",
+  "lifecycle": {
+    "readiness_ms": 30000,
+    "startup": "transactional"
+  },
   "network": {
     "attachments": [],
     "captures": [],

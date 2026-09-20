@@ -9,6 +9,7 @@
 #include <functional>
 #include <iosfwd>
 #include <string_view>
+#include <set>
 
 namespace graphx::infra::detail {
 
@@ -19,6 +20,7 @@ struct OvsExecutionContext {
   const OwnershipLock& lock;
   std::function<bool()> cancelled;
   bool validate_only{};
+  std::set<std::string> unavailable_containers;
 };
 
 int execute_ovs_lifecycle_impl(const GraphConfig& config, const std::filesystem::path& config_path,

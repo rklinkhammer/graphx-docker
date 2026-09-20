@@ -1,4 +1,5 @@
 #include "infra/node_console.hpp"
+#include "infra/application_lifecycle.hpp"
 #include "infra/compose_execution.hpp"
 #include "infra/qemu_resources.hpp"
 #include "infra/process_resources.hpp"
@@ -68,6 +69,8 @@ bool observe(OwnedResourceIdentity& resource, const std::string& graph) {
       tags.at("org.graphx.graph") != Value(graph))
     throw std::runtime_error("E_DOCKER_IDENTITY: owner label mismatch; nothing removed");
   if (resource.kind == "container") {
+    if (object.at("Name") != Value("/" + resource.name))
+      throw std::runtime_error("E_DOCKER_IDENTITY: container name changed");
     if (object.at("Image") != Value(resource.secondary_id))
       throw std::runtime_error("E_DOCKER_IDENTITY: container image mismatch");
     resource.stable_id = object.at("Id").text();
@@ -239,7 +242,18 @@ int execute_compose(const ExecutionOptions& opts, const ConfigValue& resolved,
         const auto name = resource.name.substr(("graphx-" + graph + "-").size());
         config.deployment.services.push_back({name, resource.secondary_id, {}});
       }
-    OvsExecutionContext context{state, lock, [] { return cancelled != 0; }, validate_only};
+    OvsExecutionContext context{state, lock, [] { return cancelled != 0; }, validate_only, {}};
+    if (available_startup(resolved) && action == OvsLifecycleAction::status)
+      for (auto resource : state.processes) {
+        if (resource.kind != "container") continue;
+        const auto name = resource.name.substr(("graphx-" + graph + "-").size());
+        if (!state.applications.contains(name)) continue;
+        if (!observe(resource, graph))
+          throw std::runtime_error("E_DOCKER_IDENTITY: missing application container");
+        const auto object = inspect("container", resource.stable_id);
+        if (!object.at("State").at("Running").boolean())
+          context.unavailable_containers.insert(name);
+      }
     return execute_ovs_lifecycle_impl(config, opts.output / "compile-manifest.json", action, false,
                                       opts.state_root, output, output, &context);
   };
@@ -312,15 +326,33 @@ int execute_compose(const ExecutionOptions& opts, const ConfigValue& resolved,
     }
   };
   if (opts.action == "status") {
-    if (ovs && network_action(OvsLifecycleAction::status) != 0) return 2;
+    const bool network_ready = !ovs || network_action(OvsLifecycleAction::status) == 0;
+    std::map<std::string, bool> live;
+    bool platform_live = false;
     for (auto resource : state.processes) {
       if (resource.kind == "native") verify_guest_directory(resource);
       const bool present = resource.kind == "native" ? native_process_status(resource) != 0
                                                      : observe(resource, graph);
       output << resource.kind << ' ' << resource.name << ' ' << (present ? "present" : "absent")
              << '\n';
+      if (resource.kind == "container" && available_startup(resolved)) {
+        const auto name = resource.name.substr(("graphx-" + graph + "-").size());
+        const bool running =
+            present && inspect("container", resource.stable_id).at("State").at("Running").boolean();
+        if (name == "platform") platform_live = running;
+        if (state.applications.contains(name)) {
+          live[name] = running && state.applications.at(name) == "ready";
+          output << "application=" << name << " admission=" << state.applications.at(name)
+                 << " status=" << (live[name] ? "ready" : "unavailable") << '\n';
+        }
+      }
     }
-    return 0;
+    if (available_startup(resolved))
+      output << "graph=" << graph << " status="
+             << (platform_live && network_ready ? application_status(resolved, live)
+                                                : "unavailable")
+             << " evidence=process-liveness throughput=unverified\n";
+    return network_ready ? 0 : 2;
   }
   if (opts.action == "down") {
     stop();
@@ -860,21 +892,48 @@ process.stdout.write(JSON.stringify(guests));
         save();
       }
     }
-    const auto application_deadline = Clock::now() + std::chrono::seconds(30);
-    for (const auto& name : applications) {
-      auto resource = *std::ranges::find_if(state.processes, [&](const auto& item) {
-        return item.name == "graphx-" + graph + "-" + name;
-      });
-      while (true) {
+    state.applications.clear();
+    const auto application_deadline =
+        Clock::now() + std::chrono::milliseconds(application_readiness_ms(resolved));
+    bool pending = true;
+    while (pending) {
+      pending = false;
+      for (const auto& name : applications) {
+        if (state.applications.contains(name)) continue;
+        auto resource = *std::ranges::find_if(state.processes, [&](const auto& item) {
+          return item.name == "graphx-" + graph + "-" + name;
+        });
         check();
-        if (Clock::now() >= application_deadline)
-          throw std::runtime_error("E_READINESS_TIMEOUT: " + name);
+        if (!observe(resource, graph))
+          throw std::runtime_error("E_DOCKER_IDENTITY: missing application container");
         const auto object = inspect("container", resource.stable_id);
-        if (!object.at("State").at("Running").boolean())
-          throw std::runtime_error("E_READINESS_EXIT: " + name);
-        const auto log = call({"docker", "logs", "--tail", "4096", resource.stable_id});
-        if (log.find("ready node=" + name) != std::string::npos) break;
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        if (!object.at("State").at("Running").boolean()) {
+          if (!available_startup(resolved) ||
+              !unavailable_exit(object.at("State").at("ExitCode").integer(), true))
+            throw std::runtime_error("E_READINESS_EXIT: " + name);
+          state.applications[name] = "exited";
+        } else if (Clock::now() >= application_deadline) {
+          if (!available_startup(resolved))
+            throw std::runtime_error("E_READINESS_TIMEOUT: " + name);
+          state.applications[name] = "timeout";
+        } else {
+          const auto log = call({"docker", "logs", "--tail", "4096", resource.stable_id});
+          if (Clock::now() < application_deadline && application_ready(log, name))
+            state.applications[name] = "ready";
+          else
+            pending = true;
+        }
+      }
+      save();
+      if (pending) std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+    for (auto resource : state.processes) {
+      if (resource.kind != "container") continue;
+      const auto name = resource.name.substr(("graphx-" + graph + "-").size());
+      if (state.applications.contains(name) && state.applications.at(name) == "timeout") {
+        if (!observe(resource, graph))
+          throw std::runtime_error("E_DOCKER_IDENTITY: missing timed-out container");
+        call({"docker", "stop", "--time", "2", resource.stable_id});
       }
     }
     for (const auto& process : state.processes) {
@@ -888,7 +947,7 @@ process.stdout.write(JSON.stringify(guests));
         check();
         if (Clock::now() >= application_deadline || !native_process_status(process))
           throw std::runtime_error("E_READINESS_TIMEOUT: namespace diagnostic");
-        if (read_document(root / "logs" / (process.name + ".log"), 2097152)
+        if (read_process_log(root / "logs" / (process.name + ".log"), 2097152)
                 .find("ready node=" + process.name) != std::string::npos)
           break;
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
@@ -897,10 +956,18 @@ process.stdout.write(JSON.stringify(guests));
     check();
     for (auto& resource : state.processes)
       if (resource.kind == "container") {
-        if (!observe(resource, graph) ||
-            !inspect("container", resource.stable_id).at("State").at("Running").boolean())
-          throw std::runtime_error("E_READINESS_EXIT: process exited before release");
+        if (!observe(resource, graph))
+          throw std::runtime_error("E_DOCKER_IDENTITY: missing container before release");
+        const auto object = inspect("container", resource.stable_id);
+        if (!object.at("State").at("Running").boolean()) {
+          const auto name = resource.name.substr(("graphx-" + graph + "-").size());
+          if (!available_startup(resolved) || !state.applications.contains(name) ||
+              !unavailable_exit(object.at("State").at("ExitCode").integer(), true))
+            throw std::runtime_error("E_READINESS_EXIT: process exited before release");
+          if (state.applications.at(name) == "ready") state.applications[name] = "exited";
+        }
       }
+    save();
     if (ovs && network_action(OvsLifecycleAction::status) != 0)
       throw std::runtime_error("E_NETWORK_READINESS: owned data plane is not ready");
     for (auto& guest : guest_sessions) guest->release();
@@ -932,7 +999,10 @@ process.stdout.write(JSON.stringify(guests));
     }
     start_node_console(opts, state);
     restore();
-    output << "ready graph=" << graph << " owner=" << state.owner_token << '\n';
+    std::map<std::string, bool> live;
+    for (const auto& [name, admission] : state.applications) live[name] = admission == "ready";
+    output << (available_startup(resolved) ? application_status(resolved, live) : "ready")
+           << " graph=" << graph << " owner=" << state.owner_token << '\n';
     return 0;
   } catch (...) {
     cancelled = 0;

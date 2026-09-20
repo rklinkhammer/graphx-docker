@@ -23,7 +23,7 @@
     },
     {
       "path": "execution-plan.json",
-      "sha256": "e2cd7e1708e242071d200c1ac1a4ed81d2d372d13f36e1906ad59b655faaf484"
+      "sha256": "892d5ddab3d4fb1b324c3824533b78f1f7fe617493298a3c4566c32e3bbce47f"
     },
     {
       "path": "guest-build/echo-x86.json",
@@ -55,7 +55,7 @@
     },
     {
       "path": "resolved.json",
-      "sha256": "fabf6f899122ef2f8dd635d7ffa1cb8df88f79a31639d1694bfeed9d764c23db"
+      "sha256": "d3a6dc143bc389c802815493ef32159c63fb389ac2ae6b2cbbefaf68bd9b14cf"
     },
     {
       "path": "scenario-plan.json",

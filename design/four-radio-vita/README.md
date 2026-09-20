@@ -65,4 +65,5 @@ valid normalized fixtures rather than bypassing the loader or startup barrier.
 See [radio design](radio-design.md), [command contract](command-analysis.md),
 [epoch regression](migration-blocker.md) and [P1 verification](p1-verification.md),
 [processing design](processing-design.md), [P2 verification](p2-verification.md),
-[network design](network-design.md) and [P3 verification](p3-verification.md).
+[network design](network-design.md), [P3 verification](p3-verification.md),
+[lifecycle design](lifecycle-design.md) and [P4 verification](p4-verification.md).

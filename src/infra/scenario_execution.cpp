@@ -289,7 +289,7 @@ int execute_scenario(const ExecutionOptions& opts, const ConfigValue& resolved,
   if (record != state.actions.end())
     require(record->status != "pending", "incomplete action; inspect recovery state before retry");
   if (kind != "credential-rotate") {
-    OvsExecutionContext context{state, lock, [] { return interrupted != 0; }, true};
+    OvsExecutionContext context{state, lock, [] { return interrupted != 0; }, true, {}};
     require(execute_ovs_lifecycle_impl(config, opts.output / "compile-manifest.json",
                                        OvsLifecycleAction::destroy, false, opts.state_root, output,
                                        output, &context) == 0,

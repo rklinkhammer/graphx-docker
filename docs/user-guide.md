@@ -759,6 +759,19 @@ ports before launching applications. Native and container applications must use
 separate graphs. OVS and namespace execution require explicit local Linux privileged
 opt-in and have S07–S12 Lima acceptance evidence. QEMU uses verified guest artifacts; scenario actions require explicit selection.
 
+Authored `lifecycle: {startup: available, readiness_ms: 5000}` selects bounded
+subset startup for native or container application graphs. The default remains
+transactional. Temporary application exits (75), signal termination and readiness
+timeouts permit degraded release; unknown startup errors, invalid configuration,
+authentication, release and infrastructure identity failures reject startup.
+Timed-out applications are stopped before release and are not restarted. `status`
+reports application admission and current process availability, not throughput.
+A missing VITA processor or all radios unavailable reports acquisition unavailable.
+Use per-stream result freshness in processor/detector logs to distinguish live
+processes from fresh output. Restore failed applications with explicit whole-graph
+restart; this interrupts healthy nodes. See the
+[P4 lifecycle contract](../design/four-radio-vita/lifecycle-design.md).
+
 Startup is finite: stage credentials, start the platform, wait for listeners,
 credentials and SQLite history, start applications held at their local readiness
 barrier, verify every process, and publish the ownership token to release traffic.

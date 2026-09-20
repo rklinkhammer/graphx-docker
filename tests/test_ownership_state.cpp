@@ -1,4 +1,7 @@
 #include "infra/ownership_lock.hpp"
+#include "infra/application_lifecycle.hpp"
+#include "infra/process_resources.hpp"
+#include <thread>
 #include "infra/endpoint_resources.hpp"
 #include "infra/ownership_state.hpp"
 
@@ -374,6 +377,69 @@ void test_state_root_and_lock_security() {
       "symlink lock was accepted");
 }
 
+void test_growing_readiness_log() {
+  using namespace graphx::infra::detail;
+  TemporaryDirectory temporary;
+  const auto root = std::filesystem::canonical(temporary.path());
+  const auto log = root / "application.log";
+  write_file(log, "ready node=radio\n");
+  {
+    std::jthread writer([&] {
+      std::ofstream stream(log, std::ios::app);
+      for (int i = 0; i < 1000; ++i) stream << std::string(64, 'x') << std::flush;
+    });
+    for (int i = 0; i < 1000; ++i) {
+      const auto snapshot = read_process_log(log, 131072);
+      require(snapshot.starts_with("ready node=radio\n") && snapshot.size() <= 131072,
+              "growing log lost readiness or exceeded storage");
+    }
+  }
+  expect_failure([&] { (void)read_process_log(log, 8); }, "oversized log accepted");
+  const auto link = root / "log-link";
+  std::filesystem::create_symlink(log, link);
+  expect_failure([&] { (void)read_process_log(link, 131072); }, "symlink log accepted");
+  std::filesystem::create_hard_link(log, root / "log-hardlink");
+  expect_failure([&] { (void)read_process_log(log, 131072); }, "hardlinked log accepted");
+}
+
+void test_application_admission() {
+  using namespace graphx::infra::detail;
+  using graphx::config_internal::parse_document;
+  TemporaryDirectory temporary;
+  const auto path = secure_fixture_copy(temporary, "current");
+  auto state = load_state(path);
+  state.applications = {{"radio", "ready"}, {"recorder", "timeout"}};
+  save_state(path, state);
+  require(load_state(path).applications == state.applications, "application admission lost");
+  state.applications["recorder"] = "restarting";
+  save_state(path, state);
+  expect_failure([&] { (void)load_state(path); }, "unknown admission accepted");
+  auto graph = parse_document(R"({"nodes":[{"node_id":"radio","type":"vita.radio"},
+    {"node_id":"processor","type":"vita.processor"},{"node_id":"recorder","type":"vita.recorder"}]})");
+  require(application_status(graph, {{"radio", true}, {"processor", true}, {"recorder", true}}) ==
+              "ready",
+          "complete graph");
+  require(application_status(graph, {{"radio", true}, {"processor", true}}) == "degraded",
+          "recorder dependency");
+  require(application_status(graph, {{"radio", true}, {"recorder", true}}) == "unavailable",
+          "missing controller fabricated acquisition");
+  require(application_status(graph, {{"processor", true}, {"recorder", true}}) == "unavailable",
+          "missing radios fabricated acquisition");
+  require(application_ready("ready node=radio", "radio") &&
+              application_ready("hello\nready node=radio\n", "radio"),
+          "trimmed readiness lost");
+  require(!application_ready("not ready node=radio", "radio") &&
+              !application_ready("ready node=radio2", "radio"),
+          "ambiguous readiness accepted");
+  graph["nodes"].array().push_back(
+      parse_document(R"({"node_id":"processor2","type":"vita.processor"})"));
+  require(application_status(
+              graph, {{"radio", true}, {"processor", true}, {"processor2", false}}) == "degraded",
+          "one failed processor hid surviving acquisition");
+  require(!available_startup(graph), "transactional default changed");
+  require(!unavailable_exit(1) && !unavailable_exit(78), "unknown/security errors ignored");
+}
+
 void test_identity_and_hash_helpers() {
   OwnedResourceIdentity expected;
   expected.kind = "ovs_bridge";
@@ -397,6 +463,8 @@ void test_identity_and_hash_helpers() {
 
 int main() {
   try {
+    test_growing_readiness_log();
+    test_application_admission();
     test_round_trip_and_publication();
     test_scenario_recovery_records();
     test_process_inventory();

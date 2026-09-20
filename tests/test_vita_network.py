@@ -78,5 +78,14 @@ with fixture as directory:
     other_mirror=next(a for a in json.loads(other_result.stdout)['network']['attachments'] if a['id']=='mirror')
     assert other_mirror['interface']!=mirror['interface'] and other_mirror['peer']!=mirror['peer']
     assert normalize(graph).returncode==0
+    available=copy.deepcopy(graph);available['lifecycle']={'startup':'available','readiness_ms':5000}
+    value=normalize(available);assert value.returncode==0,value.stderr
+    assert json.loads(value.stdout)['lifecycle']==available['lifecycle']
+    output=root/'available'
+    result=subprocess.run([str(build/'graphx'),'compile',str(path),'--output',str(output),'--source-root',str(inputs),'--credential-root',str(root/'credentials'),'--catalog-root',str(catalog),'--target','native-linux'],capture_output=True,text=True)
+    assert result.returncode==0,result.stderr
+    assert json.loads((output/'execution-plan.json').read_text())['lifecycle']==available['lifecycle']
+    assert all(s['restart']=='no' for s in json.loads((output/'compose.yaml').read_text())['services'].values())
+    assert normalize(graph).returncode==0
     if retained: print(f'Reviewable authored fixture and compiled contracts: {retained}; no runtime resources created')
     print('P3 jumbo bounds, passive owner, source isolation, optional capture and compiler permission contracts passed')

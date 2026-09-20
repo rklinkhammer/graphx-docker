@@ -151,3 +151,11 @@ if(GRAPHX_BUILD_TESTS)
     ${CMAKE_SOURCE_DIR}/tests/test_vita_network.py ${CMAKE_BINARY_DIR})
   set_tests_properties(graphx-vita-network-contract PROPERTIES TIMEOUT 30)
 endif()
+
+if(GRAPHX_BUILD_TESTS)
+  foreach(mode failures all-missing no-processor busy-radio auth-failure)
+    add_test(NAME graphx-vita-availability-${mode} COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_SOURCE_DIR}/tests/test_vita_processing.py ${CMAKE_BINARY_DIR} --${mode})
+    set_tests_properties(graphx-vita-availability-${mode} PROPERTIES TIMEOUT 35)
+  endforeach()
+endif()

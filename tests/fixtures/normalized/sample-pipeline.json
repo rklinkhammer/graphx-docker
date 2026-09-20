@@ -89,6 +89,10 @@
   "graph_id": "sample-pipeline",
   "graph_version": 3,
   "input_digest": "0eff37c92cfb19299ae16b45da9526354ff8ad7cd88600caba0c90f07ebcb8f3",
+  "lifecycle": {
+    "readiness_ms": 30000,
+    "startup": "transactional"
+  },
   "network": {
     "attachments": [],
     "captures": [],

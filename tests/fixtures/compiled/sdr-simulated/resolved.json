@@ -126,6 +126,10 @@
   "graph_id": "sdr-simulated",
   "graph_version": 3,
   "input_digest": "4f81532d7ef7654a4b7232fdf0f097ece702c1e9f4502f49f66957e6177bd37b",
+  "lifecycle": {
+    "readiness_ms": 30000,
+    "startup": "transactional"
+  },
   "network": {
     "attachments": [],
     "captures": [],

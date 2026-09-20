@@ -127,6 +127,10 @@
   "graph_id": "static-route-policy",
   "graph_version": 3,
   "input_digest": "9b5c8bfa858958cac3b16b99dbefdf17550debf83befdbb5a329ec4e49ec6708",
+  "lifecycle": {
+    "readiness_ms": 30000,
+    "startup": "transactional"
+  },
   "network": {
     "attachments": [
       {

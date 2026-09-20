@@ -76,9 +76,10 @@ with tempfile.TemporaryDirectory(prefix='graphx-vita-processing-') as directory:
     graph={'version':3,'catalog':'catalog/lock.json','graph':{'id':'vita-processing'},'credentials':{n:{'identity':n,'members':['ca.pem','cert.pem','key.pem'],'provider':'lab-generated'} for n in ['radio','controller']},'nodes':{},'connections':{}}
     graph['nodes']['processor']={'type':'vita.processor','execution':{'kind':'native'},'credentials':{f'control{i}':'controller' for i in range(1,5)}}
     graph['nodes']['detector']={'type':'vita.detector','execution':{'kind':'native'}}
-    missing=len(sys.argv)>2 and sys.argv[2]=='--missing'
+    mode=sys.argv[2] if len(sys.argv)>2 else ''
+    missing=mode=='--missing'
     wrong_source=len(sys.argv)>2 and sys.argv[2]=='--wrong-source'
-    active=3 if missing or wrong_source else 4
+    active=3 if missing or wrong_source or mode in ('--busy-radio','--auth-failure') else 4
     boundary=len(sys.argv)>2 and sys.argv[2]=='--boundary'
     rate=1000003 if boundary else 1000000
     size=2048 if boundary else 1024
@@ -100,6 +101,7 @@ with tempfile.TemporaryDirectory(prefix='graphx-vita-processing-') as directory:
         graph['connections'][f'control{i}']=edge(f'processor.control{i}',f'radio{i}.control',True)
         graph['connections'][f'data{i}']=edge(f'radio{i}.samples',f'processor.data{i}')
     graph['connections']['spectra']=edge('processor.spectra','detector.spectra')
+    if mode=='--auth-failure':graph['connections']['control4']['security']['server_name']='wrong.invalid'
     path=root/'graphx.yml';path.write_text(json.dumps(graph))
     normalized=json.loads(run(BUILD/'graphx','config','normalize',path,'--catalog-root',catalog))
     # Cross-field validation is authoritative and rejects unsupported combinations.
@@ -120,13 +122,35 @@ with tempfile.TemporaryDirectory(prefix='graphx-vita-processing-') as directory:
             tls_relay=TlsRelay(graph['connections']['control1']['settings']['port'],backend)
     release=root/'release';token='c'*64;release.write_text(token)
     processes=[];logs=[]
+    occupied=None
+    if mode=='--busy-radio':
+        occupied=socket.socket();occupied.bind(('127.0.0.1',graph['connections']['control4']['settings']['port']));occupied.listen(1)
     try:
         for node in sorted(normalized['nodes'],key=lambda n:n['node_id']=='processor'):
-            if missing and node['node_id']=='radio4':continue
+            if (missing and node['node_id']=='radio4') or (mode=='--all-missing' and node['node_id'].startswith('radio')) or (mode=='--no-processor' and node['node_id']=='processor'):continue
             node['telemetry']['credential']=None
             config=root/(node['node_id']+'.json');config.write_text(json.dumps(node));log=(root/(node['node_id']+'.log')).open('w');logs.append(log)
             executable='graphx-vita-'+('radio' if node['node_id'].startswith('radio') else node['node_id'])
             app=subprocess.Popen([str(BUILD/executable),'--node',node['node_id'],'--config',str(config),'--release-file',str(release),'--release-token',token],stdout=log,stderr=log,env=dict(os.environ,GRAPHX_CREDENTIALS=str(credentials)));processes.append(app)
+            if mode=='--busy-radio' and node['node_id']=='radio4':
+                assert app.wait(timeout=3)==75
+                processes.remove(app)
+        if mode in ('--all-missing','--no-processor'):
+            time.sleep(7)
+            assert all(p.poll() is None for p in processes)
+            if mode=='--all-missing':
+                text=(root/'processor.log').read_text()
+                for sid in range(1,5): assert f'stream={sid} results=unavailable' in text,text
+                assert 'executed=1' not in text and 'spectra=0' in text,text
+            else:
+                for sid in range(1,5):
+                    text=(root/f'radio{sid}.log').read_text()
+                    assert 'packets=0' in text and not re.search(r'packets=[1-9]',text),text
+            text=(root/'detector.log').read_text()
+            for sid in range(1,5): assert f'detection stream={sid} results=unavailable' in text,text
+            assert 'rf_hz=' not in text
+            print(mode, 'survivors remain live; no acquisition/results fabricated')
+            raise SystemExit(0)
         deadline=time.monotonic()+12;found={};counts={i:0 for i in range(1,active+1)};boundaries=0;epochs={};cut_at=None;last_seen={};first=time.monotonic()
         while time.monotonic()<deadline:
             for app in processes:assert app.poll() is None,{p.name:p.read_text() for p in root.glob('*.log')}
@@ -159,6 +183,36 @@ with tempfile.TemporaryDirectory(prefix='graphx-vita-processing-') as directory:
         assert boundaries>0 and min(counts.values())>=20,counts
         print('observed spectra',counts,'seconds',time.monotonic()-first,'boundaries',boundaries,'N',size,'rate',rate)
         if tls_relay:assert tls_relay.accepted>=2
+        if mode=='--auth-failure':
+            text=(root/'processor.log').read_text()
+            assert 'stream=4 results=unavailable control=authentication-failed attempts=1' in text,text
+            text=(root/'radio4.log').read_text()
+            assert 'packets=0' in text and not re.search(r'packets=[1-9]',text),text
+            print('certificate name rejection: no commands/data, one attempt, healthy three streams continue')
+        if mode=='--failures':
+            radio4=next(p for p in processes if '--node' in p.args and p.args[p.args.index('--node')+1]=='radio4')
+            radio4.kill();radio4.wait(timeout=3)
+            deadline=time.monotonic()+3.5;healthy={1:0,2:0,3:0}
+            while time.monotonic()<deadline:
+                try:
+                    packet,_=relay.recvfrom(9000);sid=struct.unpack_from('!I',packet,12)[0]
+                    if sid in healthy:healthy[sid]+=1
+                    relay.sendto(packet,('127.0.0.1',detector_port))
+                except socket.timeout:pass
+            assert min(healthy.values())>20,healthy
+            assert 'stream=4 results=stale' in (root/'processor.log').read_text()
+            assert 'detection stream=4 results=stale' in (root/'detector.log').read_text()
+            processor=next(p for p in processes if 'graphx-vita-processor' in p.args[0])
+            before={i:int(re.findall(r'packets=(\d+)',(root/f'radio{i}.log').read_text())[-1]) for i in healthy}
+            processor.kill();processor.wait(timeout=3)
+            time.sleep(3.5)
+            for i in healthy:
+                after=int(re.findall(r'packets=(\d+)',(root/f'radio{i}.log').read_text())[-1]);assert after>before[i],(i,before,after)
+                assert f'detection stream={i} results=stale' in (root/'detector.log').read_text()
+            assert all(p.poll() is None for p in processes if p not in (radio4,processor))
+            assert radio4.poll() is not None and processor.poll() is not None
+            print('runtime radio loss: healthy spectra',healthy,'controller loss: surviving radios advance; detector explicitly stale; no respawn')
+            raise SystemExit(0)
         # Detector loss cannot block processor or radio control/acquisition.
         detector=next(p for p in processes if 'graphx-vita-detector' in p.args[0]);detector.terminate();assert detector.wait(timeout=3)==0
         time.sleep(1.2)
@@ -195,3 +249,4 @@ with tempfile.TemporaryDirectory(prefix='graphx-vita-processing-') as directory:
         for log in logs:log.close()
         relay.close()
         if tls_relay:tls_relay.close()
+        if occupied:occupied.close()

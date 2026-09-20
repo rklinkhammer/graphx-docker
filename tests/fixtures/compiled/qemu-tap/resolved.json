@@ -166,6 +166,10 @@
   "graph_id": "qemu-tap",
   "graph_version": 3,
   "input_digest": "2e419d4d107cd4f2f4e1662f0c8fc5ed48dde7ff4752967de6d7370de88ee43f",
+  "lifecycle": {
+    "readiness_ms": 30000,
+    "startup": "transactional"
+  },
   "network": {
     "attachments": [
       {

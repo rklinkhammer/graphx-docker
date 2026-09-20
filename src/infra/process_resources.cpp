@@ -21,6 +21,24 @@
 #endif
 
 namespace graphx::infra::detail {
+std::string read_process_log(const std::filesystem::path& path, std::size_t maximum) {
+  safe_execution_path(path);
+  const int fd = ::open(path.c_str(), O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC);
+  if (fd < 0) throw std::runtime_error("E_PROCESS_LOG: cannot open log snapshot");
+  struct stat metadata{};
+  if (::fstat(fd, &metadata) || !S_ISREG(metadata.st_mode) || metadata.st_nlink != 1 ||
+      metadata.st_size < 0 || static_cast<std::uint64_t>(metadata.st_size) > maximum) {
+    ::close(fd);
+    throw std::runtime_error("E_PROCESS_LOG: expected bounded regular log");
+  }
+  std::string result(static_cast<std::size_t>(metadata.st_size), '\0');
+  const auto count = ::pread(fd, result.data(), result.size(), 0);
+  ::close(fd);
+  if (count < 0) throw std::runtime_error("E_PROCESS_LOG: cannot read log snapshot");
+  result.resize(static_cast<std::size_t>(count));
+  return result;
+}
+
 void require_available_tcp_port(std::uint16_t port) {
   const auto fd = ::socket(AF_INET, SOCK_STREAM, 0);
   if (fd < 0) throw std::runtime_error("E_LISTENER: cannot inspect console port");
@@ -80,12 +98,20 @@ pid_t process_id(const OwnedResourceIdentity& resource) {
   return static_cast<pid_t>(pid);
 }
 }  // namespace
-int native_process_status(const OwnedResourceIdentity& resource) {
+int native_process_status(const OwnedResourceIdentity& resource, int* exit_status) {
+  if (exit_status) *exit_status = -1;
   const auto pid = process_id(resource);
   // Reap children from a failed startup; later invocations observe OS absence.
-  if (::waitpid(pid, nullptr, WNOHANG) == pid) return 0;
+  int status{};
+  if (::waitpid(pid, &status, WNOHANG) == pid) {
+    if (exit_status) *exit_status = status;
+    return 0;
+  }
   const auto observed = inspect_process(static_cast<std::uint32_t>(pid));
-  if (observed.exited) return 0;
+  if (observed.exited) {
+    if (exit_status && ::waitpid(pid, &status, WNOHANG) == pid) *exit_status = status;
+    return 0;
+  }
   if (observed.start_time.empty()) {
     if (::kill(pid, 0) == 0 || errno != ESRCH)
       throw std::runtime_error("E_PROCESS_IDENTITY: process identity unavailable");
