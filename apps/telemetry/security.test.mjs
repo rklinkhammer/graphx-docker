@@ -196,7 +196,7 @@ test('telemetry survives malformed HTTP and WebSocket request targets', { timeou
   })
   try {
     for (let attempt = 0; attempt < 50; ++attempt) {
-      try { if ((await fetch(`http://127.0.0.1:${port}/api/health`)).ok) break }
+      try { if ((await fetch(`http://127.0.0.1:${port}/api/ready`)).ok) break }
       catch { /* The child is still starting. */ }
       await new Promise(resolveWait => setTimeout(resolveWait, 50))
     }

@@ -268,6 +268,7 @@ int execute_scenario(const ExecutionOptions& opts, const ConfigValue& resolved,
               state.config_hash == configuration_hash(opts.output / "compile-manifest.json") &&
               state.status == "ready",
           "matching ready graph required");
+  bind_owned_container_services(config, state);
   interrupted = 0;
   const auto previous_int = std::signal(SIGINT, interrupt),
              previous_term = std::signal(SIGTERM, interrupt);

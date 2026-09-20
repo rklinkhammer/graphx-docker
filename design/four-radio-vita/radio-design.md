@@ -1,8 +1,9 @@
 # Standalone radio design (P1)
 
 Status: application migration implemented and locally verified; see the remaining
-qualification limits in P1 verification. P1 is an opt-in standalone build, not an OCI image release. P5 remains responsible for published
-image/catalog integration. The authoritative normalized node contract is reused.
+qualification limits in P1 verification. Native builds remain opt-in;
+[P5 packaging](packaging-design.md) provides shared image/catalog integration.
+The authoritative normalized node contract is reused.
 
 See [P1.1 command analysis](command-analysis.md) for the upstream example review,
 status/acknowledgment corrections and capability-query findings. The selected
@@ -82,9 +83,10 @@ path acceptance. Real image packaging and privileged network tests are later pha
 
 ## Implemented integration details and current limits
 
-- `GRAPHX_BUILD_VITA_RADIO` is off by default. P1's native type and raw wire schema
-  live under `config/vita/`; the harness builds a private catalog and invokes the
-  authoritative normalizer. Existing published catalogs/images are unchanged.
+- `GRAPHX_BUILD_VITA_RADIO` is off by default. Reusable VITA types and raw wire
+  schemas live under `config/catalog/`; the harness builds a private catalog and
+  invokes the authoritative normalizer. Shared releases opt into the VITA image
+  role with `--with-vita`; dependency pins remain under `config/vita/`.
 - Amplitude and phase are authored as `amplitude_ppm` and `initial_phase_mdeg`;
   their defaults are 250000 and zero. Frequency, rate, bandwidth and gain are applied
   by the authenticated initial command. Reconfiguration is rejected while armed or

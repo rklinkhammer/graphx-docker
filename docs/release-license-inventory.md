@@ -158,9 +158,10 @@ docker scout sbom --format spdx local://graphx-license-audit-runtime:1.1.0
 docker scout sbom --format spdx local://graphx-license-audit-telemetry:1.1.0
 ```
 
-## Opt-in standalone VITA radio (not in current release archives/images)
+## Optional shared VITA image role
 
-The P1 build selected by `GRAPHX_BUILD_VITA_RADIO` uses these additional inputs:
+The build selected by `GRAPHX_BUILD_VITA_RADIO`, including shared image releases
+selected by `--with-vita`, uses these additional inputs:
 
 | Component | Pinned source | Relationship | Upstream notice |
 | --- | --- | --- | --- |
@@ -172,5 +173,9 @@ The P1 build selected by `GRAPHX_BUILD_VITA_RADIO` uses these additional inputs:
 The build copies exact upstream license texts into `generated/vita-licenses/` and
 emits `generated/vita-dependencies.spdx.json`. Preserve the source pins and notices
 with distribution. There are no Python generator dependencies or generated packet
-classes. Published native/OCI releases do not yet contain this executable; their
-complete runtime SBOM integration remains P5 work.
+classes. The shared VITA role contains all four application executables, the
+SoapySDR library, dependency metadata and upstream notices. Its release verifier
+checks the pins and includes these dependencies in the image's SPDX inventory.
+FFT processing is GraphX's own radix-2 implementation under the project MIT
+license; no additional FFT library is bundled. See [P5 verification](../design/four-radio-vita/p5-verification.md)
+for exact local OCI candidates. Registry publication is not claimed.

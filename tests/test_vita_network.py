@@ -18,11 +18,11 @@ if retained:
 fixture = contextlib.nullcontext(str(retained)) if retained else tempfile.TemporaryDirectory(prefix='graphx-p3-contract-')
 with fixture as directory:
     root=Path(directory).resolve(); inputs=root/'inputs';inputs.mkdir();catalog=inputs/'catalog';shutil.copytree(source/'config/catalog',catalog)
-    for path in (source/'config/vita/types').glob('*.json'):
+    for path in (source/'config/catalog/types').glob('*.json'):
         value=json.loads(path.read_text())
         (catalog/'types'/path.name).write_text(json.dumps(value))
-    schemas=json.loads((catalog/'wire-schemas.json').read_text());schemas.update(json.loads((source/'config/vita/wire-schemas.json').read_text()));(catalog/'wire-schemas.json').write_text(json.dumps(schemas))
-    lock=json.loads((catalog/'lock.json').read_text());paths={f['path'] for f in lock['files']}|{f'types/{p.name}' for p in (source/'config/vita/types').glob('*.json')};lock['files']=[{'path':p,'sha256':hashlib.sha256((catalog/p).read_bytes()).hexdigest()} for p in sorted(paths)];(catalog/'lock.json').write_text(json.dumps(lock))
+    schemas=json.loads((catalog/'wire-schemas.json').read_text());schemas.update(json.loads((source/'config/catalog/wire-schemas.json').read_text()));(catalog/'wire-schemas.json').write_text(json.dumps(schemas))
+    lock=json.loads((catalog/'lock.json').read_text());paths={f['path'] for f in lock['files']}|{f'types/{p.name}' for p in (source/'config/catalog/types').glob('*.json')};lock['files']=[{'path':p,'sha256':hashlib.sha256((catalog/p).read_bytes()).hexdigest()} for p in sorted(paths)];(catalog/'lock.json').write_text(json.dumps(lock))
     graph={'version':3,'catalog':'catalog/lock.json','graph':{'id':'p3-contract'},'nodes':{'recorder':{'type':'vita.recorder','execution':{'kind':'container'}}},'connections':{},'credentials':{n:{'identity':n,'members':['ca.pem','cert.pem','key.pem'],'provider':'lab-generated'} for n in ['radio','controller']},'network':{'networks':[{'id':'data','profile':'ethernet','realization':'ovs','subnets':['10.79.0.0/24']}],'switches':[{'id':'switch','kind':'openvswitch','datapath':'system','ports':[{'id':'capture'}],'mirror':{'id':'mirror','output_port':'capture','select_all':True}}],'attachments':[{'id':'mirror','kind':'mirror','owner':'recorder','switch':'switch','port':'capture','delivery':'container','mtu':9000}],'edge_paths':{},'captures':[{'id':'diagnostic','attachment':'mirror','snaplen':9022,'max_file_bytes':65536,'max_files':2,'rotation_seconds':10,'retention_seconds':60}]}}
     graph['platform']={'capture':{'enabled':True,'provider':'application'}}
     graph['nodes']['processor']={'type':'vita.processor','execution':{'kind':'container'},'credentials':{f'control{i}':'controller' for i in range(1,5)}}

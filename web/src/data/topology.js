@@ -1,3 +1,7 @@
+export function edgeObservationAvailable(definition, metric) {
+  return definition.dataPlane !== 'external' || Number.isFinite(metric?.lastSeen)
+}
+
 export function applicationNodes(topology) {
   if (!topology?.nodes?.length) return []
   return topology.nodes.map(node => ({ id: node.id, data: {

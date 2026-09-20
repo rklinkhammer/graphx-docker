@@ -1,0 +1,115 @@
+{
+  "bindings": {
+    "control": [
+      {
+        "attachments": {
+          "from": "processor-data",
+          "to": "radio1-data"
+        },
+        "connection": "control1",
+        "destination_address": "10.79.0.10",
+        "encoding": "raw",
+        "role": "listen",
+        "schema": "VitaControl",
+        "security": {
+          "profile": "mtls",
+          "server_name": "radio"
+        },
+        "settings": {
+          "bind": "10.79.0.10",
+          "connect_timeout_ms": 5000,
+          "framing": "none",
+          "host": "10.79.0.10",
+          "port": 18401,
+          "reconnect": true,
+          "retry": {
+            "initial_backoff_ms": 100,
+            "max_attempts": 60,
+            "max_backoff_ms": 2000
+          },
+          "send_timeout_ms": 5000
+        },
+        "source_address": "10.79.0.14",
+        "transport": "tcp"
+      }
+    ],
+    "samples": [
+      {
+        "attachments": {
+          "from": "radio1-data",
+          "to": "processor-data"
+        },
+        "connection": "data1",
+        "destination_address": "10.79.0.14",
+        "encoding": "raw",
+        "role": "connect",
+        "schema": "VitaIq",
+        "security": {
+          "profile": "none"
+        },
+        "settings": {
+          "bind": "10.79.0.14",
+          "destination": "10.79.0.14",
+          "framing": "none",
+          "loopback": true,
+          "max_datagram_bytes": 4128,
+          "mode": "unicast",
+          "port": 18501,
+          "receive_buffer_bytes": 65536,
+          "reuse_address": false,
+          "send_buffer_bytes": 65536,
+          "ttl": 1
+        },
+        "source_address": "10.79.0.10",
+        "transport": "udp"
+      }
+    ]
+  },
+  "capture": {
+    "directory": "/captures",
+    "enabled": true,
+    "max_file_bytes": 67108864,
+    "max_files": 2,
+    "max_packets": 100000,
+    "provider": "ovs-span",
+    "retention_seconds": 86400,
+    "snaplen": 65535
+  },
+  "contract_version": 2,
+  "control": "none",
+  "credentials": {
+    "control": "radio"
+  },
+  "execution": {
+    "kind": "container"
+  },
+  "graph_id": "four-radio-vita",
+  "graph_version": 3,
+  "node_id": "radio1",
+  "observation": [
+    "graphx"
+  ],
+  "parameters": {
+    "amplitude_ppm": 250000,
+    "burst_samples": 262144,
+    "initial_phase_mdeg": 0,
+    "radio_index": 1,
+    "signal_frequency_hz": 100050000
+  },
+  "readiness": {
+    "kind": "local-bound",
+    "timeout_ms": 30000
+  },
+  "startup": {
+    "bind_before_connect": true,
+    "max_wait_ms": 600000,
+    "release_barrier": true
+  },
+  "telemetry": {
+    "credential": "runtime-radio1",
+    "host": "platform",
+    "port": 9000
+  },
+  "type": "vita.radio",
+  "type_revision": 1
+}

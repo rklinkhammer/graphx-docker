@@ -17,6 +17,7 @@ import tempfile
 import time
 
 ROOT = Path(__file__).resolve().parents[1]
+CATALOG = Path(os.environ.get('GRAPHX_TEST_CATALOG', ROOT / 'config/catalog'))
 BUILD = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else ROOT / 'build/vita'
 
 def run(*args):
@@ -54,10 +55,9 @@ def fixture(root, index, udp_port, tcp_port, burst=2050):
     # A private catalog adds native test peers, not a production launcher.
     import shutil
     catalog = root/'catalog'
-    shutil.copytree(ROOT/'config/catalog', catalog)
-    shutil.copy2(ROOT/'config/vita/types/vita.radio.json', catalog/'types/vita.radio.json')
+    shutil.copytree(CATALOG, catalog)
     wire = json.loads((catalog/'wire-schemas.json').read_text())
-    wire.update(json.loads((ROOT/'config/vita/wire-schemas.json').read_text()))
+    wire.update(json.loads((ROOT/'config/catalog/wire-schemas.json').read_text()))
     (catalog/'wire-schemas.json').write_text(json.dumps(wire))
     radio = json.loads((catalog/'types/vita.radio.json').read_text())
     peer = copy.deepcopy(radio)
@@ -169,7 +169,11 @@ def acceptance(root,index,barrier,shared):
     bandwidth=16000 if index==3 else 800000
     tone = {1:50000, 2:100000, 3:-150000, 4:200000}[index]
     root.mkdir(); credentials=root/'credentials';credentials.mkdir();certificates(credentials)
-    udp=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);udp.bind(('127.0.0.1',0));udp.settimeout(.15)
+    udp=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
+    # Hold startup traffic while four clients verify TLS acknowledgment replays.
+    # The kernel may clamp this bounded request; no privileged buffer override.
+    udp.setsockopt(socket.SOL_SOCKET,socket.SO_RCVBUF,4*1024*1024)
+    udp.bind(('127.0.0.1',0));udp.settimeout(.15)
     tcp=port(); node=fixture(root,index,udp.getsockname()[1],tcp,burst)
     release=root/'release';token='a'*64;release.write_text(token)
     bad_node=json.loads(node.read_text());bad_node['parameters']['radio_index']=5

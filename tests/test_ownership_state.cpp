@@ -6,6 +6,7 @@
 #include "infra/ownership_state.hpp"
 
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 #include <array>
@@ -494,10 +495,103 @@ void test_identity_and_hash_helpers() {
           "configuration SHA-256");
 }
 
+void test_owned_container_services() {
+  using graphx::infra::detail::bind_owned_container_services;
+  graphx::GraphConfig config;
+  config.id = "mirror-scenario";
+  OwnershipState state;
+  state.graph_id = config.id;
+  OwnedResourceIdentity recorder;
+  recorder.kind = "container";
+  recorder.name = "graphx-mirror-scenario-recorder";
+  recorder.secondary_id = "sha256:recorder-image";
+  state.processes.push_back(recorder);
+  bind_owned_container_services(config, state);
+  require(config.deployment.project == "graphx-mirror-scenario" &&
+              config.deployment.services.size() == 1 &&
+              config.deployment.services.front().node_id == "recorder" &&
+              config.deployment.services.front().image == recorder.secondary_id,
+          "mirror service missing from owned deployment");
+  auto bad = state;
+  bad.graph_id = "foreign";
+  expect_failure([&] { bind_owned_container_services(config, bad); }, "foreign ledger accepted");
+  bad = state;
+  bad.processes.front().name = "graphx-foreign-recorder";
+  expect_failure([&] { bind_owned_container_services(config, bad); }, "foreign service accepted");
+  bad = state;
+  bad.processes.push_back(recorder);
+  expect_failure([&] { bind_owned_container_services(config, bad); }, "duplicate service accepted");
+}
+
+void test_retained_only() {
+  using graphx::infra::detail::retained_only;
+  OwnershipState state;
+  state.graph_id = "recovery";
+  state.status = "destroying";
+  OwnedResourceIdentity history;
+  history.kind = "volume";
+  history.name = "graphx-recovery-history";
+  history.stable_id = history.name;
+  state.processes.push_back(history);
+  require(retained_only(state), "retained history prevents explicit recovery");
+  auto bad = state;
+  bad.status = "ready";
+  require(!retained_only(bad), "active state classified inactive");
+  bad = state;
+  bad.expected_bridges.push_back("bridge");
+  require(!retained_only(bad), "unfinished network cleanup classified inactive");
+  bad = state;
+  bad.processes.front().kind = "container";
+  require(!retained_only(bad), "remaining container classified inactive");
+  bad = state;
+  bad.processes.front().name = "graphx-recovery-credentials";
+  require(!retained_only(bad), "remaining credentials classified inactive");
+  bad = state;
+  bad.processes.front().stable_id = "pending";
+  require(!retained_only(bad), "pending volume classified inactive");
+}
+
+void test_owned_process_exit(const std::filesystem::path& executable) {
+  using namespace graphx::infra::detail;
+  TemporaryDirectory directory;
+  const auto root = std::filesystem::canonical(directory.path());
+  NativeProcessOptions options;
+  options.id = "early-exit";
+  options.executable = executable;
+  options.cwd = root;
+  options.argv = {executable.string(), "--exit-fixture"};
+  // Exercise exit while the parent observes identity; admission must retain the
+  // real failure classification instead of authorizing an unknown live process.
+  for (int attempt = 0; attempt < 64; ++attempt) {
+    options.log = root / ("exit-" + std::to_string(attempt) + ".log");
+    bool registered = false;
+    const auto process = start_native_process(options, [&](const auto&) { registered = true; });
+    require(registered, "child identity was not registered");
+    int status = -1;
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+    while (native_process_status(process, &status)) {
+      require(std::chrono::steady_clock::now() < deadline, "exit observation deadline");
+      std::this_thread::yield();
+    }
+    require(status >= 0 && WIFEXITED(status) && WEXITSTATUS(status) == 75,
+            "owned exit classification was lost");
+  }
+  OwnedResourceIdentity foreign;
+  foreign.stable_id = std::to_string(::getpid());
+  foreign.secondary_id = "wrong-start-time";
+  foreign.process_identity = executable.string() + "\n" + configuration_hash(executable);
+  expect_failure([&] { (void)native_process_status(foreign); },
+                 "live substituted process accepted during exit handling");
+}
+
 }  // namespace
 
-int main() {
+int main(int argc, char** argv) {
+  if (argc == 2 && std::string_view(argv[1]) == "--exit-fixture") return 75;
   try {
+    test_owned_container_services();
+    test_retained_only();
+    test_owned_process_exit(std::filesystem::canonical(argv[0]));
     test_growing_readiness_log();
     test_application_admission();
     test_round_trip_and_publication();

@@ -159,3 +159,37 @@ system, operations stack, secure OTLP, history, and hardening. Privileged Python
 tests exercise current OVS ownership, container veth, network labs, QEMU TAP,
 network capture/fault behavior, SDR delivery, and route policy. CTest fixtures own
 setup and cleanup for multi-step laboratories.
+
+## Four-radio VITA integrated acceptance
+
+P6 uses `tests/test_vita_acceptance.py` with the maintained example and a verified
+normal `--with-vita` image release (qualification hooks OFF). Build images fresh
+once per verification run and stage them in the identity-matched Lima guest. Native
+observer rejection tests run as `graphx-vita-acceptance-contract` in quick/portable.
+The harness's preparation mode verifies and compiles only; `--run` additionally
+requires Linux root and explicit `--allow-privileged` authorization.
+
+In the guest, use an existing current-source CLI and absent run identity:
+
+```sh
+sudo python3 tests/test_vita_acceptance.py --cli "$GRAPHX_CLI" \
+  --images /var/lib/graphx/verification/p6/images-recovery \
+  --workspace /var/lib/graphx/verification/p6/examples \
+  --output /var/lib/graphx/verification/p6/run6 --case baseline
+```
+
+After explicit authorization, append `--run --allow-privileged --seconds 180`.
+Run the `radio1`, `detector`, `processor` and `recorder` cases with the same selected
+images and run directory; every case creates new containers. Each fault case checks
+explicit whole-graph recovery with another new container set. `--browser` adds
+bounded baseline/degraded checkpoints: inspect the authenticated console and write
+the matching `browser-LABEL.done` only after completing the UI check. A timeout fails
+acceptance and triggers owned cleanup. Never credit a checkpoint file by itself as
+browser evidence. Use a fresh output identity to retry a failed case.
+
+The harness records independent packet/timestamp/quality observations, measured
+rate, RSS samples, faults, stable identities, preserved sentinel and cleanup.
+Source skips, observer drops and receiver gaps are distinct. See the
+[acceptance design](../design/four-radio-vita/acceptance-design.md) and
+[requirement matrix](../design/four-radio-vita/verification.md) for thresholds,
+exact results and limitations. No physical-radio or QEMU execution is implied.

@@ -1,6 +1,7 @@
 #include "infra/node_console.hpp"
 #include "infra/application_lifecycle.hpp"
 #include "infra/compose_execution.hpp"
+#include "infra/endpoint_resources.hpp"
 #include "infra/qemu_resources.hpp"
 #include "infra/process_resources.hpp"
 #include "infra/ownership_lock.hpp"
@@ -260,12 +261,7 @@ int execute_compose(const ExecutionOptions& opts, const ConfigValue& resolved,
     config.id = graph;
     config.resolved = resolved;
     config.network_infrastructure = resolved_network(resolved.at("network"));
-    config.deployment.project = "graphx-" + graph;
-    for (const auto& resource : state.processes)
-      if (resource.kind == "container") {
-        const auto name = resource.name.substr(("graphx-" + graph + "-").size());
-        config.deployment.services.push_back({name, resource.secondary_id, {}});
-      }
+    bind_owned_container_services(config, state);
     OvsExecutionContext context{state, lock, [] { return cancelled != 0; }, validate_only, {}};
     if (available_startup(resolved) && action == OvsLifecycleAction::status)
       for (auto resource : state.processes) {
@@ -350,7 +346,8 @@ int execute_compose(const ExecutionOptions& opts, const ConfigValue& resolved,
     }
   };
   if (opts.action == "status") {
-    const bool network_ready = !ovs || network_action(OvsLifecycleAction::status) == 0;
+    const bool inactive = retained_only(state);
+    const bool network_ready = !ovs || inactive || network_action(OvsLifecycleAction::status) == 0;
     std::map<std::string, bool> live;
     bool platform_live = false;
     for (auto resource : state.processes) {
@@ -371,7 +368,9 @@ int execute_compose(const ExecutionOptions& opts, const ConfigValue& resolved,
         }
       }
     }
-    if (available_startup(resolved))
+    if (inactive)
+      output << "inactive graph=" << graph << "; history retained\n";
+    else if (available_startup(resolved))
       output << "graph=" << graph << " status="
              << (platform_live && network_ready ? application_status(resolved, live)
                                                 : "unavailable")

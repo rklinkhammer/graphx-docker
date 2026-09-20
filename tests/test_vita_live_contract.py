@@ -127,11 +127,11 @@ with tempfile.TemporaryDirectory(prefix='graphx-vita-live-contract-') as directo
         print('Ownership timestamps preserve exact identity and serialize safely')
     catalog = images / 'catalog'; shutil.copytree(source / 'config/catalog', catalog)
     schemas = json.loads((catalog / 'wire-schemas.json').read_bytes())
-    schemas.update(json.loads((source / 'config/vita/wire-schemas.json').read_bytes()))
+    schemas.update(json.loads((source / 'config/catalog/wire-schemas.json').read_bytes()))
     (catalog / 'wire-schemas.json').write_text(json.dumps(schemas))
-    for p in (source / 'config/vita/types').glob('*.json'): shutil.copy2(p, catalog / 'types' / p.name)
+    for p in (source / 'config/catalog/types').glob('*.json'): shutil.copy2(p, catalog / 'types' / p.name)
     lock = json.loads((catalog / 'lock.json').read_bytes())
-    names = {p['path'] for p in lock['files']} | {'types/' + p.name for p in (source / 'config/vita/types').glob('*.json')}
+    names = {p['path'] for p in lock['files']} | {'types/' + p.name for p in (source / 'config/catalog/types').glob('*.json')}
     lock['files'] = [{'path': p, 'sha256': hashlib.sha256((catalog / p).read_bytes()).hexdigest()} for p in sorted(names)]
     (catalog / 'lock.json').write_text(json.dumps(lock))
     args = SimpleNamespace(images=images, cli=build / 'graphx', target='lima', subnet='10.79.0.0/24')

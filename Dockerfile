@@ -31,7 +31,9 @@ RUN cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DGRAPHX_BUILD_TESTS
       -DGRAPHX_RELEASE_IMAGE_TYPES=${GRAPHX_RELEASE_IMAGE_TYPES} \
       -DGRAPHX_BUILD_VITA_RADIO=${GRAPHX_BUILD_VITA_RADIO} \
       -DGRAPHX_QUALIFICATION_HOOKS=${GRAPHX_QUALIFICATION_HOOKS} \
- && cmake --build build
+ && cmake --build build \
+ && mkdir -p build/qualification \
+ && if [ "$GRAPHX_QUALIFICATION_HOOKS" = ON ]; then cp build/graphx-vita-recorder-test build/qualification/; fi
 
 FROM debian:bookworm-slim@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171 AS runtime
 COPY docker/debian.sources /etc/apt/sources.list.d/debian.sources
@@ -60,10 +62,10 @@ ENV GRAPHX_VERSION=${GRAPHX_VERSION} \
 USER 65532:65532
 CMD ["/usr/local/bin/graphx", "--help"]
 
-# Opt-in private qualification role. No topology or credentials are baked in.
+# Reusable opt-in VITA applications. No topology or credentials are baked in.
 FROM runtime AS vita
 USER root
-COPY --from=build /src/build/graphx-vita-recorder-test /usr/local/libexec/graphx-vita-recorder-test
+COPY --from=build /src/build/qualification/ /usr/local/libexec/
 COPY --from=build /src/build/graphx-vita-radio /src/build/graphx-vita-processor /src/build/graphx-vita-detector /src/build/graphx-vita-recorder /usr/local/bin/
 COPY --from=build /src/build/_deps/soapysdr-build/lib/libSoapySDR.so* /usr/local/lib/
 COPY --from=build /src/build/generated/vita-dependencies.json /src/build/generated/vita-dependencies.spdx.json /usr/local/share/graphx/

@@ -1,0 +1,518 @@
+{
+  "name": "four-radio-vita",
+  "networks": {
+    "mg-console": {
+      "driver": "bridge"
+    },
+    "mg-detector": {
+      "driver": "bridge",
+      "internal": true
+    },
+    "mg-processor": {
+      "driver": "bridge",
+      "internal": true
+    },
+    "mg-radio1": {
+      "driver": "bridge",
+      "internal": true
+    },
+    "mg-radio2": {
+      "driver": "bridge",
+      "internal": true
+    },
+    "mg-radio3": {
+      "driver": "bridge",
+      "internal": true
+    },
+    "mg-radio4": {
+      "driver": "bridge",
+      "internal": true
+    },
+    "mg-recorder": {
+      "driver": "bridge",
+      "internal": true
+    }
+  },
+  "services": {
+    "detector": {
+      "cap_drop": [
+        "ALL"
+      ],
+      "command": [
+        "--node",
+        "detector",
+        "--config",
+        "/run/graphx/node.json",
+        "--release-file",
+        "/run/graphx/barriers/release",
+        "--release-token",
+        "${GX_OWNER}"
+      ],
+      "entrypoint": [
+        "graphx-vita-detector"
+      ],
+      "environment": {
+        "GRAPHX_CREDENTIALS": "/run/secrets",
+        "GRAPHX_TELEMETRY_SHARED_SECRET_FILE": "/run/secrets/runtime-detector/hmac"
+      },
+      "image": "graphx-design/sdr@sha256:928533888c6b3ecff6123dd69342931275216f99fce32367d76a000ba4a5dd82",
+      "labels": {
+        "org.graphx.graph": "four-radio-vita",
+        "org.graphx.node": "detector",
+        "org.graphx.owner": "${GX_OWNER}"
+      },
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-file": "2",
+          "max-size": "1m"
+        }
+      },
+      "mem_limit": 134217728,
+      "networks": {
+        "mg-detector": {}
+      },
+      "pids_limit": 64,
+      "read_only": true,
+      "restart": "no",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "tmpfs": [
+        "/tmp:rw,nosuid,nodev,size=16m"
+      ],
+      "user": "65532:65532",
+      "volumes": [
+        "./nodes/detector.json:/run/graphx/node.json:ro",
+        "${GX_STATE}/barriers:/run/graphx/barriers:ro",
+        "${GX_CREDENTIALS}/runtime-detector:/run/secrets/runtime-detector:ro"
+      ]
+    },
+    "platform": {
+      "cap_drop": [
+        "ALL"
+      ],
+      "command": [
+        "--config",
+        "/run/graphx/platform.json"
+      ],
+      "entrypoint": [
+        "graphx-platform"
+      ],
+      "environment": {
+        "GX_CONSOLE": "/run/graphx/console",
+        "GX_CREDENTIALS": "/run/secrets",
+        "GX_OWNER": "${GX_OWNER}",
+        "GX_STATE": "/var/lib/graphx"
+      },
+      "image": "graphx-design/platform@sha256:41b3db89b6ec78cab84b29c12a1af5024ba670b44463edc40d887cad8b952ba4",
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-file": "2",
+          "max-size": "1m"
+        }
+      },
+      "mem_limit": 536870912,
+      "networks": {
+        "mg-console": {},
+        "mg-detector": {
+          "aliases": [
+            "platform"
+          ]
+        },
+        "mg-processor": {
+          "aliases": [
+            "platform"
+          ]
+        },
+        "mg-radio1": {
+          "aliases": [
+            "platform"
+          ]
+        },
+        "mg-radio2": {
+          "aliases": [
+            "platform"
+          ]
+        },
+        "mg-radio3": {
+          "aliases": [
+            "platform"
+          ]
+        },
+        "mg-radio4": {
+          "aliases": [
+            "platform"
+          ]
+        },
+        "mg-recorder": {
+          "aliases": [
+            "platform"
+          ]
+        }
+      },
+      "pids_limit": 64,
+      "ports": [
+        "127.0.0.1:8080:8080"
+      ],
+      "read_only": true,
+      "restart": "no",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "tmpfs": [
+        "/tmp:rw,nosuid,nodev,size=16m"
+      ],
+      "user": "65532:65532",
+      "volumes": [
+        "./resolved.json:/run/graphx/resolved.json:ro",
+        "./platform.json:/run/graphx/platform.json:ro",
+        "./credentials.json:/run/graphx/credentials.json:ro",
+        "${GX_STATE}/console:/run/graphx/console:ro",
+        "${GX_STATE}/history:/var/lib/graphx/history",
+        "${GX_STATE}/handoff:/captures:ro",
+        "${GX_CREDENTIALS}/observer:/run/secrets/observer:ro",
+        "${GX_CREDENTIALS}/runtime-detector:/run/secrets/runtime-detector:ro",
+        "${GX_CREDENTIALS}/runtime-processor:/run/secrets/runtime-processor:ro",
+        "${GX_CREDENTIALS}/runtime-radio1:/run/secrets/runtime-radio1:ro",
+        "${GX_CREDENTIALS}/runtime-radio2:/run/secrets/runtime-radio2:ro",
+        "${GX_CREDENTIALS}/runtime-radio3:/run/secrets/runtime-radio3:ro",
+        "${GX_CREDENTIALS}/runtime-radio4:/run/secrets/runtime-radio4:ro",
+        "${GX_CREDENTIALS}/runtime-recorder:/run/secrets/runtime-recorder:ro"
+      ]
+    },
+    "processor": {
+      "cap_drop": [
+        "ALL"
+      ],
+      "command": [
+        "--node",
+        "processor",
+        "--config",
+        "/run/graphx/node.json",
+        "--release-file",
+        "/run/graphx/barriers/release",
+        "--release-token",
+        "${GX_OWNER}"
+      ],
+      "entrypoint": [
+        "graphx-vita-processor"
+      ],
+      "environment": {
+        "GRAPHX_CREDENTIALS": "/run/secrets",
+        "GRAPHX_TELEMETRY_SHARED_SECRET_FILE": "/run/secrets/runtime-processor/hmac"
+      },
+      "image": "graphx-design/sdr@sha256:928533888c6b3ecff6123dd69342931275216f99fce32367d76a000ba4a5dd82",
+      "labels": {
+        "org.graphx.graph": "four-radio-vita",
+        "org.graphx.node": "processor",
+        "org.graphx.owner": "${GX_OWNER}"
+      },
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-file": "2",
+          "max-size": "1m"
+        }
+      },
+      "mem_limit": 134217728,
+      "networks": {
+        "mg-processor": {}
+      },
+      "pids_limit": 64,
+      "read_only": true,
+      "restart": "no",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "tmpfs": [
+        "/tmp:rw,nosuid,nodev,size=16m"
+      ],
+      "user": "65532:65532",
+      "volumes": [
+        "./nodes/processor.json:/run/graphx/node.json:ro",
+        "${GX_STATE}/barriers:/run/graphx/barriers:ro",
+        "${GX_CREDENTIALS}/controller:/run/secrets/controller:ro",
+        "${GX_CREDENTIALS}/runtime-processor:/run/secrets/runtime-processor:ro"
+      ]
+    },
+    "radio1": {
+      "cap_drop": [
+        "ALL"
+      ],
+      "command": [
+        "--node",
+        "radio1",
+        "--config",
+        "/run/graphx/node.json",
+        "--release-file",
+        "/run/graphx/barriers/release",
+        "--release-token",
+        "${GX_OWNER}"
+      ],
+      "entrypoint": [
+        "graphx-vita-radio"
+      ],
+      "environment": {
+        "GRAPHX_CREDENTIALS": "/run/secrets",
+        "GRAPHX_TELEMETRY_SHARED_SECRET_FILE": "/run/secrets/runtime-radio1/hmac"
+      },
+      "image": "graphx-design/sdr@sha256:928533888c6b3ecff6123dd69342931275216f99fce32367d76a000ba4a5dd82",
+      "labels": {
+        "org.graphx.graph": "four-radio-vita",
+        "org.graphx.node": "radio1",
+        "org.graphx.owner": "${GX_OWNER}"
+      },
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-file": "2",
+          "max-size": "1m"
+        }
+      },
+      "mem_limit": 134217728,
+      "networks": {
+        "mg-radio1": {}
+      },
+      "pids_limit": 64,
+      "read_only": true,
+      "restart": "no",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "tmpfs": [
+        "/tmp:rw,nosuid,nodev,size=16m"
+      ],
+      "user": "65532:65532",
+      "volumes": [
+        "./nodes/radio1.json:/run/graphx/node.json:ro",
+        "${GX_STATE}/barriers:/run/graphx/barriers:ro",
+        "${GX_CREDENTIALS}/radio:/run/secrets/radio:ro",
+        "${GX_CREDENTIALS}/runtime-radio1:/run/secrets/runtime-radio1:ro"
+      ]
+    },
+    "radio2": {
+      "cap_drop": [
+        "ALL"
+      ],
+      "command": [
+        "--node",
+        "radio2",
+        "--config",
+        "/run/graphx/node.json",
+        "--release-file",
+        "/run/graphx/barriers/release",
+        "--release-token",
+        "${GX_OWNER}"
+      ],
+      "entrypoint": [
+        "graphx-vita-radio"
+      ],
+      "environment": {
+        "GRAPHX_CREDENTIALS": "/run/secrets",
+        "GRAPHX_TELEMETRY_SHARED_SECRET_FILE": "/run/secrets/runtime-radio2/hmac"
+      },
+      "image": "graphx-design/sdr@sha256:928533888c6b3ecff6123dd69342931275216f99fce32367d76a000ba4a5dd82",
+      "labels": {
+        "org.graphx.graph": "four-radio-vita",
+        "org.graphx.node": "radio2",
+        "org.graphx.owner": "${GX_OWNER}"
+      },
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-file": "2",
+          "max-size": "1m"
+        }
+      },
+      "mem_limit": 134217728,
+      "networks": {
+        "mg-radio2": {}
+      },
+      "pids_limit": 64,
+      "read_only": true,
+      "restart": "no",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "tmpfs": [
+        "/tmp:rw,nosuid,nodev,size=16m"
+      ],
+      "user": "65532:65532",
+      "volumes": [
+        "./nodes/radio2.json:/run/graphx/node.json:ro",
+        "${GX_STATE}/barriers:/run/graphx/barriers:ro",
+        "${GX_CREDENTIALS}/radio:/run/secrets/radio:ro",
+        "${GX_CREDENTIALS}/runtime-radio2:/run/secrets/runtime-radio2:ro"
+      ]
+    },
+    "radio3": {
+      "cap_drop": [
+        "ALL"
+      ],
+      "command": [
+        "--node",
+        "radio3",
+        "--config",
+        "/run/graphx/node.json",
+        "--release-file",
+        "/run/graphx/barriers/release",
+        "--release-token",
+        "${GX_OWNER}"
+      ],
+      "entrypoint": [
+        "graphx-vita-radio"
+      ],
+      "environment": {
+        "GRAPHX_CREDENTIALS": "/run/secrets",
+        "GRAPHX_TELEMETRY_SHARED_SECRET_FILE": "/run/secrets/runtime-radio3/hmac"
+      },
+      "image": "graphx-design/sdr@sha256:928533888c6b3ecff6123dd69342931275216f99fce32367d76a000ba4a5dd82",
+      "labels": {
+        "org.graphx.graph": "four-radio-vita",
+        "org.graphx.node": "radio3",
+        "org.graphx.owner": "${GX_OWNER}"
+      },
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-file": "2",
+          "max-size": "1m"
+        }
+      },
+      "mem_limit": 134217728,
+      "networks": {
+        "mg-radio3": {}
+      },
+      "pids_limit": 64,
+      "read_only": true,
+      "restart": "no",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "tmpfs": [
+        "/tmp:rw,nosuid,nodev,size=16m"
+      ],
+      "user": "65532:65532",
+      "volumes": [
+        "./nodes/radio3.json:/run/graphx/node.json:ro",
+        "${GX_STATE}/barriers:/run/graphx/barriers:ro",
+        "${GX_CREDENTIALS}/radio:/run/secrets/radio:ro",
+        "${GX_CREDENTIALS}/runtime-radio3:/run/secrets/runtime-radio3:ro"
+      ]
+    },
+    "radio4": {
+      "cap_drop": [
+        "ALL"
+      ],
+      "command": [
+        "--node",
+        "radio4",
+        "--config",
+        "/run/graphx/node.json",
+        "--release-file",
+        "/run/graphx/barriers/release",
+        "--release-token",
+        "${GX_OWNER}"
+      ],
+      "entrypoint": [
+        "graphx-vita-radio"
+      ],
+      "environment": {
+        "GRAPHX_CREDENTIALS": "/run/secrets",
+        "GRAPHX_TELEMETRY_SHARED_SECRET_FILE": "/run/secrets/runtime-radio4/hmac"
+      },
+      "image": "graphx-design/sdr@sha256:928533888c6b3ecff6123dd69342931275216f99fce32367d76a000ba4a5dd82",
+      "labels": {
+        "org.graphx.graph": "four-radio-vita",
+        "org.graphx.node": "radio4",
+        "org.graphx.owner": "${GX_OWNER}"
+      },
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-file": "2",
+          "max-size": "1m"
+        }
+      },
+      "mem_limit": 134217728,
+      "networks": {
+        "mg-radio4": {}
+      },
+      "pids_limit": 64,
+      "read_only": true,
+      "restart": "no",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "tmpfs": [
+        "/tmp:rw,nosuid,nodev,size=16m"
+      ],
+      "user": "65532:65532",
+      "volumes": [
+        "./nodes/radio4.json:/run/graphx/node.json:ro",
+        "${GX_STATE}/barriers:/run/graphx/barriers:ro",
+        "${GX_CREDENTIALS}/radio:/run/secrets/radio:ro",
+        "${GX_CREDENTIALS}/runtime-radio4:/run/secrets/runtime-radio4:ro"
+      ]
+    },
+    "recorder": {
+      "cap_add": [
+        "NET_RAW"
+      ],
+      "cap_drop": [
+        "ALL"
+      ],
+      "command": [
+        "--node",
+        "recorder",
+        "--config",
+        "/run/graphx/node.json",
+        "--release-file",
+        "/run/graphx/barriers/release",
+        "--release-token",
+        "${GX_OWNER}"
+      ],
+      "entrypoint": [
+        "graphx-vita-recorder"
+      ],
+      "environment": {
+        "GRAPHX_CREDENTIALS": "/run/secrets",
+        "GRAPHX_TELEMETRY_SHARED_SECRET_FILE": "/run/secrets/runtime-recorder/hmac"
+      },
+      "image": "graphx-design/sdr@sha256:928533888c6b3ecff6123dd69342931275216f99fce32367d76a000ba4a5dd82",
+      "labels": {
+        "org.graphx.graph": "four-radio-vita",
+        "org.graphx.node": "recorder",
+        "org.graphx.owner": "${GX_OWNER}"
+      },
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-file": "2",
+          "max-size": "1m"
+        }
+      },
+      "mem_limit": 134217728,
+      "networks": {
+        "mg-recorder": {}
+      },
+      "pids_limit": 64,
+      "read_only": true,
+      "restart": "no",
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "tmpfs": [
+        "/tmp:rw,nosuid,nodev,size=16m"
+      ],
+      "user": "65532:65532",
+      "volumes": [
+        "./nodes/recorder.json:/run/graphx/node.json:ro",
+        "${GX_STATE}/barriers:/run/graphx/barriers:ro",
+        "${GX_CREDENTIALS}/runtime-recorder:/run/secrets/runtime-recorder:ro"
+      ]
+    }
+  }
+}

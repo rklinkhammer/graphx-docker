@@ -195,3 +195,30 @@ with patch.object(module, 'open_console') as browser, patch.object(module, 'emit
         browser.assert_not_called()
         setattr(options, flag, False)
 print('Example CLI: all authored plans, grants, private references, tokens and privilege/Lima boundaries passed')
+
+# Optional VITA role selection cannot reuse a default-role cache or accept fault hooks.
+with tempfile.TemporaryDirectory(prefix='graphx-vita-artifacts-') as directory:
+    workspace = Path(directory).resolve()
+    (workspace / 'artifacts/key/images').mkdir(parents=True)
+    workflow = module.Workflow.__new__(module.Workflow)
+    workflow.base, workflow.key, workflow.source = workspace, 'key', root
+    workflow.containers, workflow.guests, workflow.native = True, False, False
+    workflow.normal = {'nodes': [{'type': 'vita.radio'}]}
+    workflow.args = SimpleNamespace(images=None, release=None, catalog=None)
+    commands = []
+    def artifact_run(command, **kwargs):
+        commands.append(command)
+        if 'build' in command:
+            destination = command[command.index('--output') + 1]
+            destination.mkdir()
+            module.write_json(destination / 'images.json', {'images': {'vita': {}}, 'qualification_hooks': False})
+        return ''
+    with patch.object(module, 'run', side_effect=artifact_run):
+        images, _, _ = workflow.artifacts()
+        assert images.name == 'images-vita'
+        build = next(c for c in commands if 'build' in c)
+        assert '--with-vita' in build and '--no-cache' in build and '--qualification-hooks' not in build
+        for manifest in ({'images': {}, 'qualification_hooks': False},
+                         {'images': {'vita': {}}, 'qualification_hooks': True}):
+            module.write_json(images / 'images.json', manifest)
+            rejected(workflow.artifacts)

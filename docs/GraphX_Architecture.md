@@ -969,3 +969,26 @@ or authorize implementation, deployment, cleanup or publication.
 No new blocking design conflict was identified by the documentation audit. These
 are existing boundaries and review questions, not authorization to change production
 behavior. The verification report records which checks were actually performed.
+
+## Four-radio VITA integration
+
+The maintained `four-radio-vita` graph composes four instances of `vita.radio`,
+`vita.processor`, `vita.detector` and `vita.recorder` from the shared catalog. Normal
+images opt into the VITA role without qualification hooks. The processor owns
+four independent mTLS controller sessions and raw UDP IQ inputs, and emits bounded
+power spectra to the detector. VITA uses the pinned upstream runtime; GraphX owns
+the deterministic virtual device, radix-2 FFT, bindings and managed lifecycle.
+All application sockets bind to identity-owned OVS attachments. Separate Docker
+management networks carry authenticated telemetry and console access.
+
+The processor starts configured radios at one common scheduled sample epoch.
+Host activation has a declared 100 ms tolerance, with no GPS discipline or arbitrary
+host-load guarantee. Overdue source samples may be skipped; downstream windows
+preserve explicit gap and valid-sample metadata. Passive recorder traffic cannot
+backpressure forwarding, and independent diagnostic capture has bounded retention.
+Available startup, no automatic process restart and explicit whole-graph recovery
+use the common lifecycle. Fault injection is an explicit bounded scenario action,
+not a web privilege or an implicit startup behavior. See the
+[example](../examples/four-radio-vita/README.md) and
+[requirement matrix](../design/four-radio-vita/verification.md) for supported settings
+and acceptance limits.

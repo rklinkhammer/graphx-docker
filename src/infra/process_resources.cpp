@@ -107,7 +107,20 @@ int native_process_status(const OwnedResourceIdentity& resource, int* exit_statu
     if (exit_status) *exit_status = status;
     return 0;
   }
-  const auto observed = inspect_process(static_cast<std::uint32_t>(pid));
+  auto observed = inspect_process(static_cast<std::uint32_t>(pid));
+  // Process metadata can disappear before an owned child becomes waitable.
+  // Retry observation only: missing identity never authorizes a signal or a
+  // successful live-process result. Preserve the child's exact exit status.
+  for (int attempt = 0; observed.start_time.empty() && !observed.exited && attempt < 25;
+       ++attempt) {
+    if (::waitpid(pid, &status, WNOHANG) == pid) {
+      if (exit_status) *exit_status = status;
+      return 0;
+    }
+    if (::kill(pid, 0) != 0 && errno == ESRCH) return 0;
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    observed = inspect_process(static_cast<std::uint32_t>(pid));
+  }
   if (observed.exited) {
     if (exit_status && ::waitpid(pid, &status, WNOHANG) == pid) *exit_status = status;
     return 0;

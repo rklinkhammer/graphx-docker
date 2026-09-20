@@ -3,7 +3,7 @@
 **Start here: [Run an example](quick-start.md).** Complete commands for sample-pipeline
 and simulated SDR, including image preparation, console access and cleanup.
 
-All 25 authored v3 examples support validation, normalization and deterministic
+All 26 authored v3 examples support validation, normalization and deterministic
 compilation on their listed targets. Native and portable container graphs support [owned execution](../docs/user-guide.md#execution-administration).
 OVS and namespace graphs have a compiled runner behind explicit Linux privileged
 opt-in, with [P7 Lima acceptance evidence](../design/graph-generation/p7-verification.md).
@@ -16,6 +16,7 @@ build/dev/graphx config normalize examples/sample-pipeline/graphx.yml --target o
 
 | Input | Supported validation targets |
 |---|---|
+| [four-radio-vita/graphx.yml](four-radio-vita/graphx.yml) | `native-linux`, `lima` |
 | [capture/graphx.yml](capture/graphx.yml) | `native-linux`, `native-macos`, `lima` |
 | [ipvlan-l2/graphx.yml](ipvlan-l2/graphx.yml) | `native-linux`, `lima` |
 | [ipvlan-l3/graphx.yml](ipvlan-l3/graphx.yml) | `native-linux`, `lima` |
@@ -59,3 +60,8 @@ the native Linux x86_64 and clean-release gates that remain open.
 The additional OVS sample and current browser-session workflow have separately
 recorded evidence; see [verification scope](../docs/documentation-verification.md).
 The matrix above is the current validation inventory, not a fresh release qualification.
+
+The [four-radio VITA example](four-radio-vita/README.md) includes the explicitly
+selected `iq-loss-jitter` scenario, normal image-role selection, supported FFT
+settings and whole-graph recovery. Its [requirement matrix](../design/four-radio-vita/verification.md)
+separates functional, sustained and browser evidence. No fault runs at startup.

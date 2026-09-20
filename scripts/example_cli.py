@@ -322,7 +322,8 @@ class Workflow:
 
     def artifacts(self):
         cache = private_dir(self.base / 'artifacts' / self.key)
-        images = safe_path(self.args.images) if self.args.images else cache / 'images'
+        vita = any(n['type'].startswith('vita.') for n in self.normal['nodes'])
+        images = safe_path(self.args.images) if self.args.images else cache / ('images-vita' if vita else 'images')
         release = safe_path(self.args.release) if self.args.release else cache / 'release'
         if self.args.images and not (images / 'images.json').is_file():
             raise WorkflowError('--images must name an existing verified image release')
@@ -331,9 +332,14 @@ class Workflow:
         if self.containers or self.guests:
             if not images.exists():
                 machine = 'arm64' if platform.machine() in ('arm64', 'aarch64') else 'amd64'
+                optional = ['--with-vita'] if vita else []
                 run([sys.executable, self.source / 'scripts/release/image_release.py', 'build',
-                     '--output', images, '--platform', 'linux/' + machine, '--allow-dirty'])
+                     '--output', images, '--platform', 'linux/' + machine, '--allow-dirty', '--no-cache', *optional])
             run([sys.executable, self.source / 'scripts/release/image_release.py', 'verify', images])
+            if vita:
+                manifest = read_json(images / 'images.json')
+                if 'vita' not in manifest['images'] or manifest.get('qualification_hooks') is not False:
+                    raise WorkflowError('VITA examples require --with-vita images without qualification hooks')
         if self.native and not release.exists():
             native, companion = cache / 'native', cache / 'companion'
             run([sys.executable, self.source / 'scripts/release/build_release.py', '--source', self.source,

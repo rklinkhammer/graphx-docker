@@ -1,0 +1,465 @@
+{
+  "version": 3,
+  "catalog": "../../config/catalog/lock.json",
+  "graph": {
+    "id": "four-radio-vita"
+  },
+  "lifecycle": {
+    "startup": "available",
+    "readiness_ms": 5000
+  },
+  "platform": {
+    "console": {
+      "port": 8080
+    },
+    "capture": {
+      "enabled": true,
+      "provider": "application"
+    }
+  },
+  "nodes": {
+    "radio1": {
+      "type": "vita.radio",
+      "execution": {
+        "kind": "container"
+      },
+      "credentials": {
+        "control": "radio"
+      },
+      "parameters": {
+        "radio_index": 1,
+        "signal_frequency_hz": 100050000,
+        "initial_phase_mdeg": 0
+      }
+    },
+    "radio2": {
+      "type": "vita.radio",
+      "execution": {
+        "kind": "container"
+      },
+      "credentials": {
+        "control": "radio"
+      },
+      "parameters": {
+        "radio_index": 2,
+        "signal_frequency_hz": 100100000,
+        "initial_phase_mdeg": 45000
+      }
+    },
+    "radio3": {
+      "type": "vita.radio",
+      "execution": {
+        "kind": "container"
+      },
+      "credentials": {
+        "control": "radio"
+      },
+      "parameters": {
+        "radio_index": 3,
+        "signal_frequency_hz": 100150000,
+        "initial_phase_mdeg": 90000
+      }
+    },
+    "radio4": {
+      "type": "vita.radio",
+      "execution": {
+        "kind": "container"
+      },
+      "credentials": {
+        "control": "radio"
+      },
+      "parameters": {
+        "radio_index": 4,
+        "signal_frequency_hz": 100200000,
+        "initial_phase_mdeg": 135000
+      }
+    },
+    "processor": {
+      "type": "vita.processor",
+      "execution": {
+        "kind": "container"
+      },
+      "credentials": {
+        "control1": "controller",
+        "control2": "controller",
+        "control3": "controller",
+        "control4": "controller"
+      },
+      "parameters": {
+        "bin_width_denominator1": 32,
+        "bin_width_denominator2": 32,
+        "bin_width_denominator3": 32,
+        "bin_width_denominator4": 32
+      }
+    },
+    "detector": {
+      "type": "vita.detector",
+      "execution": {
+        "kind": "container"
+      }
+    },
+    "recorder": {
+      "type": "vita.recorder",
+      "execution": {
+        "kind": "container"
+      }
+    }
+  },
+  "connections": {
+    "control1": {
+      "from": "processor.control1",
+      "to": "radio1.control",
+      "transport": "tcp",
+      "attachments": {
+        "from": "processor-data",
+        "to": "radio1-data"
+      },
+      "settings": {
+        "port": 18401,
+        "framing": "none",
+        "bind": "10.79.0.10",
+        "host": "10.79.0.10"
+      },
+      "security": {
+        "profile": "mtls",
+        "server_name": "radio"
+      }
+    },
+    "data1": {
+      "from": "radio1.samples",
+      "to": "processor.data1",
+      "transport": "udp",
+      "attachments": {
+        "from": "radio1-data",
+        "to": "processor-data"
+      },
+      "settings": {
+        "port": 18501,
+        "framing": "none",
+        "max_datagram_bytes": 4128,
+        "bind": "10.79.0.14",
+        "destination": "10.79.0.14",
+        "mode": "unicast"
+      }
+    },
+    "control2": {
+      "from": "processor.control2",
+      "to": "radio2.control",
+      "transport": "tcp",
+      "attachments": {
+        "from": "processor-data",
+        "to": "radio2-data"
+      },
+      "settings": {
+        "port": 18402,
+        "framing": "none",
+        "bind": "10.79.0.11",
+        "host": "10.79.0.11"
+      },
+      "security": {
+        "profile": "mtls",
+        "server_name": "radio"
+      }
+    },
+    "data2": {
+      "from": "radio2.samples",
+      "to": "processor.data2",
+      "transport": "udp",
+      "attachments": {
+        "from": "radio2-data",
+        "to": "processor-data"
+      },
+      "settings": {
+        "port": 18502,
+        "framing": "none",
+        "max_datagram_bytes": 4128,
+        "bind": "10.79.0.14",
+        "destination": "10.79.0.14",
+        "mode": "unicast"
+      }
+    },
+    "control3": {
+      "from": "processor.control3",
+      "to": "radio3.control",
+      "transport": "tcp",
+      "attachments": {
+        "from": "processor-data",
+        "to": "radio3-data"
+      },
+      "settings": {
+        "port": 18403,
+        "framing": "none",
+        "bind": "10.79.0.12",
+        "host": "10.79.0.12"
+      },
+      "security": {
+        "profile": "mtls",
+        "server_name": "radio"
+      }
+    },
+    "data3": {
+      "from": "radio3.samples",
+      "to": "processor.data3",
+      "transport": "udp",
+      "attachments": {
+        "from": "radio3-data",
+        "to": "processor-data"
+      },
+      "settings": {
+        "port": 18503,
+        "framing": "none",
+        "max_datagram_bytes": 4128,
+        "bind": "10.79.0.14",
+        "destination": "10.79.0.14",
+        "mode": "unicast"
+      }
+    },
+    "control4": {
+      "from": "processor.control4",
+      "to": "radio4.control",
+      "transport": "tcp",
+      "attachments": {
+        "from": "processor-data",
+        "to": "radio4-data"
+      },
+      "settings": {
+        "port": 18404,
+        "framing": "none",
+        "bind": "10.79.0.13",
+        "host": "10.79.0.13"
+      },
+      "security": {
+        "profile": "mtls",
+        "server_name": "radio"
+      }
+    },
+    "data4": {
+      "from": "radio4.samples",
+      "to": "processor.data4",
+      "transport": "udp",
+      "attachments": {
+        "from": "radio4-data",
+        "to": "processor-data"
+      },
+      "settings": {
+        "port": 18504,
+        "framing": "none",
+        "max_datagram_bytes": 4128,
+        "bind": "10.79.0.14",
+        "destination": "10.79.0.14",
+        "mode": "unicast"
+      }
+    },
+    "spectra": {
+      "from": "processor.spectra",
+      "to": "detector.spectra",
+      "transport": "udp",
+      "attachments": {
+        "from": "processor-data",
+        "to": "detector-data"
+      },
+      "settings": {
+        "port": 18600,
+        "framing": "none",
+        "max_datagram_bytes": 8836,
+        "bind": "10.79.0.15",
+        "destination": "10.79.0.15",
+        "mode": "unicast"
+      }
+    }
+  },
+  "credentials": {
+    "radio": {
+      "identity": "radio",
+      "members": [
+        "ca.pem",
+        "cert.pem",
+        "key.pem"
+      ],
+      "provider": "lab-generated"
+    },
+    "controller": {
+      "identity": "controller",
+      "members": [
+        "ca.pem",
+        "cert.pem",
+        "key.pem"
+      ],
+      "provider": "lab-generated"
+    }
+  },
+  "network": {
+    "networks": [
+      {
+        "id": "data",
+        "profile": "ethernet",
+        "realization": "ovs",
+        "subnets": [
+          "10.79.0.0/24"
+        ]
+      }
+    ],
+    "switches": [
+      {
+        "id": "switch",
+        "kind": "openvswitch",
+        "datapath": "system",
+        "ports": [
+          {
+            "id": "capture"
+          }
+        ],
+        "mirror": {
+          "id": "mirror",
+          "output_port": "capture",
+          "select_all": true
+        }
+      }
+    ],
+    "attachments": [
+      {
+        "id": "radio1-data",
+        "kind": "container_veth",
+        "owner": "radio1",
+        "network": "data",
+        "address": "10.79.0.10/24",
+        "switch": "switch",
+        "mtu": 9000
+      },
+      {
+        "id": "radio2-data",
+        "kind": "container_veth",
+        "owner": "radio2",
+        "network": "data",
+        "address": "10.79.0.11/24",
+        "switch": "switch",
+        "mtu": 9000
+      },
+      {
+        "id": "radio3-data",
+        "kind": "container_veth",
+        "owner": "radio3",
+        "network": "data",
+        "address": "10.79.0.12/24",
+        "switch": "switch",
+        "mtu": 9000
+      },
+      {
+        "id": "radio4-data",
+        "kind": "container_veth",
+        "owner": "radio4",
+        "network": "data",
+        "address": "10.79.0.13/24",
+        "switch": "switch",
+        "mtu": 9000
+      },
+      {
+        "id": "processor-data",
+        "kind": "container_veth",
+        "owner": "processor",
+        "network": "data",
+        "address": "10.79.0.14/24",
+        "switch": "switch",
+        "mtu": 9000
+      },
+      {
+        "id": "detector-data",
+        "kind": "container_veth",
+        "owner": "detector",
+        "network": "data",
+        "address": "10.79.0.15/24",
+        "switch": "switch",
+        "mtu": 9000
+      },
+      {
+        "id": "mirror",
+        "kind": "mirror",
+        "owner": "recorder",
+        "switch": "switch",
+        "port": "capture",
+        "delivery": "container",
+        "mtu": 9000
+      }
+    ],
+    "edge_paths": {
+      "control1": [
+        "processor",
+        "data",
+        "switch",
+        "radio1"
+      ],
+      "data1": [
+        "radio1",
+        "data",
+        "switch",
+        "processor"
+      ],
+      "control2": [
+        "processor",
+        "data",
+        "switch",
+        "radio2"
+      ],
+      "data2": [
+        "radio2",
+        "data",
+        "switch",
+        "processor"
+      ],
+      "control3": [
+        "processor",
+        "data",
+        "switch",
+        "radio3"
+      ],
+      "data3": [
+        "radio3",
+        "data",
+        "switch",
+        "processor"
+      ],
+      "control4": [
+        "processor",
+        "data",
+        "switch",
+        "radio4"
+      ],
+      "data4": [
+        "radio4",
+        "data",
+        "switch",
+        "processor"
+      ],
+      "spectra": [
+        "processor",
+        "data",
+        "switch",
+        "detector"
+      ]
+    },
+    "captures": [
+      {
+        "id": "diagnostic",
+        "attachment": "mirror",
+        "snaplen": 9022,
+        "max_file_bytes": 4194304,
+        "max_files": 2,
+        "rotation_seconds": 2,
+        "retention_seconds": 60
+      }
+    ]
+  },
+  "scenario": {
+    "actions": [
+      {
+        "id": "iq-loss-jitter",
+        "action": "fault",
+        "attachment": "processor-data",
+        "delay_ms": 8,
+        "jitter_ms": 6,
+        "loss_percent": 2,
+        "duration_seconds": 20
+      }
+    ]
+  }
+}

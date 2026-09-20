@@ -1,6 +1,6 @@
 {
   "artifacts_verified": false,
-  "catalog_digest": "9f8a65ada1cfbd81f285cfa948fd351e39f10676d876dddd41f031607a5392cb",
+  "catalog_digest": "ca27ee68f31fb9e1d0716cdb590862c17af163d487a9afdf34b6ceddc355ccef",
   "documents": {
     "guests/echo-x86.json": {
       "accelerators": [
@@ -1089,6 +1089,457 @@
       "revision": 1,
       "template": "node-v1"
     },
+    "types/vita.detector.json": {
+      "credentials": [],
+      "executable": "graphx-vita-detector",
+      "execution": [
+        "native",
+        "container"
+      ],
+      "id": "vita.detector",
+      "image": "graphx-design/sdr@sha256:928533888c6b3ecff6123dd69342931275216f99fce32367d76a000ba4a5dd82",
+      "observation": "graphx",
+      "parameters": {},
+      "ports": {
+        "spectra": {
+          "default_port": 18500,
+          "direction": "input",
+          "encoding": "raw",
+          "feedback": false,
+          "listener": true,
+          "max_connections": 1,
+          "min_connections": 1,
+          "schema": "VitaPowerSpectrum",
+          "transports": [
+            "udp"
+          ]
+        }
+      },
+      "readiness": {
+        "kind": "local-bound",
+        "timeout_ms": 30000
+      },
+      "resources": {
+        "memory_bytes": 134217728,
+        "pids": 64
+      },
+      "revision": 1,
+      "template": "node-v1"
+    },
+    "types/vita.processor.json": {
+      "credentials": [
+        "control1",
+        "control2",
+        "control3",
+        "control4"
+      ],
+      "executable": "graphx-vita-processor",
+      "execution": [
+        "native",
+        "container"
+      ],
+      "id": "vita.processor",
+      "image": "graphx-design/sdr@sha256:928533888c6b3ecff6123dd69342931275216f99fce32367d76a000ba4a5dd82",
+      "observation": "graphx",
+      "parameters": {
+        "bandwidth1": {
+          "default": 800000,
+          "maximum": 2000000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "bandwidth2": {
+          "default": 800000,
+          "maximum": 2000000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "bandwidth3": {
+          "default": 800000,
+          "maximum": 2000000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "bandwidth4": {
+          "default": 800000,
+          "maximum": 2000000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "bin_width_denominator1": {
+          "default": 16,
+          "maximum": 2048,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "bin_width_denominator2": {
+          "default": 16,
+          "maximum": 2048,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "bin_width_denominator3": {
+          "default": 16,
+          "maximum": 2048,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "bin_width_denominator4": {
+          "default": 16,
+          "maximum": 2048,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "bin_width_numerator_hz1": {
+          "default": 15625,
+          "maximum": 2000000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "bin_width_numerator_hz2": {
+          "default": 15625,
+          "maximum": 2000000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "bin_width_numerator_hz3": {
+          "default": 15625,
+          "maximum": 2000000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "bin_width_numerator_hz4": {
+          "default": 15625,
+          "maximum": 2000000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "center1": {
+          "default": 100000000,
+          "maximum": 6000000000,
+          "minimum": 1000000,
+          "type": "integer"
+        },
+        "center2": {
+          "default": 100000000,
+          "maximum": 6000000000,
+          "minimum": 1000000,
+          "type": "integer"
+        },
+        "center3": {
+          "default": 100000000,
+          "maximum": 6000000000,
+          "minimum": 1000000,
+          "type": "integer"
+        },
+        "center4": {
+          "default": 100000000,
+          "maximum": 6000000000,
+          "minimum": 1000000,
+          "type": "integer"
+        },
+        "gain_db1": {
+          "default": 0,
+          "maximum": 60,
+          "minimum": -60,
+          "type": "integer"
+        },
+        "gain_db2": {
+          "default": 0,
+          "maximum": 60,
+          "minimum": -60,
+          "type": "integer"
+        },
+        "gain_db3": {
+          "default": 0,
+          "maximum": 60,
+          "minimum": -60,
+          "type": "integer"
+        },
+        "gain_db4": {
+          "default": 0,
+          "maximum": 60,
+          "minimum": -60,
+          "type": "integer"
+        },
+        "overlap_percent": {
+          "default": 0,
+          "maximum": 75,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "path_mtu": {
+          "default": 9000,
+          "maximum": 9000,
+          "minimum": 4200,
+          "type": "integer"
+        },
+        "rate1": {
+          "default": 1000000,
+          "maximum": 2000000,
+          "minimum": 1000,
+          "type": "integer"
+        },
+        "rate2": {
+          "default": 1000000,
+          "maximum": 2000000,
+          "minimum": 1000,
+          "type": "integer"
+        },
+        "rate3": {
+          "default": 1000000,
+          "maximum": 2000000,
+          "minimum": 1000,
+          "type": "integer"
+        },
+        "rate4": {
+          "default": 1000000,
+          "maximum": 2000000,
+          "minimum": 1000,
+          "type": "integer"
+        },
+        "window": {
+          "default": 0,
+          "maximum": 1,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "ports": {
+        "control1": {
+          "default_port": 18401,
+          "direction": "output",
+          "encoding": "raw",
+          "feedback": true,
+          "listener": false,
+          "max_connections": 1,
+          "min_connections": 1,
+          "schema": "VitaControl",
+          "transports": [
+            "tcp"
+          ]
+        },
+        "control2": {
+          "default_port": 18402,
+          "direction": "output",
+          "encoding": "raw",
+          "feedback": true,
+          "listener": false,
+          "max_connections": 1,
+          "min_connections": 1,
+          "schema": "VitaControl",
+          "transports": [
+            "tcp"
+          ]
+        },
+        "control3": {
+          "default_port": 18403,
+          "direction": "output",
+          "encoding": "raw",
+          "feedback": true,
+          "listener": false,
+          "max_connections": 1,
+          "min_connections": 1,
+          "schema": "VitaControl",
+          "transports": [
+            "tcp"
+          ]
+        },
+        "control4": {
+          "default_port": 18404,
+          "direction": "output",
+          "encoding": "raw",
+          "feedback": true,
+          "listener": false,
+          "max_connections": 1,
+          "min_connections": 1,
+          "schema": "VitaControl",
+          "transports": [
+            "tcp"
+          ]
+        },
+        "data1": {
+          "default_port": 18411,
+          "direction": "input",
+          "encoding": "raw",
+          "feedback": true,
+          "listener": true,
+          "max_connections": 1,
+          "min_connections": 1,
+          "schema": "VitaIq",
+          "transports": [
+            "udp"
+          ]
+        },
+        "data2": {
+          "default_port": 18412,
+          "direction": "input",
+          "encoding": "raw",
+          "feedback": true,
+          "listener": true,
+          "max_connections": 1,
+          "min_connections": 1,
+          "schema": "VitaIq",
+          "transports": [
+            "udp"
+          ]
+        },
+        "data3": {
+          "default_port": 18413,
+          "direction": "input",
+          "encoding": "raw",
+          "feedback": true,
+          "listener": true,
+          "max_connections": 1,
+          "min_connections": 1,
+          "schema": "VitaIq",
+          "transports": [
+            "udp"
+          ]
+        },
+        "data4": {
+          "default_port": 18414,
+          "direction": "input",
+          "encoding": "raw",
+          "feedback": true,
+          "listener": true,
+          "max_connections": 1,
+          "min_connections": 1,
+          "schema": "VitaIq",
+          "transports": [
+            "udp"
+          ]
+        },
+        "spectra": {
+          "default_port": 18500,
+          "direction": "output",
+          "encoding": "raw",
+          "feedback": false,
+          "listener": false,
+          "max_connections": 1,
+          "min_connections": 1,
+          "schema": "VitaPowerSpectrum",
+          "transports": [
+            "udp"
+          ]
+        }
+      },
+      "readiness": {
+        "kind": "local-bound",
+        "timeout_ms": 30000
+      },
+      "resources": {
+        "memory_bytes": 134217728,
+        "pids": 64
+      },
+      "revision": 1,
+      "template": "node-v1"
+    },
+    "types/vita.radio.json": {
+      "credentials": [
+        "control"
+      ],
+      "executable": "graphx-vita-radio",
+      "execution": [
+        "native",
+        "container"
+      ],
+      "id": "vita.radio",
+      "image": "graphx-design/sdr@sha256:928533888c6b3ecff6123dd69342931275216f99fce32367d76a000ba4a5dd82",
+      "observation": "graphx",
+      "parameters": {
+        "amplitude_ppm": {
+          "default": 250000,
+          "maximum": 1000000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "burst_samples": {
+          "default": 262144,
+          "maximum": 262144,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "initial_phase_mdeg": {
+          "default": 0,
+          "maximum": 359999,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "radio_index": {
+          "default": 1,
+          "maximum": 4,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "signal_frequency_hz": {
+          "default": 100050000,
+          "maximum": 6000000000,
+          "minimum": 1000000,
+          "type": "integer"
+        }
+      },
+      "ports": {
+        "control": {
+          "default_port": 18401,
+          "direction": "input",
+          "encoding": "raw",
+          "feedback": true,
+          "listener": true,
+          "max_connections": 1,
+          "min_connections": 1,
+          "schema": "VitaControl",
+          "transports": [
+            "tcp"
+          ]
+        },
+        "samples": {
+          "default_port": 18400,
+          "direction": "output",
+          "encoding": "raw",
+          "feedback": true,
+          "listener": false,
+          "max_connections": 1,
+          "min_connections": 1,
+          "schema": "VitaIq",
+          "transports": [
+            "udp"
+          ]
+        }
+      },
+      "readiness": {
+        "kind": "local-bound",
+        "timeout_ms": 30000
+      },
+      "resources": {
+        "memory_bytes": 134217728,
+        "pids": 64
+      },
+      "revision": 1,
+      "template": "node-v1"
+    },
+    "types/vita.recorder.json": {
+      "credentials": [],
+      "executable": "graphx-vita-recorder",
+      "execution": [
+        "container"
+      ],
+      "id": "vita.recorder",
+      "image": "graphx-design/sdr@sha256:928533888c6b3ecff6123dd69342931275216f99fce32367d76a000ba4a5dd82",
+      "observation": "graphx",
+      "parameters": {},
+      "ports": {},
+      "readiness": {
+        "kind": "local-bound",
+        "timeout_ms": 30000
+      },
+      "resources": {
+        "memory_bytes": 134217728,
+        "pids": 64
+      },
+      "revision": 1,
+      "template": "node-v1"
+    },
     "wire-schemas.json": {
       "Discovery": {
         "encoding": "graphx",
@@ -1148,6 +1599,21 @@
         "encoding": "graphx",
         "maximum_bytes": 1400,
         "wire_version": 2
+      },
+      "VitaControl": {
+        "encoding": "raw",
+        "layout": "vrt_framework graphx_radio Command/Ack without Class ID over mutually authenticated TLS",
+        "maximum_bytes": 1024
+      },
+      "VitaIq": {
+        "encoding": "raw",
+        "layout": "vrt_framework graphx_radio; Data Class ID 00ffffff00000000; UTC/picoseconds; signed big-endian I,Q; required SSI trailer",
+        "maximum_bytes": 4128
+      },
+      "VitaPowerSpectrum": {
+        "encoding": "raw",
+        "layout": "GraphX P2 power spectrum v1; network-order binary32 fftshift power; 128-byte header, N-bit gap map, padded N+1-bit observed burst-boundary map",
+        "maximum_bytes": 8836
       }
     }
   },
@@ -1248,8 +1714,24 @@
         "sha256": "ad44186142e26b09ab38b82fed1c353a2b8bfc3543f6c0de56c5df5f8a4008c8"
       },
       {
+        "path": "types/vita.detector.json",
+        "sha256": "b61fa3394c95a1d6247e944e66d1823f00599ab47bcce8c905d0912cf699ab36"
+      },
+      {
+        "path": "types/vita.processor.json",
+        "sha256": "52f8db6286f40367cef0fe1b52dd3804d19f89b1ce73e20d3e0c5247f51ac5dc"
+      },
+      {
+        "path": "types/vita.radio.json",
+        "sha256": "3464c08aa82c57094929ae7edbb60077e617d122484fd18cca066ea884fd22f3"
+      },
+      {
+        "path": "types/vita.recorder.json",
+        "sha256": "c5bcc23ca9da9679affd3830c53158f07e40e3dc41677c695dc09d1dca8eb7ce"
+      },
+      {
         "path": "wire-schemas.json",
-        "sha256": "0ae77591243da808db343fad975dac1c7b8e514fb6e9a8955a437a9808f5e8a6"
+        "sha256": "d450937f228627310037e3912c39101d0b52a00a15ef428b701289ab81d83704"
       }
     ],
     "revision": "graphx-v3-p1",

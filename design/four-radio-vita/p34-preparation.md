@@ -45,7 +45,7 @@ matched its pre-run state, with no containers or OVS bridges remaining.
 
 Use the runbook to build fresh images once per verification run, prepare an
 absent run root, check VM identity and stage the verified artifacts. Do not reuse
-completed run roots. `--with-vita` enables private qualification hooks; normal
+completed run roots. `--with-vita --qualification-hooks` enables private qualification hooks; normal
 builds leave them off. The hooks inject faults in the actual applications and
 pause the exact infrastructure runner child at registered mutation checkpoints.
 

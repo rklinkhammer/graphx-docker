@@ -994,9 +994,9 @@ GraphConfig load_graph(const std::filesystem::path& path, const ConfigLoadOption
   platform["telemetry"]["host"] = native ? "127.0.0.1" : "platform";
   platform["control"]["allowed_origins"] = Array{
       Value("http://127.0.0.1:" + std::to_string(platform.at("console").at("port").integer()))};
+  // Observation login also uses origin checks without any control grants.
   // The fixed Lima environment forwards guest console 8080 to host loopback 18080.
-  if (options.target == "lima" && platform.at("control").at("enabled").boolean() &&
-      platform.at("console").at("port").integer() == 8080)
+  if (options.target == "lima" && platform.at("console").at("port").integer() == 8080)
     platform["control"]["allowed_origins"].array().emplace_back("http://127.0.0.1:18080");
   platform["normalization"] = "resolved.json";
   platform["credential_manifest"] = "credentials.json";

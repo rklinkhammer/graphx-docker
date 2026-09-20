@@ -62,6 +62,25 @@ std::vector<std::string> lines(std::string value) {
 }
 }  // namespace
 
+void bind_owned_container_services(GraphConfig& config, const OwnershipState& state) {
+  if (config.id != state.graph_id)
+    throw std::runtime_error("container service ledger belongs to another graph");
+  const auto prefix = "graphx-" + config.id + "-";
+  std::vector<DeploymentService> services;
+  for (const auto& resource : state.processes) {
+    if (resource.kind != "container") continue;
+    if (!resource.name.starts_with(prefix) || resource.name.size() == prefix.size() ||
+        resource.secondary_id.empty())
+      throw std::runtime_error("invalid owned container service identity");
+    const auto name = resource.name.substr(prefix.size());
+    if (std::ranges::any_of(services, [&](const auto& service) { return service.node_id == name; }))
+      throw std::runtime_error("duplicate owned container service identity");
+    services.push_back({name, resource.secondary_id, {}});
+  }
+  config.deployment.project = "graphx-" + config.id;
+  config.deployment.services = std::move(services);
+}
+
 ResolvedContainer resolve_container(const GraphConfig& config, std::string_view owner) {
   const auto service =
       std::find_if(config.deployment.services.begin(), config.deployment.services.end(),

@@ -125,5 +125,8 @@ bool path_entry_exists(const std::filesystem::path& path);
 void save_state(const std::filesystem::path& path, const OwnershipState& state,
                 bool replace_existing = true);
 OwnershipState load_state(const std::filesystem::path& path);
+// An explicitly stopped graph may retain history/capture volumes and evidence.
+// Any remaining live-resource intent still requires normal lifecycle validation.
+bool retained_only(const OwnershipState& state);
 
 }  // namespace graphx::infra::detail

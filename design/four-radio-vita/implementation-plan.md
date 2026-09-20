@@ -14,7 +14,9 @@ loss handling, control reconnect and display saturation. See
 [P2 verification](p2-verification.md) for every exit criterion, exact message sizes,
 nominal rates and normal/UBSan/fuzz evidence. P3 and P4 are complete for the dedicated Lima ARM64 container path: all 18
 privileged cases passed. See [P3 verification](p3-verification.md) and
-[P4 verification](p4-verification.md) for evidence and platform limits. P5–P6 remain unstarted.
+[P4 verification](p4-verification.md) for evidence and platform limits. P5 is complete
+for normal ARM64 image packaging and the ordinary CLI path in the dedicated Lima
+guest; see [P5 verification](p5-verification.md) for exact pins and results. P6 acceptance tooling, explicit loss/jitter scenario and operator documentation are implemented. [Integrated verification](verification.md) records the passing sustained, failure/recovery, browser and cleanup evidence.
 This plan does not authorize privileged execution.
 
 The first deliverable is a real, independently tested radio. Do not make its

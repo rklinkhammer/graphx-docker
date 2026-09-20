@@ -1,0 +1,195 @@
+{
+  "api": "execute_ovs_lifecycle",
+  "capture_process_count": 1,
+  "cleanup": "identity-checked destroy; external devices untouched",
+  "config": "resolved.json",
+  "privileged_authorization_required": true,
+  "resource_intent": {
+    "attachments": [
+      {
+        "address": "10.79.0.15/24",
+        "id": "detector-data",
+        "interface": "gxi3537bb739ec9",
+        "kind": "container_veth",
+        "mtu": 9000,
+        "network": "data",
+        "owner": "detector",
+        "peer": "gxp13f2b479eb7e",
+        "switch": "switch"
+      },
+      {
+        "delivery": "container",
+        "id": "mirror",
+        "interface": "gxic6523599c131",
+        "kind": "mirror",
+        "mtu": 9000,
+        "owner": "recorder",
+        "peer": "gxpd15eb6c71317",
+        "port": "capture",
+        "switch": "switch"
+      },
+      {
+        "address": "10.79.0.14/24",
+        "id": "processor-data",
+        "interface": "gxi8dcee4a10aac",
+        "kind": "container_veth",
+        "mtu": 9000,
+        "network": "data",
+        "owner": "processor",
+        "peer": "gxp274e301df6b3",
+        "switch": "switch"
+      },
+      {
+        "address": "10.79.0.10/24",
+        "id": "radio1-data",
+        "interface": "gxi9671bae7c8b4",
+        "kind": "container_veth",
+        "mtu": 9000,
+        "network": "data",
+        "owner": "radio1",
+        "peer": "gxp0fda60540cc7",
+        "switch": "switch"
+      },
+      {
+        "address": "10.79.0.11/24",
+        "id": "radio2-data",
+        "interface": "gxid13d0c647ed0",
+        "kind": "container_veth",
+        "mtu": 9000,
+        "network": "data",
+        "owner": "radio2",
+        "peer": "gxp5bd12842a830",
+        "switch": "switch"
+      },
+      {
+        "address": "10.79.0.12/24",
+        "id": "radio3-data",
+        "interface": "gxi3752d1c582e6",
+        "kind": "container_veth",
+        "mtu": 9000,
+        "network": "data",
+        "owner": "radio3",
+        "peer": "gxpbb5a97731bb1",
+        "switch": "switch"
+      },
+      {
+        "address": "10.79.0.13/24",
+        "id": "radio4-data",
+        "interface": "gxi20585bc42830",
+        "kind": "container_veth",
+        "mtu": 9000,
+        "network": "data",
+        "owner": "radio4",
+        "peer": "gxp013369a9d799",
+        "switch": "switch"
+      }
+    ],
+    "captures": [
+      {
+        "attachment": "mirror",
+        "directory": "/var/lib/graphx/captures/four-radio-vita/diagnostic",
+        "id": "diagnostic",
+        "max_file_bytes": 4194304,
+        "max_files": 2,
+        "retention_seconds": 60,
+        "rotation_seconds": 2,
+        "snaplen": 9022
+      }
+    ],
+    "edge_paths": {
+      "control1": [
+        "processor",
+        "data",
+        "switch",
+        "radio1"
+      ],
+      "control2": [
+        "processor",
+        "data",
+        "switch",
+        "radio2"
+      ],
+      "control3": [
+        "processor",
+        "data",
+        "switch",
+        "radio3"
+      ],
+      "control4": [
+        "processor",
+        "data",
+        "switch",
+        "radio4"
+      ],
+      "data1": [
+        "radio1",
+        "data",
+        "switch",
+        "processor"
+      ],
+      "data2": [
+        "radio2",
+        "data",
+        "switch",
+        "processor"
+      ],
+      "data3": [
+        "radio3",
+        "data",
+        "switch",
+        "processor"
+      ],
+      "data4": [
+        "radio4",
+        "data",
+        "switch",
+        "processor"
+      ],
+      "spectra": [
+        "processor",
+        "data",
+        "switch",
+        "detector"
+      ]
+    },
+    "management_isolation": {
+      "application_bind": "selected-data-address",
+      "ip_forward": false,
+      "ovs_management_acl": "only platform TCP 8080 and UDP 9000; deny node-to-node and forwarding; enforced before release barrier",
+      "per_node_network": true,
+      "platform_routes_data": false
+    },
+    "networks": [
+      {
+        "id": "data",
+        "profile": "ethernet",
+        "realization": "ovs",
+        "subnets": [
+          "10.79.0.0/24"
+        ]
+      }
+    ],
+    "routers": [],
+    "switches": [
+      {
+        "datapath": "system",
+        "id": "switch",
+        "kind": "openvswitch",
+        "mirror": {
+          "id": "mirror",
+          "output_port": "capture",
+          "select_all": true
+        },
+        "name": "gxb5f921d23d032",
+        "ports": [
+          {
+            "id": "capture",
+            "interface": "gxic6523599c131",
+            "peer": "gxpd15eb6c71317"
+          }
+        ]
+      }
+    ]
+  },
+  "version": 1
+}

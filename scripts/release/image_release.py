@@ -276,9 +276,14 @@ def inspect_image(path: Path, role: str, version: str, commit: str, platform: st
             require(metadata is not None, "runtime build dependency metadata missing")
             dependencies = json.loads(metadata)
             require(dependencies.get("yamlCpp") == "0.9.0", "bundled yaml-cpp version mismatch")
+            require(dependencies.get("qualificationHooks") in ("ON", "OFF"),
+                    "qualification hook metadata missing or invalid")
+            qualification_hooks = dependencies["qualificationHooks"] == "ON"
             packages[("yaml-cpp", dependencies["yamlCpp"])] = "MIT"
             packages[("OpenSSL", dependencies["openssl"])] = "Apache-2.0"
         if role == "vita":
+            require(("usr/local/libexec/graphx-vita-recorder-test" in files) == qualification_hooks,
+                    "qualification executable does not match build mode")
             dependencies = json.loads(captured.get("usr/local/share/graphx/vita-dependencies.json", b"{}"))
             pins = {dep["name"]: dep for dep in dependencies.get("dependencies", [])}
             require(set(pins) == {"vrt_framework", "SoapySDR"} and
@@ -309,10 +314,11 @@ def inspect_image(path: Path, role: str, version: str, commit: str, platform: st
         require(role != "telemetry" or any(name == "ws" for name, _ in packages),
                 "telemetry image is missing ws")
         return {"digest": descriptor["digest"], "config_digest": manifest["config"]["digest"],
-                "platform": platform, "packages": sorted([n, v, l] for (n, v), l in packages.items()),
+                "platform": platform, "qualification_hooks": qualification_hooks, "packages": sorted([n, v, l] for (n, v), l in packages.items()),
                 "files": {name: value for name, value in sorted(files.items())
                           if name.startswith(("usr/local/bin/graphx", "opt/graphx-sdr/", "app/",
-                                              "usr/local/share/graphx/", "usr/local/share/doc/graphx/"))}}
+                                              "usr/local/share/graphx/", "usr/local/share/doc/graphx/",
+                                              "usr/local/lib/libSoapySDR", "usr/local/libexec/graphx"))}}
 
 
 def image_sbom(role, inspection, version, epoch):
@@ -343,6 +349,9 @@ def verify(directory: Path) -> dict:
     manifest = json.loads((directory / "images.json").read_bytes())
     require(manifest.get("version") == 1 and set(manifest.get("images", {})) in (DEFAULT_ROLES, set(RECIPES)),
             "invalid shared image release manifest")
+    require(type(manifest.get("qualification_hooks")) is bool and
+            (not manifest["qualification_hooks"] or "vita" in manifest["images"]),
+            "invalid qualification mode")
     version = manifest["release_version"]
     commit = validate_commit(manifest["commit"])
     epoch = validate_epoch(manifest["source_date_epoch"])
@@ -350,6 +359,8 @@ def verify(directory: Path) -> dict:
         archive = directory / (role + ".oci.tar")
         require(sha256_file(archive) == record["archive_sha256"], "image archive checksum mismatch")
         inspection = inspect_image(archive, role, version, commit, manifest["platform"])
+        require(inspection["qualification_hooks"] == manifest["qualification_hooks"],
+                "qualification mode differs from image bytes")
         require(inspection == record["inspection"], "image content differs from release inventory")
         sbom = directory / (role + ".spdx.json")
         require(not sbom.is_symlink() and sbom.read_bytes() == encoded(image_sbom(role, inspection, version, epoch)),
@@ -379,7 +390,7 @@ def catalog_evidence(manifest):
                        for role, record in manifest["images"].items()}}
 
 
-def pin_catalog(source: Path, destination: Path, manifest: dict, vita: Path | None = None) -> None:
+def pin_catalog(source: Path, destination: Path, manifest: dict) -> None:
     """Derive the existing authoritative catalog; this is not a second graph manifest."""
     require(not destination.exists(), "catalog destination already exists")
     lock = json.loads((source / "lock.json").read_bytes())
@@ -390,16 +401,12 @@ def pin_catalog(source: Path, destination: Path, manifest: dict, vita: Path | No
         require(not path.is_symlink() and path.resolve().is_relative_to(source.resolve()) and
                 name not in documents and sha256_file(path) == entry["sha256"], "source catalog digest mismatch")
         documents[name] = json.loads(path.read_bytes())
-    if vita is not None:
-        require("vita" in manifest["images"], "VITA catalog requires verified VITA image")
-        for path in sorted((vita / "types").glob("*.json")):
-            name = "types/" + path.name
-            require(name not in documents, "duplicate VITA type")
-            documents[name] = json.loads(path.read_bytes())
-            lock["files"].append({"path": name, "sha256": ""})
-        schemas = json.loads((vita / "wire-schemas.json").read_bytes())
-        require(not (set(schemas) & set(documents["wire-schemas.json"])), "duplicate VITA schema")
-        documents["wire-schemas.json"].update(schemas)
+    # Optional application roles must not leave unrunnable types in a release.
+    omitted = {"types/" + path.name for path in (source / "types").glob("vita.*.json")
+               if "vita" not in manifest["images"]}
+    for name in omitted:
+        documents.pop(name, None)
+    lock["files"] = [entry for entry in lock["files"] if entry["path"] not in omitted]
     for name, document in documents.items():
         if name == "platform.json":
             role = "telemetry"
@@ -429,7 +436,7 @@ def pin_catalog(source: Path, destination: Path, manifest: dict, vita: Path | No
     (destination / "lock.json").write_bytes(encoded(lock))
 
 
-def smoke_image(archive: Path, role: str, config_digest: str, manifest_digest: str) -> None:
+def smoke_image(archive: Path, role: str, config_digest: str, manifest_digest: str, qualification_hooks=False) -> None:
     # Classic stores use the config digest; containerd stores use the OCI manifest.
     identity = config_digest
     existing = any(subprocess.run(["docker", "image", "inspect", candidate],
@@ -446,7 +453,7 @@ def smoke_image(archive: Path, role: str, config_digest: str, manifest_digest: s
                     "telemetry": [["node", "--check", "/app/server.mjs"],
                                   ["node", "--input-type=module", "-e", "await import('ws'); await import('ajv');"]],
                     "sdr": [[name, "--help"] for name in RECIPES["sdr"][1]],
-                    "vita": [[name, "--help"] for name in RECIPES["vita"][1]] + [["/usr/local/libexec/graphx-vita-recorder-test"]]}[role]
+                    "vita": [[name, "--help"] for name in RECIPES["vita"][1]] + ([["/usr/local/libexec/graphx-vita-recorder-test"]] if qualification_hooks else [])}[role]
         for command in commands:
             container = subprocess.check_output(
                 ["docker", "create", "--network", "none", "--read-only", "--cap-drop", "ALL",
@@ -476,6 +483,7 @@ def smoke_image(archive: Path, role: str, config_digest: str, manifest_digest: s
 
 
 def build(args):
+    require(not args.qualification_hooks or args.with_vita, "qualification hooks require --with-vita")
     source = args.source.resolve()
     output = args.output.resolve()
     require(not output.exists(), "output must be absent")
@@ -490,7 +498,7 @@ def build(args):
     output.mkdir(parents=True)
     manifest = {"version": 1, "release_version": version, "commit": commit,
                 "source_date_epoch": epoch, "dirty_candidate": dirty, "platform": args.platform,
-                "execution_available": False, "qualification_hooks": args.with_vita, "images": {}}
+                "execution_available": False, "qualification_hooks": args.qualification_hooks, "images": {}}
     token = uuid.uuid4().hex
     for role, (dockerfile, _) in RECIPES.items():
         if role == "vita" and not args.with_vita:
@@ -504,7 +512,7 @@ def build(args):
                            "--build-arg", "GRAPHX_REVISION=" + commit,
                            "--build-arg", "GRAPHX_RELEASE_IMAGE_TYPES=ON",
                            "--build-arg", "GRAPHX_BUILD_VITA_RADIO=" + ("ON" if args.with_vita else "OFF"),
-                           "--build-arg", "GRAPHX_QUALIFICATION_HOOKS=" + ("ON" if args.with_vita else "OFF"),
+                           "--build-arg", "GRAPHX_QUALIFICATION_HOOKS=" + ("ON" if args.qualification_hooks else "OFF"),
                            "--build-arg", "SOURCE_DATE_EPOCH=" + str(epoch),
                            "--output", "type=image,oci-mediatypes=true,compression=uncompressed,force-compression=true"]
                 if args.no_cache:
@@ -524,13 +532,12 @@ def build(args):
                 first_archive = sha256_file(archive)
             (output / (role + ".spdx.json")).write_bytes(encoded(image_sbom(role, inspection, version, epoch)))
             manifest["images"][role] = {"archive_sha256": sha256_file(archive), "inspection": inspection}
-            smoke_image(archive, role, inspection["config_digest"], inspection["digest"])
+            smoke_image(archive, role, inspection["config_digest"], inspection["digest"], args.qualification_hooks)
             (output / (role + ".first.oci.tar")).unlink()
         finally:
             subprocess.run(["docker", "image", "rm", tag], check=False, stdout=subprocess.DEVNULL)
     manifest["repeat_builds"] = "no-cache" if args.no_cache else "cache-eligible"
-    pin_catalog(source / "config/catalog", output / "catalog", manifest,
-                source / "config/vita" if args.with_vita else None)
+    pin_catalog(source / "config/catalog", output / "catalog", manifest)
     manifest["catalog_sha256"] = sha256_file(output / "catalog/lock.json")
     (output / "images.json").write_bytes(encoded(manifest))
     verify(output)
@@ -547,7 +554,9 @@ def main():
     build_parser.add_argument("--allow-dirty", action="store_true")
     build_parser.add_argument("--no-cache", action="store_true")
     build_parser.add_argument("--with-vita", action="store_true",
-                              help="include pinned private four-radio qualification applications")
+                              help="include the VITA application image role")
+    build_parser.add_argument("--qualification-hooks", action="store_true",
+                              help="enable private VITA fault-injection fixtures (requires --with-vita)")
     verify_parser = sub.add_parser("verify")
     verify_parser.add_argument("directory", type=Path)
     args = parser.parse_args()

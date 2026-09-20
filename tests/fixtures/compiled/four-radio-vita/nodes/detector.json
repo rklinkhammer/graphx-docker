@@ -1,0 +1,74 @@
+{
+  "bindings": {
+    "spectra": [
+      {
+        "attachments": {
+          "from": "processor-data",
+          "to": "detector-data"
+        },
+        "connection": "spectra",
+        "destination_address": "10.79.0.15",
+        "encoding": "raw",
+        "role": "listen",
+        "schema": "VitaPowerSpectrum",
+        "security": {
+          "profile": "none"
+        },
+        "settings": {
+          "bind": "10.79.0.15",
+          "destination": "10.79.0.15",
+          "framing": "none",
+          "loopback": true,
+          "max_datagram_bytes": 8836,
+          "mode": "unicast",
+          "port": 18600,
+          "receive_buffer_bytes": 65536,
+          "reuse_address": false,
+          "send_buffer_bytes": 65536,
+          "ttl": 1
+        },
+        "source_address": "10.79.0.14",
+        "transport": "udp"
+      }
+    ]
+  },
+  "capture": {
+    "directory": "/captures",
+    "enabled": true,
+    "max_file_bytes": 67108864,
+    "max_files": 2,
+    "max_packets": 100000,
+    "provider": "ovs-span",
+    "retention_seconds": 86400,
+    "snaplen": 65535
+  },
+  "contract_version": 2,
+  "control": "none",
+  "credentials": {},
+  "execution": {
+    "kind": "container"
+  },
+  "graph_id": "four-radio-vita",
+  "graph_version": 3,
+  "node_id": "detector",
+  "observation": [
+    "graphx"
+  ],
+  "parameters": {},
+  "readiness": {
+    "kind": "local-bound",
+    "timeout_ms": 30000
+  },
+  "startup": {
+    "bind_before_connect": true,
+    "max_wait_ms": 600000,
+    "release_barrier": true
+  },
+  "telemetry": {
+    "credential": "runtime-detector",
+    "host": "platform",
+    "port": 9000
+  },
+  "type": "vita.detector",
+  "type_revision": 1
+}

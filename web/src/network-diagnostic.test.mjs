@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
-import { applicationEdges, networkEdges } from './data/topology.js'
+import { applicationEdges, edgeObservationAvailable, networkEdges } from './data/topology.js'
 
 const topology = {
   edges: [{ id: 'routed-flow', source: 'left', target: 'right', transport: 'udp',
@@ -9,6 +9,18 @@ const topology = {
     diagnosticLayer: 'route' }],
   edgePaths: { 'routed-flow': ['left', 'left-net', 'router', 'right-net', 'right'] },
 }
+
+test('unobserved raw edges do not manufacture zero counters or disconnected state', () => {
+  const [edge] = applicationEdges({ edges: [{ id: 'vita', source: 'radio', target: 'processor',
+    dataPlane: 'external', framing: 'none', observationSource: 'ovs-span' }] })
+  assert.equal(edgeObservationAvailable(edge.data, { lastSeen: null, connection: 'disconnected' }), false)
+  assert.equal(edgeObservationAvailable(edge.data, {}), false)
+  assert.equal(edge.data.connection, 'unavailable')
+  assert.equal(edge.data.rate, '—')
+  assert.equal(edge.data.messages, '—')
+  assert.equal(edgeObservationAvailable(edge.data, { lastSeen: 123 }), true)
+  assert.equal(edgeObservationAvailable({ dataPlane: 'graphx' }, { lastSeen: null }), true)
+})
 
 test('network diagnostics remain visible on application and routed hop edges', () => {
   const [application] = applicationEdges(topology)

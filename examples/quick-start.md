@@ -142,3 +142,26 @@ Reset counters requires `--control collector:reset`. If this example is already
 running with pause/resume only, repeat the `up` command above with `--restart`
 to apply both grants and open a newly authenticated console.
 Reset clears collected metrics; it does not restart the pipeline or erase history.
+
+## Four virtual radios in Lima
+
+The [four-radio VITA example](four-radio-vita/README.md) uses four virtual SoapySDR
+radios, an FFT processor/controller, frequency detector and passive recorder.
+After explicitly authorizing privileged execution and preparing the dedicated
+GraphX Lima guest, use the same example workflow:
+
+```sh
+build/dev/graphx example plan four-radio-vita --target lima
+build/dev/graphx example up four-radio-vita --target lima --allow-privileged
+build/dev/graphx example open four-radio-vita --target lima
+build/dev/graphx example logs four-radio-vita --target lima --allow-privileged --node detector
+build/dev/graphx example down four-radio-vita --target lima --allow-privileged
+```
+
+Preparation selects normal VITA images automatically. An explicit verified guest
+`--images` path reuses a selected release. OVS carries application traffic; the
+console uses Mac loopback port 18080. Failed applications do not restart themselves;
+recovery is an explicit whole-graph down/up. Recorder reception and diagnostic
+capture are best effort. See the example's FFT settings and
+[integrated verification](../design/four-radio-vita/verification.md) before treating
+laboratory measurements as sustained or real-time guarantees.

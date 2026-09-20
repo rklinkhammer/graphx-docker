@@ -5,9 +5,11 @@
 The opt-in standalone radio uses `vrt_framework` as its only VITA codec and
 protocol runtime, with one virtual SoapySDR device per radio process. The reusable
 `ControllerSession` uses the same runtime and authenticated transport boundary.
-The opt-in `graphx-vita-processor` and `graphx-vita-detector` implement P2. P3 adds authoritative jumbo attachments and the separate Linux
-`graphx-vita-recorder`; privileged OVS acceptance is pending. Images and the
-complete graph remain P5 work. These targets are not part of published native/OCI releases.
+The opt-in `graphx-vita-processor` and `graphx-vita-detector` implement processing.
+P3/P4 qualify the Linux OVS and degraded lifecycle in the dedicated Lima guest.
+P5 provides the normal shared image role and maintained seven-application example.
+[Integrated acceptance](verification.md) records passing P6 evidence and the requirement
+matrix; [acceptance design](acceptance-design.md) defines its measurement limits.
 
 ## Build and test
 
@@ -68,4 +70,4 @@ See [radio design](radio-design.md), [command contract](command-analysis.md),
 [network design](network-design.md), [P3 verification](p3-verification.md),
 [lifecycle design](lifecycle-design.md) and [P4 verification](p4-verification.md).
 
-For pending live acceptance, start with the [P3/P4 operator runbook](privileged-verification-runbook.md): preparation, Mac-side preflight, authorization, case matrices and owned recovery.
+The [P3/P4 operator runbook](privileged-verification-runbook.md) covers private fault-hook qualification. Normal P6 images and the ordinary example workflow are separate; see [integrated acceptance](verification.md).

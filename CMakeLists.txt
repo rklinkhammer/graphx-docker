@@ -150,10 +150,7 @@ foreach(schema_variable GRAPHX_AUTHORED_SCHEMA GRAPHX_TYPE_SCHEMA GRAPHX_NORMALI
   string(REGEX REPLACE "\n[ \t]+" "\n" ${schema_variable} "${${schema_variable}}")
 endforeach()
 file(GLOB GRAPHX_RUNTIME_TYPE_FILES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/config/catalog/types/*.json")
-if(GRAPHX_BUILD_VITA_RADIO)
-  file(GLOB GRAPHX_VITA_TYPE_FILES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/config/vita/types/*.json")
-  list(APPEND GRAPHX_RUNTIME_TYPE_FILES ${GRAPHX_VITA_TYPE_FILES})
-endif()
+
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${GRAPHX_RUNTIME_TYPE_FILES})
 set(GRAPHX_RUNTIME_TYPES "[")
 option(GRAPHX_RELEASE_IMAGE_TYPES "Embed the container revisions derived by image_release.py" OFF)
@@ -370,6 +367,9 @@ if(GRAPHX_BUILD_TESTS)
     message(STATUS "tshark not found; graphx-wireshark-dissector runtime test is unavailable")
   endif()
   graphx_add_python_test(graphx-example-cli tests/test_example_cli.py 90 "$<TARGET_FILE:graphx-cli>" "${CMAKE_CURRENT_SOURCE_DIR}")
+  graphx_add_python_test(graphx-vita-example tests/test_vita_example.py 45
+    $<TARGET_FILE:graphx-cli> ${CMAKE_SOURCE_DIR})
+  graphx_add_python_test(graphx-vita-acceptance-contract tests/test_vita_acceptance_contract.py 15)
   graphx_add_python_test(graphx-config-cli tests/test_example_configs.py 45
     $<TARGET_FILE:graphx-cli> ${CMAKE_SOURCE_DIR})
   graphx_add_python_test(graphx-config-v3-matrix tests/test_config_v3_matrix.py 120

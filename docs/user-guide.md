@@ -211,6 +211,15 @@ barrier before binding. Container `no-new-privileges` remains enabled.
 See the [P3 network design](../design/four-radio-vita/network-design.md) and
 [Lima qualification](../design/four-radio-vita/p3-verification.md).
 
+The maintained [four-radio VITA example](../examples/four-radio-vita/README.md)
+uses these reusable catalog types. The standard example workflow selects the
+optional VITA image role automatically, or accepts a verified release built with
+`scripts/release/image_release.py build --with-vita`. Normal images disable fault
+hooks; `--qualification-hooks` is reserved for private P3/P4 qualification and is
+rejected by the maintained example workflow. See
+[P5 verification](../design/four-radio-vita/p5-verification.md) for release pins
+and execution status.
+
 ## Configure telemetry
 
 The platform receives authenticated runtime events and serves live topology,
@@ -1488,3 +1497,24 @@ codes or private external credential files. Read [support](../SUPPORT.md) and
 
 See [configuration](#configuration-reference), [architecture](GraphX_Architecture.md) and
 [CLI reference](#cli-reference) for the corresponding contracts.
+
+## Four-radio VITA operation
+
+The [four-radio example](../examples/four-radio-vita/README.md) documents the normal
+CLI workflow, supported FFT sizes (64–2048, powers of two), rectangular/Hann windows,
+0/50/75% overlap and exact rational bin-width settings. Its four default tones are
+50/100/150/200 kHz above the 100 MHz receiver center. Detector node logs expose RF
+frequency, stream, sequence, time and valid-sample count through the authenticated
+console; there is no separate live tuning control.
+
+Use `example status` for owned process state and detector/processor logs for fresh
+results. A ready process can have stale data. A failed radio leaves the other
+streams running; a stopped recorder does not stop forwarding. Automatic container
+restart and individual-container recovery are unsupported. After inspecting logs,
+use explicit `example down` followed by `example up` with the same instance and
+verified image selection. Changed source requires `--restart` or a new instance.
+The explicit `iq-loss-jitter` scenario is bounded and affects all inbound processor
+traffic; it is never applied at ordinary startup. Capture is best effort and
+infrastructure PCAPNG evidence is distinct from the receive/discard recorder.
+[Integrated verification](../design/four-radio-vita/verification.md) records measured
+results and unrun requirements.

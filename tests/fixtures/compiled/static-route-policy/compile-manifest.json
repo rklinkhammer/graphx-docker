@@ -1,6 +1,6 @@
 {
   "artifact_identities_verified": false,
-  "catalog_digest": "9f8a65ada1cfbd81f285cfa948fd351e39f10676d876dddd41f031607a5392cb",
+  "catalog_digest": "ca27ee68f31fb9e1d0716cdb590862c17af163d487a9afdf34b6ceddc355ccef",
   "compiler": "graphx-compiler-1",
   "compiler_version": "1.1.0",
   "execution_available": true,
@@ -11,7 +11,7 @@
     },
     {
       "path": "catalog-pins.json",
-      "sha256": "07c899753b7164f03cc80971c6d1b1b3c6e1445c87693b3a78f00d7ac3fe20ad"
+      "sha256": "57b44b8d5a806e9274f0a37896ef77d8c8755511708d0fa03b85e2bc3fba5345"
     },
     {
       "path": "compose.yaml",
@@ -51,7 +51,7 @@
     },
     {
       "path": "resolved.json",
-      "sha256": "0e862392c4907356f1463917031e18540922d7493075f6a5a9a26cf2fdd06c21"
+      "sha256": "74b8d30a8069d043bf62c755a59c149f75f453b46ca0b7f25d0ae78dcc14f805"
     },
     {
       "path": "scenario-plan.json",

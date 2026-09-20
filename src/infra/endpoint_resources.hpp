@@ -20,6 +20,10 @@ struct ResolvedContainer {
   std::uint64_t namespace_inode{};
 };
 
+// Reconstruct deployment bindings from the identity-checked compiled ledger.
+// Shared by ordinary lifecycle and scenario ownership validation.
+void bind_owned_container_services(GraphConfig& config, const OwnershipState& state);
+
 ResolvedContainer resolve_owned_container(const GraphConfig& config, std::string_view owner,
                                           const OwnershipState& state);
 ResolvedContainer resolve_container(const GraphConfig& config, std::string_view owner);

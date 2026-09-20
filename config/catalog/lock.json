@@ -95,8 +95,24 @@
       "sha256": "ad44186142e26b09ab38b82fed1c353a2b8bfc3543f6c0de56c5df5f8a4008c8"
     },
     {
+      "path": "types/vita.detector.json",
+      "sha256": "b61fa3394c95a1d6247e944e66d1823f00599ab47bcce8c905d0912cf699ab36"
+    },
+    {
+      "path": "types/vita.processor.json",
+      "sha256": "52f8db6286f40367cef0fe1b52dd3804d19f89b1ce73e20d3e0c5247f51ac5dc"
+    },
+    {
+      "path": "types/vita.radio.json",
+      "sha256": "3464c08aa82c57094929ae7edbb60077e617d122484fd18cca066ea884fd22f3"
+    },
+    {
+      "path": "types/vita.recorder.json",
+      "sha256": "c5bcc23ca9da9679affd3830c53158f07e40e3dc41677c695dc09d1dca8eb7ce"
+    },
+    {
       "path": "wire-schemas.json",
-      "sha256": "0ae77591243da808db343fad975dac1c7b8e514fb6e9a8955a437a9808f5e8a6"
+      "sha256": "d450937f228627310037e3912c39101d0b52a00a15ef428b701289ab81d83704"
     }
   ],
   "revision": "graphx-v3-p1",

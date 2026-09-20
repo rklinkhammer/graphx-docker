@@ -1,0 +1,46 @@
+{
+  "bindings": {},
+  "capture": {
+    "directory": "/captures",
+    "enabled": false,
+    "max_file_bytes": 67108864,
+    "max_files": 2,
+    "max_packets": 100000,
+    "provider": "ovs-span",
+    "retention_seconds": 86400,
+    "snaplen": 65535
+  },
+  "contract_version": 2,
+  "control": "none",
+  "credentials": {},
+  "execution": {
+    "kind": "container"
+  },
+  "graph_id": "four-radio-vita",
+  "graph_version": 3,
+  "node_id": "recorder",
+  "observation": [
+    "graphx"
+  ],
+  "parameters": {},
+  "readiness": {
+    "kind": "local-bound",
+    "timeout_ms": 30000
+  },
+  "recorder": {
+    "interface": "gxpd15eb6c71317",
+    "mtu": 9000
+  },
+  "startup": {
+    "bind_before_connect": true,
+    "max_wait_ms": 600000,
+    "release_barrier": true
+  },
+  "telemetry": {
+    "credential": "runtime-recorder",
+    "host": "platform",
+    "port": 9000
+  },
+  "type": "vita.recorder",
+  "type_revision": 1
+}

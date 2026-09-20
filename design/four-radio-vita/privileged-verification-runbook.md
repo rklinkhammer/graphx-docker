@@ -45,7 +45,7 @@ cat outputs/verification/p301-fix/prepared-identity/preparation.json
 To rebuild after a source change, choose **absent output directories**, then run:
 
 ```sh
-python3 scripts/release/image_release.py build --with-vita --no-cache --allow-dirty \
+python3 scripts/release/image_release.py build --with-vita --qualification-hooks --no-cache --allow-dirty \
   --platform linux/arm64 \
   --output outputs/verification/p34-rebuild/images
 python3 tests/test_vita_live.py --prepare \
@@ -62,7 +62,7 @@ the separate Linux recorder test verifies receive-descriptor restrictions withou
 network privileges. No image is published. The dependency remains
 `dbe85d37155145842da60367af1c4beef8801b0c`.
 
-`--with-vita` deliberately enables `GRAPHX_QUALIFICATION_HOOKS` in this private
+`--qualification-hooks` deliberately enables `GRAPHX_QUALIFICATION_HOOKS` in this private
 candidate. Normal CMake/Docker builds leave those hooks off. The hooks inject exit
 75, exit 78 or a bounded stall **inside the real bound application before readiness**;
 they also let the harness pause its exact runner child at an infrastructure mutation

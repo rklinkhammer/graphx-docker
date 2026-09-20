@@ -1,0 +1,363 @@
+{
+  "bindings": {
+    "control1": [
+      {
+        "attachments": {
+          "from": "processor-data",
+          "to": "radio1-data"
+        },
+        "connection": "control1",
+        "destination_address": "10.79.0.10",
+        "encoding": "raw",
+        "role": "connect",
+        "schema": "VitaControl",
+        "security": {
+          "profile": "mtls",
+          "server_name": "radio"
+        },
+        "settings": {
+          "bind": "10.79.0.10",
+          "connect_timeout_ms": 5000,
+          "framing": "none",
+          "host": "10.79.0.10",
+          "port": 18401,
+          "reconnect": true,
+          "retry": {
+            "initial_backoff_ms": 100,
+            "max_attempts": 60,
+            "max_backoff_ms": 2000
+          },
+          "send_timeout_ms": 5000
+        },
+        "source_address": "10.79.0.14",
+        "transport": "tcp"
+      }
+    ],
+    "control2": [
+      {
+        "attachments": {
+          "from": "processor-data",
+          "to": "radio2-data"
+        },
+        "connection": "control2",
+        "destination_address": "10.79.0.11",
+        "encoding": "raw",
+        "role": "connect",
+        "schema": "VitaControl",
+        "security": {
+          "profile": "mtls",
+          "server_name": "radio"
+        },
+        "settings": {
+          "bind": "10.79.0.11",
+          "connect_timeout_ms": 5000,
+          "framing": "none",
+          "host": "10.79.0.11",
+          "port": 18402,
+          "reconnect": true,
+          "retry": {
+            "initial_backoff_ms": 100,
+            "max_attempts": 60,
+            "max_backoff_ms": 2000
+          },
+          "send_timeout_ms": 5000
+        },
+        "source_address": "10.79.0.14",
+        "transport": "tcp"
+      }
+    ],
+    "control3": [
+      {
+        "attachments": {
+          "from": "processor-data",
+          "to": "radio3-data"
+        },
+        "connection": "control3",
+        "destination_address": "10.79.0.12",
+        "encoding": "raw",
+        "role": "connect",
+        "schema": "VitaControl",
+        "security": {
+          "profile": "mtls",
+          "server_name": "radio"
+        },
+        "settings": {
+          "bind": "10.79.0.12",
+          "connect_timeout_ms": 5000,
+          "framing": "none",
+          "host": "10.79.0.12",
+          "port": 18403,
+          "reconnect": true,
+          "retry": {
+            "initial_backoff_ms": 100,
+            "max_attempts": 60,
+            "max_backoff_ms": 2000
+          },
+          "send_timeout_ms": 5000
+        },
+        "source_address": "10.79.0.14",
+        "transport": "tcp"
+      }
+    ],
+    "control4": [
+      {
+        "attachments": {
+          "from": "processor-data",
+          "to": "radio4-data"
+        },
+        "connection": "control4",
+        "destination_address": "10.79.0.13",
+        "encoding": "raw",
+        "role": "connect",
+        "schema": "VitaControl",
+        "security": {
+          "profile": "mtls",
+          "server_name": "radio"
+        },
+        "settings": {
+          "bind": "10.79.0.13",
+          "connect_timeout_ms": 5000,
+          "framing": "none",
+          "host": "10.79.0.13",
+          "port": 18404,
+          "reconnect": true,
+          "retry": {
+            "initial_backoff_ms": 100,
+            "max_attempts": 60,
+            "max_backoff_ms": 2000
+          },
+          "send_timeout_ms": 5000
+        },
+        "source_address": "10.79.0.14",
+        "transport": "tcp"
+      }
+    ],
+    "data1": [
+      {
+        "attachments": {
+          "from": "radio1-data",
+          "to": "processor-data"
+        },
+        "connection": "data1",
+        "destination_address": "10.79.0.14",
+        "encoding": "raw",
+        "role": "listen",
+        "schema": "VitaIq",
+        "security": {
+          "profile": "none"
+        },
+        "settings": {
+          "bind": "10.79.0.14",
+          "destination": "10.79.0.14",
+          "framing": "none",
+          "loopback": true,
+          "max_datagram_bytes": 4128,
+          "mode": "unicast",
+          "port": 18501,
+          "receive_buffer_bytes": 65536,
+          "reuse_address": false,
+          "send_buffer_bytes": 65536,
+          "ttl": 1
+        },
+        "source_address": "10.79.0.10",
+        "transport": "udp"
+      }
+    ],
+    "data2": [
+      {
+        "attachments": {
+          "from": "radio2-data",
+          "to": "processor-data"
+        },
+        "connection": "data2",
+        "destination_address": "10.79.0.14",
+        "encoding": "raw",
+        "role": "listen",
+        "schema": "VitaIq",
+        "security": {
+          "profile": "none"
+        },
+        "settings": {
+          "bind": "10.79.0.14",
+          "destination": "10.79.0.14",
+          "framing": "none",
+          "loopback": true,
+          "max_datagram_bytes": 4128,
+          "mode": "unicast",
+          "port": 18502,
+          "receive_buffer_bytes": 65536,
+          "reuse_address": false,
+          "send_buffer_bytes": 65536,
+          "ttl": 1
+        },
+        "source_address": "10.79.0.11",
+        "transport": "udp"
+      }
+    ],
+    "data3": [
+      {
+        "attachments": {
+          "from": "radio3-data",
+          "to": "processor-data"
+        },
+        "connection": "data3",
+        "destination_address": "10.79.0.14",
+        "encoding": "raw",
+        "role": "listen",
+        "schema": "VitaIq",
+        "security": {
+          "profile": "none"
+        },
+        "settings": {
+          "bind": "10.79.0.14",
+          "destination": "10.79.0.14",
+          "framing": "none",
+          "loopback": true,
+          "max_datagram_bytes": 4128,
+          "mode": "unicast",
+          "port": 18503,
+          "receive_buffer_bytes": 65536,
+          "reuse_address": false,
+          "send_buffer_bytes": 65536,
+          "ttl": 1
+        },
+        "source_address": "10.79.0.12",
+        "transport": "udp"
+      }
+    ],
+    "data4": [
+      {
+        "attachments": {
+          "from": "radio4-data",
+          "to": "processor-data"
+        },
+        "connection": "data4",
+        "destination_address": "10.79.0.14",
+        "encoding": "raw",
+        "role": "listen",
+        "schema": "VitaIq",
+        "security": {
+          "profile": "none"
+        },
+        "settings": {
+          "bind": "10.79.0.14",
+          "destination": "10.79.0.14",
+          "framing": "none",
+          "loopback": true,
+          "max_datagram_bytes": 4128,
+          "mode": "unicast",
+          "port": 18504,
+          "receive_buffer_bytes": 65536,
+          "reuse_address": false,
+          "send_buffer_bytes": 65536,
+          "ttl": 1
+        },
+        "source_address": "10.79.0.13",
+        "transport": "udp"
+      }
+    ],
+    "spectra": [
+      {
+        "attachments": {
+          "from": "processor-data",
+          "to": "detector-data"
+        },
+        "connection": "spectra",
+        "destination_address": "10.79.0.15",
+        "encoding": "raw",
+        "role": "connect",
+        "schema": "VitaPowerSpectrum",
+        "security": {
+          "profile": "none"
+        },
+        "settings": {
+          "bind": "10.79.0.15",
+          "destination": "10.79.0.15",
+          "framing": "none",
+          "loopback": true,
+          "max_datagram_bytes": 8836,
+          "mode": "unicast",
+          "port": 18600,
+          "receive_buffer_bytes": 65536,
+          "reuse_address": false,
+          "send_buffer_bytes": 65536,
+          "ttl": 1
+        },
+        "source_address": "10.79.0.14",
+        "transport": "udp"
+      }
+    ]
+  },
+  "capture": {
+    "directory": "/captures",
+    "enabled": true,
+    "max_file_bytes": 67108864,
+    "max_files": 2,
+    "max_packets": 100000,
+    "provider": "ovs-span",
+    "retention_seconds": 86400,
+    "snaplen": 65535
+  },
+  "contract_version": 2,
+  "control": "none",
+  "credentials": {
+    "control1": "controller",
+    "control2": "controller",
+    "control3": "controller",
+    "control4": "controller"
+  },
+  "execution": {
+    "kind": "container"
+  },
+  "graph_id": "four-radio-vita",
+  "graph_version": 3,
+  "node_id": "processor",
+  "observation": [
+    "graphx"
+  ],
+  "parameters": {
+    "bandwidth1": 800000,
+    "bandwidth2": 800000,
+    "bandwidth3": 800000,
+    "bandwidth4": 800000,
+    "bin_width_denominator1": 32,
+    "bin_width_denominator2": 32,
+    "bin_width_denominator3": 32,
+    "bin_width_denominator4": 32,
+    "bin_width_numerator_hz1": 15625,
+    "bin_width_numerator_hz2": 15625,
+    "bin_width_numerator_hz3": 15625,
+    "bin_width_numerator_hz4": 15625,
+    "center1": 100000000,
+    "center2": 100000000,
+    "center3": 100000000,
+    "center4": 100000000,
+    "gain_db1": 0,
+    "gain_db2": 0,
+    "gain_db3": 0,
+    "gain_db4": 0,
+    "overlap_percent": 0,
+    "path_mtu": 9000,
+    "rate1": 1000000,
+    "rate2": 1000000,
+    "rate3": 1000000,
+    "rate4": 1000000,
+    "window": 0
+  },
+  "readiness": {
+    "kind": "local-bound",
+    "timeout_ms": 30000
+  },
+  "startup": {
+    "bind_before_connect": true,
+    "max_wait_ms": 600000,
+    "release_barrier": true
+  },
+  "telemetry": {
+    "credential": "runtime-processor",
+    "host": "platform",
+    "port": 9000
+  },
+  "type": "vita.processor",
+  "type_revision": 1
+}

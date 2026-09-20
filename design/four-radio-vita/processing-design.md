@@ -6,8 +6,9 @@ Status: production native applications implemented; acceptance results are in
 The native opt-in `vita.processor` owns four separately bound UDP inputs and four
 ControllerSession instances. `vita.detector` consumes a distinct raw UDP power
 spectrum schema. All endpoint, credential and parameter bindings use the existing
-normalizer and node lifecycle. P3 adds optional container execution and managed jumbo attachments; live path
-qualification is pending. P5 publication remains deferred.
+normalizer and node lifecycle. P3/P4 qualify container execution and managed jumbo
+attachments in Lima. [P5 packaging](packaging-design.md) provides the normal shared
+image role and maintained authored example; registry publication is not claimed.
 The VRT pin remains dbe85d37155145842da60367af1c4beef8801b0c.
 
 ## Samples and control
@@ -127,8 +128,9 @@ of 1000003 and N=2048, use numerator 1000003 and denominator 2048.
 `window` is 0/1; `overlap_percent` is 0/50/75; `path_mtu` defaults to 9000.
 The authoritative loader and normalized-node loader reject unsupported rational
 spacing, bandwidth above rate, insufficient MTU/datagram bounds, non-unicast raw
-bindings and unauthenticated control. The opt-in catalogs live in `config/vita/`;
-normalization fixtures use a private locked catalog. No image is published in P2.
+bindings and unauthenticated control. Reusable VITA types and wire schemas live
+in `config/catalog/`; normalization fixtures use a private locked catalog. The
+optional shared VITA image role is described in [packaging design](packaging-design.md).
 
 Per input: at most 32 queued packets of 1024 complex samples, 128 bounded header
 hints for library Context deferral, and N buffered samples. The VITA runtime owns

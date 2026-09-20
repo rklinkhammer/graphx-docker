@@ -1,0 +1,83 @@
+{
+  "artifact_identities_verified": false,
+  "catalog_digest": "ca27ee68f31fb9e1d0716cdb590862c17af163d487a9afdf34b6ceddc355ccef",
+  "compiler": "graphx-compiler-1",
+  "compiler_version": "1.1.0",
+  "execution_available": true,
+  "files": [
+    {
+      "path": "capture-handoff.json",
+      "sha256": "370456250d551c2d1b1b510285dd0f3c2ac8a8a954f6bf36d52fd5bd11812009"
+    },
+    {
+      "path": "catalog-pins.json",
+      "sha256": "57b44b8d5a806e9274f0a37896ef77d8c8755511708d0fa03b85e2bc3fba5345"
+    },
+    {
+      "path": "compose.yaml",
+      "sha256": "319e5c3d88126c06ac4c903aba3773d650ff6f408241cf655bf4cdce56291c2f"
+    },
+    {
+      "path": "credentials.json",
+      "sha256": "f96bcf6115b7fb687613bdba173877b928edd116e9099f28ace35ff8364ffd3d"
+    },
+    {
+      "path": "execution-plan.json",
+      "sha256": "40b47dd6c322b3e37bfbb798c8a4fe3d105795316b3d0e474a20dfa9ec76c9e2"
+    },
+    {
+      "path": "nodes/detector.json",
+      "sha256": "74ed90672cf66a18298690eb088b43bc6dafe058e0ef085b737408a4b055180d"
+    },
+    {
+      "path": "nodes/processor.json",
+      "sha256": "506f65a83dfb440fcb5a4153801ffbc1737c7a836786df5b60e3ab05a527838c"
+    },
+    {
+      "path": "nodes/radio1.json",
+      "sha256": "d71d056fb0d442a0af3c9d9abd3bd6601773676c7ea81db53c39938cbf2c94e0"
+    },
+    {
+      "path": "nodes/radio2.json",
+      "sha256": "c68993ddb8de4926c4d3543f45c3cdf230e822f63464c7fb263b6adeb818e387"
+    },
+    {
+      "path": "nodes/radio3.json",
+      "sha256": "7a6d9458970505d55f78bc1de34bc3f73d45b03270b7d46bb30003c2603cfe6e"
+    },
+    {
+      "path": "nodes/radio4.json",
+      "sha256": "eaba9b7376a7766c4a80378089a70322cac6d8bc0f1fdccf75255449f769346d"
+    },
+    {
+      "path": "nodes/recorder.json",
+      "sha256": "1cd62f4049f8501590a9f7a1053d0d3ec4af49629355623d1ceffae4324685ba"
+    },
+    {
+      "path": "ovs-plan.json",
+      "sha256": "090d7869ba85331f1eb567ddd35406fafa14d2d29796ab5f7d5a3d3514abaa8e"
+    },
+    {
+      "path": "platform.json",
+      "sha256": "d03f1859b617cc204e8f12031f6357df71b89be51e44df2f3731b37d83315c5b"
+    },
+    {
+      "path": "resolved.json",
+      "sha256": "6a3ffe4aa0cd20ae23ba8b2ce3a9c2d5ec357505752398921e8270ca843dc7ee"
+    },
+    {
+      "path": "scenario-plan.json",
+      "sha256": "3d5eb7933253dade1284034616adf842de096ae8c4569fe594618fa315b107ef"
+    },
+    {
+      "path": "substitutions.json",
+      "sha256": "af5ac63f7542b74af7c2b2038b69d8ea1690df8955daf3163bb8ec5fcfea7891"
+    }
+  ],
+  "graph_id": "four-radio-vita",
+  "input_digest": "9bcd179e4665d6659c98f77620f2eeb0480125d53727bbd9f100b9d5d6485555",
+  "replacement": "refused; use fresh output until owned-consumer inactivity can be verified",
+  "serializer": "graphx-json-1-yaml12-subset",
+  "target": "native-linux",
+  "version": 1
+}

@@ -40,7 +40,7 @@ def image(role, *, platform="arm64", user="65532:65532", extra=None, corrupt=Fal
     files = {"usr/local/bin/" + name: b"test executable" for name in RECIPES[role][1]}
     files.update({"lib/apk/db/installed": b"P:libc\nV:1.0\nL:MIT\n"})
     if role in RECIPES:
-        files["usr/local/share/graphx/build-dependencies.json"] = b'{"yamlCpp":"0.9.0","openssl":"3.0.0"}'
+        files["usr/local/share/graphx/build-dependencies.json"] = b'{"yamlCpp":"0.9.0","openssl":"3.0.0","qualificationHooks":"OFF"}'
     if role == "vita":
         files["usr/local/share/graphx/vita-dependencies.json"] = (ROOT / "config/vita/dependencies.json").read_bytes()
         files["usr/local/share/graphx/vita-dependencies.spdx.json"] = b"{}"
@@ -94,7 +94,7 @@ with tempfile.TemporaryDirectory() as temporary:
     rejected(lambda: inspect_image(incomplete, 'telemetry', '1.1.0', COMMIT, 'linux/arm64'))
     incomplete.unlink()
     manifest = {"version": 1, "release_version": "1.1.0", "commit": COMMIT,
-                "source_date_epoch": 1700000000, "dirty_candidate": True,
+                "source_date_epoch": 1700000000, "dirty_candidate": True, "qualification_hooks": False,
                 "platform": "linux/arm64", "images": {}}
     for role in RECIPES:
         path = root / (role + ".oci.tar")
@@ -103,10 +103,23 @@ with tempfile.TemporaryDirectory() as temporary:
         assert inspection["digest"] != inspection["config_digest"]
         manifest["images"][role] = {"archive_sha256": sha256_file(path), "inspection": inspection}
         (root / (role + ".spdx.json")).write_bytes(encoded(image_sbom(role, inspection, "1.1.0", 1700000000)))
-    pin_catalog(ROOT / "config/catalog", root / "vita-catalog", manifest, ROOT / "config/vita")
+    default = {**manifest, "images": {k: v for k, v in manifest["images"].items() if k != "vita"}}
+    pin_catalog(ROOT / "config/catalog", root / "default-catalog", default)
+    assert not list((root / "default-catalog/types").glob("vita.*.json"))
+    for extra in ({"usr/local/libexec/graphx-vita-recorder-test": b"unexpected fixture"},
+                  {"usr/local/share/graphx/build-dependencies.json":
+                   b'{"yamlCpp":"0.9.0","openssl":"3.0.0","qualificationHooks":"ON"}'}):
+        incomplete.write_bytes(image("vita", extra=extra))
+        rejected(lambda: inspect_image(incomplete, "vita", "1.1.0", COMMIT, "linux/arm64"))
+    incomplete.write_bytes(image("vita", extra={
+        "usr/local/libexec/graphx-vita-recorder-test": b"qualification fixture",
+        "usr/local/share/graphx/build-dependencies.json":
+        b'{"yamlCpp":"0.9.0","openssl":"3.0.0","qualificationHooks":"ON"}'}))
+    assert inspect_image(incomplete, "vita", "1.1.0", COMMIT, "linux/arm64")["qualification_hooks"]
+    pin_catalog(ROOT / "config/catalog", root / "vita-catalog", manifest)
     vita_type = json.loads((root / "vita-catalog/types/vita.radio.json").read_bytes())
     assert vita_type["image"] == catalog_evidence(manifest)["images"]["vita"]["image"]
-    assert vita_type["revision"] == json.loads((ROOT / "config/vita/types/vita.radio.json").read_bytes())["revision"] + 1
+    assert vita_type["revision"] == json.loads((ROOT / "config/catalog/types/vita.radio.json").read_bytes())["revision"] + 1
     for missing in ("graphx-vita-recorder", "graphx-vita-detector"):
         incomplete.write_bytes(image("vita", omit=("usr/local/bin/" + missing,)))
         rejected(lambda: inspect_image(incomplete, "vita", "1.1.0", COMMIT, "linux/arm64"))
@@ -128,6 +141,10 @@ with tempfile.TemporaryDirectory() as temporary:
     (root / "images.json").write_bytes(encoded(manifest))
     # JSON round-tripping is part of the independent verifier boundary.
     verify(root)
+    changed_mode = {**manifest, "qualification_hooks": True}
+    (root / "images.json").write_bytes(encoded(changed_mode))
+    rejected(lambda: verify(root))
+    (root / "images.json").write_bytes(encoded(manifest))
     sbom = root / "sdr.spdx.json"
     saved = sbom.read_bytes()
     sbom.write_text("{}")

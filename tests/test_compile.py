@@ -129,7 +129,7 @@ with tempfile.TemporaryDirectory(prefix='graphx-p3-') as temporary:
 
     # Maintained production goldens cover every serializer family, not review hashes.
     goldens = {'sample-pipeline': 'sample-pipeline', 'shared-memory': 'shared-memory', 'qemu-tap': 'qemu-node/tap',
-               'sdr-simulated': 'sdr-node/simulated', 'static-route-policy': 'static-route-policy'}
+               'sdr-simulated': 'sdr-node/simulated', 'static-route-policy': 'static-route-policy', 'four-radio-vita': 'four-radio-vita'}
     for label, example in goldens.items():
         output = temp / ('golden-' + label)
         result = compile_to(root / f'examples/{example}/graphx.yml', output)

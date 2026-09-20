@@ -16,11 +16,12 @@ control, unicast IQ delivery and downstream feature-processing traffic.
 
 This system models a future real configuration, with distinct radio, IQ processor,
 feature-detection and recorder applications. The recorder placeholder preserves that
-application boundary while deferring persistence. This is a specification for new
-work, not documentation of an available example.
-The workspace has reusable SDR, networking, capture and console components, but
-it does not yet provide this four-radio SoapySDR/VITA system. Updating this document
-does not authorize implementation, infrastructure provisioning or privileged tests.
+application boundary while deferring persistence. This brief defines the complete
+target system. The maintained [four-radio example](../examples/four-radio-vita/README.md)
+and normal shared VITA image role implement the P5 packaging surface. See
+[P5 verification](../design/four-radio-vita/p5-verification.md) for its current
+packaging and authorized Lima execution evidence; [P6 integrated acceptance](../design/four-radio-vita/verification.md) records the passing sustained, fault, recovery and browser checks.
+Updating this document does not authorize infrastructure provisioning or privileged tests.
 
 See the [phased implementation plan](../design/four-radio-vita/implementation-plan.md)
 for sequencing, deliverables and exit criteria. P1 develops and tests the radio as
@@ -736,10 +737,12 @@ examples. Serial grants apply only to QEMU; pause/resume/reset grants do not imp
 authorize tuning a radio. Define and test any new radio controls through existing
 credential, authorization, runtime-identity and audit contracts.
 
-## Intended user workflow
+## User workflow
 
-Use the existing `graphx example` CLI. These commands describe the **future example**
-and are not runnable until its graph, types and artifacts are implemented:
+Use the existing `graphx example` CLI with the maintained
+[four-radio example](../examples/four-radio-vita/README.md). On macOS the privileged
+workload runs in the identity-matched GraphX Lima guest. Select verified normal
+VITA images explicitly when reusing a prepared release:
 
 ```sh
 graphx example plan four-radio-vita
@@ -750,11 +753,12 @@ graphx example logs four-radio-vita --node radio1 --allow-privileged
 graphx example down four-radio-vita --allow-privileged
 ```
 
-Document only implemented control grants and scenario action IDs. Reuse
-`graphx example scenario` for a declared verification action if its requirements
-fit the supported scenario model; otherwise extend that model with tests first.
+The explicit `iq-loss-jitter` scenario applies bounded loss and jitter to the
+processor's owned ingress attachment. It does not run on startup. The example has
+no live retuning grant or automatic restart; recovery uses whole-graph down/up.
 
-Explain `--restart`, named `--instance` runs and conflicting ports. A saved explicit
+Use `--instance` for named runs; concurrent instances need distinct console ports
+and nonoverlapping data subnets. A saved explicit
 `--images` or `--release` selection persists across restart; select newly built
 verified artifacts explicitly when an old release lacks new runtime features.
 Do not instruct users to erase ownership records or broadly prune Docker resources.

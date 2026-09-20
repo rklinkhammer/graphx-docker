@@ -237,6 +237,18 @@ bool hexadecimal(std::string_view value) {
 
 }  // namespace
 
+bool retained_only(const OwnershipState& state) {
+  return state.status == "destroying" && state.expected_bridges.empty() && state.bridges.empty() &&
+         state.expected_endpoints.empty() && state.endpoints.empty() &&
+         state.expected_namespaces.empty() && state.namespaces.empty() &&
+         state.expected_captures.empty() && state.captures.empty() &&
+         state.expected_faults.empty() && state.faults.empty() &&
+         std::ranges::all_of(state.processes, [&](const auto& process) {
+           return process.kind == "volume" && process.stable_id != "pending" &&
+                  process.name != "graphx-" + state.graph_id + "-credentials";
+         });
+}
+
 OwnedResourceIdentity bridge_identity(std::string name, std::string uuid,
                                       std::string internal_port_uuid) {
   OwnedResourceIdentity identity;

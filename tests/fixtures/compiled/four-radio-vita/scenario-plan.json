@@ -1,0 +1,16 @@
+{
+  "actions": [
+    {
+      "action": "fault",
+      "attachment": "processor-data",
+      "delay_ms": 8,
+      "duration_seconds": 20,
+      "id": "iq-loss-jitter",
+      "jitter_ms": 6,
+      "loss_percent": 2
+    }
+  ],
+  "baseline_config": "resolved.json",
+  "implicit_start": false,
+  "version": 1
+}

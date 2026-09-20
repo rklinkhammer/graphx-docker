@@ -1,0 +1,13 @@
+{
+  "api": "export_owned_network_capture",
+  "captures": [
+    {
+      "destination": "${GX_STATE}/handoff/diagnostic.pcapng",
+      "id": "diagnostic",
+      "interval_seconds": 5,
+      "max_bytes": 4194304
+    }
+  ],
+  "permissions": "sealed read-only snapshots to platform group; live rings remain privileged",
+  "version": 1
+}

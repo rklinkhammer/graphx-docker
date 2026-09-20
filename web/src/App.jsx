@@ -6,7 +6,7 @@ import { EdgeInspector } from './components/EdgeInspector'
 import { ControlCommandStatus } from './components/ControlCommandStatus'
 import { HistoryPanel } from './components/HistoryPanel'
 import { Topology } from './components/Topology'
-import { applicationEdges, applicationNodes, infrastructureNodes, networkEdges } from './data/topology'
+import { applicationEdges, applicationNodes, edgeObservationAvailable, infrastructureNodes, networkEdges } from './data/topology'
 import { controlCommandRequest, persistObservationToken, initializeConsoleSession } from './auth'
 import { useTelemetry } from './useTelemetry'
 
@@ -70,6 +70,9 @@ export default function App() {
       ...availableCaptures.filter(file => file.format === 'ethernet' &&
         file.nodeId !== edge.source && file.nodeId !== edge.target),
     ]
+    if (!edgeObservationAvailable(edge.data, metric))
+      return { ...edge, data: { ...edge.data, captureFiles,
+        connection: metric.diagnosticEvidence ? metric.connection : 'unavailable' } }
     return { ...edge, data: { ...edge.data,
       rate: `${metric.messageRate.toLocaleString()} msg/s`,
       byteRate: `${formatBytes(metric.byteRate)}/s`,

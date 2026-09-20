@@ -70,9 +70,9 @@ class TlsRelay:
 with tempfile.TemporaryDirectory(prefix='graphx-vita-processing-') as directory:
     root=Path(directory).resolve();credentials=root/'credentials';credentials.mkdir();certificates(credentials)
     catalog=root/'catalog';shutil.copytree(ROOT/'config/catalog',catalog)
-    for path in (ROOT/'config/vita/types').glob('*.json'):shutil.copy2(path,catalog/'types'/path.name)
-    wire=json.loads((catalog/'wire-schemas.json').read_text());wire.update(json.loads((ROOT/'config/vita/wire-schemas.json').read_text()));(catalog/'wire-schemas.json').write_text(json.dumps(wire))
-    lock=json.loads((catalog/'lock.json').read_text());paths={x['path'] for x in lock['files']}|{f'types/{p.name}' for p in (ROOT/'config/vita/types').glob('*.json')};lock['files']=[{'path':p,'sha256':hashlib.sha256((catalog/p).read_bytes()).hexdigest()} for p in sorted(paths)];(catalog/'lock.json').write_text(json.dumps(lock))
+    for path in (ROOT/'config/catalog/types').glob('*.json'):shutil.copy2(path,catalog/'types'/path.name)
+    wire=json.loads((catalog/'wire-schemas.json').read_text());wire.update(json.loads((ROOT/'config/catalog/wire-schemas.json').read_text()));(catalog/'wire-schemas.json').write_text(json.dumps(wire))
+    lock=json.loads((catalog/'lock.json').read_text());paths={x['path'] for x in lock['files']}|{f'types/{p.name}' for p in (ROOT/'config/catalog/types').glob('*.json')};lock['files']=[{'path':p,'sha256':hashlib.sha256((catalog/p).read_bytes()).hexdigest()} for p in sorted(paths)];(catalog/'lock.json').write_text(json.dumps(lock))
     graph={'version':3,'catalog':'catalog/lock.json','graph':{'id':'vita-processing'},'credentials':{n:{'identity':n,'members':['ca.pem','cert.pem','key.pem'],'provider':'lab-generated'} for n in ['radio','controller']},'nodes':{},'connections':{}}
     graph['nodes']['processor']={'type':'vita.processor','execution':{'kind':'native'},'credentials':{f'control{i}':'controller' for i in range(1,5)}}
     graph['nodes']['detector']={'type':'vita.detector','execution':{'kind':'native'}}
