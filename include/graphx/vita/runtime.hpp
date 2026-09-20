@@ -23,6 +23,7 @@ class HostTransport : public std::enable_shared_from_this<HostTransport> {
   void connect(SSL* ssl);
   void disconnect();
   bool receive();
+  bool datagram(vr::Bytes);
   bool healthy() const { return !failed_; }
   std::uint64_t udp_errors{};
 
@@ -40,6 +41,7 @@ class HostTransport : public std::enable_shared_from_this<HostTransport> {
   std::array<std::byte, 2048> input_{};
   std::optional<vr::runtime::transport::HostBindings> host_;
   std::optional<Ingress> ingress_;
+  std::optional<vr::runtime::transport::StreamIngress<4128, 128>> datagrams_;
   int udp_;
   sockaddr_in destination_;
   SSL* ssl_{};
@@ -104,12 +106,14 @@ class HostClock {
 // APIs; progress() drives real host time (do not use synthetic run_for/wait budgets).
 class ControllerSession {
  public:
-  explicit ControllerSession(std::uint32_t radio_id);
+  explicit ControllerSession(std::uint32_t radio_id,
+                             vr::runtime::context::ReceiverBinding receiver = {});
   ~ControllerSession();
   Runtime::Controller& commands() { return *controller_; }
   void connect(SSL* authenticated_peer);
   void disconnect();
   bool progress();
+  bool datagram(vr::Bytes wire) { return transport_->datagram(wire); }
   vr::runtime::timing::ProtocolTime now() const noexcept { return clock_.now(); }
 
  private:

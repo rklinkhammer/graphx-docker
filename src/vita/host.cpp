@@ -29,6 +29,8 @@ vr::Result<HostTransport::Binding> HostTransport::create(void* p, tx::HostBindin
   self.host_.emplace(host);
   self.ingress_.emplace(host.routes, host.rx_data, host.rx_control, host.rx_cancellation,
                         rt::PeerSession{self.controller_ ? 2u : 1u, 1}, 1024);
+  self.datagrams_.emplace(host.routes, host.rx_data, host.rx_control, host.rx_cancellation,
+                          rt::PeerSession{2, 1}, 4128);
   Binding result;
   result.owner = self.shared_from_this();
   result.context = p;
@@ -206,10 +208,22 @@ bool HostTransport::receive() {
   auto error = SSL_get_error(ssl_, count);
   return error == SSL_ERROR_WANT_READ || error == SSL_ERROR_WANT_WRITE;
 }
+bool HostTransport::datagram(vr::Bytes wire) {
+  if (!datagrams_ || !controller_ || wire.size() > 4128) return false;
+  auto envelope = vr::codec::decode_envelope(wire);
+  if (!envelope || (envelope->envelope.type != vr::codec::PacketType::signal &&
+                    envelope->envelope.type != vr::codec::PacketType::context))
+    return false;
+  auto result = datagrams_->feed(wire);
+  bool ok = result && *result == 1 && !datagrams_->stalled();
+  if (!ok) datagrams_->reconnect({2, 1});
+  return ok;
+}
 void HostTransport::detach() noexcept {
   disconnect();
   for (auto& slot : slots_)
     if (slot.submission) finish(slot, false);
+  datagrams_.reset();
   ingress_.reset();
   host_.reset();
   closed_ = true;
@@ -402,7 +416,7 @@ void HostClock::progress(Runtime& runtime) {
     throw std::runtime_error("VITA progress " +
                              std::to_string(static_cast<int>(result.error().code)));
 }
-ControllerSession::ControllerSession(std::uint32_t radio_id)
+ControllerSession::ControllerSession(std::uint32_t radio_id, rt::context::ReceiverBinding receiver)
     : transport_(std::make_shared<HostTransport>(-1, sockaddr_in{}, true)) {
   auto config = runtime_config();
   config.transport = transport_->factory();
@@ -411,6 +425,7 @@ ControllerSession::ControllerSession(std::uint32_t radio_id)
   runtime_ = std::move(*made);
   vr::RemoteTargetConfig target;
   target.sid = target.controllee_id = radio_id;
+  target.receiver = receiver;
   target.controller_id = 1;
   target.profile = vr::profiles::iq::Profile::graphx_radio;
   auto added = runtime_->add_remote_controller(target);

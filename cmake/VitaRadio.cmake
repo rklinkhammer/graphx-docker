@@ -34,7 +34,9 @@ function(graphx_vrt_dependency)
   set(vrt_framework_SOURCE_DIR "${vrt_framework_SOURCE_DIR}" PARENT_SCOPE)
 endfunction()
 graphx_vrt_dependency()
-add_library(graphx-vita-radio STATIC src/vita/virtual_device.cpp src/vita/host.cpp src/vita/radio.cpp)
+add_library(graphx-vita-radio STATIC
+  src/vita/virtual_device.cpp src/vita/host.cpp src/vita/radio.cpp
+  src/vita/processing.cpp src/vita/processing_app.cpp)
 target_include_directories(graphx-vita-radio PUBLIC include)
 target_link_libraries(graphx-vita-radio PUBLIC SoapySDR vita::core graphx)
 graphx_enable_analysis(graphx-vita-radio)
@@ -90,3 +92,40 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
 execute_process(COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/scripts/vita/dependency_sbom.py"
   "${CMAKE_SOURCE_DIR}/config/vita/dependencies.json"
   "${CMAKE_BINARY_DIR}/generated/vita-dependencies.spdx.json" COMMAND_ERROR_IS_FATAL ANY)
+
+foreach(app processor detector)
+  add_executable(graphx-vita-${app} apps/vita-${app}/main.cpp)
+  target_link_libraries(graphx-vita-${app} PRIVATE graphx-vita-radio)
+  graphx_enable_analysis(graphx-vita-${app})
+  graphx_enable_sanitizers(graphx-vita-${app})
+endforeach()
+if(GRAPHX_BUILD_TESTS)
+  add_test(NAME graphx-vita-processing COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/test_vita_processing.py ${CMAKE_BINARY_DIR})
+  set_tests_properties(graphx-vita-processing PROPERTIES TIMEOUT 30)
+
+  add_executable(graphx-vita-processing-test tests/test_vita_processing.cpp)
+  target_link_libraries(graphx-vita-processing-test PRIVATE graphx-vita-radio)
+  graphx_enable_analysis(graphx-vita-processing-test)
+  graphx_enable_sanitizers(graphx-vita-processing-test)
+  add_test(NAME graphx-vita-processing-unit COMMAND graphx-vita-processing-test)
+
+  add_test(NAME graphx-vita-power-wire COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/test_vita_power_wire.py ${CMAKE_BINARY_DIR})
+
+  foreach(mode boundary missing wrong-source)
+    add_test(NAME graphx-vita-processing-${mode} COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_SOURCE_DIR}/tests/test_vita_processing.py ${CMAKE_BINARY_DIR} --${mode})
+    set_tests_properties(graphx-vita-processing-${mode} PROPERTIES TIMEOUT 30)
+  endforeach()
+endif()
+
+if(GRAPHX_BUILD_FUZZERS)
+  # Compile the power codec itself with coverage, not only the driver.
+  add_executable(graphx-vita-power-fuzz fuzz/vita_power_fuzz.cpp src/vita/processing.cpp)
+  target_link_libraries(graphx-vita-power-fuzz PRIVATE graphx-vita-radio)
+  graphx_enable_analysis(graphx-vita-power-fuzz)
+  graphx_enable_sanitizers(graphx-vita-power-fuzz)
+  target_compile_options(graphx-vita-power-fuzz PRIVATE -fsanitize=fuzzer)
+  target_link_options(graphx-vita-power-fuzz PRIVATE -fsanitize=fuzzer)
+endif()

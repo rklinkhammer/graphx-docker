@@ -7,8 +7,13 @@ This plan implements [the accepted VITA brief](../../docs/vita_system.md) under
 native standalone virtual-radio acceptance: the opt-in radio, controller/device
 bindings, independent wire tests and bounded TLS stress checks pass. See
 [P1 verification](p1-verification.md) for the seven exit-criterion assessments,
-exact normal/UBSan/quality/fuzz commands and platform limitations. P2–P6 remain
-planned and were not started by P1 qualification. This plan does not authorize privileged execution.
+exact normal/UBSan/quality/fuzz commands and platform limitations. P2 is complete
+for native functional acceptance: the four-stream processor and frequency detector
+pass independent wire/numerical tests and real-radio integration, including bounded
+loss handling, control reconnect and display saturation. See
+[P2 verification](p2-verification.md) for every exit criterion, exact message sizes,
+nominal rates and normal/UBSan/fuzz evidence. P3–P6 remain planned and unstarted.
+This plan does not authorize privileged execution.
 
 The first deliverable is a real, independently tested radio. Do not make its
 development depend on the final IQ processor, feature detector, recorder or OVS
@@ -141,6 +146,11 @@ developer invocation of the harness and its fixture. No container/network-path
 acceptance is claimed from these tests.
 
 ## P2 — IQ processing, FFT messages and feature detection
+
+**Status:** complete for native functional acceptance.
+[Processing design](processing-design.md) and [P2 verification](p2-verification.md)
+record the production implementation and six application tests. P1 regression
+gates remain passing. OVS path qualification belongs to P3.
 
 **Outcome:** the standalone radio feeds the real processor; the processor emits
 bounded power spectra consumed by the real feature detector.

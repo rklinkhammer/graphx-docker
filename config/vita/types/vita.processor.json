@@ -1,0 +1,308 @@
+{
+  "credentials": [
+    "control1",
+    "control2",
+    "control3",
+    "control4"
+  ],
+  "executable": "graphx-vita-processor",
+  "execution": [
+    "native"
+  ],
+  "id": "vita.processor",
+  "image": "graphx-design/sdr@sha256:928533888c6b3ecff6123dd69342931275216f99fce32367d76a000ba4a5dd82",
+  "observation": "graphx",
+  "parameters": {
+    "rate1": {
+      "type": "integer",
+      "minimum": 1000,
+      "maximum": 2000000,
+      "default": 1000000
+    },
+    "center1": {
+      "type": "integer",
+      "minimum": 1000000,
+      "maximum": 6000000000,
+      "default": 100000000
+    },
+    "bandwidth1": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2000000,
+      "default": 800000
+    },
+    "bin_width_numerator_hz1": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2000000,
+      "default": 15625
+    },
+    "bin_width_denominator1": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2048,
+      "default": 16
+    },
+    "rate2": {
+      "type": "integer",
+      "minimum": 1000,
+      "maximum": 2000000,
+      "default": 1000000
+    },
+    "center2": {
+      "type": "integer",
+      "minimum": 1000000,
+      "maximum": 6000000000,
+      "default": 100000000
+    },
+    "bandwidth2": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2000000,
+      "default": 800000
+    },
+    "bin_width_numerator_hz2": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2000000,
+      "default": 15625
+    },
+    "bin_width_denominator2": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2048,
+      "default": 16
+    },
+    "rate3": {
+      "type": "integer",
+      "minimum": 1000,
+      "maximum": 2000000,
+      "default": 1000000
+    },
+    "center3": {
+      "type": "integer",
+      "minimum": 1000000,
+      "maximum": 6000000000,
+      "default": 100000000
+    },
+    "bandwidth3": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2000000,
+      "default": 800000
+    },
+    "bin_width_numerator_hz3": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2000000,
+      "default": 15625
+    },
+    "bin_width_denominator3": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2048,
+      "default": 16
+    },
+    "rate4": {
+      "type": "integer",
+      "minimum": 1000,
+      "maximum": 2000000,
+      "default": 1000000
+    },
+    "center4": {
+      "type": "integer",
+      "minimum": 1000000,
+      "maximum": 6000000000,
+      "default": 100000000
+    },
+    "bandwidth4": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2000000,
+      "default": 800000
+    },
+    "bin_width_numerator_hz4": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2000000,
+      "default": 15625
+    },
+    "bin_width_denominator4": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2048,
+      "default": 16
+    },
+    "window": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0
+    },
+    "overlap_percent": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 75,
+      "default": 0
+    },
+    "path_mtu": {
+      "type": "integer",
+      "minimum": 4200,
+      "maximum": 9000,
+      "default": 9000
+    },
+    "gain_db1": {
+      "type": "integer",
+      "minimum": -60,
+      "maximum": 60,
+      "default": 0
+    },
+    "gain_db2": {
+      "type": "integer",
+      "minimum": -60,
+      "maximum": 60,
+      "default": 0
+    },
+    "gain_db3": {
+      "type": "integer",
+      "minimum": -60,
+      "maximum": 60,
+      "default": 0
+    },
+    "gain_db4": {
+      "type": "integer",
+      "minimum": -60,
+      "maximum": 60,
+      "default": 0
+    }
+  },
+  "ports": {
+    "data1": {
+      "default_port": 18411,
+      "direction": "input",
+      "encoding": "raw",
+      "feedback": true,
+      "listener": true,
+      "max_connections": 1,
+      "min_connections": 1,
+      "schema": "VitaIq",
+      "transports": [
+        "udp"
+      ]
+    },
+    "control1": {
+      "default_port": 18401,
+      "direction": "output",
+      "encoding": "raw",
+      "feedback": true,
+      "listener": false,
+      "max_connections": 1,
+      "min_connections": 1,
+      "schema": "VitaControl",
+      "transports": [
+        "tcp"
+      ]
+    },
+    "data2": {
+      "default_port": 18412,
+      "direction": "input",
+      "encoding": "raw",
+      "feedback": true,
+      "listener": true,
+      "max_connections": 1,
+      "min_connections": 1,
+      "schema": "VitaIq",
+      "transports": [
+        "udp"
+      ]
+    },
+    "control2": {
+      "default_port": 18402,
+      "direction": "output",
+      "encoding": "raw",
+      "feedback": true,
+      "listener": false,
+      "max_connections": 1,
+      "min_connections": 1,
+      "schema": "VitaControl",
+      "transports": [
+        "tcp"
+      ]
+    },
+    "data3": {
+      "default_port": 18413,
+      "direction": "input",
+      "encoding": "raw",
+      "feedback": true,
+      "listener": true,
+      "max_connections": 1,
+      "min_connections": 1,
+      "schema": "VitaIq",
+      "transports": [
+        "udp"
+      ]
+    },
+    "control3": {
+      "default_port": 18403,
+      "direction": "output",
+      "encoding": "raw",
+      "feedback": true,
+      "listener": false,
+      "max_connections": 1,
+      "min_connections": 1,
+      "schema": "VitaControl",
+      "transports": [
+        "tcp"
+      ]
+    },
+    "data4": {
+      "default_port": 18414,
+      "direction": "input",
+      "encoding": "raw",
+      "feedback": true,
+      "listener": true,
+      "max_connections": 1,
+      "min_connections": 1,
+      "schema": "VitaIq",
+      "transports": [
+        "udp"
+      ]
+    },
+    "control4": {
+      "default_port": 18404,
+      "direction": "output",
+      "encoding": "raw",
+      "feedback": true,
+      "listener": false,
+      "max_connections": 1,
+      "min_connections": 1,
+      "schema": "VitaControl",
+      "transports": [
+        "tcp"
+      ]
+    },
+    "spectra": {
+      "default_port": 18500,
+      "direction": "output",
+      "encoding": "raw",
+      "feedback": false,
+      "listener": false,
+      "max_connections": 1,
+      "min_connections": 1,
+      "schema": "VitaPowerSpectrum",
+      "transports": [
+        "udp"
+      ]
+    }
+  },
+  "readiness": {
+    "kind": "local-bound",
+    "timeout_ms": 30000
+  },
+  "resources": {
+    "memory_bytes": 134217728,
+    "pids": 64
+  },
+  "revision": 1,
+  "template": "node-v1"
+}

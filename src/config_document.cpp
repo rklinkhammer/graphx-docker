@@ -397,3 +397,58 @@ std::string resource_name(std::string_view graph, std::string_view kind, std::st
 }
 
 }  // namespace graphx::config_internal
+namespace graphx::config_internal {
+void validate_vita_processing(const Object& parameters, std::string_view path) {
+  const auto value = [&](const std::string& key) { return parameters.at(key).integer(); };
+  const auto overlap = value("overlap_percent");
+  if (overlap != 0 && overlap != 50 && overlap != 75)
+    reject("E_PARAMETER", std::string(path), "overlap must be 0, 50 or 75 percent");
+  for (int i = 1; i <= 4; ++i) {
+    auto suffix = std::to_string(i);
+    auto rate = value("rate" + suffix), num = value("bin_width_numerator_hz" + suffix),
+         den = value("bin_width_denominator" + suffix);
+    if (rate < 1000 || rate > 2000000 || num < 1 || num > 2000000 || den < 1 || den > 2048)
+      reject("E_PARAMETER", std::string(path), "sample rate or bin-width rational outside bounds");
+    auto count = rate * den / num;
+    if (rate * den % num || count < 64 || count > 2048 || (count & (count - 1)))
+      reject("E_PARAMETER", std::string(path),
+             "bin width must equal Fs/N for power-of-two N from 64 to 2048");
+    if (value("bandwidth" + suffix) > rate)
+      reject("E_PARAMETER", std::string(path), "bandwidth exceeds sample rate");
+    if (132 + count / 4 + 4 * count + 28 > value("path_mtu"))
+      reject("E_PARAMETER", std::string(path), "FFT result exceeds path MTU");
+  }
+}
+}  // namespace graphx::config_internal
+
+namespace graphx::config_internal {
+void validate_vita_bindings(std::string_view type, const Object& bindings,
+                            const Object& parameters) {
+  if (type != "vita.processor" && type != "vita.detector") return;
+  std::int64_t power_bytes = 8836;
+  if (type == "vita.processor") {
+    power_bytes = 0;
+    for (int i = 1; i <= 4; ++i) {
+      auto suffix = std::to_string(i);
+      auto n = parameters.at("rate" + suffix).integer() *
+               parameters.at("bin_width_denominator" + suffix).integer() /
+               parameters.at("bin_width_numerator_hz" + suffix).integer();
+      power_bytes = std::max(power_bytes, 132 + n / 4 + 4 * n);
+    }
+  }
+  for (const auto& [name, peers] : bindings)
+    for (const auto& peer : peers.array()) {
+      auto path = "bindings." + name;
+      if (name.starts_with("control")) {
+        if (peer.at("security").at("profile") != Value("mtls"))
+          reject("E_BINDING", path, "VITA controller requires mTLS");
+      } else {
+        const auto& settings = peer.at("settings");
+        if (settings.at("mode") != Value("unicast") || settings.at("framing") != Value("none") ||
+            settings.at("max_datagram_bytes").integer() < (name == "spectra" ? power_bytes : 4128))
+          reject("E_BINDING", path,
+                 "VITA processing requires raw unicast UDP with sufficient datagram budget");
+      }
+    }
+}
+}  // namespace graphx::config_internal

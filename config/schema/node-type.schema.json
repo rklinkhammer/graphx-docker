@@ -53,15 +53,12 @@
         "additionalProperties": false,
         "properties": {
           "default": {
-            "minimum": 0,
             "type": "integer"
           },
           "maximum": {
-            "minimum": 0,
             "type": "integer"
           },
           "minimum": {
-            "minimum": 0,
             "type": "integer"
           },
           "type": {

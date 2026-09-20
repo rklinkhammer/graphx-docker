@@ -761,6 +761,8 @@ Value node_values(const Value& graph, const Catalog& catalog, const Value& conne
       validate_shape(value, type.at("parameters").at(key), "nodes." + id + ".parameters." + key);
       parameters[key] = value;
     }
+    if (node.at("type") == Value("vita.processor"))
+      validate_vita_processing(parameters, "nodes." + id + ".parameters");
     for (const auto& [key, reference] : member(node, "credentials").object()) {
       if (std::ranges::find(type.at("credentials").array(), Value(key)) ==
           type.at("credentials").array().end())
@@ -789,6 +791,7 @@ Value node_values(const Value& graph, const Catalog& catalog, const Value& conne
         bindings[connection.at(side).at("port").text()].array().emplace_back(binding);
       }
     }
+    validate_vita_bindings(node.at("type").text(), bindings, parameters);
     const bool emitting = node.at("execution").at("kind") != Value("external") &&
                           type.at("observation") == Value("graphx");
     Value capture = platform.at("capture");

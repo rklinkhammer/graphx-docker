@@ -53,6 +53,8 @@ NodeSettings load_node_settings(const std::filesystem::path& file, std::string_v
     if (!parameters.contains(name)) reject("E_PARAMETER", name, "missing resolved parameter");
     validate_shape(parameters.at(name), definition, "parameters." + name);
   }
+  if (value.at("type") == Value("vita.processor"))
+    validate_vita_processing(parameters, "parameters");
   const auto& ports = type->at("ports").object();
   if (ports.size() != value.at("bindings").object().size())
     reject("E_BINDING", "bindings", "ports must match the application type");
@@ -140,6 +142,8 @@ NodeSettings load_node_settings(const std::filesystem::path& file, std::string_v
            peer.at("destination_address").text()});
     }
   }
+  validate_vita_bindings(value.at("type").text(), value.at("bindings").object(),
+                         value.at("parameters").object());
   const auto& telemetry = value.at("telemetry");
   if (telemetry.at("host").text().empty() || telemetry.at("port").integer() < 1 ||
       telemetry.at("port").integer() > 65535)

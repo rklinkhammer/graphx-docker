@@ -5,7 +5,7 @@
 The opt-in standalone radio uses `vrt_framework` as its only VITA codec and
 protocol runtime, with one virtual SoapySDR device per radio process. The reusable
 `ControllerSession` uses the same runtime and authenticated transport boundary.
-P2 supplies the final IQ processor; OVS, images and the complete graph are later
+The opt-in `graphx-vita-processor` and `graphx-vita-detector` implement P2; OVS, images and the complete graph are later
 phases. This target is not part of published native/OCI releases.
 
 ## Build and test
@@ -40,6 +40,9 @@ To inspect cross-process results directly:
 ```sh
 python3 tests/test_vita_radio.py build/vita-migration
 python3 tests/test_vita_controller.py build/vita-migration
+python3 tests/test_vita_processing.py build/vita-migration
+python3 tests/test_vita_processing.py build/vita-migration --boundary
+python3 tests/test_vita_processing.py build/vita-migration --missing
 ```
 
 The independent Python wire harness starts four owned native processes, normalizes
@@ -59,4 +62,5 @@ existing credential and release-barrier contract. Use the harness to construct
 valid normalized fixtures rather than bypassing the loader or startup barrier.
 
 See [radio design](radio-design.md), [command contract](command-analysis.md),
-[epoch regression](migration-blocker.md) and [P1 verification](p1-verification.md).
+[epoch regression](migration-blocker.md) and [P1 verification](p1-verification.md),
+[processing design](processing-design.md) and [P2 verification](p2-verification.md).

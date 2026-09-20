@@ -29,4 +29,7 @@ Value merged(Value defaults, const Value& explicit_values);
 std::string string_or(const Value& value, std::string_view key, std::string fallback = {});
 std::int64_t integer_or(const Value& value, std::string_view key, std::int64_t fallback);
 bool bool_or(const Value& value, std::string_view key, bool fallback);
+void validate_vita_processing(const Object& parameters, std::string_view path);
+void validate_vita_bindings(std::string_view type, const Object& bindings,
+                            const Object& parameters);
 }  // namespace graphx::config_internal
