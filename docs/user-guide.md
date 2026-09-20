@@ -56,7 +56,7 @@ currently requires a full `.git` directory rather than a linked Git worktree.
 | Native macOS | Native-process examples such as shared memory, UDP unicast/multicast and application capture. Install the compiler through Apple's developer tools and the other prerequisites through your preferred package manager. |
 | OrbStack on macOS | Running OrbStack Docker engine, Docker CLI, Compose v2 and Buildx for portable container examples. Select `docker context use orbstack` before these examples. It is not the managed OVS backend. |
 | Native Linux | A local Docker engine with Compose/Buildx for containers; native examples need a matching native/platform release. Privileged OVS examples additionally need system OVS, iproute2, namespaces, nftables and the capture/network tools used by their selected scenario. |
-| GraphX Lima guest | Apple Silicon host with Lima installed. The checked-in VM provisions the Linux toolchain and privileged laboratory dependencies. Use [Lima setup](../infrastructure/lima/README.md); `example up` does not provision the VM implicitly. |
+| GraphX Lima guest | Apple Silicon host with Lima installed. The checked-in VM provisions the Linux toolchain and privileged laboratory dependencies. See [Lima setup](../infrastructure/lima/README.md); `example prepare` and `example up` create/start the VM automatically. |
 | Managed QEMU | Verified guest artifacts and combined native/platform/guest installation, QEMU TCG and the dedicated Linux `graphx-qemu` account at UID/GID 65532. See [guest prerequisites](../guests/README.md). A TAP lifecycle check alone does not prove guest execution. |
 
 These are tool requirements, not a claim that every operating-system distribution
@@ -104,8 +104,7 @@ owned container veth attachments.
 
 For OVS examples, replace the name with `sample-pipeline/ovs` and include
 `--allow-privileged` on runtime commands. Run only with explicit authorization on
-native Linux or through the GraphX Lima guest. On macOS, start that environment
-explicitly with `graphx env up` first. Standard console ports are host 8080 for
+native Linux or through the GraphX Lima guest. On macOS, `example prepare` and `example up` start that environment automatically. Standard console ports are host 8080 for
 portable examples and host 18080 forwarding guest 8080 for Lima.
 
 The startup command returns after readiness and release. It does not supervise or
@@ -273,7 +272,11 @@ Use `example down` before switching examples or modifying runtime resources.
 It removes only identity-matched resources. History, selected capture evidence,
 bounded logs and shared artifact caches are retained; credential volumes are
 removed. `--restart` may create a new graph identity and preserve the old history
-separately. `graphx env down` stops Lima while retaining its disk.
+separately. On macOS, successful `example down` stops Lima when no other containers,
+application processes or laboratory networks remain. Successful `prepare` also stops
+an idle VM. Failed operations leave it running for recovery. The guest disk, images
+and retained evidence survive automatic stops. `graphx env up` starts the VM for
+inspection; `graphx env down` is a manual stop override.
 
 History deletion is an explicit advanced operation, never part of ordinary stop;
 see [platform lifecycle](#platform-administration-platform-lifecycle-and-access) for its ownership
@@ -312,7 +315,7 @@ the same name. Interactive startup opens an authenticated console. Explicit
 | QEMU guest | `graphx example up qemu-node/tap --allow-privileged` |
 
 On macOS, the CLI selects OrbStack for portable containers and the identity-matched
-GraphX Lima VM for privileged labs. Use `graphx env up` explicitly to start that VM.
+GraphX Lima VM for privileged labs. The example CLI starts that VM automatically for preparation and startup.
 Preparation, compilation and credential staging happen through the shared workflow;
 physical-device startup remains gated. Follow the [complete example matrix](../examples/README.md)
 for supported targets and [CLI reference](#cli-reference) for artifact overrides.
@@ -493,9 +496,15 @@ runner's ownership ledger remain authoritative. Launch and artifact locks preven
 concurrent conflicting preparation. Source changes require an explicit restart.
 Each compilation generation gets a distinct graph identity, preserving prior history.
 
-Lima dispatch checks the existing VM's repository identity, copies a source
-snapshot without macOS metadata, builds a guest-local CLI and uses the same
-workflow there. It never provisions a VM as a side effect of `example up`.
+Lima dispatch creates or starts the dedicated VM for `prepare` and `up`, checks
+its repository identity, copies a source snapshot without macOS metadata, builds
+a guest-local CLI and uses the same workflow there. The host checkout may live
+anywhere, but an existing VM tied to a different checkout is refused. Automatic
+shutdown retains the VM if its idle inventory fails. Status and logs require a
+running VM; use `graphx env up` to inspect retained state after shutdown. Lima
+commands are serialized across checkouts, including following logs. Low-level
+guest commands need manual environment management; do not run them concurrently
+with automatic demo shutdown.
 The host keeps a reference to the snapshot so status and cleanup use the original
 runner after source changes. The standard console forward is guest 8080 to host
 18080; other ports require an explicit environment forwarding configuration.
@@ -1428,7 +1437,7 @@ The checks below do not authorize broad Docker cleanup, ledger edits or VM repla
 | Node version rejected | `node --version` must select major 24 for portable verification and platform preparation. | Select Node 24 on PATH; on Apple Silicon use the quick-start Homebrew path when installed. |
 | Docker unavailable or wrong engine | `docker context show`, `docker info`, `docker compose version`; macOS portable examples use OrbStack. | Start/select the intended engine. `env doctor` checks dependencies but does not start Docker. Native-only workflows do not require an engine. |
 | Unexpected target rejection | `graphx example plan NAME` and `graphx example list` show supported placement. Direct validation defaults to native Linux even on macOS. | Select an accepted `--target`; do not confuse normalization with actual runtime acceptance. |
-| Lima stopped | `limactl list graphx` shows its state. | Use `graphx env up` for explicit environment startup. This can provision the environment when absent; review [Lima setup](../infrastructure/lima/README.md) first. |
+| Lima stopped | `limactl list graphx` shows its state. | Use `example up` to start the demo and VM together, or `graphx env up` to inspect retained state. See [Lima setup](../infrastructure/lima/README.md). |
 | Stale VM configuration | Compare the error with the checked-in VM definition/provisioning inputs and repository location. Host helpers alone do not change the provisioning digest. | Investigate the actual mismatch. Do not overwrite identity markers. Back up required guest data before any separately approved removal/recreation; deletion is not ordinary graph cleanup. |
 | Source or selection changed | `up` reports that its prepared generation differs. | Use `graphx example up NAME --restart` for the owned run, or a separate instance with nonconflicting ports. This can generate a new graph identity. |
 | Console port in use | `graphx example status NAME` identifies an owned run; inspect the selected host port with your OS tools. | Stop the known owner or author a different console port. Do not kill an unidentified process. |

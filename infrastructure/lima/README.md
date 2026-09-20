@@ -14,9 +14,24 @@ Ubuntu, four CPUs, 8 GiB RAM and an 80 GiB disk. It mounts this repository at
 Node.js 24 and Linux packet tools. Docker and other privileged sockets are never
 forwarded to macOS. The host Docker context remains OrbStack.
 
-Use `graphx env up` when explicitly setting up the environment. It
-validates the fixed VM identity before creating or starting it. Runtime launchers
-only reuse a running, identity-matched VM; they do not provision or replace one.
+`graphx example prepare` and `graphx example up` create or start the dedicated
+VM automatically, using the checkout selected by the command. Install Lima first;
+the first preparation provisions Linux and builds the required artifacts.
+`example prepare` and `example down` stop the VM after success when no containers,
+application processes or laboratory networks remain. Its disk and prepared images
+are retained for the next launch. A failed operation or uncertain idle check leaves
+the VM running for inspection and recovery.
+
+`graphx env up` and `graphx env down` remain manual overrides. Use `env up` to inspect
+retained guest state after an automatic stop. Status, logs and browser commands do
+not start a stopped VM. The example CLI serializes Lima operations across checkouts;
+complete a following-log command before another lifecycle command. Direct guest
+commands and low-level laboratory scripts require manual environment management;
+do not run them concurrently with automatic demo shutdown.
+
+VM identity includes the absolute host checkout path. A VM belonging to a different
+checkout is refused; it is never replaced automatically. The guest mount path
+`/workspace/graphx-docker` does not require that directory name on the host.
 
 Read-only preflight:
 
@@ -34,7 +49,6 @@ the Linux CLI and prepares verified artifacts on the guest disk. From the macOS
 repository root:
 
 ```sh
-graphx env up
 graphx example plan sample-pipeline/ovs
 graphx example up sample-pipeline/ovs --allow-privileged --control generator:pause,resume --control collector:reset
 graphx example open sample-pipeline/ovs --allow-privileged
