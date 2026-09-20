@@ -22,19 +22,21 @@ from release_common import ReleaseError, sha256_file
 COMMIT = "a" * 40
 
 
-def tar_bytes(files, timestamp=0):
+def tar_bytes(files, timestamp=0, capabilities=None):
     buffer = io.BytesIO()
-    with tarfile.open(fileobj=buffer, mode="w") as archive:
+    with tarfile.open(fileobj=buffer, mode="w", format=tarfile.PAX_FORMAT) as archive:
         for name, data in files.items():
             member = tarfile.TarInfo(name)
             member.mode = 0o755
             member.mtime = timestamp
             member.size = len(data)
+            if name in (capabilities or {}):
+                member.pax_headers["SCHILY.xattr.security.capability"] = capabilities[name]
             archive.addfile(member, io.BytesIO(data))
     return buffer.getvalue()
 
 
-def image(role, *, platform="arm64", user="65532:65532", extra=None, corrupt=False, timestamp=0, omit=()):
+def image(role, *, platform="arm64", user="65532:65532", extra=None, corrupt=False, timestamp=0, omit=(), capabilities=None):
     files = {"usr/local/bin/" + name: b"test executable" for name in RECIPES[role][1]}
     files.update({"lib/apk/db/installed": b"P:libc\nV:1.0\nL:MIT\n"})
     if role in RECIPES:
@@ -53,7 +55,11 @@ def image(role, *, platform="arm64", user="65532:65532", extra=None, corrupt=Fal
     files.update(extra or {})
     for name in omit:
         files.pop(name)
-    layer = tar_bytes(files, timestamp)
+    if capabilities is None:
+        capabilities = ({"usr/local/bin/graphx-vita-recorder":
+                         bytes.fromhex("0000000200200000000000000000000000000000").decode()}
+                        if role == "vita" else {})
+    layer = tar_bytes(files, timestamp, capabilities)
     config = encoded({"os": "linux", "architecture": platform,
                       "rootfs": {"diff_ids": [digest(layer)]},
                       "config": {"User": user, "Labels": {"org.opencontainers.image.version": "1.1.0",
@@ -104,6 +110,15 @@ with tempfile.TemporaryDirectory() as temporary:
     for missing in ("graphx-vita-recorder", "graphx-vita-detector"):
         incomplete.write_bytes(image("vita", omit=("usr/local/bin/" + missing,)))
         rejected(lambda: inspect_image(incomplete, "vita", "1.1.0", COMMIT, "linux/arm64"))
+    for capabilities in ({}, {"usr/local/bin/graphx-vita-recorder": "invalid"},
+                         {"usr/local/bin/graphx-vita-recorder": bytes.fromhex(
+                             "0100000200200000000000000000000000000000").decode()}):
+        incomplete.write_bytes(image("vita", capabilities=capabilities))
+        rejected(lambda: inspect_image(incomplete, "vita", "1.1.0", COMMIT, "linux/arm64"))
+    incomplete.write_bytes(image("vita"))
+    canonical = root / "vita-canonical.tar"
+    canonical_image(incomplete, canonical, 1700000000)
+    inspect_image(canonical, "vita", "1.1.0", COMMIT, "linux/arm64")
     bad_pin = json.loads((ROOT / "config/vita/dependencies.json").read_bytes())
     bad_pin["dependencies"][1]["revision"] = "0" * 40
     incomplete.write_bytes(image("vita", extra={"usr/local/share/graphx/vita-dependencies.json": encoded(bad_pin)}))

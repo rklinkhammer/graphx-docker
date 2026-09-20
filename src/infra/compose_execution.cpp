@@ -126,6 +126,29 @@ std::string hex_bytes(std::string_view bytes) {
   return result;
 }
 }  // namespace
+void validate_compose_service_fields(const std::string& name, const ConfigValue& service,
+                                     const ConfigValue& resolved) {
+  const std::set<std::string> allowed{
+      "image",        "restart",     "read_only",  "user",      "cap_drop", "cap_add",
+      "security_opt", "tmpfs",       "pids_limit", "mem_limit", "logging",  "entrypoint",
+      "command",      "environment", "volumes",    "networks",  "labels",   "ports"};
+  for (const auto& [key, value] : service.object()) {
+    (void)value;
+    if (!allowed.contains(key))
+      throw std::runtime_error("E_COMPOSE_SECURITY: unsupported service field");
+  }
+  const auto node = std::ranges::find_if(resolved.at("nodes").array(), [&](const auto& item) {
+    return item.at("node_id") == Value(name);
+  });
+  const bool recorder =
+      node != resolved.at("nodes").array().end() && node->at("type") == Value("vita.recorder") &&
+      node->at("execution").at("kind") == Value("container") && node->contains("recorder");
+  if (recorder ? (!service.contains("cap_add") ||
+                  service.at("cap_add") != Value(Array{Value("NET_RAW")}))
+               : service.contains("cap_add"))
+    throw std::runtime_error("E_COMPOSE_SECURITY: invalid recorder capability policy");
+}
+
 int execute_compose(const ExecutionOptions& opts, const ConfigValue& resolved,
                     std::ostream& output) {
   const auto graph = resolved.at("graph_id").text();
@@ -423,15 +446,7 @@ int execute_compose(const ExecutionOptions& opts, const ConfigValue& resolved,
       throw std::runtime_error("E_COMPOSE_SECURITY: portable networks must use bridge");
   }
   for (const auto& [name, service] : source.at("services").object()) {
-    const std::set<std::string> allowed{
-        "image",       "restart",    "read_only", "user",    "cap_drop",   "security_opt",
-        "tmpfs",       "pids_limit", "mem_limit", "logging", "entrypoint", "command",
-        "environment", "volumes",    "networks",  "labels",  "ports"};
-    for (const auto& [key, value] : service.object()) {
-      (void)value;
-      if (!allowed.contains(key))
-        throw std::runtime_error("E_COMPOSE_SECURITY: unsupported service field");
-    }
+    validate_compose_service_fields(name, service, resolved);
     if (service.at("cap_drop") != Value(Array{Value("ALL")}) ||
         service.at("security_opt") != Value(Array{Value("no-new-privileges:true")}) ||
         service.at("pids_limit").integer() < 1 || service.at("pids_limit").integer() > 1024 ||
@@ -761,7 +776,10 @@ process.stdout.write(JSON.stringify(guests));
       own("container", actual, service.at("image").text());
       if (name != "platform" && name != "prometheus" && name != "grafana")
         applications.push_back(name);
-      if (ovs && name != "platform" && name != "prometheus" && name != "grafana") {
+      // The recorder opens its inactive socket and drops NET_RAW before waiting
+      // on the common network barrier. A shell exec would lose its file capability.
+      if (ovs && name != "platform" && name != "prometheus" && name != "grafana" &&
+          !service.contains("cap_add")) {
         auto argv = service.at("entrypoint").array();
         argv.insert(argv.end(), service.at("command").array().begin(),
                     service.at("command").array().end());

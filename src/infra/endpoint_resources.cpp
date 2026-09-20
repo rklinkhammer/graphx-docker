@@ -226,24 +226,38 @@ bool delete_owned_endpoint(const OwnedResourceIdentity& endpoint, const Ownershi
   }
 
   if (!endpoint_names_absent_or_recorded(endpoint)) return false;
+  if (!mirror_absent_or_owned(endpoint, state)) return false;
+  const auto bridge = std::find_if(
+      state.bridges.begin(), state.bridges.end(),
+      [&](const auto& candidate) { return candidate.name == expected.network_switch; });
+  if (bridge == state.bridges.end()) return false;
   if (!endpoint.route_identity.empty()) {
-    if (ovs_get("Mirror", endpoint.route_identity, "external_ids:graphx_owner") !=
-            state.owner_token ||
-        ovs_get("Mirror", endpoint.route_identity, "external_ids:graphx_attachment") !=
-            endpoint.attachment_id)
-      return false;
-    if (run({"ovs-vsctl", "--", "remove", "Bridge",
-             expected_endpoint(state, endpoint.attachment_id).network_switch, "mirrors",
-             endpoint.route_identity, "--", "destroy", "Mirror", endpoint.route_identity}) != 0)
+    if (ovs_get("Mirror", endpoint.route_identity, "_uuid") == endpoint.route_identity &&
+        run({"ovs-vsctl",
+             "--timeout=2",
+             "--",
+             "wait-until",
+             "Mirror",
+             endpoint.route_identity,
+             "external_ids:graphx_owner=" + state.owner_token,
+             "external_ids:graphx_attachment=" +
+                 config_value_json(ConfigValue(endpoint.attachment_id), false),
+             "external_ids:graphx_graph=" + state.graph_id,
+             "external_ids:graphx_config_hash=" + state.config_hash,
+             "--",
+             "remove",
+             "Bridge",
+             bridge->stable_id,
+             "mirrors",
+             endpoint.route_identity,
+             "--",
+             "destroy",
+             "Mirror",
+             endpoint.route_identity}) != 0)
       return false;
   }
   if (ovs_get("Port", endpoint.stable_id, "_uuid") == endpoint.stable_id) {
     if (!ovs_endpoint_owned(endpoint, state)) return false;
-    const auto& expected = expected_endpoint(state, endpoint.attachment_id);
-    const auto bridge = std::find_if(
-        state.bridges.begin(), state.bridges.end(),
-        [&](const auto& candidate) { return candidate.name == expected.network_switch; });
-    if (bridge == state.bridges.end()) return false;
     if (run({"ovs-vsctl",
              "--timeout=2",
              "--",
@@ -251,7 +265,8 @@ bool delete_owned_endpoint(const OwnedResourceIdentity& endpoint, const Ownershi
              "Port",
              endpoint.stable_id,
              "external_ids:graphx_owner=" + state.owner_token,
-             "external_ids:graphx_attachment=" + endpoint.attachment_id,
+             "external_ids:graphx_attachment=" +
+                 config_value_json(ConfigValue(endpoint.attachment_id), false),
              "external_ids:graphx_config_hash=" + state.config_hash,
              "external_ids:graphx_graph=" + state.graph_id,
              "--",
@@ -399,8 +414,18 @@ bool passive_mirror_filter_matches(std::string_view json) {
     const auto documents = YAML::LoadAll(std::string(json));
     if (documents.size() != 1) return false;
     const auto& filters = documents.front();
-    if (!filters.IsSequence() || filters.size() != 1) return false;
-    const auto filter = filters[0];
+    if (!filters.IsSequence() || filters.size() < 1 || filters.size() > 2) return false;
+    // iproute2 may emit a classifier header followed by its single rule.
+    // The header is not a second action and must describe the same classifier.
+    if (filters.size() == 2) {
+      const auto header = filters[0];
+      if (!header.IsMap() || header.size() != 4 || header["options"] ||
+          header["kind"].as<std::string>() != "matchall" ||
+          header["protocol"].as<std::string>() != "all" || header["pref"].as<int>() != 1 ||
+          header["chain"].as<int>() != 0)
+        return false;
+    }
+    const auto filter = filters[filters.size() - 1];
     const auto actions = filter["options"]["actions"];
     return filter["kind"].as<std::string>() == "matchall" &&
            filter["protocol"].as<std::string>() == "all" && filter["pref"].as<int>() == 1 &&

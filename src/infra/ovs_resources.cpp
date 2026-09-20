@@ -1,6 +1,7 @@
 #include "infra/ovs_resources.hpp"
 
 #include "infra/command_runner.hpp"
+#include "graphx/config_value.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -56,7 +57,8 @@ std::string ovs_find_uuid(const std::string& table, const std::string& column,
                           const std::string& value, const std::string& owner) {
   std::string found;
   if (run({"ovs-vsctl", "--data=bare", "--no-heading", "--columns=_uuid", "find", table,
-           column + "=" + value, "external_ids:graphx_owner=" + owner},
+           column + "=" + config_value_json(ConfigValue(value), false),
+           "external_ids:graphx_owner=" + owner},
           &found) != 0)
     return {};
   const auto matches = lines(found);
@@ -64,6 +66,40 @@ std::string ovs_find_uuid(const std::string& table, const std::string& column,
 }
 
 bool bridge_exists(const std::string& name) { return run({"ovs-vsctl", "br-exists", name}) == 0; }
+
+bool mirror_absent_or_owned(const OwnedResourceIdentity& endpoint, const OwnershipState& state) {
+  if (endpoint.route_identity.empty()) return true;
+  // Query success is required to distinguish a deleted row from unavailable OVS.
+  const auto query = [](const std::vector<std::string>& conditions,
+                        std::vector<std::string>& result) {
+    std::vector<std::string> command{"ovs-vsctl",       "--data=bare", "--no-heading",
+                                     "--columns=_uuid", "find",        "Mirror"};
+    command.insert(command.end(), conditions.begin(), conditions.end());
+    std::string output;
+    if (run(command, &output) != 0) return false;
+    result = lines(output);
+    return true;
+  };
+  std::vector<std::string> named, recorded, owned;
+  std::string record;
+  if (run({"ovs-vsctl", "--if-exists", "get", "Mirror", endpoint.route_identity, "_uuid"},
+          &record) != 0)
+    return false;
+  recorded = lines(record);
+  if (!query({"name=" + config_value_json(ConfigValue(endpoint.name), false)}, named) ||
+      !query({"external_ids:graphx_owner=" + state.owner_token,
+              "external_ids:graphx_attachment=" +
+                  config_value_json(ConfigValue(endpoint.attachment_id), false)},
+             owned))
+    return false;
+  if (named.empty() && recorded.empty() && owned.empty()) return true;
+  const std::vector<std::string> expected{endpoint.route_identity};
+  return named == expected && recorded == expected && owned == expected &&
+         ovs_get("Mirror", endpoint.route_identity, "external_ids:graphx_graph") ==
+             state.graph_id &&
+         ovs_get("Mirror", endpoint.route_identity, "external_ids:graphx_config_hash") ==
+             state.config_hash;
+}
 
 std::string planned_create(const SwitchDefinition& network_switch, std::string_view graph_id,
                            std::string_view token, std::string_view hash) {

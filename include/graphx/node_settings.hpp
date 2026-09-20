@@ -34,6 +34,9 @@ struct NodeArguments {
   std::string release_token;
 };
 NodeArguments node_arguments(int argc, char** argv, bool execution = true);
+// For applications that must retain a startup descriptor across network preparation.
+// Waits for the same identity-owned network barrier as the container holder.
+bool await_node_network(const NodeArguments& arguments, const std::function<bool()>& stopping);
 // Call after listeners/local resources are bound. The execution adapter owns
 // release creation; this function only reads a bounded, regular token file.
 bool await_node_release(const NodeSettings& settings, const NodeArguments& arguments,

@@ -2,26 +2,19 @@
 
 ## Current readiness
 
-The private ARM64 images and automated harness now exist. **Privileged acceptance
-has not run.** P3 and P4 remain open. You do not need P5/P6 or a separate Linux
-login: issue commands from the Mac and use the dedicated `graphx` Lima VM.
-OrbStack is used only for the unprivileged image build/smoke checks.
+The dedicated `graphx` Lima VM is running and identity matched. The user authorized
+its clean recreation without backups and the full privileged P3/P4 matrix.
+**P3 and P4 pass all 18 cases in Lima.** Current evidence
+is summarized in [P3 verification](p3-verification.md) and
+[P4 verification](p4-verification.md). No external backup selection
+or repeated authorization is needed for this already authorized run.
 
-The read-only preflight found the VM **Stopped** and an identity mismatch:
-
-- Recorded configuration: `ac49027a1cbafa52b3565d32a4154fe3ecf3a3aae0ae4a1760782f79da0e5791`.
-- Expected configuration: `995153b13806694ef031f1b07218f9eafd2c31043deb33457504497cb153339e`.
-
-**Your next action is to review the [scoped Lima recovery proposal](lima-recovery-proposal.md)
-and select an external backup volume before authorizing recovery.** Do not run
-`env up`, edit the fingerprint, delete the VM or use a replacement host to bypass
-this failure. Environment repair/recreation needs its own authorization; it was
-not authorized by the preparation request. Guest packages are not yet checked.
-
-Once the environment is repaired and identity checked, review steps 2–3 and
-explicitly authorize step 4. [AGENTS.md](../../AGENTS.md) says: “Run privileged
-tests only on native Linux or in the GraphX Lima guest with explicit authorization.”
-Preparation and image smoke checks do not grant that authorization.
+Issue commands from the Mac and use the dedicated guest for privileged work.
+OrbStack runs the unprivileged image build/smoke checks. The required provisioning
+fingerprint is `995153b13806694ef031f1b07218f9eafd2c31043deb33457504497cb153339e`.
+Recheck identity before execution; do not edit the fingerprint to bypass failure.
+For a new operator session, [AGENTS.md](../../AGENTS.md) still requires explicit
+authorization for privileged tests; preparation alone does not grant it.
 
 ## 1. Inspect or reproduce the prepared artifacts
 
@@ -29,8 +22,8 @@ The preparation record, exact digests and executed nonprivileged checks are in
 [P3/P4 preparation evidence](p34-preparation.md). The current local artifacts are:
 
 ```text
-outputs/verification/p34-preparation/images-acceptance/
-outputs/verification/p34-preparation/prepared-reviewed/
+outputs/verification/p301-fix/images-identity/
+outputs/verification/p301-fix/prepared-identity/
 ```
 
 The first directory is the existing verified image-release format: OCI archives,
@@ -45,14 +38,14 @@ These commands exist and are nonprivileged. Run from the repository root:
 ```sh
 python3 tests/test_vita_live.py --list-cases
 python3 scripts/release/image_release.py verify \
-  outputs/verification/p34-preparation/images-acceptance
-cat outputs/verification/p34-preparation/prepared-reviewed/preparation.json
+  outputs/verification/p301-fix/images-identity
+cat outputs/verification/p301-fix/prepared-identity/preparation.json
 ```
 
 To rebuild after a source change, choose **absent output directories**, then run:
 
 ```sh
-python3 scripts/release/image_release.py build --with-vita --allow-dirty \
+python3 scripts/release/image_release.py build --with-vita --no-cache --allow-dirty \
   --platform linux/arm64 \
   --output outputs/verification/p34-rebuild/images
 python3 tests/test_vita_live.py --prepare \
@@ -62,7 +55,7 @@ python3 tests/test_vita_live.py --prepare \
 ```
 
 On macOS the builder requires the ready OrbStack Docker context. It performs two
-cache-eligible builds, verifies actual OCI manifests/layers, licenses, dependency
+independent no-cache builds, verifies actual OCI manifests/layers, licenses, dependency
 pins and SPDX inventories, then smoke-tests with no network, no capabilities and
 read-only filesystems. VITA applications fail closed without configuration/NET_RAW;
 the separate Linux recorder test verifies receive-descriptor restrictions without
@@ -81,7 +74,7 @@ call Docker, start applications, create OVS resources or qualify a packet path.
 
 ## 2. Recheck the Lima environment from your Mac
 
-After separately authorized environment recovery, run these read-only checks:
+Before each privileged run, perform these read-only checks:
 
 ```sh
 cd /Users/rklinkhammer/workspace/graphx-docker
@@ -126,7 +119,8 @@ to OrbStack. No QEMU guest, TCG or KVM qualification is needed for these contain
 
 After environment checks pass, stage the prepared inputs on the guest disk.
 These commands copy artifacts only; they do not run acceptance or provision tools.
-Use the current candidates below, or consistently substitute a newly verified build.
+Use newly prepared artifacts whose run root matches the selections below. Completed
+run roots cannot be reused.
 The destination must not exist; do not overwrite another run.
 
 ```sh
@@ -135,9 +129,9 @@ python3 infrastructure/lima/run-bounded.py 300 \
     set -e
     test ! -e /var/lib/graphx/verification/p34
     sudo -n mkdir -p /var/lib/graphx/verification/p34
-    sudo -n cp -R outputs/verification/p34-preparation/images-acceptance \
+    sudo -n cp -R outputs/verification/p34-rebuild/images \
       /var/lib/graphx/verification/p34/images
-    sudo -n cp -R outputs/verification/p34-preparation/prepared-reviewed \
+    sudo -n cp -R outputs/verification/p34-rebuild/prepared \
       /var/lib/graphx/verification/p34/prepared
     python3 scripts/release/image_release.py verify /var/lib/graphx/verification/p34/images
     /var/lib/graphx/verification/p34/prepared/bin/graphx --version
@@ -161,6 +155,7 @@ Review `prepared/preparation.json` and these choices before authorization:
 | Run deadline | 3300 seconds internally, 3600-second host bound including recovery margin |
 | Credentials | Lab-generated, scoped per fixture; never baked into images or included in reports |
 
+Build fresh images once per verification run; every fixture creates new containers.
 Fixtures run sequentially. P3 uses transactional startup; P4 explicitly selects
 available startup with a 5000 ms readiness window. The harness regenerates each
 compilation through the C++ loader, then uses common `run up/status/down`. It
@@ -171,7 +166,7 @@ The separate diagnostic mirror is derived from the authored capture and recorded
 in the same expected-endpoint/ownership ledger as other resources. It uses host
 namespace identity and independent OVS/veth identities. Recorder death therefore
 cannot delete its delivery path. That implementation change is portable-tested;
-actual fresh PCAPNG continuity is still a live assertion, not an established result.
+fresh PCAPNG continuity passed in P3-07 and P4-06.
 
 Retained history/capture volumes are named explicitly in each fixture's
 `retained-history-volumes.json`. They are intentional evidence, not live workloads.
@@ -180,7 +175,8 @@ before/after live infrastructure and preserves its independent sentinel througho
 
 ## 4. Authorize, execute and recover
 
-After reviewing the environment and selections above, you can send:
+The current user has already authorized the full matrix. For a new session without
+that authorization, review the environment and selections above and obtain it:
 
 ```text
 I authorize the reviewed P3/P4 privileged acceptance run in the existing,

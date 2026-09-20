@@ -12,11 +12,9 @@ for native functional acceptance: the four-stream processor and frequency detect
 pass independent wire/numerical tests and real-radio integration, including bounded
 loss handling, control reconnect and display saturation. See
 [P2 verification](p2-verification.md) for every exit criterion, exact message sizes,
-nominal rates and normal/UBSan/fuzz evidence. P3 implementation and portable qualification are recorded in
-[P3 verification](p3-verification.md); actual privileged path acceptance remains
-pending, so P3 is not complete. P4 implementation and native qualification are
-recorded in [P4 verification](p4-verification.md); privileged container/OVS fault
-acceptance remains pending, so P4 is not complete. P5–P6 remain unstarted.
+nominal rates and normal/UBSan/fuzz evidence. P3 and P4 are complete for the dedicated Lima ARM64 container path: all 18
+privileged cases passed. See [P3 verification](p3-verification.md) and
+[P4 verification](p4-verification.md) for evidence and platform limits. P5–P6 remain unstarted.
 This plan does not authorize privileged execution.
 
 The first deliverable is a real, independently tested radio. Do not make its
@@ -198,13 +196,13 @@ output rate at supported overlap settings and bound the display/processing load.
 
 ## P3 — OVS jumbo paths and the recorder application
 
-**Status:** implementation present; privileged acceptance pending. See
+**Status:** complete for Lima ARM64; 9/9 privileged cases passed. See
 [network design](network-design.md) and [P3 verification](p3-verification.md).
 The default remains transactional; P4 adds an explicit available-subset policy.
 Private image preparation, automated live case IDs and independent diagnostic
 delivery are implemented; see [preparation evidence](p34-preparation.md) and the
-[operator runbook](privileged-verification-runbook.md). Lima identity repair and
-explicitly authorized execution remain prerequisites to closing P3/P4.
+[operator runbook](privileged-verification-runbook.md). Lima identity checks and
+explicitly authorized execution are required for each new qualification session.
 
 **Outcome:** the authoritative graph can express the required packet paths and
 deliver mirrored frames to a separate bounded receive/discard application.
@@ -238,10 +236,9 @@ privileged path tests. Unrun privileged checks remain pending, not passed.
 
 ## P4 — Degraded startup and application failure handling
 
-**Status:** implemented with native/portable evidence; privileged path qualification
-pending. See [lifecycle design](lifecycle-design.md) and
+**Status:** complete for Lima ARM64; 9/9 privileged cases passed. See [lifecycle design](lifecycle-design.md) and
 [P4 verification](p4-verification.md) for criterion-by-criterion acceptance and the
-isolated live fault plan. P3 remains independently open.
+completed live fault matrix. P3 is also complete for Lima ARM64.
 
 **Outcome:** healthy application components start and continue when peers fail,
 without weakening infrastructure identity/security checks or restarting containers.

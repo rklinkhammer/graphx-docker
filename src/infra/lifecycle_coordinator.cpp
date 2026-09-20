@@ -840,10 +840,7 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
     if (!endpoint_names_absent_or_recorded(item))
       throw std::runtime_error("refusing same-name OVS endpoint replacement: " +
                                item.attachment_id);
-    if (!item.route_identity.empty() &&
-        (ovs_get("Mirror", item.route_identity, "external_ids:graphx_owner") != state.owner_token ||
-         ovs_get("Mirror", item.route_identity, "external_ids:graphx_attachment") !=
-             item.attachment_id))
+    if (!mirror_absent_or_owned(item, state))
       throw std::runtime_error("refusing replaced OVS mirror: " + item.attachment_id);
     const auto& expected = expected_endpoint(state, item.attachment_id);
     if (expected.kind == AttachmentKind::qemu_tap &&
@@ -859,6 +856,7 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
         !mirror_peer_owned(expected, item, state, config))
       throw std::runtime_error("refusing replaced container mirror peer: " + item.attachment_id);
     if (expected.kind == AttachmentKind::mirror && !expected.mirror_container &&
+        (link_ifindex(item.name) || link_ifindex(expected.target_interface)) &&
         (link_ifindex(expected.target_interface) != item.peer_ifindex ||
          link_alias(expected.target_interface) !=
              endpoint_alias(state, item.attachment_id, "peer")))

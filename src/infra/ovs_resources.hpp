@@ -6,6 +6,7 @@
 #include <string_view>
 
 namespace graphx::infra::detail {
+bool mirror_absent_or_owned(const OwnedResourceIdentity& endpoint, const OwnershipState& state);
 
 std::string ovs_get(const std::string& bridge, const std::string& column);
 std::string ovs_get(const std::string& table, const std::string& record, const std::string& column);

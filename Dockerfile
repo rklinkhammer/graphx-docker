@@ -1,7 +1,7 @@
 FROM debian:bookworm-slim@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171 AS build
 COPY docker/debian.sources /etc/apt/sources.list.d/debian.sources
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      bash ca-certificates cmake curl git python3 ninja-build g++ libssl-dev \
+      bash ca-certificates cmake curl git python3 ninja-build g++ libssl-dev libcap2-bin \
  && rm -rf /var/lib/apt/lists/* /var/log/* /var/cache/ldconfig/aux-cache
 COPY docker/install-build-trust.sh /usr/local/libexec/graphx-install-build-trust
 ARG GRAPHX_BUILD_TRUST_FINGERPRINT=graphx-trust-v1-none
@@ -68,7 +68,9 @@ COPY --from=build /src/build/graphx-vita-radio /src/build/graphx-vita-processor 
 COPY --from=build /src/build/_deps/soapysdr-build/lib/libSoapySDR.so* /usr/local/lib/
 COPY --from=build /src/build/generated/vita-dependencies.json /src/build/generated/vita-dependencies.spdx.json /usr/local/share/graphx/
 COPY --from=build /src/build/generated/vita-licenses/ /usr/local/share/doc/graphx/vita-licenses/
-RUN ldconfig && rm -f /var/cache/ldconfig/aux-cache
+RUN --mount=type=bind,from=build,source=/usr/sbin/setcap,target=/tmp/setcap \
+    /tmp/setcap cap_net_raw=p /usr/local/bin/graphx-vita-recorder \
+ && ldconfig && rm -f /var/cache/ldconfig/aux-cache
 USER 65532:65532
 CMD ["/usr/local/bin/graphx", "--help"]
 

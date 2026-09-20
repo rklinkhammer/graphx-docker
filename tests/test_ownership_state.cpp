@@ -198,6 +198,20 @@ void test_passive_mirror_contract() {
   const std::string filter =
       R"([{"kind":"matchall","protocol":"all","pref":1,"chain":0,"options":{"actions":[{"kind":"gact","control_action":{"type":"drop"}}]}}])";
   require(passive_mirror_filter_matches(filter), "valid passive filter rejected");
+  const std::string header = R"({"protocol":"all","pref":1,"kind":"matchall","chain":0})";
+  const auto reported = "[" + header + "," + filter.substr(1);
+  require(passive_mirror_filter_matches(reported), "iproute2 classifier header rejected");
+  require(!passive_mirror_filter_matches("[" + header + "]"), "header without rule accepted");
+  require(!passive_mirror_filter_matches("[" + header + "," + header + "]"),
+          "two headers accepted without a rule");
+  require(
+      !passive_mirror_filter_matches(filter.substr(0, filter.size() - 1) + "," + filter.substr(1)),
+      "two actual filter rules accepted");
+  for (const auto& token : {std::string("\"pref\":1"), std::string("\"chain\":0")}) {
+    auto changed = reported;
+    changed.replace(changed.find(token), token.size(), token.substr(0, token.size() - 1) + "2");
+    require(!passive_mirror_filter_matches(changed), "unrelated classifier header accepted");
+  }
   for (const auto& invalid :
        {std::string("[]"), std::string("{"), std::string("{}"), filter + filter})
     require(!passive_mirror_filter_matches(invalid), "malformed filter accepted");
@@ -255,6 +269,27 @@ void test_passive_mirror_contract() {
     save_state(path, replaced);
     expect_failure([&] { static_cast<void>(load_state(path)); },
                    "replaced mirror identity accepted for cleanup");
+  }
+  // Ordinary container veths must enforce the same redundant ledger identity
+  // as passive mirrors, before cleanup can stop processes or delete resources.
+  auto data_state = state;
+  data_state.expected_endpoints.back().mirror_container = false;
+  data_state.expected_endpoints.back().kind = graphx::AttachmentKind::container_veth;
+  data_state.endpoints.back().kind = "container_veth";
+  data_state.endpoints.back().route_identity.clear();
+  save_state(path, data_state);
+  static_cast<void>(load_state(path));
+  for (int field = 0; field < 5; ++field) {
+    auto corrupt = data_state;
+    auto& item = corrupt.endpoints.back();
+    if (field == 0) item.namespace_inode = 8;
+    if (field == 1) item.container_id = std::string(64, 'b');
+    if (field == 2) item.target_interface = "foreign";
+    if (field == 3) item.name = "foreign";
+    if (field == 4) item.kind = "mirror_veth";
+    save_state(path, corrupt);
+    expect_failure([&] { static_cast<void>(load_state(path)); },
+                   "replaced container veth identity accepted for cleanup");
   }
   auto replaced = mirror;
   replaced.peer_ifindex = 44;

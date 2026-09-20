@@ -203,8 +203,13 @@ filter, grants initial `NET_RAW` only, and the recorder drops capabilities and
 restricts its receive descriptor before readiness. The recorder reports counters
 and discards frames without writing archives. An explicitly authored network
 capture remains independent; its snap length must cover MTU plus 22 bytes.
+
+The recorder image carries permitted-only `NET_RAW` on its executable. The
+non-root recorder starts directly, opens an inactive receive socket, drops all
+capabilities before starting threads, and waits for the identity-owned network
+barrier before binding. Container `no-new-privileges` remains enabled.
 See the [P3 network design](../design/four-radio-vita/network-design.md) and
-[pending live qualification](../design/four-radio-vita/p3-verification.md).
+[Lima qualification](../design/four-radio-vita/p3-verification.md).
 
 ## Configure telemetry
 

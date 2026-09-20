@@ -1,170 +1,82 @@
 # P4 verification — application availability
 
-## User instructions: where to start
+## Current acceptance
 
-Use the [P3/P4 operator runbook](privileged-verification-runbook.md). It provides:
+**P4 passes: 9/9 cases in the dedicated GraphX Lima guest, Linux ARM64.**
+[P3 verification](p3-verification.md) records the complete preceding network
+qualification. The [operator runbook](privileged-verification-runbook.md) gives
+the authorized execution, preparation and owned recovery procedure.
 
-1. Existing image preparation and live harness commands.
-2. Mac-side preflight, the current stopped/stale Lima prerequisite and repair boundary.
-3. Exact verified artifact paths, graph identities and bounded resource selections.
-4. Explicit authorization, execution, failure inspection and owned recovery steps.
-5. Case matrices and evidence required for phase closure.
+Current source base: `3a120c9b2b6f8245ec26b67440ad21c8403cea12`, with the
+uncommitted verification corrections. The sole VITA codec/runtime remains
+vrt_framework `dbe85d37155145842da60367af1c4beef8801b0c`.
 
-Private image verification and portable harness checks are recorded in
-[P3/P4 preparation](p34-preparation.md). The live harness has not executed against
-OVS. Preparation is P3/P4 work; P5/P6 and a separate Linux login are not prerequisites.
+Verified private images: `outputs/verification/p301-fix/images-identity/`.
+Each role passed two independent no-cache builds, archive reproducibility,
+OCI inventory/SBOM checks and smoke tests. Images were built once for the final
+runtime; every fixture created fresh containers. No image was published.
 
-P4 implementation is present; **P4 is not closed**. Native and portable acceptance
-are recorded below. Actual stopped-container/OVS path and recorder fault acceptance
-remain pending environment repair and explicit authorization; the private image fixture is verified. P3's
-privileged acceptance remains pending independently. No later phase is implemented.
+The aggregate machine-readable report is
+`outputs/verification/p301-fix/p34-results.json`. It retains the underlying
+run results, image digests, harness hashes, selected observations and final
+inventory comparison. Full runtime evidence remains guest-local under
+`/var/lib/graphx/verification/p301-fix/`.
 
-Baseline: GraphX `b3c9228` (P3 implementation), following native P1/P2 acceptance.
-The sole VITA codec/runtime remains vrt_framework
-`dbe85d37155145842da60367af1c4beef8801b0c`. The start-epoch reproducer is unchanged.
-No VITA packet, timestamp, transaction or backend execution behavior is reimplemented.
+## Case results
 
-## Exit criteria and evidence
+P4-01–P4-06 passed in `run-identity/`. P4-07–P4-09 passed in `run-final4/`
+with the same verified image digests and CLI. Each run records its exact harness
+hashes and preparation. The earlier P4-07 attempt stopped because the fault
+injector supplied a UUID to the name-only `del-br` command; the successful run
+uses an atomic UUID/name/ownership check and name-based deletion.
 
-| Criterion | Implementation / independent evidence | Qualification limit |
-|---|---|---|
-| Authored bounded policy; transactional defaults | C++ loader, authored/normalized schemas and compiler execution plan select `lifecycle.startup: available` and 100–30000 ms readiness. Default is transactional/30000 ms. Golden fixtures and negative tests cover the normalized addition. | Available policy rejects QEMU/namespace/external graphs; these keep existing transactional behavior. |
-| Release available subset | Native apps launch before the shared readiness window; containers launch held until infrastructure verification. Each application, including recorder, gets a readiness attempt. Timeout survivors are stopped before owner-token release. The common ledger retains admission and exact process identities. | Actual container/OVS admission needs live qualification. Failure of a pre-application infrastructure holder is an infrastructure failure, not application admission. |
-| Classify safe continuation versus unsafe startup | Temporary exit 75, clean exit, signal death and readiness timeout permit continuation. Invalid/security exit 78 and unknown normal exit reject startup. Platform, release, identity and shared-network failures remain fatal. Native injected failures exercise both branches and rollback. | Docker represents signal death by 128+signal; native waitpid distinguishes signal from normal exit. |
-| Missing radio / all radios / processor | Production processor starts configured radios after its bounded five-second configuration window. Tests exercise a real radio's busy listener, certificate-name rejection, missing inputs, all radios absent and processor absent. Status reports unavailable acquisition if processor/all radios are missing. | Readiness is process admission, not measured throughput. |
-| Runtime isolation and stale results | Real-radio test kills radio4, observes continuing spectra from radios1–3, kills processor, observes increasing radio packet counters and stale detector results. P2 detector-loss test remains. Per-stream freshness is based on valid produced/received spectra, never heartbeat alone. | Actual recorder death, container no-respawn and OVS-wide outage remain live gates. |
-| Bounded retry/work/storage | Existing per-stream queues, bounded UDP work and display queues retained. Failed certificate verification terminates that peer's retries; other connection attempts obey normalized count/backoff. No automatic process/container recreation; Compose restart remains no. | This change does not add a sustained memory benchmark or claim lossless delivery. |
-| Ownership and cleanup | Native tests retain each failed application's identity, check no respawn, stop survivors and assert no owned native processes remain. Corrupt executable identity and barrier token reject cleanup. Interruption rolls back. Stopped-container endpoint absence requires exact container ownership and surviving OVS records; live paths retain full MTU/ACL checks. | Linux/Lima inventory and replacement-race evidence pending. |
-| Recorder and diagnostic independence | Recorder remains separate and bounded; no archive or restart. Independent diagnostic capture now has a separate host-owned mirror endpoint. Recorder namespace deletion cannot remove that endpoint; capture health has no recorder-unavailability exemption. | Actual namespace disappearance, diagnostic survival, retention and eventual owned dumpcap cleanup must be tested together. The independent-delivery implementation is present; actual fresh-packet continuity remains unrun. |
-| P1/P2 and default graph regression | Unchanged epoch assertions, independent four-radio timing, production FFT/detector and transactional graph tests run with the selected gates below. | Native results do not qualify privileged OVS paths. |
+| Case | Check | Result | Seconds |
+|---|---|---|---:|
+| P4-01 | Available-policy baseline | PASS | 14.57 |
+| P4-02 | Fourteen pre-readiness exit/stall cases | PASS | 267.41 |
+| P4-03 | Invalid and unsafe startup rejection | PASS | 139.73 |
+| P4-04 | Each application killed after release | PASS | 134.38 |
+| P4-05 | Missing dependencies without fabricated progress | PASS | 32.25 |
+| P4-06 | Recorder independence with capture off/on | PASS | 37.39 |
+| P4-07 | Shared OVS bridge loss | PASS | 16.53 |
+| P4-08 | Twenty mutation checkpoints and interrupted stop/restart | PASS | 178.10 |
+| P4-09 | Owned cleanup | PASS | 14.60 |
+## Acceptance details
 
-The nominal IQ source payload remains **16 MB/s**. Native tests count spectra and
-packet progress; they do not measure OVS wire traffic or best-effort recorder rate.
+The available-policy matrix exercised safe exit and readiness timeout for each
+of seven applications. Failed applications stopped before release; the healthy
+subset was admitted and container restart counts stayed zero. Invalid exits,
+credential generation changes, foreign release tokens, MTU/filter failures,
+identity substitution, invalid configuration and substituted images rejected startup.
 
-## Commands and results
+Post-release failures of each application preserved the expected healthy paths.
+Processor loss left configured radios transmitting and detector results stale;
+missing startup dependencies produced no fabricated detector progress. Recorder
+loss did not stop acquisition or independent diagnostic capture. Capture-off and
+capture-on fixtures both passed.
 
-Commands run from the repository root on macOS arm64. Logs and optional exact owned
-inventories are generated under `outputs/verification/p4-20260920/`.
+The shared-bridge fault was applied only after its UUID, name, owner, graph and
+configuration hash matched in the same OVS transaction. The resulting outage
+was reported unhealthy, detector results became stale and containers did not
+restart to conceal the outage.
 
-```sh
-cmake --build build/vita-migration -j4
-ctest --test-dir build/vita-migration \
-  -R 'graphx-(vita|ownership-state|resource-modules)' --output-on-failure
-PATH=/opt/homebrew/opt/node@24/bin:$PATH scripts/verify.sh quick
-PATH=/opt/homebrew/opt/node@24/bin:$PATH scripts/verify.sh quality
-PATH=/opt/homebrew/opt/node@24/bin:$PATH scripts/verify.sh portable
-PATH=/opt/homebrew/opt/node@24/bin:$PATH \
-  GRAPHX_EXECUTION_EVIDENCE=outputs/verification/p4-20260920/inventories-final \
-  python3 tests/test_execution_available.py build/vita-migration
-shellcheck -x scripts/test-telemetry-features.sh
-python3 tests/test_documentation_consistency.py . build/dev/graphx
-```
+Recovery covered ten injected failures and ten abrupt crashes at registered
+infrastructure mutation points, including the independent diagnostic mirror.
+Interrupted shutdown with a stopped recorder was followed by owned cleanup,
+restart and fresh application progress. The final cleanup case passed.
 
-Native VITA/ownership/resource suite: **21/21 passed**, 106.75 seconds. The additional
-certificate-name rejection test passed independently with three healthy streams,
-one rejected peer, one connection attempt and no data from the unconfigured radio.
-UBSan suite: **22/22 passed**, 121.04 seconds, including opt-in VITA targets and the
-sanitizer-coverage check. Final focused reruns after the log-snapshot fix passed: normal ownership/console/resource
-checks **3/3**, UBSan ownership/console/resource plus authentication rejection **4/4**.
-The full native fault suite and existing transactional lifecycle suite both passed
-again on the final implementation.
+Both runs preserved their independent sentinels and pre-existing resources.
+The final inventory comparison found no containers or OVS bridges remaining.
+Retained history/capture volumes are intentional evidence, not live workloads.
 
-Quick: **41/41 passed** (110 seconds including build). Portable: **passed** (163
-seconds), including all 41 development tests, normalized consumers, HTTP/web and
-both transactional and available-policy native lifecycle suites. Quality,
-opt-in radio/processor clang-tidy and cppcheck, documentation consistency and
-ShellCheck passed. No privileged gates ran.
-
-Existing envelope/frame and P2 spectrum fuzzers do not exercise P4 process/OVS
-admission. They were not rerun as P4 coverage; this phase adds deterministic fault,
-boundary and concurrent-log tests rather than claiming library fuzz evidence for
-the GraphX lifecycle.
-
-Additional exact commands:
-
-```sh
-cmake --build build/vita-ubsan -j4
-UBSAN_OPTIONS=halt_on_error=1 ctest --test-dir build/vita-ubsan \
-  -R 'graphx-(vita|ownership-state|resource-modules|sanitizer-coverage)' --output-on-failure
-ctest --test-dir build/vita-migration \
-  -R 'graphx-(ownership-state|node-console|resource-modules)' --output-on-failure
-UBSAN_OPTIONS=halt_on_error=1 ctest --test-dir build/vita-ubsan \
-  -R 'graphx-(ownership-state|node-console|resource-modules|vita-availability-auth-failure)' \
-  --output-on-failure
-python3 tests/test_vita_processing.py build/vita-migration --auth-failure
-PATH=/opt/homebrew/opt/node@24/bin:$PATH \
-  python3 tests/test_execution.py build/vita-migration .
-/opt/homebrew/opt/llvm@21/bin/clang-tidy -p build/vita-migration \
-  --extra-arg=-isysroot \
-  --extra-arg=/Library/Developer/CommandLineTools/SDKs/MacOSX26.sdk \
-  src/vita/radio.cpp src/vita/processing_app.cpp
-cppcheck --enable=warning,portability --inline-suppr --suppress=missingIncludeSystem \
-  --error-exitcode=1 -Iinclude src/vita/radio.cpp src/vita/processing_app.cpp
-cmake --build build/quality --target graphx-ownership-state-tests -j4
-```
-
-The nine retained before/after fault pairs are in `inventories-final/`: one temporary
-exit, signal death and timeout for each of three common-lifecycle test applications.
-Each before-stop ledger retains five native identities (platform, three applications
-including the failed one, and console relay). Each after-stop ledger has zero native
-process records; barriers are absent and history/logs remain. These are native owned
-inventories, not container or OVS inventories. Actual production radio/processor/
-detector fault outcomes are separately asserted by `test_vita_processing.py`.
-
-There are **no remaining failed nonprivileged checks**. Remaining acceptance work is
-the authorized privileged execution of the verified private fixture and harness below, including actual
-recorder/application-container failure and shared-OVS outage. P4 must not be marked
-complete from the native evidence alone.
-
-Initial quick checks rejected the expected normalized/compiler golden differences;
-fixtures were regenerated from the authoritative C++ compiler after reviewing the
-new default lifecycle fields. Initial quality rejected an escaping exception in
-the fault-injection test executable; the executable now catches and reports it.
-A repeated native fault run exposed the immutable-document reader rejecting an
-actively appended readiness log (`E_BOUND: input changed while reading`). Readiness
-now uses a bounded regular-file snapshot; configuration reading stays immutable.
-A concurrent-append test and oversized/symlink/hardlink rejection tests cover the
-fix. No diagnostic or acceptance assertion was disabled.
+This qualifies application availability and recovery on the dedicated Lima ARM64
+container path. It does not establish native Linux host, QEMU/TCG/KVM, physical
+radio, published-image, P5 or P6 acceptance. The default transactional policy and
+VITA protocol implementation remain unchanged.
 
 ## P4 live case specifications
 
-**Not executed.** Use the executable harness and numbered operator steps in the
-[shared runbook](privileged-verification-runbook.md) before using these specifications.
-
-Use the P3 isolated test fixture and image-verification prerequisites in
-[p3-verification.md](p3-verification.md). Select the available policy with a 5000 ms
-budget through the authored graph and normal compiler. Work only in the authorized
-Linux/Lima guest under `/var/lib/graphx`, with a unique graph identity, no physical
-uplinks and no external management/socket exposure. Preserve before/after container
-IDs, namespace inodes, veth ifindices, OVS UUIDs, capture PID/directory identities
-and an unrelated control graph's inventory.
-
-1. Establish normal readiness and observed spectra/recorder progress. Record all
-   container RestartCount values and the release token. This requires real P1/P2
-   applications and the passive recorder, not a test-only container replacement.
-2. For each radio, processor, detector and recorder, terminate the application
-   after network-ready but before application readiness. Also stall each until the
-   deadline. Verify the available subset releases, no late join or restart occurs,
-   and each unavailable function is reported honestly. A missing processor must
-   produce no initial radio acquisition. All radios unavailable must produce no
-   useful spectra.
-3. Repeat failures after release. Verify healthy-radio packet and spectrum progress;
-   after processor death, radio counters continue while detector results become
-   stale. Detector/recorder death must leave upstream processes running.
-4. Exercise recorder death with diagnostic capture enabled and disabled. Verify
-   stopped namespace/veth absence is distinguished from replacement, capture
-   evidence is retained and independent diagnostics continue as required by P3.
-   Merely reporting unavailable delivery or retaining old packets does not pass
-   continuity. Record a failure/blocker if the recorder namespace removes delivery;
-   fix the implementation against the approved contract before closing this case. Preserve passive enforcement and image permissions.
-5. Remove the owned shared bridge in the isolated fixture and confirm unavailable
-   paths, bounded surviving processes and no throughput claim. Startup on a bad
-   MTU, wrong ACL, replaced interface/container, wrong token or invalid credentials
-   must reject release; runtime status must not repair or mutate resources.
-6. Interrupt startup and shutdown at recorded boundaries; verify owned cleanup,
-   absent barriers, retained logs/history/capture and untouched unrelated inventory.
-   Explicit whole-graph restart must be the only restoration and must document
-   interruption of healthy nodes. No individual-container hot replacement is claimed.
-
-These steps require explicit authorization. No privileged Linux, Lima, TCG or KVM
-run, image publication, push or deployment was performed for P4.
+The executable specification is `tests/test_vita_live.py`, cases P4-01–P4-09.
+See the [runbook matrix](privileged-verification-runbook.md#6-p4-automated-case-matrix)
+for selections, expected outcomes and bounded resource requirements. Use a fresh
+run root and matching preparation for each invocation.

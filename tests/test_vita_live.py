@@ -142,7 +142,14 @@ class Fixture:
 
     def state_value(self):
         import yaml
-        return yaml.safe_load(self.ledger.read_text())
+        # Ownership identities are strings even when they resemble YAML timestamps.
+        # Keep SafeLoader's numeric/boolean parsing without constructing datetimes.
+        class OwnershipLoader(yaml.SafeLoader):
+            yaml_implicit_resolvers = {
+                key: [(tag, pattern) for tag, pattern in resolvers
+                      if tag != 'tag:yaml.org,2002:timestamp']
+                for key, resolvers in yaml.SafeLoader.yaml_implicit_resolvers.items()}
+        return yaml.load(self.ledger.read_text(), Loader=OwnershipLoader)
 
     def command(self, action, *, env=None, ok=True):
         self.started |= action == 'up'
@@ -178,7 +185,10 @@ class Fixture:
         return obj
 
     def logs(self, name):
-        return call('docker', 'logs', '--tail', '256', self.container(name)['Id'])[1]
+        # Detector emits a line per spectrum (~1953/s), in addition to its 1 Hz
+        # counter. A 256-line tail can evict the counter between samples.
+        tail = '8192' if name == 'detector' else '256'
+        return call('docker', 'logs', '--tail', tail, self.container(name)['Id'])[1]
 
     def counters(self, name):
         text = self.logs(name)
@@ -230,6 +240,20 @@ class Fixture:
         if observer_error: raise observer_error
 
 
+def set_owned_peer_mtu(f, state, endpoint, resource, value):
+    container = f.container(endpoint['owner'], True)
+    pid = container['State']['Pid']
+    require(container['Id'] == resource['container_id'] and
+            Path(f'/proc/{pid}/ns/net').stat().st_ino == resource['namespace_inode'],
+            'MTU fault namespace replaced')
+    prefix = ['nsenter', '-t', str(pid), '-n', '--']
+    peer = json.loads(call(*prefix, 'ip', '-j', 'link', 'show', endpoint['target_interface'])[1])[0]
+    require(peer['ifindex'] == resource['peer_ifindex'] and
+            peer['ifalias'] == f"graphx:{state['owner_token']}:{endpoint['id']}:peer",
+            'MTU fault peer replaced')
+    call(*prefix, 'ip', 'link', 'set', 'dev', endpoint['target_interface'], 'mtu', str(value))
+
+
 def mtu(f):
     state = f.state_value()
     resources = {r['attachment_id']: r for r in state['resources'] if 'attachment_id' in r and r['kind'] != 'network_capture'}
@@ -248,9 +272,9 @@ def mtu(f):
             require(call('ovs-vsctl', 'get', 'Interface', e['host_interface'], key)[1].strip() == '9000', 'OVS MTU')
     # Live malformed path: health fails, then only the exact interface is restored.
     endpoint = state['expected_endpoints'][0]
-    call('ip', 'link', 'set', 'dev', endpoint['host_interface'], 'mtu', '1500')
+    set_owned_peer_mtu(f, state, endpoint, resources[endpoint['id']], 1500)
     try: require(f.command('status', ok=False)[0] != 0, 'lowered MTU accepted')
-    finally: call('ip', 'link', 'set', 'dev', endpoint['host_interface'], 'mtu', '9000')
+    finally: set_owned_peer_mtu(f, state, endpoint, resources[endpoint['id']], 9000)
     f.command('status')
 
 
@@ -271,7 +295,10 @@ def reject_startup_mtu(f, fault='mtu'):
         live = json.loads(call('ip', '-j', 'link', 'show', e['name'])[1])[0]
         require(live['ifindex'] == e['ifindex'], 'fault endpoint replaced')
         if fault == 'mtu':
-            call('ip', 'link', 'set', 'dev', e['name'], 'mtu', '1500')
+            # OVS reconciles its host port to mtu_request. Fault the owned peer
+            # instead so the malformed path persists through readiness polling.
+            endpoint = next(p for p in state['expected_endpoints'] if p['id'] == e['attachment_id'])
+            set_owned_peer_mtu(f, state, endpoint, e, 1500)
         elif fault == 'identity':
             alias_restore = (e['name'], e['ifindex'], live['ifalias'])
             call('ip', 'link', 'set', e['name'], 'alias', 'qualification-replaced')
@@ -368,6 +395,12 @@ def capture_continuity(f):
     write_json(f.root / 'capture-continuity.json', {'recorder_death_epoch': death_time, 'fresh_packets': True, 'files': [str(p) for p in files]})
 
 
+def recorder_privilege_policy(host):
+    # Docker versions normalize capability names with or without CAP_.
+    return (host['CapAdd'] in (['NET_RAW'], ['CAP_NET_RAW']) and
+            host['CapDrop'] == ['ALL'] and not host['Privileged'])
+
+
 def passive(f):
     recorder = f.container('recorder', True); pid = recorder['State']['Pid']
     status = Path(f'/proc/{pid}/status').read_text()
@@ -375,7 +408,7 @@ def passive(f):
         require(re.search(capability + r':\s+0+\s', status), 'recorder retained ' + capability)
     require(re.search(r'Seccomp:\s+2', status), 'recorder seccomp missing')
     host = recorder['HostConfig']
-    require(host['CapAdd'] == ['NET_RAW'] and host['CapDrop'] == ['ALL'] and not host['Privileged'], 'recorder privilege policy')
+    require(recorder_privilege_policy(host), 'recorder privilege policy')
     require(host['NetworkMode'] != 'host' and all('docker.sock' not in m['Destination'] and 'openvswitch' not in m['Destination'] for m in recorder['Mounts']), 'recorder host access')
     endpoint = next(e for e in f.state_value()['expected_endpoints'] if e['id'] == 'mirror')
     text = call('tc', '-s', '-j', 'filter', 'show', 'dev', endpoint['host_interface'], 'ingress')[1]
@@ -446,6 +479,18 @@ def identity(f):
     try: require(f.command('down', ok=False)[0] != 0, 'replaced endpoint accepted')
     finally: call('ip', 'link', 'set', endpoint['name'], 'alias', alias)
     f.command('status')
+
+
+def remove_owned_bridge(state):
+    bridge = next(r for r in state['resources'] if r['kind'] == 'ovs_bridge')
+    # del-br takes a name, not a UUID. Assert the UUID/name and full ownership
+    # in the same transaction so a same-name replacement cannot be deleted.
+    call('ovs-vsctl', '--timeout=2', '--', 'wait-until', 'Bridge', bridge['uuid'],
+         'name=' + json.dumps(bridge['name']),
+         'external_ids:graphx_owner=' + state['owner_token'],
+         'external_ids:graphx_graph=' + state['graph_id'],
+         'external_ids:graphx_config_hash=' + state['config_sha256'],
+         '--', 'del-br', bridge['name'])
 
 
 def run_case(args, case, directory):
@@ -599,10 +644,7 @@ def run_case(args, case, directory):
         elif case == 'P3-07': capture_continuity(f)
         elif case == 'P3-08': identity(f)
         elif case == 'P4-07':
-            bridge = next(r for r in f.state_value()['resources'] if r['kind'] == 'ovs_bridge')
-            owner = f.state_value()['owner_token']
-            require(call('ovs-vsctl', 'get', 'Bridge', bridge['uuid'], 'external_ids:graphx_owner')[1].strip().strip('"') == owner, 'bridge ownership mismatch')
-            call('ovs-vsctl', 'del-br', bridge['uuid'])
+            remove_owned_bridge(f.state_value())
             require(f.command('status', ok=False)[0] != 0, 'bridge outage reported healthy')
             wait(lambda: 'results=stale' in f.logs('detector'))
             require(all(f.container(n)['RestartCount'] == 0 for n in NODES), 'automatic repair')

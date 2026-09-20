@@ -3,6 +3,7 @@
 import copy
 import hashlib
 import json
+import importlib.util
 from pathlib import Path
 import shutil
 import socket
@@ -13,8 +14,8 @@ import tempfile
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from vita_live_support import assert_progress, ethernet_record, graph_document
-from test_vita_live import Fixture, preserved
+from vita_live_support import assert_progress, ethernet_record, graph_document, write_json
+from test_vita_live import Fixture, preserved, recorder_privilege_policy, set_owned_peer_mtu, remove_owned_bridge
 
 source = Path(__file__).resolve().parents[1]
 build = Path(sys.argv[1]).resolve()
@@ -25,6 +26,56 @@ def rejects(function):
     except (ValueError, AssertionError): return
     raise AssertionError('invalid evidence accepted')
 
+
+for capability in ('NET_RAW', 'CAP_NET_RAW'):
+    host = {'CapAdd': [capability], 'CapDrop': ['ALL'], 'Privileged': False}
+    assert recorder_privilege_policy(host)
+    for added in ([], ['NET_ADMIN'], [capability, 'NET_ADMIN'], [capability, capability]):
+        assert not recorder_privilege_policy({**host, 'CapAdd': added})
+    assert not recorder_privilege_policy({**host, 'Privileged': True})
+    assert not recorder_privilege_policy({**host, 'CapDrop': []})
+
+# MTU fault injection must target only the recorded container peer.
+fixture = SimpleNamespace(container=lambda name, running: {'Id': 'container', 'State': {'Pid': 123}})
+endpoint = {'id': 'data', 'owner': 'radio1', 'target_interface': 'gx0'}
+resource = {'container_id': 'container', 'namespace_inode': 45, 'peer_ifindex': 67}
+peer = {'ifindex': 67, 'ifalias': 'graphx:token:data:peer'}
+for bad in (None, 'container_id', 'namespace_inode', 'peer_ifindex'):
+    candidate = {**resource, **({bad: 'foreign'} if bad else {})}
+    commands = []
+    def peer_call(*command, **kwargs):
+        commands.append(command)
+        return 0, json.dumps([peer])
+    with patch('test_vita_live.Path.stat', return_value=SimpleNamespace(st_ino=45)), patch(
+            'test_vita_live.call', side_effect=peer_call):
+        action = lambda: set_owned_peer_mtu(fixture, {'owner_token': 'token'}, endpoint, candidate, 1500)
+        if bad: rejects(action)
+        else: action()
+    assert any('set' in command for command in commands) == (bad is None)
+
+# Bridge outage must atomically bind the name-only deletion API to its UUID.
+bridge_state = {'resources': [{'kind': 'ovs_bridge', 'uuid': 'owned-uuid', 'name': 'gxb-owned'}],
+                'owner_token': 'owner', 'graph_id': 'graph', 'config_sha256': 'hash'}
+with patch('test_vita_live.call') as bridge_call:
+    remove_owned_bridge(bridge_state)
+    bridge_call.assert_called_once_with(
+        'ovs-vsctl', '--timeout=2', '--', 'wait-until', 'Bridge', 'owned-uuid',
+        'name="gxb-owned"', 'external_ids:graphx_owner=owner', 'external_ids:graphx_graph=graph',
+        'external_ids:graphx_config_hash=hash', '--', 'del-br', 'gxb-owned')
+with patch('test_vita_live.call', side_effect=AssertionError('ownership mismatch')):
+    rejects(lambda: remove_owned_bridge(bridge_state))
+
+# Counter observation must survive the detector's per-spectrum log volume.
+fixture = Fixture.__new__(Fixture)
+fixture.container = lambda name: {'Id': 'owned-detector'}
+lines = ['detector received=100 invalid=0'] + ['detection stream=1 sequence=1'] * 2000
+def detector_logs(*command, **kwargs):
+    assert command[:3] == ('docker', 'logs', '--tail') and command[-1] == 'owned-detector'
+    return 0, '\n'.join(lines[-int(command[3]):])
+with patch('test_vita_live.call', side_effect=detector_logs):
+    assert fixture.counters('detector') == 100
+    lines += ['detector received=2100 invalid=0'] + ['detection stream=1 sequence=2'] * 2000
+    assert fixture.counters('detector') == 2100
 
 # Independent byte fixtures include 0/1/2 VLAN tags, truncation and IP fragmentation.
 payload = bytes(i % 251 for i in range(8836))
@@ -50,6 +101,30 @@ for key in before:
     rejects(lambda: preserved(before, after))
 with tempfile.TemporaryDirectory(prefix='graphx-vita-live-contract-') as directory:
     root = Path(directory).resolve(); images = root / 'images'; images.mkdir()
+    # PyYAML is a live Linux prerequisite, not a portable preparation dependency.
+    # Run this regression in the Lima guest as well as hosts with PyYAML installed.
+    if importlib.util.find_spec('yaml'):
+        import yaml
+        timestamp = '2026-09-20T11:19:00-04:00'
+        ledger = root / 'ownership.yml'
+        ledger.write_text('resources: []\nprocesses:\n  - kind: volume\n'
+                          '    name: graphx-fixture-history\n'
+                          f'    secondary_id: {timestamp}\n'
+                          '    pid: 0\n    pending: false\n')
+        fixture = Fixture.__new__(Fixture); fixture.ledger = ledger
+        state = fixture.state_value()
+        retained = state['processes']
+        assert retained[0]['secondary_id'] == timestamp
+        assert retained[0]['pid'] == 0 and retained[0]['pending'] is False
+        report = root / 'retained-history-volumes.json'; write_json(report, retained)
+        assert json.loads(report.read_text()) == retained
+        # The specialized loader must not change PyYAML behavior for other users.
+        assert not isinstance(yaml.safe_load(timestamp), str)
+        ledger.write_text('!!python/object/apply:os.system ["false"]')
+        try: fixture.state_value()
+        except yaml.constructor.ConstructorError: pass
+        else: raise AssertionError('unsafe ownership YAML accepted')
+        print('Ownership timestamps preserve exact identity and serialize safely')
     catalog = images / 'catalog'; shutil.copytree(source / 'config/catalog', catalog)
     schemas = json.loads((catalog / 'wire-schemas.json').read_bytes())
     schemas.update(json.loads((source / 'config/vita/wire-schemas.json').read_bytes()))

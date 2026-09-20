@@ -103,3 +103,8 @@ recorder is container-only. Existing design image references are not newly publi
 P3 application images. Verified private qualification images and the live harness are recorded in
 [preparation evidence](p34-preparation.md); complete release/image publication belongs to P5. P1/P2 native
 behavior and the vrt_framework dependency pin remain unchanged.
+
+The recorder image carries permitted-only `NET_RAW` on its executable. The
+non-root recorder starts directly, opens an inactive receive socket, drops all
+capabilities before starting threads, and waits for the identity-owned network
+barrier before binding. Container `no-new-privileges` remains enabled.

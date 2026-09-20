@@ -48,12 +48,12 @@ a replacement interface or container, bad MTU on a live path, or shared-network
 failure rejects release. Diagnostic capture uses a separate host-owned mirror endpoint and must continue
 when recorder delivery disappears. Capture health is checked independently; a
 stopped recorder does not excuse a missing/replaced diagnostic endpoint or process.
-Actual fresh-packet continuity remains a privileged acceptance assertion.
+Fresh-packet continuity passed in the privileged Lima acceptance matrix.
 Cleanup retains the existing all-identities-before-mutation checks and never
 removes another graph's resources.
 
 Qualification combines common native lifecycle fault injection, independent real
 radio/processor/detector failure tests, compiler/ownership negative tests and the
-existing transactional regressions. Actual container/OVS failure acceptance needs
-an authorized isolated Linux/Lima run and verified images; portable evidence does
-not close that platform gate or P3's pending gates.
+existing transactional regressions. The authorized Lima ARM64 container/OVS
+failure matrix passed with verified images; see [P4 verification](p4-verification.md).
+Portable evidence alone does not qualify other privileged platforms.

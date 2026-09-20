@@ -752,12 +752,13 @@ OwnershipState load_state(const std::filesystem::path& path) {
           throw std::runtime_error("invalid owned endpoint");
         const auto expected = std::ranges::find(state.expected_endpoints, endpoint.attachment_id,
                                                 &ExpectedEndpoint::id);
-        if (expected->mirror_container &&
-            (kind != "mirror_veth" || endpoint.container_id != expected->container_id ||
+        if ((expected->mirror_container || expected->kind == AttachmentKind::container_veth) &&
+            (kind != (expected->mirror_container ? "mirror_veth" : "container_veth") ||
+             endpoint.container_id != expected->container_id ||
              endpoint.namespace_inode != expected->namespace_inode ||
              endpoint.name != expected->host_interface ||
              endpoint.target_interface != expected->target_interface))
-          throw std::runtime_error("container mirror ownership mismatch");
+          throw std::runtime_error("container endpoint ownership mismatch");
         state.endpoints.push_back(std::move(endpoint));
         continue;
       }

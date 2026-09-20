@@ -140,10 +140,16 @@ int run_recorder(int argc, char** argv) try {
 #ifdef __linux__
   // Open an inactive socket, then drop capabilities before common startup can
   // create output/telemetry threads. Binding activates it only on the owned peer.
-  Socket socket{::socket(AF_PACKET, SOCK_RAW | SOCK_NONBLOCK | SOCK_CLOEXEC, 0)};
-  if (socket.fd < 0) throw std::runtime_error("recorder requires initial NET_RAW capability");
+  // The image grants permitted-only NET_RAW. Activate only that capability;
+  // the container bounding set and no-new-privileges still constrain the grant.
   __user_cap_header_struct header{_LINUX_CAPABILITY_VERSION_3, 0};
   std::array<__user_cap_data_struct, 2> caps{};
+  caps[0].permitted = caps[0].effective = 1U << CAP_NET_RAW;
+  if (syscall(SYS_capset, &header, caps.data()))
+    throw std::runtime_error("recorder requires initial NET_RAW capability");
+  Socket socket{::socket(AF_PACKET, SOCK_RAW | SOCK_NONBLOCK | SOCK_CLOEXEC, 0)};
+  if (socket.fd < 0) throw std::runtime_error("recorder requires initial NET_RAW capability");
+  caps = {};
   if (syscall(SYS_capset, &header, caps.data()))
     throw std::runtime_error("cannot drop recorder capabilities");
   // The common log drainer duplicates stdout: make its destination nonblocking
@@ -151,11 +157,16 @@ int run_recorder(int argc, char** argv) try {
   for (const auto fd : {STDOUT_FILENO, STDERR_FILENO})
     if (fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK) < 0)
       throw std::runtime_error("recorder log binding");
+  stopped = 0;
+  std::signal(SIGTERM, stop);
+  std::signal(SIGINT, stop);
+  std::signal(SIGPIPE, SIG_IGN);
   auto args = node_arguments(argc, argv);
   auto node = load_node_settings(args.config, args.node, "vita.recorder");
   if (!node.resolved.contains("recorder") ||
       node.resolved.at("execution").at("kind").text() != "container")
     throw std::runtime_error("recorder requires normalized passive container attachment");
+  if (!await_node_network(args, [] { return stopped != 0; })) return 0;
   const auto interface = node.resolved.at("recorder").at("interface").text();
   auto index = if_nametoindex(interface.c_str());
   if (!index) throw std::runtime_error("recorder interface missing");
@@ -190,10 +201,6 @@ int run_recorder(int argc, char** argv) try {
         node.resolved.at("telemetry").at("port").integer(), secret,
         [] { return demo::secret_env("GRAPHX_TELEMETRY_SHARED_SECRET"); });
   }
-  stopped = 0;
-  std::signal(SIGTERM, stop);
-  std::signal(SIGINT, stop);
-  std::signal(SIGPIPE, SIG_IGN);
   if (fcntl(STDOUT_FILENO, F_SETFL, fcntl(STDOUT_FILENO, F_GETFL) | O_NONBLOCK) < 0)
     throw std::runtime_error("recorder output binding");
   restrict_recorder_descriptor(socket.fd);

@@ -188,6 +188,22 @@ NodeArguments node_arguments(int argc, char** argv, bool execution) {
   return result;
 }
 
+bool await_node_network(const NodeArguments& arguments, const std::function<bool()>& stopping) {
+  const auto marker = arguments.release_file.parent_path() / "network-ready";
+  const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(60);
+  while (!stopping()) {
+    if (std::filesystem::symlink_status(marker).type() != std::filesystem::file_type::not_found) {
+      if (read_document(marker, 128) != arguments.release_token)
+        reject("E_NETWORK_IDENTITY", "startup", "network token does not match this invocation");
+      return true;
+    }
+    if (std::chrono::steady_clock::now() >= deadline)
+      reject("E_READINESS_TIMEOUT", "startup", "network preparation deadline expired");
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+  }
+  return false;
+}
+
 bool await_node_release(const NodeSettings& settings, const NodeArguments& arguments,
                         const std::function<bool()>& stopping) {
 #if defined(GRAPHX_QUALIFICATION_HOOKS)

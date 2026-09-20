@@ -238,6 +238,9 @@ def inspect_image(path: Path, role: str, version: str, commit: str, platform: st
                                 require(len(buffer) <= MAX_JSON, "oversized package metadata")
                         scan_keys(previous, name, final=True)
                         files[name] = {"sha256": checksum.hexdigest(), "mode": item.mode}
+                        capability = item.pax_headers.get("SCHILY.xattr.security.capability")
+                        if capability is not None:
+                            files[name]["capability"] = capability.encode("utf-8", "surrogateescape").hex()
                         if capture:
                             captured[name] = bytes(buffer)
                     elif item.issym() or item.islnk():
@@ -246,6 +249,10 @@ def inspect_image(path: Path, role: str, version: str, commit: str, platform: st
         for executable in RECIPES[role][1]:
             installed = files.get("usr/local/bin/" + executable)
             require(installed and installed["mode"] & 0o111, "missing installed " + executable)
+            expected_capability = ("0000000200200000000000000000000000000000"
+                                   if executable == "graphx-vita-recorder" else None)
+            require(installed.get("capability") == expected_capability,
+                    "unexpected executable capability: " + executable)
         if role == "telemetry":
             require(all(name in files for name in ("app/server.mjs", "app/node-console.mjs", "app/web/dist/index.html",
                                                    "config/schema/normalized-graph.schema.json")),
