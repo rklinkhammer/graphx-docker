@@ -1,7 +1,7 @@
 FROM debian:bookworm-slim@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171 AS build
 COPY docker/debian.sources /etc/apt/sources.list.d/debian.sources
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      bash ca-certificates cmake curl ninja-build g++ libssl-dev \
+      bash ca-certificates cmake curl git python3 ninja-build g++ libssl-dev \
  && rm -rf /var/lib/apt/lists/* /var/log/* /var/cache/ldconfig/aux-cache
 COPY docker/install-build-trust.sh /usr/local/libexec/graphx-install-build-trust
 ARG GRAPHX_BUILD_TRUST_FINGERPRINT=graphx-trust-v1-none
@@ -22,9 +22,15 @@ COPY docs docs
 COPY deploy deploy
 COPY tools tools
 COPY wireshark wireshark
+COPY scripts/vita scripts/vita
+COPY tests/test_vita_recorder.cpp tests/test_vita_recorder.cpp
 ARG GRAPHX_RELEASE_IMAGE_TYPES=OFF
+ARG GRAPHX_BUILD_VITA_RADIO=OFF
+ARG GRAPHX_QUALIFICATION_HOOKS=OFF
 RUN cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DGRAPHX_BUILD_TESTS=OFF \
       -DGRAPHX_RELEASE_IMAGE_TYPES=${GRAPHX_RELEASE_IMAGE_TYPES} \
+      -DGRAPHX_BUILD_VITA_RADIO=${GRAPHX_BUILD_VITA_RADIO} \
+      -DGRAPHX_QUALIFICATION_HOOKS=${GRAPHX_QUALIFICATION_HOOKS} \
  && cmake --build build
 
 FROM debian:bookworm-slim@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171 AS runtime
@@ -51,6 +57,18 @@ COPY --from=build /src/build/_deps/yaml-cpp-src/LICENSE /usr/local/share/doc/gra
 COPY LICENSE THIRD_PARTY.md /usr/local/share/doc/graphx/
 ENV GRAPHX_VERSION=${GRAPHX_VERSION} \
     SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+USER 65532:65532
+CMD ["/usr/local/bin/graphx", "--help"]
+
+# Opt-in private qualification role. No topology or credentials are baked in.
+FROM runtime AS vita
+USER root
+COPY --from=build /src/build/graphx-vita-recorder-test /usr/local/libexec/graphx-vita-recorder-test
+COPY --from=build /src/build/graphx-vita-radio /src/build/graphx-vita-processor /src/build/graphx-vita-detector /src/build/graphx-vita-recorder /usr/local/bin/
+COPY --from=build /src/build/_deps/soapysdr-build/lib/libSoapySDR.so* /usr/local/lib/
+COPY --from=build /src/build/generated/vita-dependencies.json /src/build/generated/vita-dependencies.spdx.json /usr/local/share/graphx/
+COPY --from=build /src/build/generated/vita-licenses/ /usr/local/share/doc/graphx/vita-licenses/
+RUN ldconfig && rm -f /var/cache/ldconfig/aux-cache
 USER 65532:65532
 CMD ["/usr/local/bin/graphx", "--help"]
 

@@ -31,6 +31,10 @@ RECIPES = {
     "telemetry": ("Dockerfile", ["graphx", "graphx-platform"]),
     "sdr": ("Dockerfile", ["graphx", "graphx-sdr-radio", "graphx-sdr-processor", "graphx-sdr-sink"]),
 }
+RECIPES["vita"] = ("Dockerfile", ["graphx-vita-radio", "graphx-vita-processor",
+                                    "graphx-vita-detector", "graphx-vita-recorder"])
+DEFAULT_ROLES = {"runtime", "telemetry", "sdr"}
+VRT_PIN = "dbe85d37155145842da60367af1c4beef8801b0c"
 MAX_IMAGE = 2 * 1024**3
 MAX_JSON = 4 * 1024**2
 MAX_FILES = 100_000
@@ -183,7 +187,8 @@ def inspect_image(path: Path, role: str, version: str, commit: str, platform: st
                 "shared image requires UID 65532 and no implicit entrypoint")
         expected_cmd = {"runtime": ["/usr/local/bin/graphx", "--help"],
                         "telemetry": ["graphx-platform", "--help"],
-                        "sdr": ["/usr/local/bin/graphx-sdr", "--help"]}[role]
+                        "sdr": ["/usr/local/bin/graphx-sdr", "--help"],
+                        "vita": ["/usr/local/bin/graphx", "--help"]}[role]
         require(settings.get("Cmd") == expected_cmd, "unexpected shared image command")
         require(not any(v.startswith("GRAPHX_CONFIG=") for v in settings.get("Env", [])),
                 "image contains a default authored graph")
@@ -221,6 +226,7 @@ def inspect_image(path: Path, role: str, version: str, commit: str, platform: st
                         buffer, previous = bytearray(), b""
                         capture = (name in ("var/lib/dpkg/status", "lib/apk/db/installed",
                                             "usr/local/share/graphx/build-dependencies.json",
+                                            "usr/local/share/graphx/vita-dependencies.json",
                                             "usr/local/share/graphx/web-package-lock.json") or
                                    name.endswith("/package.json") and "/node_modules/" in name)
                         while chunk := stream.read(1024 * 1024):
@@ -265,6 +271,21 @@ def inspect_image(path: Path, role: str, version: str, commit: str, platform: st
             require(dependencies.get("yamlCpp") == "0.9.0", "bundled yaml-cpp version mismatch")
             packages[("yaml-cpp", dependencies["yamlCpp"])] = "MIT"
             packages[("OpenSSL", dependencies["openssl"])] = "Apache-2.0"
+        if role == "vita":
+            dependencies = json.loads(captured.get("usr/local/share/graphx/vita-dependencies.json", b"{}"))
+            pins = {dep["name"]: dep for dep in dependencies.get("dependencies", [])}
+            require(set(pins) == {"vrt_framework", "SoapySDR"} and
+                    pins["vrt_framework"]["revision"] == VRT_PIN and
+                    pins["SoapySDR"]["revision"] == "1cf5a539a21414ff509ff7d0eedfc5fa8edb90c6",
+                    "VITA dependency pin mismatch")
+            for name, dep in pins.items():
+                require("usr/local/share/doc/graphx/vita-licenses/" + name + ".txt" in files,
+                        "missing VITA dependency license")
+                packages[(name, dep["revision"])] = dep["license"]
+            require("usr/local/share/graphx/vita-dependencies.spdx.json" in files,
+                    "missing VITA dependency SBOM")
+            require(any(name.startswith("usr/local/lib/libSoapySDR.so") for name in files),
+                    "missing SoapySDR runtime")
         if role == "telemetry":
             metadata = captured.get("usr/local/share/graphx/web-package-lock.json")
             require(metadata is not None, "console production dependency lock missing")
@@ -313,7 +334,7 @@ def image_sbom(role, inspection, version, epoch):
 
 def verify(directory: Path) -> dict:
     manifest = json.loads((directory / "images.json").read_bytes())
-    require(manifest.get("version") == 1 and set(manifest.get("images", {})) == set(RECIPES),
+    require(manifest.get("version") == 1 and set(manifest.get("images", {})) in (DEFAULT_ROLES, set(RECIPES)),
             "invalid shared image release manifest")
     version = manifest["release_version"]
     commit = validate_commit(manifest["commit"])
@@ -351,7 +372,7 @@ def catalog_evidence(manifest):
                        for role, record in manifest["images"].items()}}
 
 
-def pin_catalog(source: Path, destination: Path, manifest: dict) -> None:
+def pin_catalog(source: Path, destination: Path, manifest: dict, vita: Path | None = None) -> None:
     """Derive the existing authoritative catalog; this is not a second graph manifest."""
     require(not destination.exists(), "catalog destination already exists")
     lock = json.loads((source / "lock.json").read_bytes())
@@ -362,6 +383,16 @@ def pin_catalog(source: Path, destination: Path, manifest: dict) -> None:
         require(not path.is_symlink() and path.resolve().is_relative_to(source.resolve()) and
                 name not in documents and sha256_file(path) == entry["sha256"], "source catalog digest mismatch")
         documents[name] = json.loads(path.read_bytes())
+    if vita is not None:
+        require("vita" in manifest["images"], "VITA catalog requires verified VITA image")
+        for path in sorted((vita / "types").glob("*.json")):
+            name = "types/" + path.name
+            require(name not in documents, "duplicate VITA type")
+            documents[name] = json.loads(path.read_bytes())
+            lock["files"].append({"path": name, "sha256": ""})
+        schemas = json.loads((vita / "wire-schemas.json").read_bytes())
+        require(not (set(schemas) & set(documents["wire-schemas.json"])), "duplicate VITA schema")
+        documents["wire-schemas.json"].update(schemas)
     for name, document in documents.items():
         if name == "platform.json":
             role = "telemetry"
@@ -407,7 +438,8 @@ def smoke_image(archive: Path, role: str, config_digest: str, manifest_digest: s
         commands = {"runtime": [["/usr/local/bin/graphx", "--version"]],
                     "telemetry": [["node", "--check", "/app/server.mjs"],
                                   ["node", "--input-type=module", "-e", "await import('ws'); await import('ajv');"]],
-                    "sdr": [[name, "--help"] for name in RECIPES["sdr"][1]]}[role]
+                    "sdr": [[name, "--help"] for name in RECIPES["sdr"][1]],
+                    "vita": [[name, "--help"] for name in RECIPES["vita"][1]] + [["/usr/local/libexec/graphx-vita-recorder-test"]]}[role]
         for command in commands:
             container = subprocess.check_output(
                 ["docker", "create", "--network", "none", "--read-only", "--cap-drop", "ALL",
@@ -416,11 +448,15 @@ def smoke_image(archive: Path, role: str, config_digest: str, manifest_digest: s
                 text=True, timeout=30).strip()
             require(re.fullmatch(r"[a-f0-9]{64}", container), "Docker returned an invalid container identity")
             try:
-                subprocess.run(["docker", "start", "--attach", container], check=True, timeout=30)
+                result = subprocess.run(["docker", "start", "--attach", container], check=False, timeout=30)
+                # Radio/processor/detector reject missing config. Recorder fails
+                # closed before configuration without NET_RAW; this smoke grants none.
+                expected_exit = (1 if command[0] == "graphx-vita-recorder" else 78) if role == "vita" and command[0] in RECIPES["vita"][1] else 0
+                require(result.returncode == expected_exit, "image smoke executable failed")
                 state = subprocess.check_output(["docker", "inspect", "--format",
                                                  "{{.State.Status}} {{.State.ExitCode}}", container],
                                                 text=True, timeout=30).strip()
-                require(state == "exited 0", "image smoke command did not exit successfully")
+                require(state == "exited " + str(expected_exit), "image smoke exit status mismatch")
             finally:
                 # Remove only the exact container ID returned by this create,
                 # including on interruption/timeout of the attached client.
@@ -447,9 +483,11 @@ def build(args):
     output.mkdir(parents=True)
     manifest = {"version": 1, "release_version": version, "commit": commit,
                 "source_date_epoch": epoch, "dirty_candidate": dirty, "platform": args.platform,
-                "execution_available": False, "images": {}}
+                "execution_available": False, "qualification_hooks": args.with_vita, "images": {}}
     token = uuid.uuid4().hex
     for role, (dockerfile, _) in RECIPES.items():
+        if role == "vita" and not args.with_vita:
+            continue
         tag = "graphx-image-check-" + token + "-" + role
         try:
             for attempt in range(2):
@@ -458,6 +496,8 @@ def build(args):
                            "--build-arg", "GRAPHX_VERSION=" + version,
                            "--build-arg", "GRAPHX_REVISION=" + commit,
                            "--build-arg", "GRAPHX_RELEASE_IMAGE_TYPES=ON",
+                           "--build-arg", "GRAPHX_BUILD_VITA_RADIO=" + ("ON" if args.with_vita else "OFF"),
+                           "--build-arg", "GRAPHX_QUALIFICATION_HOOKS=" + ("ON" if args.with_vita else "OFF"),
                            "--build-arg", "SOURCE_DATE_EPOCH=" + str(epoch),
                            "--output", "type=image,oci-mediatypes=true,compression=uncompressed,force-compression=true"]
                 if args.no_cache:
@@ -482,7 +522,8 @@ def build(args):
         finally:
             subprocess.run(["docker", "image", "rm", tag], check=False, stdout=subprocess.DEVNULL)
     manifest["repeat_builds"] = "no-cache" if args.no_cache else "cache-eligible"
-    pin_catalog(source / "config/catalog", output / "catalog", manifest)
+    pin_catalog(source / "config/catalog", output / "catalog", manifest,
+                source / "config/vita" if args.with_vita else None)
     manifest["catalog_sha256"] = sha256_file(output / "catalog/lock.json")
     (output / "images.json").write_bytes(encoded(manifest))
     verify(output)
@@ -498,6 +539,8 @@ def main():
     build_parser.add_argument("--platform", choices=("linux/arm64", "linux/amd64"), required=True)
     build_parser.add_argument("--allow-dirty", action="store_true")
     build_parser.add_argument("--no-cache", action="store_true")
+    build_parser.add_argument("--with-vita", action="store_true",
+                              help="include pinned private four-radio qualification applications")
     verify_parser = sub.add_parser("verify")
     verify_parser.add_argument("directory", type=Path)
     args = parser.parse_args()

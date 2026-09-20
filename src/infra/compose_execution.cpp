@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <chrono>
 #include <csignal>
+#include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <set>
@@ -744,6 +745,18 @@ process.stdout.write(JSON.stringify(guests));
                                        {"target", "/captures/" + capture_id},
                                        {"read_only", true}});
           }
+#if defined(GRAPHX_QUALIFICATION_HOOKS)
+      if (const auto* selected = std::getenv("GRAPHX_TEST_APPLICATION_NODES")) {
+        const std::string nodes = "," + std::string(selected) + ",";
+        if (name != "platform" && nodes.find("," + name + ",") != std::string::npos) {
+          const auto* fault = std::getenv("GRAPHX_TEST_APPLICATION_FAULT");
+          if (!fault || (std::string_view(fault) != "exit" && std::string_view(fault) != "stall" &&
+                         std::string_view(fault) != "invalid"))
+            throw std::runtime_error("E_QUALIFICATION: invalid application admission fault");
+          service["environment"]["GRAPHX_TEST_APPLICATION_FAULT"] = Value(fault);
+        }
+      }
+#endif
       service["volumes"] = mounts;
       own("container", actual, service.at("image").text());
       if (name != "platform" && name != "prometheus" && name != "grafana")

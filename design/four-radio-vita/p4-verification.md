@@ -4,22 +4,19 @@
 
 Use the [P3/P4 operator runbook](privileged-verification-runbook.md). It provides:
 
-1. The exact request to finish private test images and the automated live harness.
-2. Copy/paste read-only Lima checks from your Mac and instructions for each failure.
-3. The artifacts/paths to review before authorizing a run.
-4. An explicit authorization prompt, existing CLI recovery commands and case IDs.
-5. PASS/FAIL/BLOCKED/NOT RUN criteria and the evidence required to close P4.
+1. Existing image preparation and live harness commands.
+2. Mac-side preflight, the current stopped/stale Lima prerequisite and repair boundary.
+3. Exact verified artifact paths, graph identities and bounded resource selections.
+4. Explicit authorization, execution, failure inspection and owned recovery steps.
+5. Case matrices and evidence required for phase closure.
 
-**Do not proceed to P5/P6 just to obtain test fixtures.** Preparation is unfinished
-P3/P4 qualification work. The full live suite has no existing one-command entry
-point yet; the implementor must supply it. You do not need to log into a separate
-Linux host. The evidence below is already executed unless explicitly marked pending;
-the live case specifications at the end are requirements for the missing harness,
-not a list of commands you can run unchanged today.
+Private image verification and portable harness checks are recorded in
+[P3/P4 preparation](p34-preparation.md). The live harness has not executed against
+OVS. Preparation is P3/P4 work; P5/P6 and a separate Linux login are not prerequisites.
 
 P4 implementation is present; **P4 is not closed**. Native and portable acceptance
 are recorded below. Actual stopped-container/OVS path and recorder fault acceptance
-remain pending explicit authorization and a verified private image fixture. P3's
+remain pending environment repair and explicit authorization; the private image fixture is verified. P3's
 privileged acceptance remains pending independently. No later phase is implemented.
 
 Baseline: GraphX `b3c9228` (P3 implementation), following native P1/P2 acceptance.
@@ -38,7 +35,7 @@ No VITA packet, timestamp, transaction or backend execution behavior is reimplem
 | Runtime isolation and stale results | Real-radio test kills radio4, observes continuing spectra from radios1–3, kills processor, observes increasing radio packet counters and stale detector results. P2 detector-loss test remains. Per-stream freshness is based on valid produced/received spectra, never heartbeat alone. | Actual recorder death, container no-respawn and OVS-wide outage remain live gates. |
 | Bounded retry/work/storage | Existing per-stream queues, bounded UDP work and display queues retained. Failed certificate verification terminates that peer's retries; other connection attempts obey normalized count/backoff. No automatic process/container recreation; Compose restart remains no. | This change does not add a sustained memory benchmark or claim lossless delivery. |
 | Ownership and cleanup | Native tests retain each failed application's identity, check no respawn, stop survivors and assert no owned native processes remain. Corrupt executable identity and barrier token reject cleanup. Interruption rolls back. Stopped-container endpoint absence requires exact container ownership and surviving OVS records; live paths retain full MTU/ACL checks. | Linux/Lima inventory and replacement-race evidence pending. |
-| Recorder and diagnostic independence | Recorder remains separate and bounded; no archive or restart. If its stopped namespace removes mirror delivery, independent diagnostic capture reports unavailable delivery with retained PID/directory identity checks, never successful reception. Other live paths still require full verification. | Actual namespace disappearance, dumpcap termination, retention and cleanup must be tested together. Current unavailable-delivery behavior does not establish P3 diagnostic-capture continuity; this remains an open acceptance issue. |
+| Recorder and diagnostic independence | Recorder remains separate and bounded; no archive or restart. Independent diagnostic capture now has a separate host-owned mirror endpoint. Recorder namespace deletion cannot remove that endpoint; capture health has no recorder-unavailability exemption. | Actual namespace disappearance, diagnostic survival, retention and eventual owned dumpcap cleanup must be tested together. The independent-delivery implementation is present; actual fresh-packet continuity remains unrun. |
 | P1/P2 and default graph regression | Unchanged epoch assertions, independent four-radio timing, production FFT/detector and transactional graph tests run with the selected gates below. | Native results do not qualify privileged OVS paths. |
 
 The nominal IQ source payload remains **16 MB/s**. Native tests count spectra and
@@ -115,7 +112,7 @@ inventories, not container or OVS inventories. Actual production radio/processor
 detector fault outcomes are separately asserted by `test_vita_processing.py`.
 
 There are **no remaining failed nonprivileged checks**. Remaining acceptance work is
-the verified image fixture and authorized privileged plan below, including actual
+the authorized privileged execution of the verified private fixture and harness below, including actual
 recorder/application-container failure and shared-OVS outage. P4 must not be marked
 complete from the native evidence alone.
 
@@ -131,7 +128,7 @@ fix. No diagnostic or acceptance assertion was disabled.
 
 ## P4 live case specifications
 
-**Not executed.** Follow the numbered operator steps and P4 case matrix in the
+**Not executed.** Use the executable harness and numbered operator steps in the
 [shared runbook](privileged-verification-runbook.md) before using these specifications.
 
 Use the P3 isolated test fixture and image-verification prerequisites in

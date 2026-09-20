@@ -1,94 +1,87 @@
 # P3/P4 privileged verification: operator runbook
 
-## Start here
+## Current readiness
 
-**You do not need to implement P5/P6 or log into a separate Linux machine.** On
-Apple Silicon macOS, use the dedicated `graphx` Lima VM. Issue commands from the
-Mac; `limactl shell` executes the Linux portions without an interactive login.
-OrbStack is not the OVS acceptance environment.
+The private ARM64 images and automated harness now exist. **Privileged acceptance
+has not run.** P3 and P4 remain open. You do not need P5/P6 or a separate Linux
+login: issue commands from the Mac and use the dedicated `graphx` Lima VM.
+OrbStack is used only for the unprivileged image build/smoke checks.
 
-**Full P3/P4 acceptance is not runnable with one existing command yet.** Private
-VITA test-image preparation and the four-radio live harness are unfinished. The
-steps below distinguish commands that exist from preparation the implementor must
-finish. Do not interpret successful preflight, image verification, or `run up` as
-passing the acceptance cases.
+The read-only preflight found the VM **Stopped** and an identity mismatch:
 
-| Step | Your action | Implementor/automation action | Ready now? |
-|---|---|---|---|
-| 1 | Review the scope and send the preparation request below | Implement private image support and the live harness; resolve capture continuity | Request can be used now; deliverables pending |
-| 2 | Run or delegate read-only Lima preflight | Check identity, tools and engine; report blockers | Existing commands below |
-| 3 | Review the prepared paths, exact run command, case list and cleanup plan | Supply verified artifacts and an isolated compiled fixture | Pending step 1 |
-| 4 | Explicitly authorize the scoped privileged run | Execute P3, then P4, collect evidence and clean up | Pending steps 1–3 and authorization |
-| 5 | Review PASS/FAIL/BLOCKED/NOT RUN results | Fix failures, rerun affected cases and update the phase records | After execution |
+- Recorded configuration: `ac49027a1cbafa52b3565d32a4154fe3ecf3a3aae0ae4a1760782f79da0e5791`.
+- Expected configuration: `995153b13806694ef031f1b07218f9eafd2c31043deb33457504497cb153339e`.
 
-No privileged acceptance is authorized merely by reading this document. The
-repository's [AGENTS.md](../../AGENTS.md) requires explicit authorization for
-privileged Linux/Lima tests. This documentation task does not provide it.
+**Your next action is to review the [scoped Lima recovery proposal](lima-recovery-proposal.md)
+and select an external backup volume before authorizing recovery.** Do not run
+`env up`, edit the fingerprint, delete the VM or use a replacement host to bypass
+this failure. Environment repair/recreation needs its own authorization; it was
+not authorized by the preparation request. Guest packages are not yet checked.
 
-## 1. Request the missing automation
+Once the environment is repaired and identity checked, review steps 2–3 and
+explicitly authorize step 4. [AGENTS.md](../../AGENTS.md) says: “Run privileged
+tests only on native Linux or in the GraphX Lima guest with explicit authorization.”
+Preparation and image smoke checks do not grant that authorization.
 
-Give the implementor this request in the GraphX workspace:
+## 1. Inspect or reproduce the prepared artifacts
+
+The preparation record, exact digests and executed nonprivileged checks are in
+[P3/P4 preparation evidence](p34-preparation.md). The current local artifacts are:
 
 ```text
-Prepare automated P3/P4 privileged qualification for the current GraphX checkout.
-Read AGENTS.md, docs/project-decisions.md, docs/test-procedure.md and
- design/four-radio-vita/{privileged-verification-runbook,p3-verification,
- p4-verification,network-design,lifecycle-design}.md.
-Keep vrt_framework pinned to dbe85d37155145842da60367af1c4beef8801b0c.
-
-Build the missing private test-image support and automated four-radio live harness
-using the existing image-release verification, authoritative compiler, common
-ownership lifecycle and guarded Linux/Lima test conventions. Do not add a separate
-runtime manifest or platform-specific launcher. These are P3/P4 qualification
-fixtures, not P5 publication or the final demonstration graph.
-
-Resolve diagnostic-capture continuity against the approved contract: reporting
-capture delivery unavailable after recorder death does not pass the P3 continuity
-requirement. Add independent assertions; do not weaken acceptance.
-
-Run applicable nonprivileged preparation checks. Supply the exact source revision,
-verified image/binary identities, guest-local paths, bounded execution command,
-case IDs, planned resources and cleanup/recovery commands. Update this runbook with
-the actual automation command when it exists. Identify any missing guest packages
-or VM identity mismatch. Do not initiate privileged acceptance, recreate/provision
-the VM, publish images, start later phases, push or deploy.
+outputs/verification/p34-preparation/images-acceptance/
+outputs/verification/p34-preparation/prepared-reviewed/
 ```
 
-Preparation must deliver all of the following before a privileged run:
+The first directory is the existing verified image-release format: OCI archives,
+SPDX inventories, `images.json`, and the derived locked catalog. The second contains
+an extracted, checksum-verified Linux CLI, `preparation.json` with graph IDs and
+harness hashes, and reviewable authored v3 fixtures with the same verified catalog.
+These are private dirty-worktree test candidates, not published P5 releases.
+The Linux CLI cannot be executed natively on macOS.
 
-- Linux ARM64 images containing `graphx-vita-radio`, `graphx-vita-processor`,
-  `graphx-vita-detector` and `graphx-vita-recorder`, with the pinned library and
-  runtime dependencies; a compatible platform image and verified CLI installation.
-- The existing verified image-release catalog/lock and binary/SBOM/license evidence.
-  Tags, `latest`, design pins and Docker config IDs substituted for manifest digests
-  are not sufficient. The current `scripts/release/image_release.py` recipes list
-  runtime/telemetry/SDR roles, not the VITA executable set; running that builder
-  unchanged is not VITA image qualification.
-- An authored v3 fixture for four radios, processor, detector and passive recorder,
-  isolated owned OVS networking, lab mTLS and optional independent diagnostics.
-  Use an unused graph ID, subnet and console port. Compile for `lima` through the
-  authoritative loader. Regenerate catalog locks before compiling; never edit
-  compiled files afterward.
-- A Linux-capable harness extending existing guarded test conventions. Every
-  fault must target a ledger-verified resource. It must implement the matrices
-  below, impose deadlines, save failures, and attempt owned cleanup on interruption.
-  Timing-sensitive cases must not overlap compilation or other traffic suites.
-- A separately owned sentinel workload and before/after resource inventories.
-  Infrastructure creation/deletion goes through the common lifecycle; no hidden
-  setup script, direct `docker compose up` substitute or broad cleanup is acceptable.
-- Exact executable commands with actual paths, not unspecified `$P3_*` variables.
-  The supplied summary must also state the required privilege, storage budget,
-  overall timeout and behavior when a case or cleanup fails.
+These commands exist and are nonprivileged. Run from the repository root:
 
-`tests/test_vita_network.py BUILD --retain DIRECTORY` is a **nonprivileged contract
-fixture generator**, not the missing live harness. Its fixed names, addresses and
-design catalog need adaptation for isolated live execution. Likewise,
-`tests/test_ovs_execution_live.py` currently selects existing generic network cases;
-it does not have a four-radio VITA acceptance case.
+```sh
+python3 tests/test_vita_live.py --list-cases
+python3 scripts/release/image_release.py verify \
+  outputs/verification/p34-preparation/images-acceptance
+cat outputs/verification/p34-preparation/prepared-reviewed/preparation.json
+```
 
-## 2. Check the Lima environment from your Mac
+To rebuild after a source change, choose **absent output directories**, then run:
 
-These are read-only commands. Run from the GraphX repository root:
+```sh
+python3 scripts/release/image_release.py build --with-vita --allow-dirty \
+  --platform linux/arm64 \
+  --output outputs/verification/p34-rebuild/images
+python3 tests/test_vita_live.py --prepare \
+  --images outputs/verification/p34-rebuild/images \
+  --output outputs/verification/p34-rebuild/prepared \
+  --run-root /var/lib/graphx/verification/p34/run
+```
+
+On macOS the builder requires the ready OrbStack Docker context. It performs two
+cache-eligible builds, verifies actual OCI manifests/layers, licenses, dependency
+pins and SPDX inventories, then smoke-tests with no network, no capabilities and
+read-only filesystems. VITA applications fail closed without configuration/NET_RAW;
+the separate Linux recorder test verifies receive-descriptor restrictions without
+network privileges. No image is published. The dependency remains
+`dbe85d37155145842da60367af1c4beef8801b0c`.
+
+`--with-vita` deliberately enables `GRAPHX_QUALIFICATION_HOOKS` in this private
+candidate. Normal CMake/Docker builds leave those hooks off. The hooks inject exit
+75, exit 78 or a bounded stall **inside the real bound application before readiness**;
+they also let the harness pause its exact runner child at an infrastructure mutation
+checkpoint. They are not production policy or a replacement protocol runtime.
+
+`--prepare` only verifies/extracts artifacts and writes review material. It does not
+call Docker, start applications, create OVS resources or qualify a packet path.
+`tests/test_vita_network.py` remains the separate portable contract test.
+
+## 2. Recheck the Lima environment from your Mac
+
+After separately authorized environment recovery, run these read-only checks:
 
 ```sh
 cd /Users/rklinkhammer/workspace/graphx-docker
@@ -102,11 +95,8 @@ bash -c '
 '
 ```
 
-Expected: Darwin/arm64, Lima installed, and the fixed `graphx` VM running with
-matching repository/configuration identity. An empty instance list, stopped VM or
-nonzero identity check blocks the next step.
-
-Only after that check succeeds:
+Stop on any nonzero result. Expected: Darwin/arm64 and the fixed, running,
+identity-matched `graphx` VM. Only then run:
 
 ```sh
 python3 infrastructure/lima/run-bounded.py 120 \
@@ -116,121 +106,155 @@ python3 infrastructure/lima/run-bounded.py 120 \
     docker info
     docker compose version
     node --version
-    for tool in ip tc nft dumpcap tshark capinfos ethtool; do
+    python3 -c "import yaml"
+    for tool in ip tc nft dumpcap tshark capinfos ethtool nsenter; do
       command -v "$tool" || exit 1
     done
     sudo -n ovs-vsctl --timeout=5 show
+    df -h /var/lib/graphx
   '
 ```
 
-Expected: Linux/aarch64, reachable guest Docker/Compose, Node 24, all listed tools,
-and a successful OVS query. Existing bridges are inventory, not permission to
-modify them. The host's Docker context need not be changed or forwarded.
+Expected: Linux/aarch64, Node 24, reachable Docker/Compose and OVS, Python with
+PyYAML, every listed tool and at least 10 GiB free for imports, histories and
+bounded evidence. Images occupy about 683 MB before engine import. Existing
+bridges are inventory, not permission to modify them. Missing packages or an
+unavailable engine are failed prerequisites; request scoped repair, not a switch
+to OrbStack. No QEMU guest, TCG or KVM qualification is needed for these containers.
 
-| Failure | Your next step |
-|---|---|
-| Lima missing | Request/install the repository-supported Lima version before continuing. |
-| VM absent or stopped | Explicitly authorize environment creation/start if wanted. `build/dev/graphx env up` is the existing environment command once that CLI is built; it can create/start the VM and is not a read-only test command. |
-| VM identity/configuration mismatch | Stop and request a separate recovery proposal. Starting again does not repair stale identity. Do not delete/recreate the VM, edit fingerprints or bypass checks to make tests run. |
-| Missing `ethtool` or other guest prerequisite | Request a scoped guest-environment repair plan. Changing `provision.sh` does not install packages into an existing guest. Recheck identity after any approved environment change. |
-| Docker/OVS unavailable or sudo refused | Report the exact preflight failure; repair the selected guest before testing. Do not switch the tests to OrbStack. |
+## 3. Stage and review the exact run
 
-The preflight is a procedure, not a claim that this VM has been checked today.
-No environment setup or repair is authorized by these instructions alone.
-
-## 3. Review the prepared run before authorization
-
-The implementor must fill in these values in a preparation summary:
-
-| Value | Required meaning |
-|---|---|
-| Source revision | Exact GraphX commit and clean/dirty status; exact pinned vrt_framework revision |
-| Environment | Host/guest architecture, Lima instance identity and required packages |
-| Run root | Fresh absolute guest path under `/var/lib/graphx/verification/`; never reuse an unrelated run |
-| Release and images | Absolute guest paths to the verified installation and image-release catalog |
-| P3 / P4 compiled roots | Separate compilations; P3 transactional, P4 explicitly available |
-| State / credentials | Exact guest-local roots used by those compilations and runtime invocations |
-| Resources | Graph IDs, bridge, subnet, ports, owned container roles and sentinel identity |
-| Run / cleanup commands | Actual harness command, timeout, and exact `run status`/`run down` recovery commands |
-| Evidence | Case results, packet observations, logs/counters and before/after inventories |
-
-Credentials are generated through the existing credential mechanism; never embed
-private keys in images or the report. The host path
-`/Users/rklinkhammer/workspace/vrt_framework` is not automatically a guest path:
-preparation must stage/verify the pinned sources or artifacts on the guest disk.
-
-**Capture continuity is an open implementation/acceptance issue.** P3 requires
-independent diagnostics to continue during recorder failure. P4 currently describes
-loss of mirror delivery when the recorder's stopped namespace removes its veth.
-Retained old packets or an honest `unavailable` status do not establish continuity.
-The implementor must preserve the approved behavior or report a concrete blocker;
-a documentation edit alone cannot turn this case into PASS.
-
-## 4. Authorize and execute the automated run
-
-After reviewing the preparation summary, you can send:
-
-```text
-I authorize execution of the reviewed P3/P4 privileged acceptance plan in the
-existing, identity-matched GraphX Lima VM. Use only the listed isolated test
-resources under /var/lib/graphx. Run P3 first, then P4, with the actual applications.
-Preserve existing workloads and the sentinel. Collect evidence and perform
-identity-checked cleanup even on failures. Do not attach physical uplinks, expose
-privileged sockets, recreate/provision the VM, publish images, start P5/P6, push
-or deploy. Report any prerequisite or ownership mismatch instead of bypassing it.
-```
-
-The implementor can then run the prepared harness from the Mac through the existing
-bounded Lima execution machinery. You do not need an interactive guest shell.
-There is deliberately no invented `--p3`/`--p4` command here: the missing harness
-must supply and test its actual entry point in step 1.
-
-For troubleshooting, the underlying CLI already supports the following template.
-These commands manage **one prepared graph only**; they are not acceptance tests.
-Replace every value with the exact guest path from the preparation summary before
-using them, and use the matching P3 or P4 compilation/state/credentials together:
+After environment checks pass, stage the prepared inputs on the guest disk.
+These commands copy artifacts only; they do not run acceptance or provision tools.
+Use the current candidates below, or consistently substitute a newly verified build.
+The destination must not exist; do not overwrite another run.
 
 ```sh
-# Variables are set in your Mac terminal; every value identifies a guest path.
-GX_VITA_RELEASE='/var/lib/graphx/REPLACE_WITH_VERIFIED_INSTALLATION'
-GX_VITA_IMAGES='/var/lib/graphx/REPLACE_WITH_VERIFIED_IMAGE_RELEASE'
-GX_VITA_COMPILED='/var/lib/graphx/REPLACE_WITH_PREPARED_COMPILED_ROOT'
-GX_VITA_STATE='/var/lib/graphx/REPLACE_WITH_THIS_RUN_STATE_ROOT'
-GX_VITA_CREDENTIALS='/var/lib/graphx/REPLACE_WITH_THIS_RUN_CREDENTIAL_ROOT'
-
-# Status: read the recorded identity and health of this prepared run.
-python3 infrastructure/lima/run-bounded.py 120 \
-  limactl shell --workdir /workspace/graphx-docker graphx -- sudo -n \
-  "$GX_VITA_RELEASE/bin/graphx" run status \
-  --output "$GX_VITA_COMPILED" --state-root "$GX_VITA_STATE" \
-  --images "$GX_VITA_IMAGES" --release "$GX_VITA_RELEASE" \
-  --credentials "$GX_VITA_CREDENTIALS" --allow-privileged
-
-# Recovery/stop: only after the scoped run is authorized.
 python3 infrastructure/lima/run-bounded.py 300 \
-  limactl shell --workdir /workspace/graphx-docker graphx -- sudo -n \
-  "$GX_VITA_RELEASE/bin/graphx" run down \
-  --output "$GX_VITA_COMPILED" --state-root "$GX_VITA_STATE" \
-  --images "$GX_VITA_IMAGES" --release "$GX_VITA_RELEASE" \
-  --credentials "$GX_VITA_CREDENTIALS" --allow-privileged
+  limactl shell --workdir /workspace/graphx-docker graphx -- bash -lc '
+    set -e
+    test ! -e /var/lib/graphx/verification/p34
+    sudo -n mkdir -p /var/lib/graphx/verification/p34
+    sudo -n cp -R outputs/verification/p34-preparation/images-acceptance \
+      /var/lib/graphx/verification/p34/images
+    sudo -n cp -R outputs/verification/p34-preparation/prepared-reviewed \
+      /var/lib/graphx/verification/p34/prepared
+    python3 scripts/release/image_release.py verify /var/lib/graphx/verification/p34/images
+    /var/lib/graphx/verification/p34/prepared/bin/graphx --version
+  '
 ```
 
-The harness uses `run up` with the same selection after verifying prerequisites
-and saving the baseline inventory. Recheck VM identity before an invocation; direct
-`limactl shell` alone does not perform the repository's VM fingerprint check.
-A timeout does not prove guest resources were removed: inspect with the same
-selection and perform owned recovery. Never use `docker system prune`, wildcard
-container deletion, blanket `ovs-vsctl del-br`, or VM deletion as cleanup.
+Review `prepared/preparation.json` and these choices before authorization:
 
-Do not substitute `scripts/verify.sh full`, `scripts/verify.sh native-linux`, or
-`infrastructure/lima/verify.sh` for this harness. The latter two are broader
-privileged suites, including existing network/guest cases and their artifact
-prerequisites; they do not currently assert all P3/P4 VITA criteria. QEMU/TCG/KVM
-qualification is not needed to prove this container-only four-radio path.
+| Selection | Value |
+|---|---|
+| Environment | Existing identity-matched `graphx` Lima VM, Linux ARM64 |
+| Verified images | `/var/lib/graphx/verification/p34/images` |
+| Verified CLI | `/var/lib/graphx/verification/p34/prepared/bin/graphx` |
+| Fresh run root | `/var/lib/graphx/verification/p34/run` |
+| Data subnet | `10.79.0.0/24`; harness rejects an existing overlapping guest route |
+| Graph identities | Deterministic `vq-…` IDs listed in `preparation.json`, including a separate sentinel |
+| Management ports | Ephemeral loopback ports, selected then recorded by the authoritative compiler |
+| Resources per VITA fixture | Seven applications + platform, one owned bridge, six data veth pairs, recorder mirror pair, optional independent host diagnostic mirror pair |
+| Capture limits | 9022-byte snaplen, two 4 MiB files, two-second rotation, 60-second retention |
+| Process/log bounds | Catalog memory/PID limits; Docker logs two 1 MiB files per application |
+| Run deadline | 3300 seconds internally, 3600-second host bound including recovery margin |
+| Credentials | Lab-generated, scoped per fixture; never baked into images or included in reports |
+
+Fixtures run sequentially. P3 uses transactional startup; P4 explicitly selects
+available startup with a 5000 ms readiness window. The harness regenerates each
+compilation through the C++ loader, then uses common `run up/status/down`. It
+never edits compiled artifacts to introduce application faults. The reviewed
+fixtures use port 18080 as a review value; live compilations select free ports.
+
+The separate diagnostic mirror is derived from the authored capture and recorded
+in the same expected-endpoint/ownership ledger as other resources. It uses host
+namespace identity and independent OVS/veth identities. Recorder death therefore
+cannot delete its delivery path. That implementation change is portable-tested;
+actual fresh PCAPNG continuity is still a live assertion, not an established result.
+
+Retained history/capture volumes are named explicitly in each fixture's
+`retained-history-volumes.json`. They are intentional evidence, not live workloads.
+State roots, logs and sealed captures remain guest-local. The harness compares
+before/after live infrastructure and preserves its independent sentinel throughout.
+
+## 4. Authorize, execute and recover
+
+After reviewing the environment and selections above, you can send:
+
+```text
+I authorize the reviewed P3/P4 privileged acceptance run in the existing,
+identity-matched GraphX Lima VM, using the verified artifacts and fresh run root
+in the operator runbook. Run P3 then P4 with the real applications. Preserve
+unrelated workloads and the sentinel, retain bounded evidence, and perform
+identity-checked cleanup on failures. Do not attach physical uplinks, forward
+privileged sockets, recreate/provision the VM, publish images, start P5/P6,
+push or deploy. Stop on prerequisite or ownership mismatches.
+```
+
+Only after explicit authorization, recheck VM identity and run from the Mac:
+
+```sh
+bash -c '
+  source infrastructure/lima/common.sh
+  graphx_lima_require_host
+  test "$(graphx_lima_assert_identity "$(graphx_lima_digest)")" = Running
+'
+python3 infrastructure/lima/run-bounded.py 3600 \
+  limactl shell --workdir /workspace/graphx-docker graphx -- sudo -n \
+  python3 tests/test_vita_live.py --run --allow-privileged --target lima \
+  --images /var/lib/graphx/verification/p34/images \
+  --cli /var/lib/graphx/verification/p34/prepared/bin/graphx \
+  --preparation /var/lib/graphx/verification/p34/prepared/preparation.json \
+  --output /var/lib/graphx/verification/p34/run \
+  --subnet 10.79.0.0/24
+```
+
+The harness rejects an existing output root, wrong CLI hash, image/platform
+mismatch, absent prerequisites and missing privileged opt-in. It returns nonzero
+on a failed case, interruption or failed cleanup. Inspect `results.json`, the
+case logs, `before.json`/`after.json`, packet probes and per-fixture recovery files.
+For focused reruns, repeat `--case P3-07` or another listed ID with a **fresh run
+root** and regenerate the review with `--prepare --run-root NEW_ROOT`. Unselected
+cases remain NOT RUN and cannot be counted toward phase closure.
+
+A host timeout does not prove guest cleanup. Each started fixture records exact
+`status` and `down` argv arrays in `recovery.json`. Read that file first:
+
+```sh
+python3 infrastructure/lima/run-bounded.py 120 \
+  limactl shell --workdir /workspace/graphx-docker graphx -- sudo -n cat \
+  /var/lib/graphx/verification/p34/run/P3-07/graph/recovery.json
+```
+
+For that specific fixture, the corresponding existing CLI commands are:
+
+```sh
+python3 infrastructure/lima/run-bounded.py 120 \
+  limactl shell --workdir /workspace/graphx-docker graphx -- sudo -n \
+  /var/lib/graphx/verification/p34/prepared/bin/graphx run status \
+  --output /var/lib/graphx/verification/p34/run/P3-07/graph/compiled \
+  --state-root /var/lib/graphx/verification/p34/run/P3-07/graph/state \
+  --credentials /var/lib/graphx/verification/p34/run/P3-07/graph/credentials \
+  --images /var/lib/graphx/verification/p34/images --allow-privileged
+python3 infrastructure/lima/run-bounded.py 300 \
+  limactl shell --workdir /workspace/graphx-docker graphx -- sudo -n \
+  /var/lib/graphx/verification/p34/prepared/bin/graphx run down \
+  --output /var/lib/graphx/verification/p34/run/P3-07/graph/compiled \
+  --state-root /var/lib/graphx/verification/p34/run/P3-07/graph/state \
+  --credentials /var/lib/graphx/verification/p34/run/P3-07/graph/credentials \
+  --images /var/lib/graphx/verification/p34/images --allow-privileged
+```
+
+Use the failed fixture's actual recovery file, not this example's selection, when
+another case fails. An ownership mismatch requires investigation before further
+mutation. Never use blanket container/bridge deletion, `docker system prune`, or
+VM deletion. Generic `verify.sh native-linux` and `infrastructure/lima/verify.sh`
+are separate broader suites and do not substitute for these VITA assertions.
 
 ## 5. P3 automated case matrix
 
-Each row is a required harness case, **not an existing test name or CLI flag**.
+These are the `--case` IDs accepted by `tests/test_vita_live.py`.
 Use fresh isolated fixtures for destructive/negative cases. The detailed probe
 requirements remain in [P3 case specifications](p3-verification.md#p3-live-case-specifications).
 
@@ -262,7 +286,7 @@ lifecycle:
   readiness_ms: 5000
 ```
 
-Every row is a required harness case, not an existing command. The detailed
+Each row is an executable case ID. The detailed
 contract is in [P4 case specifications](p4-verification.md#p4-live-case-specifications).
 
 | Case ID | Automated action | PASS evidence |

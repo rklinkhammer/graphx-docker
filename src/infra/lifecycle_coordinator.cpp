@@ -91,6 +91,10 @@ void inject_test_interruption(std::size_t mutation) {
     const auto* value = std::getenv(name);
     return value != nullptr && std::to_string(mutation) == value;
   };
+#if defined(GRAPHX_QUALIFICATION_HOOKS)
+  if (matches("GRAPHX_TEST_HOLD_AFTER_MUTATION"))
+    ::raise(SIGSTOP);  // Harness resumes this exact child after checking its ledger.
+#endif
   if (matches("GRAPHX_TEST_CRASH_AFTER_MUTATION"))
     ::_exit(99);  // Deliberate test-only crash point; the ledger enables recovery.
   if (matches("GRAPHX_TEST_FAIL_AFTER_MUTATION"))
@@ -166,7 +170,8 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
                << " directory=" << capture.directory << " snaplen=" << capture.snaplen
                << " max-file-bytes=" << capture.max_file_bytes << " max-files=" << capture.max_files
                << " rotate-seconds=" << capture.rotation_seconds
-               << " retention-seconds=" << capture.retention_seconds << '\n';
+               << " retention-seconds=" << capture.retention_seconds
+               << " delivery=independent-host-mirror-for-container-attachment" << '\n';
       for (const auto& fault : config.network_infrastructure.faults)
         output << "tc qdisc replace attachment=" << fault.attachment << " root netem"
                << " delay-ms=" << fault.delay_ms << " jitter-ms=" << fault.jitter_ms
@@ -338,21 +343,7 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
              << " interface=" << item.interface << " pid=" << item.pid
              << " directory=" << item.session_directory
              << " state=" << (owned ? "capturing" : "missing-replaced-or-completed") << '\n';
-      bool unavailable_delivery = false;
-      if (!owned && context && expected != state.expected_captures.end()) {
-        const auto& endpoint = expected_endpoint(state, item.attachment_id);
-        // A stopped recorder loses its namespace/veth. Retain independent capture
-        // evidence, but never call this reception or accept a replaced capture PID.
-        unavailable_delivery =
-            context->unavailable_containers.contains(endpoint.owner) &&
-            !link_ifindex(endpoint.host_interface) && directory_identity_matches(item) &&
-            (process_owned(item.pid, item.process_start_time, item.session_directory.string()) ||
-             (::kill(static_cast<pid_t>(item.pid), 0) == -1 && errno == ESRCH));
-        if (unavailable_delivery)
-          output << "capture=" << item.id
-                 << " status=unavailable reason=delivery-endpoint-absent\n";
-      }
-      healthy = healthy && (owned || unavailable_delivery);
+      healthy = healthy && owned;
     }
     for (const auto& item : state.faults) {
       const bool owned = fault_healthy(item);
@@ -480,9 +471,19 @@ int infra::detail::execute_ovs_lifecycle_impl(const GraphConfig& config,
       if (endpoint == state.expected_endpoints.end() || endpoint->kind != AttachmentKind::mirror)
         throw std::runtime_error("network capture references unrealized mirror " +
                                  capture.attachment);
-      state.expected_captures.push_back({capture, endpoint->mirror_container
-                                                      ? endpoint->host_interface
-                                                      : endpoint->target_interface});
+      if (endpoint->mirror_container) {
+        auto diagnostic = diagnostic_mirror_endpoint(
+            *endpoint, config.id, capture.id, static_cast<std::uint64_t>(host_namespace.st_ino));
+        if (link_ifindex(diagnostic.host_interface) || link_ifindex(diagnostic.target_interface) ||
+            !ovs_get("Port", diagnostic.host_interface, "_uuid").empty())
+          throw std::runtime_error("refusing diagnostic mirror collision: " + capture.id);
+        auto definition = capture;
+        definition.attachment = diagnostic.id;
+        state.expected_captures.push_back({definition, diagnostic.target_interface});
+        state.expected_endpoints.push_back(std::move(diagnostic));
+      } else {
+        state.expected_captures.push_back({capture, endpoint->target_interface});
+      }
     }
     for (const auto& fault : config.network_infrastructure.faults) {
       const auto endpoint =

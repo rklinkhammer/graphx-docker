@@ -4,18 +4,15 @@
 
 Use the [P3/P4 operator runbook](privileged-verification-runbook.md). It provides:
 
-1. The exact request to finish private test images and the automated live harness.
-2. Copy/paste read-only Lima checks from your Mac and instructions for each failure.
-3. The artifacts/paths to review before authorizing a run.
-4. An explicit authorization prompt, existing CLI recovery commands and case IDs.
-5. PASS/FAIL/BLOCKED/NOT RUN criteria and the evidence required to close P3.
+1. Existing image preparation and live harness commands.
+2. Mac-side preflight, the current stopped/stale Lima prerequisite and repair boundary.
+3. Exact verified artifact paths, graph identities and bounded resource selections.
+4. Explicit authorization, execution, failure inspection and owned recovery steps.
+5. Case matrices and evidence required for phase closure.
 
-**Do not proceed to P5/P6 just to obtain test fixtures.** Preparation is unfinished
-P3/P4 qualification work. The full live suite has no existing one-command entry
-point yet; the implementor must supply it. You do not need to log into a separate
-Linux host. The evidence below is already executed unless explicitly marked pending;
-the live case specifications at the end are requirements for the missing harness,
-not a list of commands you can run unchanged today.
+Private image verification and portable harness checks are recorded in
+[P3/P4 preparation](p34-preparation.md). The live harness has not executed against
+OVS. Preparation is P3/P4 work; P5/P6 and a separate Linux login are not prerequisites.
 
 P3 is **not complete**: implementation and nonprivileged evidence are present;
 actual Linux/Lima OVS path acceptance remains unrun. No privileged test, P4 policy,
@@ -36,12 +33,12 @@ the unchanged start-epoch reproducer are preserved.
 | Namespace mirror and identity | Container/namespace identity and both ifindices retained; alias matching is exact. Ledger tests reject replaced container, namespace and peer name, and retain interrupted-creation identity. | Pending move interruption, replacement refusal and actual cleanup. |
 | Complete graph traffic and duplicate selection | Dedicated select-all mirror, isolated owned bridge; no protocol filter. One output per forwarding instance is the selected OVS contract. | Pending byte comparisons for IQ, Context, control/replies, spectra, ARP and duplicate-selection counts. |
 | Separate bounded passive recorder | Linux application/catalog, common readiness/telemetry, fixed frame storage, bounded socket/log output, counters, capability drop and TSYNC receive-only filter. Linux tests verify receive succeeds while transmit, duplication, new sockets and writable opens fail. Compiler test requires NET_RAW only, all other capabilities dropped, no host network/socket mounts. | Pending actual AF_PACKET capability startup, raw injection refusal, tc enforcement, saturation and shutdown. |
-| Independent diagnostic capture | Explicit existing capture lifecycle observes mirror host veth; snaplen >= MTU+22 and bounded rotation/retention. Recorder writes no archives. | Pending independent on/off operation, full frame bytes, retention and recorder failure isolation. |
+| Independent diagnostic capture | Existing capture lifecycle owns a separate host diagnostic mirror endpoint; snaplen >= MTU+22 and bounded rotation/retention. Recorder writes no archives. | Pending independent on/off operation, full frame bytes, retention and recorder failure isolation. |
 | Regression and lifecycle contracts | Native P1/P2 tests, common ownership/configuration suites, quality and portable gates; opt-in UBSan coverage and Linux receive-descriptor tests. | No privileged Linux, Lima, TCG or KVM evidence in this change. |
 
 The catalog allows container execution for radio/processor/detector and requires it
 for recorder. Its existing design image pins are **not runnable P3 image evidence**.
-A verified private image/catalog containing these binaries is a live-test prerequisite;
+The verified private image/catalog is recorded in [preparation evidence](p34-preparation.md);
 complete published images and the demonstration graph remain P5 work. This is an
 unrun platform qualification prerequisite, not a claim of container application acceptance.
 
@@ -162,7 +159,7 @@ Lima, TCG and KVM qualification are unrun.
 
 ## P3 live case specifications
 
-**Not executed.** Follow the numbered operator steps and P3 case matrix in the
+**Not executed.** Use the executable harness and numbered operator steps in the
 [shared runbook](privileged-verification-runbook.md) before using these specifications.
 
 Authorization must name native Linux or the dedicated GraphX Lima guest. Do not

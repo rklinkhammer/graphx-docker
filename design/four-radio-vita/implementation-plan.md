@@ -201,6 +201,10 @@ output rate at supported overlap settings and bound the display/processing load.
 **Status:** implementation present; privileged acceptance pending. See
 [network design](network-design.md) and [P3 verification](p3-verification.md).
 The default remains transactional; P4 adds an explicit available-subset policy.
+Private image preparation, automated live case IDs and independent diagnostic
+delivery are implemented; see [preparation evidence](p34-preparation.md) and the
+[operator runbook](privileged-verification-runbook.md). Lima identity repair and
+explicitly authorized execution remain prerequisites to closing P3/P4.
 
 **Outcome:** the authoritative graph can express the required packet paths and
 deliver mirrored frames to a separate bounded receive/discard application.

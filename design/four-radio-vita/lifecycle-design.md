@@ -45,9 +45,10 @@ A stopped container can remove its own veth pair. Degraded admission must still
 verify the shared bridge, other live paths, and ownership of any surviving OVS
 port. It may accept only the absence of the exact stopped container's endpoint;
 a replacement interface or container, bad MTU on a live path, or shared-network
-failure rejects release. If stopped mirror delivery disappears, diagnostic capture reports unavailable
-and retains evidence; its PID/directory identity must still match (or its PID be
-absent). This does not excuse unrelated capture or live-path failures.
+failure rejects release. Diagnostic capture uses a separate host-owned mirror endpoint and must continue
+when recorder delivery disappears. Capture health is checked independently; a
+stopped recorder does not excuse a missing/replaced diagnostic endpoint or process.
+Actual fresh-packet continuity remains a privileged acceptance assertion.
 Cleanup retains the existing all-identities-before-mutation checks and never
 removes another graph's resources.
 

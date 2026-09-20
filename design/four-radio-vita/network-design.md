@@ -52,9 +52,14 @@ packets. Recorder readiness follows the selected common lifecycle policy; degrad
 startup is specified in [lifecycle design](lifecycle-design.md).
 
 Optional diagnostic capture remains the existing owned dumpcap/PCAPNG lifecycle,
-with bounded retention. For container mirror delivery it observes the host veth
-rather than entering the recorder namespace. It does not replace the recorder,
-and failure/cleanup identities remain independent.
+with bounded retention. For a container mirror attachment, the common lifecycle derives a separate
+host-owned mirror veth for each enabled diagnostic capture. Its ID is
+`diagnostic:<capture-id>`; interface names are graph-scoped and deterministic.
+Expected and observed namespace, ifindex, alias and OVS identities use the same
+ownership ledger and collision/recovery checks as other mirror endpoints.
+Dumpcap binds the independent host peer. Recorder namespace deletion cannot
+delete diagnostic delivery. Captures disabled means no derived diagnostic endpoint.
+This does not replace the recorder or its passive ingress-drop filter.
 
 Portable qualification covers schemas, normalization, compiler output, MTU/path
 rejection, recorder accounting, identity checks and lifecycle command fixtures.
@@ -95,6 +100,6 @@ Neither specification is substituted for GraphX live evidence.
 
 The opt-in radio/processor/detector catalog now accepts native or container execution;
 recorder is container-only. Existing design image references are not newly published
-P3 application images. A verified private test image/catalog is a prerequisite for
-live acceptance; complete release/image publication belongs to P5. P1/P2 native
+P3 application images. Verified private qualification images and the live harness are recorded in
+[preparation evidence](p34-preparation.md); complete release/image publication belongs to P5. P1/P2 native
 behavior and the vrt_framework dependency pin remain unchanged.

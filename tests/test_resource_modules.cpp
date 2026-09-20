@@ -18,6 +18,44 @@ void require(bool condition, const char* message) {
   if (!condition) throw std::runtime_error(message);
 }
 
+void test_diagnostic_independence() {
+  using namespace graphx::infra::detail;
+  ExpectedEndpoint recorder;
+  recorder.kind = graphx::AttachmentKind::mirror;
+  recorder.mirror_container = true;
+  recorder.owner = "recorder";
+  recorder.network_switch = "bridge";
+  recorder.container_id = std::string(64, 'a');
+  recorder.namespace_inode = 20;
+  recorder.mtu = 9000;
+  const auto diagnostic = diagnostic_mirror_endpoint(recorder, "graph-a", "capture", 10);
+  require(!diagnostic.mirror_container && diagnostic.container_id.empty() &&
+              diagnostic.namespace_inode == 10 && diagnostic.owner != recorder.owner,
+          "diagnostic delivery must not depend on recorder identity or namespace");
+  require(diagnostic.mtu == 9000 && diagnostic.network_switch == "bridge" &&
+              diagnostic.host_interface != diagnostic.target_interface &&
+              diagnostic.host_interface.size() <= 15,
+          "diagnostic mirror must preserve path and interface bounds");
+  require(diagnostic_mirror_endpoint(recorder, "graph-b", "capture", 10).host_interface !=
+              diagnostic.host_interface,
+          "independent graphs must not collide");
+  require(diagnostic_mirror_endpoint(recorder, "graph-a", "other", 10).host_interface !=
+              diagnostic.host_interface,
+          "independent captures must not collide");
+  recorder.namespace_inode = 0;
+  recorder.container_id.clear();
+  require(diagnostic_mirror_endpoint(recorder, "graph-a", "capture", 10).host_interface ==
+              diagnostic.host_interface,
+          "recorder death must not replace diagnostic identity");
+  bool rejected = false;
+  try {
+    static_cast<void>(diagnostic_mirror_endpoint(recorder, "graph-a", "capture", 0));
+  } catch (const std::invalid_argument&) {
+    rejected = true;
+  }
+  require(rejected, "missing host namespace must fail closed");
+}
+
 void test_policy_identity() {
   const std::string initial =
       R"({"nftables":[{"metainfo":{"version":"1"}},{"rule":{"handle":1,"expr":[{"counter":{"packets":1,"bytes":1}},{"accept":null}]}}]})";
@@ -107,6 +145,7 @@ void test_ovs_planning_helpers() {
 int main() {
   try {
     test_owned_names();
+    test_diagnostic_independence();
     test_mirror_query_scope();
     test_policy_identity();
     test_ovs_planning_helpers();

@@ -39,6 +39,12 @@ def image(role, *, platform="arm64", user="65532:65532", extra=None, corrupt=Fal
     files.update({"lib/apk/db/installed": b"P:libc\nV:1.0\nL:MIT\n"})
     if role in RECIPES:
         files["usr/local/share/graphx/build-dependencies.json"] = b'{"yamlCpp":"0.9.0","openssl":"3.0.0"}'
+    if role == "vita":
+        files["usr/local/share/graphx/vita-dependencies.json"] = (ROOT / "config/vita/dependencies.json").read_bytes()
+        files["usr/local/share/graphx/vita-dependencies.spdx.json"] = b"{}"
+        for name in ("vrt_framework", "SoapySDR"):
+            files["usr/local/share/doc/graphx/vita-licenses/" + name + ".txt"] = b"license fixture"
+        files["usr/local/lib/libSoapySDR.so.0.8"] = b"library fixture"
     if role == "telemetry":
         files.update({name: b"{}" for name in ("app/server.mjs", "app/node-console.mjs", "app/web/dist/index.html",
                                                "config/schema/normalized-graph.schema.json")})
@@ -54,7 +60,8 @@ def image(role, *, platform="arm64", user="65532:65532", extra=None, corrupt=Fal
                                  "org.opencontainers.image.revision": COMMIT},
                                  "Cmd": {"runtime": ["/usr/local/bin/graphx", "--help"],
                                          "telemetry": ["graphx-platform", "--help"],
-                                         "sdr": ["/usr/local/bin/graphx-sdr", "--help"]}[role]}})
+                                         "sdr": ["/usr/local/bin/graphx-sdr", "--help"],
+                                         "vita": ["/usr/local/bin/graphx", "--help"]}[role]}})
     def descriptor(data, media):
         return {"digest": digest(data), "size": len(data), "mediaType": media}
     manifest = encoded({"schemaVersion": 2, "config": descriptor(config, "application/vnd.oci.image.config.v1+json"),
@@ -90,6 +97,17 @@ with tempfile.TemporaryDirectory() as temporary:
         assert inspection["digest"] != inspection["config_digest"]
         manifest["images"][role] = {"archive_sha256": sha256_file(path), "inspection": inspection}
         (root / (role + ".spdx.json")).write_bytes(encoded(image_sbom(role, inspection, "1.1.0", 1700000000)))
+    pin_catalog(ROOT / "config/catalog", root / "vita-catalog", manifest, ROOT / "config/vita")
+    vita_type = json.loads((root / "vita-catalog/types/vita.radio.json").read_bytes())
+    assert vita_type["image"] == catalog_evidence(manifest)["images"]["vita"]["image"]
+    assert vita_type["revision"] == json.loads((ROOT / "config/vita/types/vita.radio.json").read_bytes())["revision"] + 1
+    for missing in ("graphx-vita-recorder", "graphx-vita-detector"):
+        incomplete.write_bytes(image("vita", omit=("usr/local/bin/" + missing,)))
+        rejected(lambda: inspect_image(incomplete, "vita", "1.1.0", COMMIT, "linux/arm64"))
+    bad_pin = json.loads((ROOT / "config/vita/dependencies.json").read_bytes())
+    bad_pin["dependencies"][1]["revision"] = "0" * 40
+    incomplete.write_bytes(image("vita", extra={"usr/local/share/graphx/vita-dependencies.json": encoded(bad_pin)}))
+    rejected(lambda: inspect_image(incomplete, "vita", "1.1.0", COMMIT, "linux/arm64"))
     pin_catalog(ROOT / "config/catalog", root / "catalog", manifest)
     manifest["catalog_sha256"] = sha256_file(root / "catalog/lock.json")
     (root / "images.json").write_bytes(encoded(manifest))

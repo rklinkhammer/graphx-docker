@@ -190,6 +190,21 @@ NodeArguments node_arguments(int argc, char** argv, bool execution) {
 
 bool await_node_release(const NodeSettings& settings, const NodeArguments& arguments,
                         const std::function<bool()>& stopping) {
+#if defined(GRAPHX_QUALIFICATION_HOOKS)
+  // Private qualification images only: fault the actual bound application,
+  // never its pre-network namespace holder. No protocol behavior is changed.
+  if (const auto* fault = std::getenv("GRAPHX_TEST_APPLICATION_FAULT")) {
+    std::cout << "qualification-bound node=" << settings.id() << " fault=" << fault << std::endl;
+    if (std::string_view(fault) == "exit") std::_Exit(75);
+    if (std::string_view(fault) == "invalid") std::_Exit(78);
+    if (std::string_view(fault) != "stall")
+      reject("E_QUALIFICATION", "startup", "unknown admission fault");
+    const auto limit = std::chrono::steady_clock::now() + std::chrono::seconds(30);
+    while (!stopping() && std::chrono::steady_clock::now() < limit)
+      std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    return false;
+  }
+#endif
   std::cout << "ready node=" << settings.id() << std::endl;
   const auto deadline =
       std::chrono::steady_clock::now() +

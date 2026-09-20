@@ -9,6 +9,11 @@
 
 namespace graphx::infra::detail {
 
+// Host-owned diagnostic delivery survives the recorder namespace lifetime.
+ExpectedEndpoint diagnostic_mirror_endpoint(const ExpectedEndpoint& recorder,
+                                            std::string_view graph, std::string_view capture,
+                                            std::uint64_t host_namespace);
+
 struct ResolvedContainer {
   std::string id;
   std::uint32_t pid{};

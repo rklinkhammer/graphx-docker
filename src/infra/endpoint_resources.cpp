@@ -1,6 +1,7 @@
 #include "infra/endpoint_resources.hpp"
 
 #include "infra/command_runner.hpp"
+#include "config_document.hpp"
 #include "infra/namespace_resources.hpp"
 #include "infra/ovs_resources.hpp"
 
@@ -733,6 +734,25 @@ OwnedResourceIdentity create_tap_endpoint(const ExpectedEndpoint& endpoint,
   identity.namespace_inode = endpoint.namespace_inode;
   identity.tap_owner = tap_owner_identity(endpoint.tap_uid, endpoint.tap_gid);
   return identity;
+}
+
+ExpectedEndpoint diagnostic_mirror_endpoint(const ExpectedEndpoint& recorder,
+                                            std::string_view graph, std::string_view capture,
+                                            std::uint64_t host_namespace) {
+  if (recorder.kind != AttachmentKind::mirror || !recorder.mirror_container ||
+      host_namespace == 0 || capture.empty())
+    throw std::invalid_argument("diagnostic mirror requires a container mirror and host namespace");
+  ExpectedEndpoint endpoint;
+  endpoint.kind = AttachmentKind::mirror;
+  // ':' is not an authored attachment identifier; derived IDs cannot shadow one.
+  endpoint.id = "diagnostic:" + std::string(capture);
+  endpoint.owner = endpoint.id;
+  endpoint.host_interface = config_internal::resource_name(graph, "interface", endpoint.id);
+  endpoint.target_interface = config_internal::resource_name(graph, "peer", endpoint.id);
+  endpoint.network_switch = recorder.network_switch;
+  endpoint.mtu = recorder.mtu;
+  endpoint.namespace_inode = host_namespace;
+  return endpoint;
 }
 
 OwnedResourceIdentity create_mirror_endpoint(const ExpectedEndpoint& endpoint,
