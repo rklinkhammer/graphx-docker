@@ -72,8 +72,17 @@ ledger=state/graph['graph']['id']/'ownership.yml'
 checks=[];complete=False
 result={'result':'incomplete','case':a.case,'target':a.target,'host_architecture':os.uname().machine,'checks':checks}
 def scenario(operation,action,ok=True):
-    p=call(cli,'scenario',operation,*options,'--action',action,ok=ok)
-    with (root/'actions.log').open('a') as log:log.write(f'{operation} {action}\n'+p.stdout+p.stderr)
+    deadline=time.monotonic()+5
+    while True:
+        p=call(cli,'scenario',operation,*options,'--action',action,ok=False)
+        with (root/'actions.log').open('a') as log:log.write(f'{operation} {action}\n'+p.stdout+p.stderr)
+        # The capture exporter briefly owns this lock. This exact rejection is
+        # before action dispatch; never retry a started or ambiguous action.
+        if (p.returncode==0 or p.stdout or
+                p.stderr.strip()!='another infrastructure operation owns the graph lock' or
+                time.monotonic()>=deadline):break
+        time.sleep(.1)
+    assert (p.returncode==0)==ok,(operation,action,p.stdout,p.stderr)
     return p
 def container(node):return next(p['stable_id'] for p in yaml.safe_load(ledger.read_text())['processes'] if p['kind']=='container' and p['name']=='graphx-'+graph['graph']['id']+'-'+node)
 try:
@@ -94,7 +103,7 @@ try:
         original_ledger=ledger.read_text();value=yaml.safe_load(original_ledger)
         next(x for x in value['scenario_actions'] if x['id']=='apply-deferred')['status']='pending'
         ledger.write_text(yaml.safe_dump(value))
-        try:assert scenario('run','apply-deferred',ok=False).returncode!=0
+        try:assert 'incomplete action; inspect recovery state before retry' in scenario('run','apply-deferred',ok=False).stderr
         finally:ledger.write_text(original_ledger)
         checks.append('route absent/apply/clear packet checks; pending intent refuses replay')
     elif a.case=='S14':
@@ -114,6 +123,7 @@ n=load('processor','/run/graphx/node.json','sdr.processor');configure_tls(n);pro
         (root/'sdr-status.json').write_text(json.dumps(status,indent=2)+'\n')
         checks.append('explicit isolated simulator, test-only trust, samples/results and authenticated control')
     else:
+        assert compiled.stat().st_mode & 0o777 == 0o700
         def status(token):
             request=urllib.request.Request(f'http://127.0.0.1:{port}/api/control/commands',headers={'Authorization':'Bearer '+token})
             try:
@@ -125,6 +135,7 @@ n=load('processor','/run/graphx/node.json','sdr.processor');configure_tls(n);pro
         time.sleep(3.2)
         assert status(tokens['operator'])==401 and status(tokens['operator-next'])==200
         scenario('run','runtime-rollover');assert scenario('run','runtime-rollover',ok=False).returncode!=0
+        assert compiled.stat().st_mode & 0o777 == 0o700
         checks.append('operator overlap and expiry; per-node runtime generation rotation; duplicate refusal')
     assert hashlib.sha256(original.read_bytes()).hexdigest()==source_hash
     complete=True

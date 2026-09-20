@@ -67,8 +67,10 @@ endfunction()
 
 function(graphx_enable_sanitizers target)
   if(GRAPHX_ENABLE_SANITIZERS)
+    # Keep instrumented configuration and lifecycle matrices within their
+    # deadlines on libstdc++ while retaining debug symbols and frame pointers.
     target_compile_options(${target} PRIVATE
-      -fno-omit-frame-pointer "-fsanitize=${GRAPHX_SANITIZERS}")
+      -O1 -fno-omit-frame-pointer "-fsanitize=${GRAPHX_SANITIZERS}")
     target_link_options(${target} PRIVATE
       -fno-omit-frame-pointer "-fsanitize=${GRAPHX_SANITIZERS}")
   endif()
@@ -366,7 +368,7 @@ if(GRAPHX_BUILD_TESTS)
   else()
     message(STATUS "tshark not found; graphx-wireshark-dissector runtime test is unavailable")
   endif()
-  graphx_add_python_test(graphx-example-cli tests/test_example_cli.py 90 "$<TARGET_FILE:graphx-cli>" "${CMAKE_CURRENT_SOURCE_DIR}")
+  graphx_add_python_test(graphx-example-cli tests/test_example_cli.py 180 "$<TARGET_FILE:graphx-cli>" "${CMAKE_CURRENT_SOURCE_DIR}")
   graphx_add_python_test(graphx-vita-example tests/test_vita_example.py 45
     $<TARGET_FILE:graphx-cli> ${CMAKE_SOURCE_DIR})
   graphx_add_python_test(graphx-vita-acceptance-contract tests/test_vita_acceptance_contract.py 15)

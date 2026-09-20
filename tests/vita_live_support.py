@@ -3,13 +3,34 @@ from __future__ import annotations
 
 import ipaddress
 import json
+import re
 import socket
 import struct
+import subprocess
 import threading
 import time
 from pathlib import Path
 
 NODES = ['radio1', 'radio2', 'radio3', 'radio4', 'processor', 'detector', 'recorder']
+
+
+def capture_has_packet_after(path, epoch):
+    # Snapshot the bounded owned file before ring rotation can unlink it. Feed
+    # bytes through stdin: distro tshark profiles may forbid /var/lib paths.
+    limit = 4194304 + 9022 + 4096
+    try:
+        with path.open('rb') as stream:
+            data = stream.read(limit + 1)
+    except FileNotFoundError:
+        return False
+    if len(data) > limit:
+        raise ValueError('capture retention bound exceeded')
+    result = subprocess.run(['tshark', '-r', '-', '-T', 'fields', '-e',
+                             'frame.time_epoch', '-c', '256'],
+                            input=data, capture_output=True, timeout=10)
+    return result.returncode == 0 and any(
+        float(line) > epoch for line in result.stdout.decode('ascii', errors='replace').splitlines()
+        if re.fullmatch(r'\d+\.\d+', line))
 
 
 def graph_document(graph_id, subnet, console_port, *, available=False, capture=True):

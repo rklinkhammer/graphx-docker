@@ -80,6 +80,10 @@ ARCHIVE_PUBLIC_HEADERS = frozenset({
     "include/graphx/types.hpp",
     "include/graphx/unix_domain_socket_transport.hpp",
     "include/graphx/version.hpp",
+    "include/graphx/vita/processing.hpp",
+    "include/graphx/vita/recorder.hpp",
+    "include/graphx/vita/runtime.hpp",
+    "include/graphx/vita/virtual_device.hpp",
 })
 
 ARCHIVE_DOCUMENTATION_FILES = frozenset({

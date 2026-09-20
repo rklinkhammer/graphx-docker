@@ -16,6 +16,7 @@ import time
 
 from vita_acceptance_wire import Measurements, PS
 from test_vita_live import Fixture, inventory, preserved
+from vita_live_support import capture_has_packet_after
 
 SOURCE=Path(__file__).resolve().parents[1]
 NODES=['radio1','radio2','radio3','radio4','processor','detector','recorder']
@@ -37,14 +38,14 @@ class Case:
         self.root.mkdir(exist_ok=True);self.instance='vita-p6-'+args.output.name+'-'+name
         self.base=[args.cli,'example'];self.started=False
         self.command('prepare')
-        folder=args.workspace/'lima'/self.instance
+        folder=args.workspace/args.target/self.instance
         record=json.loads((folder/'current.json').read_text())
         self.generation=folder/record['generation']
         self.resolved=json.loads((self.generation/'compiled/resolved.json').read_text())
         self.graph=self.resolved['graph_id'];self.ledger=self.generation/'state'/self.graph/'ownership.yml'
 
     def command(self,action,*extra,ok=True):
-        result=call(*self.base,action,'four-radio-vita','--source',SOURCE,'--target','lima',
+        result=call(*self.base,action,'four-radio-vita','--source',SOURCE,'--target',self.args.target,
                     '--workspace',self.args.workspace,'--instance',self.instance,
                     '--images',self.args.images,'--allow-privileged',*extra,ok=ok,timeout=240)
         # Tokens are used only for the explicit browser checkpoint, never written into evidence.
@@ -82,7 +83,9 @@ class Case:
     def checkpoint(self,label):
         if not self.args.browser: return
         write(self.root/('browser-'+label+'.json'),{'instance':self.instance,'graph':self.graph,
-              'console':'http://127.0.0.1:18080','deadline_seconds':180})
+              'console':('http://127.0.0.1:18080' if self.args.target=='lima' else
+                         'http://127.0.0.1:'+str(self.resolved['platform']['console']['port'])),
+              'deadline_seconds':180})
         deadline=time.monotonic()+180
         while not (self.root/('browser-'+label+'.done')).exists():
             if time.monotonic()>deadline: raise TimeoutError('browser checkpoint '+label)
@@ -94,10 +97,7 @@ class Case:
         while True:
             files=list(directory.glob('*.pcapng'));fresh=False
             for path in files:
-                result=call('tshark','-r',path,'-T','fields','-e','frame.time_epoch','-c','256',ok=False)
-                if result.returncode==0:
-                    fresh |= any(float(line)>after_epoch for line in result.stdout.splitlines()
-                                 if re.fullmatch(r'\d+\.\d+',line))
+                fresh |= capture_has_packet_after(path,after_epoch)
             if fresh:break
             if time.monotonic()>deadline:raise AssertionError('fresh diagnostic packets unavailable')
             time.sleep(.2)
@@ -255,6 +255,7 @@ def main():
     p=argparse.ArgumentParser();p.add_argument('--cli',type=Path,required=True);p.add_argument('--images',type=Path,required=True)
     p.add_argument('--output',type=Path,required=True);p.add_argument('--workspace',type=Path,required=True)
     p.add_argument('--case',choices=['baseline','radio1','detector','processor','recorder'],required=True)
+    p.add_argument('--target',choices=['lima','native-linux'],default='lima')
     p.add_argument('--seconds',type=int,default=180);p.add_argument('--run',action='store_true');p.add_argument('--allow-privileged',action='store_true');p.add_argument('--browser',action='store_true')
     args=p.parse_args()
     if args.run and (not args.allow_privileged or sys.platform!='linux' or os.geteuid()!=0):
@@ -268,7 +269,7 @@ def main():
         p.error('case already attempted; choose a fresh output identity')
     args.output.mkdir(exist_ok=True,parents=True)
     import hashlib
-    write(args.output/'inputs.json',{'image_catalog_sha256':manifest['catalog_sha256'],
+    write(args.output/'inputs.json',{'target':args.target,'image_catalog_sha256':manifest['catalog_sha256'],
         'qualification_hooks':manifest['qualification_hooks'],
         'harness_sha256':{name:hashlib.sha256((SOURCE/'tests'/name).read_bytes()).hexdigest()
             for name in ('test_vita_acceptance.py','vita_acceptance_wire.py','test_vita_live.py','vita_live_support.py')}})

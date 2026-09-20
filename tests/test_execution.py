@@ -71,7 +71,7 @@ with contextlib.nullcontext(tempfile.mkdtemp(prefix='graphx-p6-')) as temporary:
         node=graph['nodes'][0]
         rotate_ref=node['telemetry']['credential']
         original += '\ncredentials: ' + json.dumps({'scenario-next':{'identity':node['node_id'],'provider':'runtime-generated','members':['hmac']}})
-        original += '\nscenario: ' + json.dumps({'actions':[{'id':'rotate-runtime','action':'credential-rotate','credential':rotate_ref,'next':'scenario-next','grace_seconds':1}]}) + '\n'
+        original += '\nscenario: ' + json.dumps({'actions':[{'id':'rotate-runtime','action':'credential-rotate','credential':rotate_ref,'next':'scenario-next','grace_seconds':5}]}) + '\n'
     # Lifecycle acceptance stops live applications explicitly instead of racing
     # the examples' short demonstration message limits.
     original=re.sub(r'max_messages: [0-9]+', 'max_messages: 10000', original)
@@ -131,9 +131,11 @@ with contextlib.nullcontext(tempfile.mkdtemp(prefix='graphx-p6-')) as temporary:
             metadata=json.loads((current/'generation.json').read_text())
             assert metadata['generation']==2 and metadata['previous']['members']['hmac']==hashlib.sha256(old).hexdigest()
             assert (current/'hmac').read_bytes()!=old
-            run('scenario','run',*action_options,ok=False)
-            check="""import {pathToFileURL} from 'node:url';const [module,manifest,root,ref]=process.argv.slice(1);const {CredentialReader,readJson}=await import(pathToFileURL(module));const reader=new CredentialReader(root,readJson(manifest),'platform');if(!reader.read(ref).previous.hmac)throw Error('overlap absent');await new Promise(r=>setTimeout(r,1200));if(reader.read(ref).previous.hmac)throw Error('overlap did not expire');"""
+            # Observe overlap before another CLI validation can consume the grace
+            # period, then wait for the actual published expiration boundary.
+            check="""import {pathToFileURL} from 'node:url';const [module,manifest,root,ref]=process.argv.slice(1);const {CredentialReader,readJson}=await import(pathToFileURL(module));const reader=new CredentialReader(root,readJson(manifest),'platform');if(!reader.read(ref).previous.hmac)throw Error('overlap absent');const expires=readJson(root+'/'+ref+'/generation.json').previous.expires_at;await new Promise(r=>setTimeout(r,Math.max(0,expires-Date.now())+100));if(reader.read(ref).previous.hmac)throw Error('overlap did not expire');"""
             subprocess.run([bundle/'node','--input-type=module','-e',check,bundle/'apps/telemetry/credentials.mjs',compiled/'credentials.json',credentials,rotate_ref],check=True,timeout=10)
+            run('scenario','run',*action_options,ok=False)
             assert 'platform running' in run('run','status',*options).stdout
         # Tampering one stored executable identity must preserve every running process.
         state_file=state/graph['graph_id']/'ownership.yml'

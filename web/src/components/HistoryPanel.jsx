@@ -8,6 +8,7 @@ function displayTime(milliseconds) {
 
 export function HistoryPanel({ observationToken, backend, packetBackend, preferPackets = false,
   refreshIntervalMs = 5000 }) {
+  preferPackets = preferPackets && packetBackend?.enabled === true
   const [records, setRecords] = useState([])
   const [packetStats, setPacketStats] = useState(null)
   const [nextCursor, setNextCursor] = useState(null)

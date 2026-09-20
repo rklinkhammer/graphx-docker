@@ -20,7 +20,7 @@ test('only the latest history request may update console state', () => {
   assert.equal(isCurrentHistoryResponse(4, 4), true)
 })
 
-test('mounted history paging pauses refresh and ignores reordered responses', async context => {
+test('disabled packet history falls back to telemetry with safe paging and refresh', async context => {
   const vite = await createServer({ appType: 'custom', logLevel: 'silent',
     server: { middlewareMode: true } })
   context.after(() => vite.close())
@@ -36,6 +36,7 @@ test('mounted history paging pauses refresh and ignores reordered responses', as
   globalThis.IS_REACT_ACT_ENVIRONMENT = true
   const requests = []
   globalThis.fetch = (url, options) => new Promise(resolveRequest => {
+    assert.equal(new URL(url).pathname, '/api/history')
     requests.push({ url: String(url), options, resolve: body => resolveRequest(
       new Response(JSON.stringify(body), { status: 200,
         headers: { 'content-type': 'application/json' } })) })
@@ -43,7 +44,8 @@ test('mounted history paging pauses refresh and ignores reordered responses', as
   const root = createRoot(document.getElementById('root'))
   let mounted = true
   const properties = (token, refreshIntervalMs) => ({ observationToken: token,
-    refreshIntervalMs, backend: { enabled: true, backend: 'sqlite', status: 'ready' } })
+    refreshIntervalMs, preferPackets: true, packetBackend: { enabled: false, status: 'disabled' },
+    backend: { enabled: true, backend: 'sqlite', status: 'ready' } })
   const button = label => [...document.querySelectorAll('button')]
     .find(value => value.textContent === label)
   const click = target => target.dispatchEvent(new dom.window.MouseEvent('click',

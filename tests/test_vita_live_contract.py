@@ -14,7 +14,7 @@ import tempfile
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from vita_live_support import assert_progress, ethernet_record, graph_document, write_json
+from vita_live_support import assert_progress, capture_has_packet_after, ethernet_record, graph_document, write_json
 from test_vita_live import Fixture, preserved, recorder_privilege_policy, set_owned_peer_mtu, remove_owned_bridge
 
 source = Path(__file__).resolve().parents[1]
@@ -25,6 +25,27 @@ def rejects(function):
     try: function()
     except (ValueError, AssertionError): return
     raise AssertionError('invalid evidence accepted')
+
+
+with tempfile.TemporaryDirectory() as temporary:
+    capture = Path(temporary) / 'rotating.pcapng'
+    capture.write_bytes(b'bounded capture snapshot')
+    def decode_snapshot(command, **kwargs):
+        assert command[1:3] == ['-r', '-']
+        assert kwargs['input'] == b'bounded capture snapshot'
+        capture.unlink()  # Rotation after opening cannot invalidate the snapshot.
+        return SimpleNamespace(returncode=0, stdout=b'100.25\n')
+    with patch('vita_live_support.subprocess.run', side_effect=decode_snapshot):
+        assert capture_has_packet_after(capture, 100)
+    assert not capture_has_packet_after(capture, 100)
+    capture.write_bytes(b'capture')
+    for code, output in ((0, b'99.0\n'), (0, b'not a timestamp\n'), (1, b'101.0\n')):
+        with patch('vita_live_support.subprocess.run', return_value=SimpleNamespace(returncode=code, stdout=output)):
+            assert not capture_has_packet_after(capture, 100)
+    capture.write_bytes(b'\0' * (4194304 + 9022 + 4097))
+    with patch('vita_live_support.subprocess.run') as decoder:
+        rejects(lambda: capture_has_packet_after(capture, 100))
+        decoder.assert_not_called()
 
 
 for capability in ('NET_RAW', 'CAP_NET_RAW'):

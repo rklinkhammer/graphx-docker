@@ -46,10 +46,11 @@ import tempfile
 from pathlib import Path
 with tempfile.TemporaryDirectory() as directory:
     root=Path(directory);output=root/'absent'
-    result=subprocess.run([sys.executable,str(Path(__file__).with_name('test_vita_acceptance.py')),
-        '--cli',str(root/'missing-cli'),'--images',str(root/'missing-images'),'--output',str(output),
-        '--workspace',str(root/'workspace'),'--case','baseline','--run'],capture_output=True,text=True)
-    assert result.returncode!=0 and 'explicit --allow-privileged' in result.stderr and not output.exists()
+    for target in ('lima','native-linux'):
+        result=subprocess.run([sys.executable,str(Path(__file__).with_name('test_vita_acceptance.py')),
+            '--cli',str(root/'missing-cli'),'--images',str(root/'missing-images'),'--output',str(output),
+            '--workspace',str(root/'workspace'),'--target',target,'--case','baseline','--run'],capture_output=True,text=True)
+        assert result.returncode!=0 and 'explicit --allow-privileged' in result.stderr and not output.exists()
 print('P6 run authorization fails closed before artifact or infrastructure access')
 
 # An independently authored first IQ packet exercises phase and burst validation.

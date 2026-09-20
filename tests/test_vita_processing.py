@@ -132,6 +132,14 @@ with tempfile.TemporaryDirectory(prefix='graphx-vita-processing-') as directory:
             config=root/(node['node_id']+'.json');config.write_text(json.dumps(node));log=(root/(node['node_id']+'.log')).open('w');logs.append(log)
             executable='graphx-vita-'+('radio' if node['node_id'].startswith('radio') else node['node_id'])
             app=subprocess.Popen([str(BUILD/executable),'--node',node['node_id'],'--config',str(config),'--release-file',str(release),'--release-token',token],stdout=log,stderr=log,env=dict(os.environ,GRAPHX_CREDENTIALS=str(credentials)));processes.append(app)
+            if mode=='--auth-failure' and node['node_id']=='radio4':
+                # Isolate certificate rejection from a refused connection while
+                # the server is still starting; authentication itself must not retry.
+                ready_deadline=time.monotonic()+5
+                while 'ready node=radio4' not in (root/'radio4.log').read_text():
+                    assert app.poll() is None,(root/'radio4.log').read_text()
+                    assert time.monotonic()<ready_deadline,'radio4 readiness timeout'
+                    time.sleep(.01)
             if mode=='--busy-radio' and node['node_id']=='radio4':
                 assert app.wait(timeout=3)==75
                 processes.remove(app)

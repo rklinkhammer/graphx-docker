@@ -403,10 +403,11 @@ int execute_scenario(const ExecutionOptions& opts, const ConfigValue& resolved,
   else if (kind == "credential-rotate") {
     const auto manifest = opts.output / "credentials.json";
     const std::string script =
-        "import {pathToFileURL} from 'node:url';const "
+        "import {pathToFileURL} from 'node:url';import {readFileSync} from 'node:fs';const "
         "[module,manifest,root,ref,next,grace]=process.argv.slice(1);const "
         "{rotateCredential,readJson}=await "
-        "import(pathToFileURL(module));rotateCredential(readJson(manifest),root,ref,next,Number("
+        "import(pathToFileURL(module));rotateCredential(manifest==='-'?"
+        "JSON.parse(readFileSync(0,'utf8')):readJson(manifest),root,ref,next,Number("
         "grace));console.log('credential generation published');";
     const bool native = resolved.at("platform").at("telemetry").at("host") == Value("127.0.0.1");
     if (native) {
@@ -439,6 +440,7 @@ int execute_scenario(const ExecutionOptions& opts, const ConfigValue& resolved,
       const auto image = state.processes.back().secondary_id;
       auto created = call({"docker",
                            "create",
+                           "--interactive",
                            "--name",
                            name,
                            "--label",
@@ -461,8 +463,6 @@ int execute_scenario(const ExecutionOptions& opts, const ConfigValue& resolved,
                            "--memory",
                            "256m",
                            "--mount",
-                           "type=bind,src=" + opts.output.string() + ",dst=/run/graphx,readonly",
-                           "--mount",
                            "type=volume,src=" + volume.name + ",dst=/var/lib/graphx",
                            "--entrypoint",
                            "node",
@@ -471,7 +471,7 @@ int execute_scenario(const ExecutionOptions& opts, const ConfigValue& resolved,
                            "-e",
                            script,
                            "/app/credentials.mjs",
-                           "/run/graphx/credentials.json",
+                           "-",
                            "/var/lib/graphx/credentials",
                            action->at("credential").text(),
                            action->at("next").text(),
@@ -480,7 +480,10 @@ int execute_scenario(const ExecutionOptions& opts, const ConfigValue& resolved,
         created.pop_back();
       state.processes.back().stable_id = created;
       save();
-      call({"docker", "start", "--attach", created});
+      // The compilation stays private; pass only its bounded, non-secret
+      // credential manifest to the unprivileged helper through stdin.
+      call({"docker", "start", "--attach", "--interactive", created},
+           config_value_json(read(manifest)));
       const auto observed =
           parse_document(call({"docker", "container", "inspect", created})).array().front();
       require(observed.at("State").at("ExitCode") == Value(0),

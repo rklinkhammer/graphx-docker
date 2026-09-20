@@ -1,0 +1,10 @@
+{
+  "commit": "ba710a3d4823e0507db59a5696b84bb9c0f769a9",
+  "branch": "main",
+  "working_tree_clean": true,
+  "source_host_repository": "/Users/rklinkhammer/workspace/graphx-docker",
+  "destination_host": "192.168.1.202",
+  "destination_user": "rklinkhammer",
+  "destination_directory": "~/workspace/graphx-docker",
+  "transfer_status": "blocked_ssh_authentication"
+}

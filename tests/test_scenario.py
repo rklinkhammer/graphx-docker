@@ -39,8 +39,13 @@ with tempfile.TemporaryDirectory() as temporary:
     call('scenario','run',*options,'--action','undeclared',ok=False)
     call('scenario','run',*options,'--action','apply-deferred',ok=False)
     assert not state.exists()
-    path=compiled/'scenario-plan.json';path.write_text(path.read_text()+' ')
-    assert 'E_COMPILE_IDENTITY' in call('scenario','plan',*options,ok=False).stderr
+    for name in ('scenario-plan.json','credentials.json'):
+        path=compiled/name;original_bytes=path.read_bytes()
+        try:
+            path.write_bytes(original_bytes+b' ')
+            assert 'E_COMPILE_IDENTITY' in call('scenario','plan',*options,ok=False).stderr
+            assert not state.exists()
+        finally:path.write_bytes(original_bytes)
     lab=root/'laboratory'
     call('compile',source/'examples/sdr-node/external/graphx.yml','--target','lima','--laboratory','laboratory-radio','--source-root',source,'--credential-root',root/'lab-credentials','--output',lab)
     resolved=json.loads((lab/'resolved.json').read_text())

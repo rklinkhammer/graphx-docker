@@ -1,0 +1,20 @@
+{
+  "radio1": [
+    "radio=1 packets=214459 dropped_samples=131072 udp_errors=0 clipped=0"
+  ],
+  "radio2": [
+    "radio=2 packets=215445 dropped_samples=140288 udp_errors=0 clipped=0"
+  ],
+  "radio3": [
+    "radio=3 packets=215433 dropped_samples=139264 udp_errors=0 clipped=0"
+  ],
+  "radio4": [
+    "radio=4 packets=215452 dropped_samples=119808 udp_errors=0 clipped=0"
+  ],
+  "processor": [
+    "processor spectra=431094 send_drops=0 invalid=0 sample_invalid=0 duplicates=109 skipped_samples=0 sequence_gaps=1217 display_drops=0"
+  ],
+  "recorder": [
+    "recorder packets=1304260 bytes=7425502747 truncated=0 invalid=0 kernel_drops=0 errors=0 log_drops=0 socket_buffer_bytes=425984 persistence=none"
+  ]
+}

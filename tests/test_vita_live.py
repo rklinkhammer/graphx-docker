@@ -24,7 +24,7 @@ import tempfile
 import time
 import uuid
 
-from vita_live_support import NODES, FrameObserver, assert_progress, ethernet_record, graph_document, write_json
+from vita_live_support import NODES, FrameObserver, assert_progress, capture_has_packet_after, ethernet_record, graph_document, write_json
 
 SOURCE = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SOURCE / 'scripts/release'))
@@ -385,8 +385,7 @@ def capture_continuity(f):
     # Inspect fresh packet timestamps, not retained filenames or historical counts.
     def fresh():
         for path in directory.glob('*.pcapng'):
-            code, text = call('tshark', '-r', path, '-T', 'fields', '-e', 'frame.time_epoch', '-c', '256', ok=False)
-            if code == 0 and any(float(line) > death_time for line in text.splitlines() if re.fullmatch(r'\d+\.\d+', line)):
+            if capture_has_packet_after(path, death_time):
                 return True
         return False
     wait(fresh, 10)

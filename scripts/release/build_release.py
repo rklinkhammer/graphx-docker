@@ -26,6 +26,14 @@ def git(source: Path, *arguments: str) -> str:
     return subprocess.check_output(["git", *arguments], cwd=source, text=True).strip()
 
 
+def validate_build_dependencies(dependencies: dict) -> str:
+    if (set(dependencies) != {"openssl", "yamlCpp", "qualificationHooks"}
+            or dependencies.get("yamlCpp") != "0.9.0"
+            or dependencies.get("qualificationHooks") != "OFF"):
+        raise ReleaseError("configured dependencies or qualification hooks do not match the release contract")
+    return validate_dependency_version(dependencies.get("openssl"), "OpenSSL version")
+
+
 def sbom(version: str, commit: str, platform_value: str, archive: Path,
          created: str, openssl_version: str) -> dict:
     root_id = "SPDXRef-Package-GraphX"
@@ -117,9 +125,7 @@ def main() -> int:
     verify_release_archive(archive, version, platform_value)
     dependencies = json_object(build / "generated/graphx-build-dependencies.json",
                                MAX_PACKAGE_JSON_BYTES, "configured dependency versions")
-    if set(dependencies) != {"openssl", "yamlCpp"} or dependencies.get("yamlCpp") != "0.9.0":
-        raise ReleaseError("configured dependency versions do not match the release contract")
-    openssl_version = validate_dependency_version(dependencies.get("openssl"), "OpenSSL version")
+    openssl_version = validate_build_dependencies(dependencies)
 
     sbom_name = f"graphx-{version}-{platform_value}.spdx.json"
     sbom_path = output / sbom_name

@@ -3,6 +3,7 @@
 #include <stdexcept>
 #ifdef __linux__
 #include <cerrno>
+#include <csignal>
 #include <array>
 #include <atomic>
 #include <thread>
@@ -57,6 +58,9 @@ int main() try {
     filtered = true;
     worker.join();
     if (worker_result.load() != 0) _exit(10);
+    stack_t alternate{};
+    if (sigaltstack(nullptr, &alternate) != 0) _exit(11);
+    if (fork() != -1 || errno != EPERM) _exit(12);
     std::array<char, 9022> received{};
     iovec vector{received.data(), received.size()};
     msghdr message{};

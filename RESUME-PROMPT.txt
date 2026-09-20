@@ -1,0 +1,1 @@
+Continue GraphX work using HANDOFF.md in this handoff directory. Read it, then verify the checkout is at ba710a3d4823e0507db59a5696b84bb9c0f769a9. Follow the checkout AGENTS.md and docs/project-decisions.md. P6 is complete; review its verification report and wait for my next task. Do not rerun privileged tests without explicit authorization for this machine.

@@ -18,7 +18,7 @@ SOURCE = Path(sys.argv[1]).resolve()
 CLI = Path(sys.argv[2]).resolve()
 sys.path.insert(0, str(SOURCE / "scripts/release"))
 
-from build_release import sbom  # noqa: E402
+from build_release import sbom, validate_build_dependencies  # noqa: E402
 from ghcr_release import ReleaseError, assert_absent, delete_tag, tagged_versions  # noqa: E402
 from release_common import (MAX_LOCK_BYTES, archive_file_contract,  # noqa: E402
                             bounded_regular_file_size, current_platform, inspect_archive,
@@ -87,6 +87,15 @@ def create_candidate(root: Path, version: str, commit: str, platform_value: str,
     reseal(candidate, stem)
     return candidate, stem
 
+
+build_dependencies = {"openssl": "3.5.5", "yamlCpp": "0.9.0", "qualificationHooks": "OFF"}
+assert validate_build_dependencies(build_dependencies) == "3.5.5"
+for invalid_dependencies in (
+        {**build_dependencies, "qualificationHooks": "ON"},
+        {key: value for key, value in build_dependencies.items() if key != "qualificationHooks"},
+        {**build_dependencies, "unexpected": "value"},
+        {**build_dependencies, "yamlCpp": "0.8.0"}):
+    rejected(lambda value=invalid_dependencies: validate_build_dependencies(value))
 
 version = source_version(SOURCE)
 assert subprocess.check_output([CLI, "--version"], text=True) == f"graphx {version}\n"

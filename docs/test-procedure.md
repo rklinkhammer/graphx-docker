@@ -52,6 +52,8 @@ scripts/verify.sh release
 - `quick` builds and runs unit and portable contract tests.
 - `quality` runs formatting, clang-tidy, and cppcheck on the host toolchain.
 - `sanitizers` runs the LLVM 21 address/undefined-behavior suite supported by the host.
+  Instrumented GraphX targets use `-O1` and retain frame pointers so the complete
+  configuration and lifecycle matrices fit their test deadlines on libstdc++.
 - `fuzz` runs bounded LLVM 21 libFuzzer smoke tests.
 - `portable` runs complete non-Docker acceptance with C++20.
 - `full` adds sanitizers, fuzzing, Docker acceptance, and, when invoked on macOS,
@@ -179,6 +181,8 @@ sudo python3 tests/test_vita_acceptance.py --cli "$GRAPHX_CLI" \
 ```
 
 After explicit authorization, append `--run --allow-privileged --seconds 180`.
+For an authorized native Linux host, also select `--target native-linux`; the
+default target is `lima`. Evidence records the selected target.
 Run the `radio1`, `detector`, `processor` and `recorder` cases with the same selected
 images and run directory; every case creates new containers. Each fault case checks
 explicit whole-graph recovery with another new container set. `--browser` adds

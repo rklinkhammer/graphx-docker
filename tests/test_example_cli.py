@@ -18,8 +18,8 @@ module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 
 
-def call(*args, ok=True):
-    result = subprocess.run([cli, *map(str, args)], cwd=root, capture_output=True, text=True, timeout=30)
+def call(*args, ok=True, timeout=30):
+    result = subprocess.run([cli, *map(str, args)], cwd=root, capture_output=True, text=True, timeout=timeout)
     assert (result.returncode == 0) == ok, (args, result.stdout, result.stderr)
     return result
 
@@ -32,7 +32,9 @@ def rejected(fn):
     raise AssertionError('unsafe input accepted')
 
 
-names = [row['example'] for row in json.loads(call('example', 'list', '--json').stdout)]
+# Listing validates every example against all four targets, including in Debug
+# and sanitizer builds; give this aggregate operation its own bounded deadline.
+names = [row['example'] for row in json.loads(call('example', 'list', '--json', timeout=120).stdout)]
 assert 'sample-pipeline/ovs' in names and 'sdr-node/simulated' in names
 for name in names:
     plan = json.loads(call('example', 'plan', name, '--target', 'native-linux', '--json').stdout)
@@ -83,6 +85,7 @@ with tempfile.TemporaryDirectory(prefix='graphx-example-') as tmp:
         invalid = copy.deepcopy(changed)
         invalid['platform']['control']['grants'][1].update(nodes=nodes, actions=actions)
         authored_path = folder / 'invalid-grant.json'
+        invalid['catalog'] = os.path.relpath(root / 'config/catalog/lock.json', authored_path.parent)
         authored_path.write_text(json.dumps(invalid))
         result = call('config', 'normalize', authored_path, '--target', 'orbstack',
                       '--catalog-root', root / 'config/catalog', ok=False)
@@ -199,7 +202,8 @@ print('Example CLI: all authored plans, grants, private references, tokens and p
 # Optional VITA role selection cannot reuse a default-role cache or accept fault hooks.
 with tempfile.TemporaryDirectory(prefix='graphx-vita-artifacts-') as directory:
     workspace = Path(directory).resolve()
-    (workspace / 'artifacts/key/images').mkdir(parents=True)
+    module.private_dir(workspace / 'artifacts/key')
+    (workspace / 'artifacts/key/images').mkdir()
     workflow = module.Workflow.__new__(module.Workflow)
     workflow.base, workflow.key, workflow.source = workspace, 'key', root
     workflow.containers, workflow.guests, workflow.native = True, False, False

@@ -87,14 +87,14 @@ void restrict_recorder_descriptor(int descriptor) {
     jump(BPF_JMP | BPF_JEQ | BPF_K, n, 0, 1);
     statement(BPF_RET | BPF_K, SECCOMP_RET_ALLOW);
   };
-  for (auto number :
-       {__NR_read,          __NR_pread64,         __NR_close,        __NR_lseek,
-        __NR_fstat,         __NR_newfstatat,      __NR_statx,        __NR_mmap,
-        __NR_mprotect,      __NR_munmap,          __NR_brk,          __NR_madvise,
-        __NR_clock_gettime, __NR_clock_nanosleep, __NR_nanosleep,    __NR_futex,
-        __NR_rt_sigaction,  __NR_rt_sigprocmask,  __NR_rt_sigreturn, __NR_exit,
-        __NR_exit_group,    __NR_getpid,          __NR_gettid,       __NR_getrandom,
-        __NR_recvfrom,      __NR_getsockopt,      __NR_ppoll,        __NR_sched_yield})
+  for (auto number : {__NR_read,          __NR_pread64,         __NR_close,        __NR_lseek,
+                      __NR_fstat,         __NR_newfstatat,      __NR_statx,        __NR_mmap,
+                      __NR_mprotect,      __NR_munmap,          __NR_brk,          __NR_madvise,
+                      __NR_clock_gettime, __NR_clock_nanosleep, __NR_nanosleep,    __NR_futex,
+                      __NR_rt_sigaction,  __NR_rt_sigprocmask,  __NR_rt_sigreturn, __NR_sigaltstack,
+                      __NR_exit,          __NR_exit_group,      __NR_getpid,       __NR_gettid,
+                      __NR_getrandom,     __NR_recvfrom,        __NR_getsockopt,   __NR_ppoll,
+                      __NR_sched_yield})
     allow(number);
 #ifdef __NR_rseq
   allow(__NR_rseq);
