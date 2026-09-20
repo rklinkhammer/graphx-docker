@@ -1,5 +1,22 @@
 # P3 verification — jumbo paths and passive recorder
 
+## User instructions: where to start
+
+Use the [P3/P4 operator runbook](privileged-verification-runbook.md). It provides:
+
+1. The exact request to finish private test images and the automated live harness.
+2. Copy/paste read-only Lima checks from your Mac and instructions for each failure.
+3. The artifacts/paths to review before authorizing a run.
+4. An explicit authorization prompt, existing CLI recovery commands and case IDs.
+5. PASS/FAIL/BLOCKED/NOT RUN criteria and the evidence required to close P3.
+
+**Do not proceed to P5/P6 just to obtain test fixtures.** Preparation is unfinished
+P3/P4 qualification work. The full live suite has no existing one-command entry
+point yet; the implementor must supply it. You do not need to log into a separate
+Linux host. The evidence below is already executed unless explicitly marked pending;
+the live case specifications at the end are requirements for the missing harness,
+not a list of commands you can run unchanged today.
+
 P3 is **not complete**: implementation and nonprivileged evidence are present;
 actual Linux/Lima OVS path acceptance remains unrun. No privileged test, P4 policy,
 image publication, push or deployment is authorized by this record.
@@ -143,7 +160,10 @@ syscall enforcement, including TSYNC denial in an existing worker thread and a 9
 AF_PACKET socket or establish privileged path acceptance. Linux ASan, live OVS,
 Lima, TCG and KVM qualification are unrun.
 
-## Isolated privileged acceptance plan — not executed
+## P3 live case specifications
+
+**Not executed.** Follow the numbered operator steps and P3 case matrix in the
+[shared runbook](privileged-verification-runbook.md) before using these specifications.
 
 Authorization must name native Linux or the dedicated GraphX Lima guest. Do not
 run this plan in OrbStack, attach a physical uplink, forward a privileged socket,

@@ -1,5 +1,22 @@
 # P4 verification — application availability
 
+## User instructions: where to start
+
+Use the [P3/P4 operator runbook](privileged-verification-runbook.md). It provides:
+
+1. The exact request to finish private test images and the automated live harness.
+2. Copy/paste read-only Lima checks from your Mac and instructions for each failure.
+3. The artifacts/paths to review before authorizing a run.
+4. An explicit authorization prompt, existing CLI recovery commands and case IDs.
+5. PASS/FAIL/BLOCKED/NOT RUN criteria and the evidence required to close P4.
+
+**Do not proceed to P5/P6 just to obtain test fixtures.** Preparation is unfinished
+P3/P4 qualification work. The full live suite has no existing one-command entry
+point yet; the implementor must supply it. You do not need to log into a separate
+Linux host. The evidence below is already executed unless explicitly marked pending;
+the live case specifications at the end are requirements for the missing harness,
+not a list of commands you can run unchanged today.
+
 P4 implementation is present; **P4 is not closed**. Native and portable acceptance
 are recorded below. Actual stopped-container/OVS path and recorder fault acceptance
 remain pending explicit authorization and a verified private image fixture. P3's
@@ -21,7 +38,7 @@ No VITA packet, timestamp, transaction or backend execution behavior is reimplem
 | Runtime isolation and stale results | Real-radio test kills radio4, observes continuing spectra from radios1–3, kills processor, observes increasing radio packet counters and stale detector results. P2 detector-loss test remains. Per-stream freshness is based on valid produced/received spectra, never heartbeat alone. | Actual recorder death, container no-respawn and OVS-wide outage remain live gates. |
 | Bounded retry/work/storage | Existing per-stream queues, bounded UDP work and display queues retained. Failed certificate verification terminates that peer's retries; other connection attempts obey normalized count/backoff. No automatic process/container recreation; Compose restart remains no. | This change does not add a sustained memory benchmark or claim lossless delivery. |
 | Ownership and cleanup | Native tests retain each failed application's identity, check no respawn, stop survivors and assert no owned native processes remain. Corrupt executable identity and barrier token reject cleanup. Interruption rolls back. Stopped-container endpoint absence requires exact container ownership and surviving OVS records; live paths retain full MTU/ACL checks. | Linux/Lima inventory and replacement-race evidence pending. |
-| Recorder and diagnostic independence | Recorder remains separate and bounded; no archive or restart. If its stopped namespace removes mirror delivery, independent diagnostic capture reports unavailable delivery with retained PID/directory identity checks, never successful reception. Other live paths still require full verification. | Actual namespace disappearance, dumpcap termination, retention and cleanup must be tested together. |
+| Recorder and diagnostic independence | Recorder remains separate and bounded; no archive or restart. If its stopped namespace removes mirror delivery, independent diagnostic capture reports unavailable delivery with retained PID/directory identity checks, never successful reception. Other live paths still require full verification. | Actual namespace disappearance, dumpcap termination, retention and cleanup must be tested together. Current unavailable-delivery behavior does not establish P3 diagnostic-capture continuity; this remains an open acceptance issue. |
 | P1/P2 and default graph regression | Unchanged epoch assertions, independent four-radio timing, production FFT/detector and transactional graph tests run with the selected gates below. | Native results do not qualify privileged OVS paths. |
 
 The nominal IQ source payload remains **16 MB/s**. Native tests count spectra and
@@ -112,7 +129,10 @@ now uses a bounded regular-file snapshot; configuration reading stays immutable.
 A concurrent-append test and oversized/symlink/hardlink rejection tests cover the
 fix. No diagnostic or acceptance assertion was disabled.
 
-## Isolated privileged acceptance plan — not executed
+## P4 live case specifications
+
+**Not executed.** Follow the numbered operator steps and P4 case matrix in the
+[shared runbook](privileged-verification-runbook.md) before using these specifications.
 
 Use the P3 isolated test fixture and image-verification prerequisites in
 [p3-verification.md](p3-verification.md). Select the available policy with a 5000 ms
@@ -136,8 +156,10 @@ and an unrelated control graph's inventory.
    stale. Detector/recorder death must leave upstream processes running.
 4. Exercise recorder death with diagnostic capture enabled and disabled. Verify
    stopped namespace/veth absence is distinguished from replacement, capture
-   evidence is retained, delivery loss is reported and no unavailable path is
-   counted as live reception. Preserve passive enforcement and image permissions.
+   evidence is retained and independent diagnostics continue as required by P3.
+   Merely reporting unavailable delivery or retaining old packets does not pass
+   continuity. Record a failure/blocker if the recorder namespace removes delivery;
+   fix the implementation against the approved contract before closing this case. Preserve passive enforcement and image permissions.
 5. Remove the owned shared bridge in the isolated fixture and confirm unavailable
    paths, bounded surviving processes and no throughput claim. Startup on a bad
    MTU, wrong ACL, replaced interface/container, wrong token or invalid credentials

@@ -67,3 +67,5 @@ See [radio design](radio-design.md), [command contract](command-analysis.md),
 [processing design](processing-design.md), [P2 verification](p2-verification.md),
 [network design](network-design.md), [P3 verification](p3-verification.md),
 [lifecycle design](lifecycle-design.md) and [P4 verification](p4-verification.md).
+
+For pending live acceptance, start with the [P3/P4 operator runbook](privileged-verification-runbook.md): preparation, Mac-side preflight, authorization, case matrices and owned recovery.
