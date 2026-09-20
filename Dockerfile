@@ -92,7 +92,7 @@ ENV PYTHONDONTWRITEBYTECODE=1
 USER 65532:65532
 CMD ["/usr/local/bin/graphx-sdr", "--help"]
 
-FROM node:24.20.0-bookworm-slim@sha256:ba849c60be29959425b8734d57b8b4b7d56f98edd9504c9af091d5281095a71e AS web
+FROM node:26.8.2-bookworm-slim@sha256:cd9f682fa2885cd1056e830424764158570061c59736a1da836bc3d73df095ae AS web
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt npm_config_cafile=/etc/ssl/certs/ca-certificates.crt
 WORKDIR /app/web
