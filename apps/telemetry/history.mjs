@@ -93,6 +93,10 @@ export function telemetryHistoryRecord(event, graphId, recordedAtMs = Date.now()
     latencyUs: finiteNumber(event.latencyUs), wireBytes: finiteNumber(event.wireBytes),
     cpuPercent: finiteNumber(event.cpuPercent), message: boundedText(event.message, 256),
   }
+  if (event.kind === 'edge_totals') Object.assign(data, {
+    packets: finiteNumber(event.packets), direction: boundedText(event.direction, 8),
+    sessionId: boundedText(event.sessionId, 32),
+  })
   return { graphId, recordedAtMs, eventAtMs: finiteNumber(event.timestamp) || recordedAtMs,
     kind: data.kind || 'telemetry', event: data.event || 'unknown', nodeId: data.nodeId,
     edgeId: data.edgeId, json: JSON.stringify(data) }

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
-import { applicationEdges, edgeObservationAvailable, networkEdges } from './data/topology.js'
+import { applicationEdges, edgeObservationAvailable, trafficObservation, networkEdges } from './data/topology.js'
 
 const topology = {
   edges: [{ id: 'routed-flow', source: 'left', target: 'right', transport: 'udp',
@@ -48,4 +48,16 @@ test('allowed and route-applied diagnostics use distinct visual semantics', asyn
   assert.match(styles, /edge-path\.diagnostic-route-applied \{ stroke: #69a8ff; stroke-dasharray:/)
   assert.match(styles, /edge-badge\.diagnostic-route-applied \{ border-color: #3f72b5;/)
   assert.doesNotMatch(styles, /diagnostic-allowed[^\n]*diagnostic-route-applied/)
+})
+
+
+test('traffic summary distinguishes measured data edges from unobserved control edges', () => {
+  const data = Array.from({ length: 5 }, () => ({ received: 1000, messageRate: 980 }))
+  const control = Array.from({ length: 4 }, () => ({ received: 0, messageRate: 0 }))
+  assert.deepEqual(trafficObservation([...data, ...control], true, true),
+    { observed: 5, total: 9, samples: 1000, flowing: false })
+  assert.equal(trafficObservation(data, true, true).flowing, true)
+  assert.equal(trafficObservation(data, false, true).flowing, false)
+  assert.equal(trafficObservation(data, true, false).flowing, false)
+  assert.equal(trafficObservation([{ received: 1000, messageRate: 0 }], true, true).observed, 0)
 })

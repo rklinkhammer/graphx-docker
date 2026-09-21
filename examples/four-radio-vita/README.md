@@ -126,8 +126,14 @@ retains separate bounded PCAPNG evidence. No final-packet drain is promised.
 
 In the authenticated console, inspect Application and Network path views, select
 nodes to open logs, and read `detection stream=... rf_hz=...` results with their time
-and validity fields. Raw edges without packet observations show unavailable metrics;
-they do not establish zero throughput or a failed authenticated radio connection.
-Use processor/radio logs for control state and independent packet evidence for rates.
+and validity fields. The four IQ edges and spectrum edge publish authenticated
+cumulative send/receive packet and payload-byte totals once per second. Application
+rates use successive reports; a missed report does not lose the cumulative count.
+Rates expire after five seconds without reports. Payload bytes exclude UDP/IP and
+Ethernet headers. Latency, unreported drops/errors, CPU utilization and raw control
+edge traffic remain unavailable; they must not be inferred from heartbeats. Recorder
+mirror counters remain in its logs and are not added to the source data edges.
+Use processor/radio logs for control state and independent packet evidence for
+network-level rates.
 Consult [integrated verification](../../design/four-radio-vita/verification.md)
 for measured rates, startup timing, browser coverage and current limitations.

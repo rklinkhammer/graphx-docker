@@ -2,6 +2,7 @@
 """Real P1 radios -> production P2 processor -> production detector, native/mTLS."""
 import copy
 import hashlib
+import hmac
 import json
 import os
 from pathlib import Path
@@ -121,6 +122,18 @@ with tempfile.TemporaryDirectory(prefix='graphx-vita-processing-') as directory:
             backend=fresh();node['bindings']['control'][0]['settings']['port']=backend
             tls_relay=TlsRelay(graph['connections']['control1']['settings']['port'],backend)
     release=root/'release';token='c'*64;release.write_text(token)
+    telemetry=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
+    telemetry.bind(('127.0.0.1',0));telemetry.setblocking(False)
+    telemetry_secret='vita-counter-test-secret-'+'x'*32
+    telemetry_events=[]
+    def drain_telemetry():
+        while True:
+            try: envelope=json.loads(telemetry.recv(16384))
+            except BlockingIOError: break
+            payload=envelope['payload'];auth=envelope['auth']
+            signed=f"{auth['timestamp']}.{auth['nonce']}."+json.dumps(payload,separators=(',',':'))
+            assert hmac.compare_digest(auth['signature'],hmac.new(telemetry_secret.encode(),signed.encode(),hashlib.sha256).hexdigest())
+            if payload.get('kind')=='edge_totals':telemetry_events.append(payload)
     processes=[];logs=[]
     occupied=None
     if mode=='--busy-radio':
@@ -128,10 +141,10 @@ with tempfile.TemporaryDirectory(prefix='graphx-vita-processing-') as directory:
     try:
         for node in sorted(normalized['nodes'],key=lambda n:n['node_id']=='processor'):
             if (missing and node['node_id']=='radio4') or (mode=='--all-missing' and node['node_id'].startswith('radio')) or (mode=='--no-processor' and node['node_id']=='processor'):continue
-            node['telemetry']['credential']=None
+            node['telemetry'].update(credential='test-telemetry',host='127.0.0.1',port=telemetry.getsockname()[1])
             config=root/(node['node_id']+'.json');config.write_text(json.dumps(node));log=(root/(node['node_id']+'.log')).open('w');logs.append(log)
             executable='graphx-vita-'+('radio' if node['node_id'].startswith('radio') else node['node_id'])
-            app=subprocess.Popen([str(BUILD/executable),'--node',node['node_id'],'--config',str(config),'--release-file',str(release),'--release-token',token],stdout=log,stderr=log,env=dict(os.environ,GRAPHX_CREDENTIALS=str(credentials)));processes.append(app)
+            app=subprocess.Popen([str(BUILD/executable),'--node',node['node_id'],'--config',str(config),'--release-file',str(release),'--release-token',token],stdout=log,stderr=log,env=dict(os.environ,GRAPHX_CREDENTIALS=str(credentials),GRAPHX_TELEMETRY_SHARED_SECRET=telemetry_secret));processes.append(app)
             if mode=='--auth-failure' and node['node_id']=='radio4':
                 # Isolate certificate rejection from a refused connection while
                 # the server is still starting; authentication itself must not retry.
@@ -161,6 +174,7 @@ with tempfile.TemporaryDirectory(prefix='graphx-vita-processing-') as directory:
             raise SystemExit(0)
         deadline=time.monotonic()+12;found={};counts={i:0 for i in range(1,active+1)};boundaries=0;epochs={};cut_at=None;last_seen={};first=time.monotonic()
         while time.monotonic()<deadline:
+            drain_telemetry()
             for app in processes:assert app.poll() is None,{p.name:p.read_text() for p in root.glob('*.log')}
             for _ in range(256):
                 try:wire,_=relay.recvfrom(9000)
@@ -178,7 +192,7 @@ with tempfile.TemporaryDirectory(prefix='graphx-vita-processing-') as directory:
                 relay.sendto(wire,('127.0.0.1',detector_port))
             text=(root/'detector.log').read_text()
             for sid,hz in re.findall(r'detection stream=(\d+).*?rf_hz=([0-9.e+-]+)',text):found[int(sid)]=float(hz)
-            if len(found)==active and min(counts.values())>=20:
+            if len(found)==active and min(counts.values())>=20 and (mode or time.monotonic()-first>=3):
                 if tls_relay and cut_at is None:
                     cut_at=time.monotonic();tls_relay.cut.set();counts={i:0 for i in counts}
                 elif not tls_relay or (time.monotonic()-cut_at>1 and tls_relay.accepted>=2 and all(time.monotonic()-last_seen[i]<.3 for i in counts)):break
@@ -230,7 +244,7 @@ with tempfile.TemporaryDirectory(prefix='graphx-vita-processing-') as directory:
         if boundary:
             # A stalled stdout reader must cause counted display drops, not an
             # unbounded queue or a blocked receive/lifecycle loop.
-            probe=subprocess.Popen(detector.args,stdout=subprocess.PIPE,stderr=subprocess.PIPE,env=dict(os.environ,GRAPHX_CREDENTIALS=str(credentials)));processes.append(probe)
+            probe=subprocess.Popen(detector.args,stdout=subprocess.PIPE,stderr=subprocess.PIPE,env=dict(os.environ,GRAPHX_CREDENTIALS=str(credentials),GRAPHX_TELEMETRY_SHARED_SECRET=telemetry_secret));processes.append(probe)
             time.sleep(.15)
             for seq in range(5000):
                 packet=bytearray(wire);struct.pack_into('!I',packet,16,seq);relay.sendto(packet,('127.0.0.1',detector_port))
@@ -247,6 +261,16 @@ with tempfile.TemporaryDirectory(prefix='graphx-vita-processing-') as directory:
             assert drops and max(drops)>0 and b'rf_hz=none' in display and b'detection invalid' in display,display[-2000:]
             probe.terminate();assert probe.wait(timeout=3)==0;probe.stdout.close();probe.stderr.close()
             print('stalled console recovery: counted display drops',max(drops),'zero and invalid results observed')
+        drain_telemetry()
+        if not mode:
+            expected={(f'radio{i}',f'data{i}','sent') for i in range(1,5)} | {('processor',f'data{i}','received') for i in range(1,5)} | {('processor','spectra','sent'),('detector','spectra','received')}
+            for node,edge,direction in expected:
+                samples=[e for e in telemetry_events if (e['nodeId'],e['edgeId'],e['direction'])==(node,edge,direction)]
+                assert len(samples)>=2,(node,edge,direction,samples)
+                assert samples[-1]['packets']>samples[0]['packets'],samples
+                assert samples[-1]['wireBytes']>samples[0]['wireBytes'],samples
+                assert len({e['sessionId'] for e in samples})==1
+            print('Authenticated cumulative telemetry progressed on all five data edges, both endpoints')
         print('four P1 radios, production controller/FFT/detector, signed tone offsets, config rejection and detector loss passed',found)
     finally:
         for app in processes:
@@ -255,6 +279,7 @@ with tempfile.TemporaryDirectory(prefix='graphx-vita-processing-') as directory:
             try:app.wait(timeout=3)
             except subprocess.TimeoutExpired:app.kill();app.wait();raise
         for log in logs:log.close()
+        telemetry.close()
         relay.close()
         if tls_relay:tls_relay.close()
         if occupied:occupied.close()

@@ -189,7 +189,11 @@ int run_radio(int argc, char** argv) {
         }
       }
       if (Clock::now() >= log_at) {
-        if (trace) trace->on_heartbeat(node.id(), 0);
+        if (trace) {
+          trace->on_heartbeat(node.id(), -1);
+          trace->on_edge_totals(node.port("samples").edge.edge.id, true, transport->udp_sent,
+                                transport->udp_sent_bytes);
+        }
         std::cout << "radio=" << stream.sid << " packets=" << radio->metrics().packets
                   << " dropped_samples=" << radio->metrics().skipped_samples
                   << " udp_errors=" << transport->udp_errors

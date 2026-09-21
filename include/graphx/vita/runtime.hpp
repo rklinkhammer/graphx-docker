@@ -25,7 +25,7 @@ class HostTransport : public std::enable_shared_from_this<HostTransport> {
   bool receive();
   bool datagram(vr::Bytes);
   bool healthy() const { return !failed_; }
-  std::uint64_t udp_errors{};
+  std::uint64_t udp_errors{}, udp_sent{}, udp_sent_bytes{};
 
  private:
   struct Slot {

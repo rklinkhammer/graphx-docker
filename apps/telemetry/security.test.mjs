@@ -224,3 +224,16 @@ test('telemetry survives malformed HTTP and WebSocket request targets', { timeou
     if (child.exitCode == null) await once(child, 'exit')
   }
 })
+
+test('raw counter totals require bounded integers and a closed authenticated payload', () => {
+  const event = { kind: 'edge_totals', event: 'totals', nodeId: 'radio', edgeId: 'iq',
+    direction: 'sent', sessionId: 'a'.repeat(32), timestamp: 1000, packets: 123,
+    wireBytes: 123 * 4128 }
+  const valid = value => validateTelemetryEvent(value, new Set(['radio']), new Set(['iq']))
+  assert.equal(valid(event), true)
+  assert.deepEqual(sanitizeTelemetryEvent(event), event)
+  for (const override of [{ packets: -1 }, { packets: 1.5 }, { wireBytes: Number.MAX_SAFE_INTEGER + 1 },
+    { timestamp: null }, { sessionId: '../bad' }, { direction: 'observed' }, { edgeId: 'foreign' },
+    { nodeId: 'foreign' }, { message: 'arbitrary' }, { latencyUs: 0 }])
+    assert.equal(valid({ ...event, ...override }), false)
+})

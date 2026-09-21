@@ -6,7 +6,7 @@ import { EdgeInspector } from './components/EdgeInspector'
 import { ControlCommandStatus } from './components/ControlCommandStatus'
 import { HistoryPanel } from './components/HistoryPanel'
 import { Topology } from './components/Topology'
-import { applicationEdges, applicationNodes, edgeObservationAvailable, infrastructureNodes, networkEdges } from './data/topology'
+import { applicationEdges, applicationNodes, edgeObservationAvailable, trafficObservation, infrastructureNodes, networkEdges } from './data/topology'
 import { controlCommandRequest, persistObservationToken, initializeConsoleSession } from './auth'
 import { useTelemetry } from './useTelemetry'
 
@@ -74,14 +74,16 @@ export default function App() {
       return { ...edge, data: { ...edge.data, captureFiles,
         connection: metric.diagnosticEvidence ? metric.connection : 'unavailable' } }
     return { ...edge, data: { ...edge.data,
-      rate: `${metric.messageRate.toLocaleString()} msg/s`,
+      cumulative: metric.metricSources?.counters === 'measured-cumulative',
+      rate: `${metric.messageRate.toLocaleString()} ${edge.data.dataPlane === 'external' ? 'pkt/s' : 'msg/s'}`,
       byteRate: `${formatBytes(metric.byteRate)}/s`,
       messages: `${metric.sent.toLocaleString()} / ${metric.received.toLocaleString()}`,
       latency: formatLatency(metric.meanLatencyUs), p95Latency: formatLatency(metric.p95LatencyUs),
-      drops: metric.drops, errors: metric.errors,
-      connection: metric.connection, reconnects: metric.reconnects,
-      backpressure: `${metric.backpressureEvents} / ${metric.backpressureUs} µs`,
-      rejected: metric.rejected,
+      drops: metric.metricSources?.drops === 'unavailable' ? '—' : metric.drops,
+      errors: metric.metricSources?.counters === 'measured-cumulative' ? null : metric.errors,
+      connection: metric.connection, reconnects: metric.metricSources?.counters === 'measured-cumulative' ? null : metric.reconnects,
+      backpressure: metric.metricSources?.counters === 'measured-cumulative' ? '—' : `${metric.backpressureEvents} / ${metric.backpressureUs} µs`,
+      rejected: metric.metricSources?.counters === 'measured-cumulative' ? null : metric.rejected,
       bytes: `${formatBytes(metric.sentWireBytes)} / ${formatBytes(metric.receivedWireBytes)}`,
       metricSources: metric.metricSources,
       captureFiles,
@@ -94,10 +96,8 @@ export default function App() {
   const selected = useMemo(() => edges.find(e => e.id === selectedId), [edges, selectedId])
   const traffic = useMemo(() => {
     const metrics = Object.values(snapshot?.edges || {})
-    const samples = metrics.length ? Math.min(...metrics.map(metric => metric.received || 0)) : 0
     const nodesRunning = graphNodes.length > 0 && graphNodes.every(node => ['running', 'ready'].includes(node.data.status))
-    const edgesConnected = metrics.length > 0 && metrics.every(metric => metric.connection === 'connected')
-    return { samples, flowing: connected && nodesRunning && edgesConnected && samples > 0 }
+    return trafficObservation(metrics, connected, nodesRunning)
   }, [snapshot, graphNodes, connected])
   const pathNodes = useMemo(() => infrastructureNodes(topology).map(node => ({ ...node, data: {
     ...node.data, status: node.data.runtimeLayer
@@ -133,7 +133,7 @@ export default function App() {
     <section className="toolbar"><div><div className="breadcrumb"><Boxes size={15}/> Runtime / <strong>{snapshot?.graph || 'graphx'}</strong></div><h2>Live topology</h2><p>Application, container, virtual-machine, and network observations</p></div>
       <div className="toolbar-actions"><button className={view === 'application' ? 'active' : ''} onClick={() => setView('application')}><GitBranch/> Application</button><button className={view === 'network' ? 'active' : ''} onClick={() => setView('network')}><Network/> Network path</button><button className={view === 'history' ? 'active' : ''} onClick={() => setView('history')}><Database/> History</button><button className={view === 'capture' ? 'active' : ''} onClick={() => setView('capture')}><Download/> Capture</button><details className="manual-auth"><summary>Manual authentication</summary><label className="token-field" title="Optional GRAPHX_OBSERVATION_TOKEN"><KeyRound/><input aria-label="Observation token" type="password" value={observationToken} onChange={event => setObservationToken(event.target.value)} placeholder="Observation token"/></label><label className="token-field" title="GRAPHX_CONTROL_TOKEN configured on the telemetry service"><KeyRound/><input aria-label="Control token" type="password" value={controlToken} onChange={event => setControlToken(event.target.value)} placeholder="Control token"/></label></details><button onClick={() => control('pause')} disabled={!runtimeControl.available || runtimeControl.connectedNodes < 1 || !hasControl || snapshot?.state?.paused} title={runtimeControl.available ? `${runtimeControl.connectedNodes} runtime nodes connected` : 'Set GRAPHX_CONTROL_TOKEN on telemetry'}><CirclePause/> Pause source</button><button onClick={() => control('resume')} disabled={!runtimeControl.available || runtimeControl.connectedNodes < 1 || !hasControl} title="Resume is always available to recover a source after collector restart"><CirclePlay/> Resume</button><button className="danger" disabled title="Use the native Linux netem hooks in the network laboratories"><TriangleAlert/> Fault unavailable</button><button onClick={reset} disabled={!hasControl}><RotateCcw/> Reset counters</button></div>
     </section>
-    <section className="summary"><span><b>{graphNodes.length}</b> nodes</span><span><b>{edges.length}</b> logical edges</span><span><b>{Object.values(snapshot?.nodes || {}).filter(node => !['running', 'ready'].includes(node.status)).length}</b> not ready</span><span className={traffic.flowing ? 'healthy' : 'waiting'}>● {traffic.flowing ? `Traffic flowing · ${traffic.samples.toLocaleString()} samples` : connected ? 'Waiting for samples' : 'Telemetry reconnecting'}</span><ControlCommandStatus command={activeCommand} token={controlToken} fallback={controlStatus}/></section>
+    <section className="summary"><span><b>{graphNodes.length}</b> nodes</span><span><b>{edges.length}</b> logical edges</span><span><b>{Object.values(snapshot?.nodes || {}).filter(node => !['running', 'ready'].includes(node.status)).length}</b> not ready</span><span className={traffic.flowing ? 'healthy' : 'waiting'}>● {traffic.flowing ? `Traffic flowing · ${traffic.samples.toLocaleString()} samples` : connected ? traffic.observed ? `Traffic observed on ${traffic.observed}/${traffic.total} edges` : 'Waiting for samples' : 'Telemetry reconnecting'}</span><ControlCommandStatus command={activeCommand} token={controlToken} fallback={controlStatus}/></section>
     <div className="main-view">{view === 'history' ? <HistoryPanel observationToken={observationToken} backend={snapshot?.history} packetBackend={snapshot?.packetHistory} preferPackets={edges.some(edge => edge.data.dataPlane === 'external')}/>
       : view === 'capture' ? <CapturePanel capture={snapshot?.capture} observationToken={observationToken}/>
       : <section className="workspace"><div className="graph-panel"><div className="panel-label"><span>{view === 'application' ? 'APPLICATION DATAFLOW' : 'CONFIGURED NETWORK PATH'}</span><span>Click nodes for console · Click edges to inspect</span></div><Topology nodes={displayedNodes} edges={displayedEdges} onNodeSelect={setConsoleNode} onEdgeSelect={setSelectedId}/></div><EdgeInspector edge={selected} networkPath={paths[selectedId]} observationToken={observationToken}/></section>}</div>

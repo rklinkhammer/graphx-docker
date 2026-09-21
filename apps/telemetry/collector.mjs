@@ -472,6 +472,11 @@ function prometheus() {
         if (verifiedEvent) break
       }
       if (!validateTelemetryEvent(verifiedEvent, nodeIds, edgeIds)) return
+      if (verifiedEvent.kind === 'edge_totals') {
+        const definition = topology.edges.find(edge => edge.id === verifiedEvent.edgeId)
+        const endpoint = verifiedEvent.direction === 'sent' ? definition?.source : definition?.target
+        if (endpoint !== verifiedEvent.nodeId) return
+      }
       if (!refreshCredentials(true)) return
       const event = sanitizeTelemetryEvent(sanitizeControlAcknowledgement(verifiedEvent),
         credentialRegistry.credentialValues())

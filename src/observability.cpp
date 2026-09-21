@@ -497,6 +497,7 @@ struct UdpJsonTraceSink::Impl {
       return {};
     }  // Failed credential reload drops telemetry, never emits unsigned data.
   }
+  std::string counter_session{random_hex_nonce()};
   int socket{-1};
   std::atomic_bool paused{};
   std::atomic_bool stopping{};
@@ -622,6 +623,22 @@ void UdpJsonTraceSink::on_processing(std::string_view, const Envelope& envelope,
 
 void UdpJsonTraceSink::on_heartbeat(std::string_view, double cpu_percent) {
   emit("heartbeat", {}, nullptr, 0, {}, {}, cpu_percent);
+}
+
+void UdpJsonTraceSink::on_edge_totals(std::string_view edge_id, bool sent, std::uint64_t packets,
+                                      std::uint64_t wire_bytes) {
+  if (!impl_ || impl_->socket < 0) return;
+  const auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
+                       std::chrono::system_clock::now().time_since_epoch())
+                       .count();
+  std::ostringstream json;
+  json << "{\"kind\":\"edge_totals\",\"event\":\"totals\",\"nodeId\":\""
+       << escape_json(impl_->node_id) << "\",\"edgeId\":\"" << escape_json(edge_id)
+       << "\",\"direction\":\"" << (sent ? "sent" : "received") << "\",\"sessionId\":\""
+       << impl_->counter_session << "\",\"timestamp\":" << now << ",\"packets\":" << packets
+       << ",\"wireBytes\":" << wire_bytes << '}';
+  const auto value = impl_->sign(json.str());
+  ::send(impl_->socket, value.data(), value.size(), 0);
 }
 
 void UdpJsonTraceSink::on_capture(std::string_view edge_id, const Envelope& envelope,

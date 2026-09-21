@@ -17,6 +17,8 @@ const TELEMETRY_KEYS = new Set([
   'parentMessageId', 'traceId', 'spanId', 'captureFile', 'direction', 'capturePacket',
   'captureOffset',
 ])
+const EDGE_TOTAL_KEYS = new Set(['kind', 'event', 'nodeId', 'edgeId', 'timestamp',
+  'sessionId', 'direction', 'packets', 'wireBytes'])
 const NETWORK_PACKET_KEYS = new Set([...TELEMETRY_KEYS,
   'protocol', 'sourceAddress', 'destinationAddress', 'sourcePort', 'destinationPort',
   'observationSource'])
@@ -77,6 +79,7 @@ export function sanitizeTelemetryEvent(event, credentials = []) {
   if (!event || typeof event !== 'object') return event
   const sanitized = {}
   const allowedKeys = event.kind === 'control_ack' ? CONTROL_ACK_KEYS :
+    event.kind === 'edge_totals' ? EDGE_TOTAL_KEYS :
     event.kind === 'capture' ? CAPTURE_KEYS :
       event.kind === 'network_packet' ? NETWORK_PACKET_KEYS : TELEMETRY_KEYS
   const secrets = [...new Set(credentials.filter(value => typeof value === 'string' && value))]
@@ -160,9 +163,14 @@ const boundedNumber = (value, maximum = Number.MAX_SAFE_INTEGER) =>
 
 export function validateTelemetryEvent(event, nodeIds, edgeIds) {
   if (!event || typeof event !== 'object' || Array.isArray(event) ||
-      !['trace', 'capture', 'control_ack', 'network_packet'].includes(event.kind) ||
+      !['trace', 'capture', 'control_ack', 'network_packet', 'edge_totals'].includes(event.kind) ||
       typeof event.nodeId !== 'string' || !nodeIds.has(event.nodeId)) return false
   if (event.kind !== 'network_packet' && PACKET_ONLY_KEYS.some(key => key in event)) return false
+  if (event.kind === 'edge_totals')
+    return Object.keys(event).every(key => EDGE_TOTAL_KEYS.has(key)) && event.event === 'totals' &&
+      edgeIds.has(event.edgeId) && ['sent', 'received'].includes(event.direction) &&
+      typeof event.sessionId === 'string' && /^[a-f0-9]{32}$/.test(event.sessionId) &&
+      [event.timestamp, event.packets, event.wireBytes].every(value => Number.isSafeInteger(value) && value >= 0)
   if (event.kind === 'control_ack')
     return ['pause', 'resume'].includes(event.action) && typeof event.accepted === 'boolean' &&
       typeof event.commandId === 'string' &&

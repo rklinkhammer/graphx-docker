@@ -151,7 +151,12 @@ vr::Result<bool> HostTransport::progress() noexcept {
     auto count = sendto(udp_, slot.bytes.data(), slot.size, 0,
                         reinterpret_cast<const sockaddr*>(&destination_), sizeof(destination_));
     bool ok = count == static_cast<ssize_t>(slot.size);
-    if (!ok) ++udp_errors;
+    if (!ok)
+      ++udp_errors;
+    else {
+      ++udp_sent;
+      udp_sent_bytes += slot.size;
+    }
     finish(slot, ok);
     return true;
   }

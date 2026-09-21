@@ -253,7 +253,8 @@ int run_processor(int argc, char** argv) try {
   udp_options(output.fd, out);
   bind_socket(output.fd, node.port("spectra").source_address, 0);
   auto destination = address(out.destination, out.port);
-  std::uint64_t spectra{}, drops{}, invalid{};
+  std::uint64_t spectra{}, drops{}, invalid{}, sent_bytes{};
+  std::array<std::uint64_t, 4> received_packets{}, received_bytes{};
   Log log;
   std::array<std::unique_ptr<Socket>, 4> inputs;
   std::array<std::unique_ptr<SampleAssembler>, 4> assemblers;
@@ -280,7 +281,10 @@ int run_processor(int argc, char** argv) try {
       ++spectra;
       auto sent = sendto(output.fd, wire.data(), wire.size(), 0,
                          reinterpret_cast<sockaddr*>(&destination), sizeof(destination));
-      if (sent != static_cast<ssize_t>(wire.size())) ++drops;
+      if (sent != static_cast<ssize_t>(wire.size()))
+        ++drops;
+      else
+        sent_bytes += wire.size();
     });
     auto& port = node.port("data" + suffix);
     auto input = udp(port);
@@ -336,6 +340,10 @@ int run_processor(int argc, char** argv) try {
         auto n = recvfrom(inputs[i]->fd, bytes.data(), bytes.size(), 0,
                           reinterpret_cast<sockaddr*>(&from), &length);
         if (n < 0) break;
+        if (from.sin_addr.s_addr == sources[i] && n <= 4128) {
+          ++received_packets[i];
+          received_bytes[i] += static_cast<std::uint64_t>(n);
+        }
         if (from.sin_addr.s_addr != sources[i] || n > 4128 ||
             !assemblers[i]->observe(std::span{bytes}.first(n)) ||
             !connections[i]->session.datagram(std::span{bytes}.first(n)))
@@ -370,7 +378,13 @@ int run_processor(int argc, char** argv) try {
                  " attempts=" + std::to_string(c.attempts));
       }
       summary = Clock::now() + std::chrono::seconds(1);
-      if (trace) trace->on_heartbeat(node.id(), 0);
+      if (trace) {
+        trace->on_heartbeat(node.id(), -1);
+        trace->on_edge_totals(node.port("spectra").edge.edge.id, true, spectra - drops, sent_bytes);
+        for (std::size_t i = 0; i < received_packets.size(); ++i)
+          trace->on_edge_totals(node.port("data" + std::to_string(i + 1)).edge.edge.id, false,
+                                received_packets[i], received_bytes[i]);
+      }
     }
     log.progress();
     std::this_thread::sleep_for(std::chrono::microseconds(100));
@@ -401,7 +415,7 @@ int run_detector(int argc, char** argv) try {
   Log log;
   if (!await_node_release(node, args, [] { return stopped != 0; })) return 0;
   auto summary = Clock::now();
-  std::uint64_t received{}, invalid{}, sequence_gaps{}, duplicates{};
+  std::uint64_t received{}, invalid{}, sequence_gaps{}, duplicates{}, observed{}, observed_bytes{};
   std::array<std::optional<std::uint32_t>, 4> last{};
   std::array<std::optional<Clock::time_point>, 4> fresh{};
   while (!stopped) {
@@ -413,6 +427,10 @@ int run_detector(int argc, char** argv) try {
                         &length);
       if (n < 0) break;
       ++received;
+      if (from.sin_addr.s_addr == source && n <= 8836) {
+        ++observed;
+        observed_bytes += static_cast<std::uint64_t>(n);
+      }
       try {
         if (from.sin_addr.s_addr != source || n > 8836) throw std::invalid_argument("source/size");
         auto spectrum = decode_spectrum(std::span{bytes}.first(n));
@@ -458,7 +476,10 @@ int run_detector(int argc, char** argv) try {
                   : Clock::now() - *fresh[i] > std::chrono::seconds(2) ? "stale"
                                                                        : "available"));
       summary = Clock::now() + std::chrono::seconds(1);
-      if (trace) trace->on_heartbeat(node.id(), 0);
+      if (trace) {
+        trace->on_heartbeat(node.id(), -1);
+        trace->on_edge_totals(port.edge.edge.id, false, observed, observed_bytes);
+      }
     }
     log.progress();
     std::this_thread::sleep_for(std::chrono::microseconds(100));

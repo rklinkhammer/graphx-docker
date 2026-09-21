@@ -7,6 +7,7 @@ export function emptyEdge(connection = 'disconnected') {
     drops: 0, errors: 0, reconnects: 0, backpressureEvents: 0,
     backpressureUs: 0, rejected: 0, connection, lastSequence: 0, lastSeen: null,
     latencyCount: 0, latencySumUs: 0,
+    counterMode: null, totalRates: {},
     latencyBuckets: Array(LATENCY_BOUNDS_US.length + 1).fill(0), rateBuckets: [],
   }
 }
@@ -24,6 +25,11 @@ export function recordRate(edge, timestamp, wireBytes) {
 }
 
 export function currentRates(edge, timestamp = Date.now()) {
+  const totals = [edge.totalRates?.sent, edge.totalRates?.received].find(value =>
+    value && timestamp - value.observedAt < RATE_WINDOW_SECONDS * 1000)
+  if (totals) return { messageRate: Math.round(totals.messageRate * 10) / 10,
+    byteRate: Math.round(totals.byteRate) }
+
   const second = Math.floor(timestamp / 1000)
   const buckets = edge.rateBuckets.filter(bucket => bucket.second > second - RATE_WINDOW_SECONDS)
   if (!buckets.length) return { messageRate: 0, byteRate: 0 }
@@ -57,9 +63,9 @@ export function edgeView(edge, timestamp = Date.now()) {
     reconnects: edge.reconnects, backpressureEvents: edge.backpressureEvents,
     backpressureUs: edge.backpressureUs, rejected: edge.rejected,
     connection: edge.connection, lastSequence: edge.lastSequence, lastSeen: edge.lastSeen,
-    metricSources: { counters: 'measured',
+    metricSources: { counters: edge.counterMode === 'cumulative' ? 'measured-cumulative' : 'measured',
       latency: edge.latencyCount ? 'measured' : 'unavailable',
-      throughput: 'derived-5s', drops: 'measured' },
+      throughput: edge.counterMode === 'cumulative' ? 'derived-counter-interval' : 'derived-5s', drops: edge.counterMode === 'cumulative' ? 'unavailable' : 'measured' },
   }
 }
 
@@ -70,6 +76,38 @@ export function createMetricStore(topology) {
     status: 'starting', lastSeen: null, cpuPercent: null,
   }]))
   const edges = Object.fromEntries(topology.edges.map(edge => [edge.id, emptyEdge()]))
+
+  // Fixed at two endpoints per authored edge; retained through a display reset so
+  // the next cumulative report cannot resurrect pre-reset counts.
+  const baselines = new Map()
+
+  function ingestTotals(event, receivedAt) {
+    const definition = topology.edges.find(value => value.id === event.edgeId)
+    if (!definition || !['sent', 'received'].includes(event.direction) ||
+        event.nodeId !== (event.direction === 'sent' ? definition.source : definition.target)) return
+    const edge = edges[event.edgeId]
+    const key = `${event.edgeId}:${event.direction}`
+    const previous = baselines.get(key)
+    if (previous && event.timestamp <= previous.timestamp) return
+    const sameSession = previous?.sessionId === event.sessionId
+    if (sameSession && (event.packets < previous.packets || event.wireBytes < previous.wireBytes)) return
+    const packets = event.packets - (sameSession ? previous.packets : 0)
+    const bytes = event.wireBytes - (sameSession ? previous.wireBytes : 0)
+    if (!Number.isSafeInteger(edge[event.direction] + packets) ||
+        !Number.isSafeInteger(edge[event.direction === 'sent' ? 'sentWireBytes' : 'receivedWireBytes'] + bytes)) return
+    edge.counterMode = 'cumulative'
+    edge[event.direction] += packets
+    edge[event.direction === 'sent' ? 'sentWireBytes' : 'receivedWireBytes'] += bytes
+    if (sameSession) {
+      const elapsed = (event.timestamp - previous.timestamp) / 1000
+      edge.totalRates[event.direction] = { messageRate: packets / elapsed,
+        byteRate: bytes / elapsed, observedAt: receivedAt }
+    } else delete edge.totalRates[event.direction]
+    edge.lastSeen = receivedAt
+    if (packets) edge.connection = 'connected'
+    baselines.set(key, { sessionId: event.sessionId, packets: event.packets,
+      wireBytes: event.wireBytes, timestamp: event.timestamp })
+  }
 
   function reset() {
     recent.length = 0
@@ -83,6 +121,10 @@ export function createMetricStore(topology) {
   }
 
   function ingest(event, receivedAt) {
+    if (event.kind === 'edge_totals') {
+      ingestTotals(event, receivedAt)
+      return
+    }
     if (nodes[event.nodeId]) {
       const cpuPercent = Number(event.cpuPercent)
       nodes[event.nodeId] = { ...nodes[event.nodeId], status: 'running', lastSeen: receivedAt,

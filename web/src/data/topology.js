@@ -1,3 +1,10 @@
+export function trafficObservation(metrics, connected, nodesReady) {
+  const active = metrics.filter(metric => metric.messageRate > 0 && metric.received > 0)
+  return { observed: active.length, total: metrics.length,
+    samples: active.length ? Math.min(...active.map(metric => metric.received)) : 0,
+    flowing: connected && nodesReady && active.length > 0 && active.length === metrics.length }
+}
+
 export function edgeObservationAvailable(definition, metric) {
   return definition.dataPlane !== 'external' || Number.isFinite(metric?.lastSeen)
 }

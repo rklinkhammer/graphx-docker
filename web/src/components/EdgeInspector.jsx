@@ -12,7 +12,7 @@ export function EdgeInspector({ edge, networkPath, observationToken }) {
       <div><dt>Destination</dt><dd>{edge.target}:{d.port}</dd></div>
       <div><dt>Schema</dt><dd>{d.schema}</dd></div>
       <div><dt>Framing</dt><dd>{d.framing === 'none' ? 'None · raw application traffic' : 'u32 big-endian'}</dd></div>
-      <div><dt>Observation</dt><dd>{d.observationSource || 'runtime telemetry'}</dd></div>
+      <div><dt>Observation</dt><dd>{d.cumulative ? 'application counters' : d.observationSource || 'runtime telemetry'}</dd></div>
       {d.diagnosticState && <div><dt>Network diagnostic</dt><dd>{d.diagnosticState} · {d.diagnosticEvidence}</dd></div>}
       {d.diagnosticLayer && <div><dt>Failure layer</dt><dd>{d.diagnosticLayer}</dd></div>}
     </dl>
@@ -28,15 +28,15 @@ export function EdgeInspector({ edge, networkPath, observationToken }) {
       <div><Waves/><span>Backpressure</span><strong>{d.backpressure ?? '—'}</strong></div>
       <div><Activity/><span>Rejected</span><strong>{d.rejected ?? '—'}</strong></div>
     </div>
-    <p className="metric-basis">Counters and latency are measured · rates are derived over 5 s · unavailable values are shown as —</p>
+    <p className="metric-basis">{d.cumulative ? 'Measured application datagrams and payload bytes · rates use successive counter reports · latency and unreported errors are unavailable' : 'Counters and latency are measured · rates are derived over 5 s · unavailable values are shown as —'}</p>
     <h3>{d.dataPlane === 'external' ? 'Recent packets' : 'Recent messages'}</h3>
     <div className="messages">
       {d.recent?.length ? d.recent.slice(0, 6).map(message => {
         const capture = message.captures?.[0]
         return <div key={message.messageId || `${message.nodeId}-${message.sequence}-${message.timestamp}`}><span><Search size={13}/> {message.sequence}</span><span>{message.protocol || message.type || 'unknown'}</span><span>{Number.isFinite(message.latencyUs) ? `${message.latencyUs} µs` : 'observed'}</span><span title={message.sourceAddress ? `${message.sourceAddress}:${message.sourcePort} → ${message.destinationAddress}:${message.destinationPort}` : `Message: ${message.messageId || 'unavailable'}\nTrace: ${message.traceId || 'unavailable'}`}>{message.sourceAddress || (message.messageId ? message.messageId.slice(0, 8) : message.traceId ? message.traceId.slice(0, 8) : '—')}</span><span title={capture ? `${capture.captureFile} byte ${capture.captureOffset}` : message.observationSource || 'Capture unavailable'}>{capture ? `#${capture.capturePacket}` : message.observationSource || '—'}</span></div>
-      }) : <div><span>—</span><span>Waiting for traffic</span><span>—</span><span>—</span><span>—</span></div>}
+      }) : <div><span>—</span><span>{d.cumulative ? 'Aggregate counters; no per-packet records' : 'Waiting for traffic'}</span><span>—</span><span>—</span><span>—</span></div>}
     </div>
-    <div className="placeholder"><strong>{d.dataPlane === 'external' ? 'Passive packet observation' : 'Identity + capture correlation'}</strong><p>{d.dataPlane === 'external' ? 'Counters come from bounded Ethernet capture metadata. These ordinary packets are not represented as GraphX envelopes.' : 'Message IDs correlate telemetry with exact PCAPNG records; trace IDs group causal work. GraphX frames use LINKTYPE_USER0 and are not labeled as Ethernet packets.'}</p></div>
+    <div className="placeholder"><strong>{d.cumulative ? 'Application counter observations' : d.dataPlane === 'external' ? 'Passive packet observation' : 'Identity + capture correlation'}</strong><p>{d.cumulative ? 'Counters come from authenticated application reports. Individual packet records and latency are not inferred from cumulative totals.' : d.dataPlane === 'external' ? 'Counters come from bounded Ethernet capture metadata. These ordinary packets are not represented as GraphX envelopes.' : 'Message IDs correlate telemetry with exact PCAPNG records; trace IDs group causal work. GraphX frames use LINKTYPE_USER0 and are not labeled as Ethernet packets.'}</p></div>
     <h3>Network path</h3>
     <div className="network-path">{networkPath?.map((hop, index) => <span key={hop}>{index > 0 && <i>→</i>}{hop}</span>)}</div>
     <div className="actions"><button>Inspect messages</button>{d.captureFiles?.length ? d.captureFiles.slice(0, 2).map(file => <button key={file.name} title={file.name} onClick={async () => {

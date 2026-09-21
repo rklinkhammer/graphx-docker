@@ -254,7 +254,7 @@ int run_recorder(int argc, char** argv) try {
         offset = 0;
       } else
         ++counters.log_drops;
-      if (trace) trace->on_heartbeat(node.id(), 0);
+      if (trace) trace->on_heartbeat(node.id(), -1);
       next = std::chrono::steady_clock::now() + std::chrono::seconds(1);
     }
     if (!pending.empty()) {

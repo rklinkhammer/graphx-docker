@@ -1090,6 +1090,14 @@ files that exceed a reduced storage allocation are rejected before service use.
 For the end-to-end configuration and verification workflow, see
 [telemetry and observability](#configure-telemetry).
 
+Raw VITA IQ and spectrum edges report authenticated cumulative packet and payload-byte
+totals once per second. The Application view derives packet/byte rates between reports,
+expires rates after five seconds of silence, and preserves baselines when display
+counters are reset. Duplicate, out-of-order and decreasing totals are rejected;
+a process restart begins a new counter session. Reports are accepted only from the
+edge's sending or receiving node. These totals do not measure latency, Ethernet/IP
+headers, CPU utilization or control-connection traffic.
+
 GraphX emits bounded metrics and trace events for nodes, edges, transports, drops,
 errors, reconnects, queue pressure, and latency. The telemetry service combines
 those events with normalized topology and runtime evidence.

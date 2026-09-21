@@ -136,6 +136,9 @@ class UdpJsonTraceSink final : public TraceSink {
   void on_processing(std::string_view node_id, const Envelope& envelope,
                      std::chrono::nanoseconds duration, bool success) override;
   void on_heartbeat(std::string_view node_id, double cpu_percent) override;
+  // Cumulative raw-datagram totals; no GraphX envelope or latency is inferred.
+  void on_edge_totals(std::string_view edge_id, bool sent, std::uint64_t packets,
+                      std::uint64_t wire_bytes);
   void on_capture(std::string_view edge_id, const Envelope& envelope, std::string_view direction,
                   std::string_view file, std::uint64_t packet_index, std::uint64_t file_offset);
   // Runtime commands are accepted only from the connected telemetry peer.
