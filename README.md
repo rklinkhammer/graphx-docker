@@ -115,6 +115,35 @@ Automatic per-example image caches also distinguish certificate contents; explic
 supplied `--images` releases remain the caller's selected artifacts.
 Public CI builds use the default system trust unless explicitly configured otherwise.
 
+## Linux example workspace setup
+
+On a native Linux host, examples use `/var/lib/graphx/examples` by default. Before
+the first example command, create this workspace for the normal user who will run
+GraphX. Otherwise startup can fail with `Permission denied: '/var/lib/graphx'`.
+
+For a fresh installation where `/var/lib/graphx/examples` does not exist, run:
+
+```sh
+sudo install -d -m 0700 \
+  -o "$(id -u)" -g "$(id -g)" \
+  /var/lib/graphx/examples
+```
+
+If the directory already exists, inspect its ownership before making changes:
+
+```sh
+ls -ld /var/lib/graphx /var/lib/graphx/examples
+```
+
+Do not recursively change ownership of an existing workspace or its runtime state.
+Run subsequent `graphx example` commands as the same normal user. For privileged
+examples, `--allow-privileged` authorizes the operation and GraphX invokes `sudo`
+for the execution step; it does not grant permission to create the workspace.
+Running the entire workflow with `sudo` creates root-owned workspace files.
+
+This step creates the workspace only; the Linux Docker, OVS and scenario-specific
+prerequisites listed above must also be installed.
+
 ## Prepare and run an example
 
 For the portable sample, with a ready Docker engine (OrbStack on macOS):

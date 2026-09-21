@@ -20,6 +20,9 @@ all applications, container images and QEMU artifacts. Its
 [four-radio CMake workflow](../../README.md#prepare-and-run-an-example) covers
 preparation, startup, inspection and cleanup on Lima or native Linux. Environment
 prerequisites, artifact overrides and cache settings are maintained there.
+On native Linux, complete the one-time
+[example workspace setup](../../README.md#linux-example-workspace-setup) before
+preparing or starting this graph.
 
 The authored subnet is `10.79.0.0/24`. The console binds guest loopback port 8080;
 the standard Lima configuration forwards it to Mac loopback port 18080. Select an
