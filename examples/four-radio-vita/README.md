@@ -13,54 +13,13 @@ signal frequency. The 2048-point FFT produces 8836-byte spectrum datagrams; IQ
 payloads are at most 4128 bytes. Control is mutually authenticated using credentials
 staged by the existing GraphX mechanism.
 
-## Build and inspect
+## Build and run
 
-From a clean checkout on macOS, configure the CMake example targets:
-
-```sh
-cmake --preset dev -DGRAPHX_EXAMPLE_TARGET=lima
-cmake --build --preset dev --target four-radio-vita-plan
-```
-
-Planning builds the host CLI and validates the graph without starting a VM.
-After authorizing privileged execution, enable it explicitly and prepare:
-
-```sh
-cmake --preset dev -DGRAPHX_EXAMPLE_TARGET=lima -DGRAPHX_EXAMPLE_ALLOW_PRIVILEGED=ON
-cmake --build --preset dev --target four-radio-vita-prepare
-```
-
-Preparation starts the identity-matched GraphX Lima guest, stages the current
-checkout, builds normal VITA images without cache, verifies them, and compiles
-the graph. Builds and artifacts stay in the guest. It stops Lima afterward if
-idle. Every explicit `prepare` builds a new image release and stops/replaces any
-previous generation of this instance through the common ownership lifecycle.
-The VITA role is selected automatically; qualification-hook images are rejected.
-Expected missing-configuration and capability smoke-test refusals are reported
-as `PASS`; unexpected diagnostics fail verification.
-
-## Run in the GraphX Lima guest
-
-```sh
-cmake --build --preset dev --target four-radio-vita-up
-cmake --build --preset dev --target four-radio-vita-status
-cmake --preset dev -DGRAPHX_EXAMPLE_NODE=detector
-cmake --build --preset dev --target four-radio-vita-logs
-cmake --build --preset dev --target four-radio-vita-open
-cmake --build --preset dev --target four-radio-vita-down
-```
-
-`up` starts Lima automatically, reuses the prepared verified release, and starts
-fresh containers through an owned restart. `down` cleans up this instance and
-stops Lima if idle. Run `prepare` once per verification run, then `up`/`down` for
-each case. Running `up` without preparation uses the CLI's normal artifact cache;
-it does not promise a fresh image build.
-
-On authorized native Linux, select `-DGRAPHX_EXAMPLE_TARGET=native-linux` instead.
-To reuse an existing verified guest image release, configure
-`-DGRAPHX_EXAMPLE_IMAGES=/var/lib/graphx/images/four-radio-vita` before preparing.
-Clear that setting with `-DGRAPHX_EXAMPLE_IMAGES=` to resume fresh builds.
-See [CMake example targets](../cmake.md) for all settings and direct CLI equivalents.
+Follow the [top-level build README](../../README.md#build-all-examples) to build
+all applications, container images and QEMU artifacts. Its
+[four-radio CMake workflow](../../README.md#prepare-and-run-an-example) covers
+preparation, startup, inspection and cleanup on Lima or native Linux. Environment
+prerequisites, artifact overrides and cache settings are maintained there.
 
 The authored subnet is `10.79.0.0/24`. The console binds guest loopback port 8080;
 the standard Lima configuration forwards it to Mac loopback port 18080. Select an

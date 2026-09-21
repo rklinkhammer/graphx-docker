@@ -29,7 +29,7 @@ with tempfile.TemporaryDirectory(prefix='graphx cmake examples ') as temporary:
     (source / 'bad.cpp').write_text('#error shutdown must not compile this file\n')
     (source / 'CMakeLists.txt').write_text(
         'cmake_minimum_required(VERSION 3.25)\nproject(fixture LANGUAGES CXX)\n'
-        'add_executable(graphx-cli bad.cpp)\n'
+        'add_executable(graphx-cli bad.cpp)\nset(GRAPHX_BUILD_EXAMPLES ON)\n'
         f'include("{root}/cmake/Examples.cmake")\n')
     build = source / 'build'
     run('cmake', '-S', str(source), '-B', str(build), '-G', 'Ninja')
@@ -45,6 +45,7 @@ with tempfile.TemporaryDirectory(prefix='graphx cmake examples ') as temporary:
     # Runtime commands never enter the default build; preparing does build the CLI.
     dry = run('ninja', '-C', str(build), '-t', 'commands', 'all')
     assert 'example_cli.py' not in dry
+    assert 'build_examples.py' in dry and '--platform' in dry
     dry = run('ninja', '-C', str(build), '-t', 'commands', 'four-radio-vita-prepare')
     assert 'bad.cpp' in dry and '--fresh-images' in dry and '--restart' in dry, dry
     run('cmake', '-S', str(source), '-B', str(build),

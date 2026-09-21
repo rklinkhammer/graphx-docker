@@ -309,7 +309,7 @@ class Workflow:
         remote_cli = remote_source + '/build/example/graphx'
         if subprocess.run([*prefix, 'test', '-x', remote_cli]).returncode:
             run([*prefix, 'cmake', '-S', remote_source, '-B', remote_source + '/build/example',
-                 '-G', 'Ninja', '-DCMAKE_BUILD_TYPE=Release', '-DGRAPHX_BUILD_TESTS=OFF'])
+                 '-G', 'Ninja', '-DCMAKE_BUILD_TYPE=Release', '-DGRAPHX_BUILD_TESTS=OFF', '-DGRAPHX_BUILD_EXAMPLES=OFF'])
             run([*prefix, 'cmake', '--build', remote_source + '/build/example', '--target', 'graphx-cli', '-j', '4'])
         forwarded = [remote_cli, 'example', self.args.action, self.args.name, '--target', 'lima', '--workspace', remote_base]
         for flag in ('allow_privileged', 'restart', 'json', 'follow', 'fresh_images'):

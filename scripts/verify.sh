@@ -75,13 +75,13 @@ run_quick() {
   gate "configure development build"
   if test -n "$dev_build_dir"; then
     mkdir -p "$dev_build_dir"
-    cmake --preset dev --fresh -B "$dev_build_dir"
+    cmake --preset dev -DGRAPHX_BUILD_EXAMPLES=OFF --fresh -B "$dev_build_dir"
     gate "build development targets"
     cmake --build "$dev_build_dir" -j "${GRAPHX_BUILD_JOBS:-4}"
     gate "development CTest suite"
     ctest --test-dir "$dev_build_dir" --output-on-failure -L quick
   else
-    cmake --preset dev --fresh
+    cmake --preset dev -DGRAPHX_BUILD_EXAMPLES=OFF --fresh
     gate "build development targets"
     cmake --build --preset dev -j "${GRAPHX_BUILD_JOBS:-4}"
     gate "development CTest suite"

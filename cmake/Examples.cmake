@@ -61,3 +61,24 @@ foreach(input IN LISTS graphx_example_inputs)
     endif()
   endforeach()
 endforeach()
+
+if(GRAPHX_BUILD_EXAMPLES)
+  string(SHA256 graphx_build_location "${PROJECT_SOURCE_DIR}|${PROJECT_BINARY_DIR}")
+  set(GRAPHX_EXAMPLE_ARTIFACT_ROOT "$ENV{HOME}/.cache/graphx/build/${graphx_build_location}"
+    CACHE PATH "External output root for shared images and QEMU build artifacts")
+  if(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "^(arm64|aarch64)$")
+    set(graphx_image_platform linux/arm64)
+  else()
+    set(graphx_image_platform linux/amd64)
+  endif()
+  set(GRAPHX_EXAMPLE_IMAGE_PLATFORM "${graphx_image_platform}" CACHE STRING "Shared image architecture")
+  set(graphx_build_examples "${Python3_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/scripts/build_examples.py"
+    --source "${PROJECT_SOURCE_DIR}" --graphx "${graphx_example_cli}"
+    --output "${GRAPHX_EXAMPLE_ARTIFACT_ROOT}" --platform "${GRAPHX_EXAMPLE_IMAGE_PLATFORM}")
+  add_custom_target(examples-build ALL
+    COMMAND ${graphx_build_examples}
+    DEPENDS graphx-cli USES_TERMINAL VERBATIM)
+  add_custom_target(examples-rebuild
+    COMMAND ${graphx_build_examples} --fresh
+    DEPENDS graphx-cli USES_TERMINAL VERBATIM)
+endif()

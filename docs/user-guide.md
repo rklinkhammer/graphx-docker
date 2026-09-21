@@ -49,43 +49,12 @@ Start with [Run an example](../examples/quick-start.md). Use the
 
 ## Installation and prerequisites
 
-Run the commands in this guide from a full GraphX repository checkout. The example
-workflow requires the checkout even when using an installed `graphx` binary;
-`--source /absolute/path/to/checkout` selects it explicitly. Lima source transfer
-currently requires a full `.git` directory rather than a linked Git worktree.
+See the [top-level build environment README](../README.md#build-environment) for
+host prerequisites, Node selection, CMake builds, container preparation and Lima
+setup. All commands below assume that setup and the CLI on PATH.
 
-| Environment | Requirements and intended use |
-|---|---|
-| Development host | Git, Python 3, CMake 3.25 or newer, Ninja, a C++20 compiler, OpenSSL 3 development files and Node.js 26.x with npm. Linux Node runtimes also require `libatomic1`. Dependency preparation needs network access unless the required inputs are already cached. |
-| Native macOS | Native-process examples such as shared memory, UDP unicast/multicast and application capture. Install the compiler through Apple's developer tools and the other prerequisites through your preferred package manager. |
-| OrbStack on macOS | Running OrbStack Docker engine, Docker CLI, Compose v2 and Buildx for portable container examples. Select `docker context use orbstack` before these examples. It is not the managed OVS backend. |
-| Native Linux | A local Docker engine with Compose/Buildx for containers; native examples need a matching native/platform release. Privileged OVS examples additionally need system OVS, iproute2, namespaces, nftables and the capture/network tools used by their selected scenario. |
-| GraphX Lima guest | Apple Silicon host with Lima installed. The checked-in VM provisions the Linux toolchain and privileged laboratory dependencies. See [Lima setup](../infrastructure/lima/README.md); `example prepare` and `example up` create/start the VM automatically. |
-| Managed QEMU | Verified guest artifacts and combined native/platform/guest installation, QEMU TCG and the dedicated Linux `graphx-qemu` account at UID/GID 65532. See [guest prerequisites](../guests/README.md). A TAP lifecycle check alone does not prove guest execution. |
-
-These are tool requirements, not a claim that every operating-system distribution
-or CPU combination has been qualified. See [verification scope](documentation-verification.md).
-
-For Apple Silicon with Homebrew Node 26, select that runtime before building:
-
-```sh
-export PATH=/opt/homebrew/bin:$PATH
-```
-
-On other hosts, put your installed Node 26 on PATH. Then build the development CLI:
-
-```sh
-cmake --preset dev
-cmake --build --preset dev
-export PATH="$PWD/build/dev:$PATH"
-graphx --version
-graphx example --help
-```
-
-Expect `graphx 1.1.0` and the example command reference. The build does not start a
-graph. `graphx env doctor` checks Docker/Compose as well as the CLI; it is useful
-for container workflows, but its Docker requirement is not a native-only prerequisite.
-Verified release installation is covered in [execution](#execution-administration-native-installation-and-execution).
+Verified release installation is covered in
+[execution](#execution-administration-native-installation-and-execution).
 
 ## Choose and operate an example
 

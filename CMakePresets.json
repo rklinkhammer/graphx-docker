@@ -9,7 +9,17 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
-        "GRAPHX_BUILD_TESTS": "ON"
+        "GRAPHX_BUILD_TESTS": "ON",
+        "GRAPHX_BUILD_EXAMPLES": "ON"
+      }
+    },
+    {
+      "name": "core",
+      "inherits": "dev",
+      "displayName": "GraphX host-only development",
+      "binaryDir": "${sourceDir}/build/core",
+      "cacheVariables": {
+        "GRAPHX_BUILD_EXAMPLES": "OFF"
       }
     },
     {
@@ -17,7 +27,10 @@
       "inherits": "dev",
       "displayName": "Address and undefined behavior sanitizers",
       "binaryDir": "${sourceDir}/build/sanitizers",
-      "cacheVariables": { "GRAPHX_ENABLE_SANITIZERS": "ON" }
+      "cacheVariables": {
+        "GRAPHX_ENABLE_SANITIZERS": "ON",
+        "GRAPHX_BUILD_EXAMPLES": "OFF"
+      }
     },
     {
       "name": "quality",
@@ -26,7 +39,8 @@
       "binaryDir": "${sourceDir}/build/quality",
       "cacheVariables": {
         "GRAPHX_ENABLE_CLANG_TIDY": "ON",
-        "GRAPHX_ENABLE_CPPCHECK": "ON"
+        "GRAPHX_ENABLE_CPPCHECK": "ON",
+        "GRAPHX_BUILD_EXAMPLES": "OFF"
       }
     },
     {
@@ -36,22 +50,54 @@
       "binaryDir": "${sourceDir}/build/fuzz",
       "cacheVariables": {
         "GRAPHX_BUILD_FUZZERS": "ON",
-        "GRAPHX_BUILD_TESTS": "OFF"
+        "GRAPHX_BUILD_TESTS": "OFF",
+        "GRAPHX_BUILD_EXAMPLES": "OFF"
       }
     }
   ],
   "buildPresets": [
-    { "name": "dev", "configurePreset": "dev" },
-    { "name": "sanitizers", "configurePreset": "sanitizers" },
-    { "name": "quality", "configurePreset": "quality" },
-    { "name": "fuzz", "configurePreset": "fuzz" }
+    {
+      "name": "dev",
+      "configurePreset": "dev"
+    },
+    {
+      "name": "sanitizers",
+      "configurePreset": "sanitizers"
+    },
+    {
+      "name": "quality",
+      "configurePreset": "quality"
+    },
+    {
+      "name": "fuzz",
+      "configurePreset": "fuzz"
+    },
+    {
+      "name": "core",
+      "configurePreset": "core"
+    }
   ],
   "testPresets": [
-    { "name": "dev", "configurePreset": "dev", "output": { "outputOnFailure": true } },
+    {
+      "name": "dev",
+      "configurePreset": "dev",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
     {
       "name": "sanitizers",
       "configurePreset": "sanitizers",
-      "output": { "outputOnFailure": true }
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "core",
+      "configurePreset": "core",
+      "output": {
+        "outputOnFailure": true
+      }
     }
   ]
 }

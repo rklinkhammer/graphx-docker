@@ -6,20 +6,9 @@ runner. It remembers the output and state paths for subsequent commands.
 
 ## Install the development CLI
 
-Install the [development prerequisites](../docs/user-guide.md), Python 3, Node.js
-26, Docker and Compose. On Apple Silicon with Homebrew Node 26:
-
-```sh
-export PATH=/opt/homebrew/bin:$PATH
-scripts/verify.sh quick
-export PATH="$PWD/build/dev:$PATH"
-graphx env doctor
-graphx example list
-```
-
-The bootstrap build is the only step that needs a script before `graphx` exists.
-Afterward, use `graphx verify quick` or `graphx verify portable`. An installed CLI
-also supports this workflow when run from a checkout, or with `--source CHECKOUT`.
+Follow the [top-level build README](../README.md#build-environment), then put the
+built CLI on PATH with `export PATH="$PWD/build/dev:$PATH"`. The README also
+provides the CMake equivalents of the lifecycle commands below.
 
 ## Start the sample pipeline
 
