@@ -1,0 +1,15 @@
+{
+  "apiVersion": 1,
+  "providers": [
+    {
+      "disableDeletion": true,
+      "editable": false,
+      "folder": "GraphX",
+      "name": "GraphX",
+      "options": {
+        "path": "/etc/graphx-dashboards"
+      },
+      "type": "file"
+    }
+  ]
+}

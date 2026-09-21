@@ -1,0 +1,93 @@
+{
+  "groups": [
+    {
+      "name": "graphx",
+      "rules": [
+        {
+          "alert": "GraphXGraphNotReady",
+          "annotations": {
+            "summary": "GraphX graph is not ready"
+          },
+          "expr": "graphx_graph_ready == 0",
+          "for": "30s",
+          "labels": {
+            "severity": "warning"
+          }
+        },
+        {
+          "alert": "GraphXSloViolated",
+          "annotations": {
+            "summary": "GraphX operational SLO is violated"
+          },
+          "expr": "graphx_slo_status{status=\"violated\"} == 1",
+          "for": "2m",
+          "labels": {
+            "severity": "critical"
+          }
+        },
+        {
+          "alert": "GraphXOtlpExportFailures",
+          "annotations": {
+            "summary": "GraphX OTLP exports are failing"
+          },
+          "expr": "increase(graphx_otlp_exports_total{outcome=\"failed\"}[5m]) > 0",
+          "labels": {
+            "severity": "warning"
+          }
+        },
+        {
+          "alert": "GraphXOtlpQueueDrops",
+          "annotations": {
+            "summary": "GraphX OTLP export queue dropped telemetry"
+          },
+          "expr": "increase(graphx_otlp_exports_total{outcome=\"dropped\"}[5m]) > 0",
+          "labels": {
+            "severity": "critical"
+          }
+        },
+        {
+          "alert": "GraphXOtlpPartialRejection",
+          "annotations": {
+            "summary": "The OTLP receiver partially rejected GraphX telemetry"
+          },
+          "expr": "increase(graphx_otlp_exports_total{outcome=\"rejected\"}[5m]) > 0",
+          "labels": {
+            "severity": "warning"
+          }
+        },
+        {
+          "alert": "GraphXHistoryBackendUnavailable",
+          "annotations": {
+            "summary": "GraphX durable history backend is unavailable"
+          },
+          "expr": "graphx_history_enabled == 1 and graphx_history_backend_up == 0",
+          "for": "2m",
+          "labels": {
+            "severity": "warning"
+          }
+        },
+        {
+          "alert": "GraphXControlPolicyInvalid",
+          "annotations": {
+            "summary": "GraphX control policy is invalid; control is fail-closed"
+          },
+          "expr": "graphx_control_policy_valid == 0",
+          "for": "1m",
+          "labels": {
+            "severity": "critical"
+          }
+        },
+        {
+          "alert": "GraphXControlCommandTimeouts",
+          "annotations": {
+            "summary": "GraphX runtime control commands timed out"
+          },
+          "expr": "increase(graphx_control_commands_total{outcome=\"timed_out\"}[5m]) > 0",
+          "labels": {
+            "severity": "warning"
+          }
+        }
+      ]
+    }
+  ]
+}

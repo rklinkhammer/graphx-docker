@@ -1,0 +1,12 @@
+{
+  "apiVersion": 1,
+  "datasources": [
+    {
+      "access": "proxy",
+      "isDefault": true,
+      "name": "GraphX",
+      "type": "prometheus",
+      "url": "http://prometheus:9090"
+    }
+  ]
+}

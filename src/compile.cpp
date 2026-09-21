@@ -20,6 +20,47 @@ Value strings(std::initializer_list<const char*> values) {
   for (const auto* value : values) result.emplace_back(value);
   return result;
 }
+// Render only platform configuration files from resolved values and compiler-selected
+// extensions. Deployment policy, credentials and Compose services stay in compile_graph.
+std::map<std::string, std::string, std::less<>> project_platform_artifacts(
+    const Value& platform, const Array& extensions) {
+  std::map<std::string, std::string, std::less<>> files;
+  const auto put = [&](const std::string& path, const Value& value) {
+    files.emplace(path, config_value_json(value));
+  };
+  put("platform.json", platform);
+  for (const auto& extension : extensions) {
+    if (extension == Value("prometheus")) {
+      put("prometheus-alerts.json", parse_document(kPrometheusAlerts));
+      const auto endpoint =
+          "platform:" + std::to_string(platform.at("console").at("port").integer());
+      const Object target{{"targets", Array{Value(endpoint)}}};
+      const Object scrape{
+          {"job_name", "graphx"},
+          {"authorization", Object{{"credentials_file", "/run/secrets/observer/token"}}},
+          {"static_configs", Array{Value(target)}}};
+      put("prometheus.json", Object{{"rule_files", strings({"/etc/prometheus/alerts.json"})},
+                                    {"global", Object{{"scrape_interval", "5s"}}},
+                                    {"scrape_configs", Array{Value(scrape)}}});
+    } else {
+      put("grafana-dashboard.json", parse_document(kGrafanaDashboard));
+      const Object provider{
+          {"name", "GraphX"},  {"folder", "GraphX"},
+          {"type", "file"},    {"disableDeletion", true},
+          {"editable", false}, {"options", Object{{"path", "/etc/graphx-dashboards"}}}};
+      put("grafana-dashboards.json",
+          Object{{"apiVersion", 1}, {"providers", Array{Value(provider)}}});
+      put("grafana-datasources.json",
+          Object{{"apiVersion", 1},
+                 {"datasources", Array{Object{{"name", "GraphX"},
+                                              {"type", "prometheus"},
+                                              {"access", "proxy"},
+                                              {"url", "http://prometheus:9090"},
+                                              {"isDefault", true}}}}});
+    }
+  }
+  return files;
+}
 void append(Array& a, std::initializer_list<std::string> values) {
   for (const auto& value : values) a.emplace_back(value);
 }
@@ -310,7 +351,6 @@ CompiledGraph compile_graph(const GraphConfig& graph) {
     result.files.emplace(path, config_value_json(value));
   };
   put("resolved.json", resolved);
-  put("platform.json", platform);
   auto credentials = credential_plan(graph);
   put("credentials.json", credentials);
   Object services, networks, platform_networks;
@@ -462,17 +502,6 @@ CompiledGraph compile_graph(const GraphConfig& graph) {
       extra["mem_limit"] = 536870912;
       extra["pids_limit"] = 128;
       if (id == "prometheus") {
-        put("prometheus-alerts.json", parse_document(kPrometheusAlerts));
-        const auto endpoint =
-            "platform:" + std::to_string(platform.at("console").at("port").integer());
-        const Object target{{"targets", Array{Value(endpoint)}}};
-        const Object scrape{
-            {"job_name", "graphx"},
-            {"authorization", Object{{"credentials_file", "/run/secrets/observer/token"}}},
-            {"static_configs", Array{Value(target)}}};
-        put("prometheus.json", Object{{"rule_files", strings({"/etc/prometheus/alerts.json"})},
-                                      {"global", Object{{"scrape_interval", "5s"}}},
-                                      {"scrape_configs", Array{Value(scrape)}}});
         extra["command"] = strings(
             {"--config.file=/etc/prometheus/graphx.json", "--storage.tsdb.path=/prometheus/data",
              "--storage.tsdb.retention.time=24h", "--storage.tsdb.retention.size=128MB"});
@@ -484,20 +513,6 @@ CompiledGraph compile_graph(const GraphConfig& graph) {
         extra["ports"] = strings({"127.0.0.1:9090:9090"});
       } else {
         extra["pids_limit"] = 256;
-        put("grafana-dashboard.json", parse_document(kGrafanaDashboard));
-        const Object provider{
-            {"name", "GraphX"},  {"folder", "GraphX"},
-            {"type", "file"},    {"disableDeletion", true},
-            {"editable", false}, {"options", Object{{"path", "/etc/graphx-dashboards"}}}};
-        put("grafana-dashboards.json",
-            Object{{"apiVersion", 1}, {"providers", Array{Value(provider)}}});
-        put("grafana-datasources.json",
-            Object{{"apiVersion", 1},
-                   {"datasources", Array{Object{{"name", "GraphX"},
-                                                {"type", "prometheus"},
-                                                {"access", "proxy"},
-                                                {"url", "http://prometheus:9090"},
-                                                {"isDefault", true}}}}});
         extra["environment"] =
             Object{{"GOMAXPROCS", "2"},
                    {"GF_SECURITY_ADMIN_PASSWORD__FILE", "/run/secrets/grafana-admin/password"},
@@ -516,6 +531,9 @@ CompiledGraph compile_graph(const GraphConfig& graph) {
       services[id] = extra;
     }
   }
+  const auto platform_files =
+      project_platform_artifacts(platform, native ? Array{} : platform.at("extensions").array());
+  result.files.insert(platform_files.begin(), platform_files.end());
   if (!services.empty()) {
     // JSON is a YAML 1.2 subset: one canonical serializer, quoted scalars, no aliases.
     put("compose.yaml", Object{{"name", graph.id}, {"services", services}, {"networks", networks}});

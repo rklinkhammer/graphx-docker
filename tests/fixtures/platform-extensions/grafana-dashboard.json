@@ -1,0 +1,400 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": false,
+  "panels": [
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "color": "red",
+                  "text": "NOT READY"
+                },
+                "1": {
+                  "color": "green",
+                  "text": "READY"
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red"
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 0,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "graphx_graph_ready",
+          "legendFormat": "ready"
+        }
+      ],
+      "title": "Graph ready",
+      "type": "stat"
+    },
+    {
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 4,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "graphx_slo_met",
+          "legendFormat": "SLO"
+        }
+      ],
+      "title": "SLO met",
+      "type": "stat"
+    },
+    {
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "graphx_edge_message_rate",
+          "legendFormat": "{{edge}}"
+        }
+      ],
+      "title": "Message rate",
+      "type": "timeseries"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, edge) (rate(graphx_edge_latency_seconds_bucket[5m])))",
+          "legendFormat": "{{edge}}"
+        }
+      ],
+      "title": "P95 edge latency",
+      "type": "timeseries"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 8
+      },
+      "targets": [
+        {
+          "expr": "graphx_slo_ratio",
+          "legendFormat": "{{objective}} {{kind}}"
+        }
+      ],
+      "title": "SLO ratios and targets",
+      "type": "timeseries"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 4,
+        "x": 8,
+        "y": 8
+      },
+      "targets": [
+        {
+          "expr": "graphx_slo_latency_seconds",
+          "legendFormat": "p95 {{kind}}"
+        }
+      ],
+      "title": "SLO p95 latency and target",
+      "type": "timeseries"
+    },
+    {
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 8
+      },
+      "targets": [
+        {
+          "expr": "rate(graphx_edge_errors_total[5m])",
+          "legendFormat": "errors {{edge}}"
+        },
+        {
+          "expr": "rate(graphx_edge_dropped_total[5m])",
+          "legendFormat": "drops {{edge}}"
+        }
+      ],
+      "title": "Errors and drops",
+      "type": "timeseries"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 8
+      },
+      "targets": [
+        {
+          "expr": "rate(graphx_otlp_exports_total[5m])",
+          "legendFormat": "{{outcome}}"
+        }
+      ],
+      "title": "OTLP exporter outcomes",
+      "type": "timeseries"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 16
+      },
+      "targets": [
+        {
+          "expr": "graphx_otlp_queue_depth",
+          "legendFormat": "records"
+        }
+      ],
+      "title": "OTLP queue depth",
+      "type": "timeseries"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 6,
+        "y": 16
+      },
+      "targets": [
+        {
+          "expr": "graphx_node_cpu_percent",
+          "legendFormat": "{{node}}"
+        }
+      ],
+      "title": "Node CPU",
+      "type": "timeseries"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "color": "red",
+                  "text": "DEGRADED"
+                },
+                "1": {
+                  "color": "green",
+                  "text": "AVAILABLE"
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red"
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 16
+      },
+      "targets": [
+        {
+          "expr": "clamp_max(graphx_history_backend_up + (1 - graphx_history_enabled), 1)",
+          "legendFormat": "available or disabled"
+        }
+      ],
+      "title": "History backend",
+      "type": "stat"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 24
+      },
+      "targets": [
+        {
+          "expr": "rate(graphx_history_records_total[5m])",
+          "legendFormat": "{{outcome}}"
+        }
+      ],
+      "title": "History outcomes",
+      "type": "timeseries"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 24
+      },
+      "targets": [
+        {
+          "expr": "graphx_history_queue_bytes",
+          "legendFormat": "queue bytes"
+        },
+        {
+          "expr": "graphx_history_database_bytes",
+          "legendFormat": "database bytes"
+        }
+      ],
+      "title": "History storage and queue",
+      "type": "timeseries"
+    },
+    {
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 0,
+        "y": 32
+      },
+      "targets": [
+        {
+          "expr": "graphx_control_policy_valid",
+          "legendFormat": "valid"
+        }
+      ],
+      "title": "Control policy",
+      "type": "stat"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 18,
+        "x": 6,
+        "y": 32
+      },
+      "targets": [
+        {
+          "expr": "rate(graphx_control_commands_total[5m])",
+          "legendFormat": "{{outcome}}"
+        },
+        {
+          "expr": "graphx_control_pending_commands",
+          "legendFormat": "pending"
+        }
+      ],
+      "title": "Control command outcomes",
+      "type": "timeseries"
+    }
+  ],
+  "schemaVersion": 42,
+  "tags": [
+    "graphx",
+    "operations"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
+  "timezone": "browser",
+  "title": "GraphX Operations",
+  "uid": "graphx-operations",
+  "version": 3
+}

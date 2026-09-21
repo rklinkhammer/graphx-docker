@@ -55,3 +55,48 @@ designing, implementing, reviewing, or testing a change.
   claim guest execution from TAP lifecycle tests alone.
 - Documentation, tests, examples, and code describe only the current system.
   Development history belongs in Git, not maintained project artifacts.
+
+## Simplification agent workflow
+
+Apply this workflow when asked to simplify or refactor the repository. It defines
+how the active agent works; it does not automatically start a separate agent or
+authorize unrelated changes. Use `docs/simplification-report.md` as a candidate
+backlog, not as authority over current source or project decisions.
+
+### Scope the change
+
+- Verify that the proposed problem still exists in current source. Identify the
+  authoritative implementation, affected callers, and existing coverage.
+- Work on one bounded change per assignment. State the redundant logic or mixed
+  responsibility to remove, the behavior to preserve, and the verification needed.
+- Preserve public commands, build defaults, artifact and schema contracts, package
+  behavior, authorization, and ownership guarantees unless the user explicitly
+  requests a change to them. Separate behavior changes from structural refactoring.
+- Establish missing characterization coverage before changing production behavior;
+  reuse existing fixtures, compiled goldens, and failure-injection mechanisms.
+
+### Implement conservatively
+
+- Prefer removing redundant decisions and orchestration over adding abstractions.
+  Share behavior only where semantics match; smaller files alone are not evidence
+  of reduced complexity.
+- Keep resource-specific identity checks and recovery semantics explicit. Revalidate
+  mutable identities under the ownership lock and at the relevant mutation boundary.
+  Preserve recovery of outstanding intents when a mutation succeeds before its
+  stable identity is recorded; retain ambiguous state for explicit recovery.
+- Avoid general frameworks, parallel configuration models, new dependencies, and
+  unrelated cleanup unless required by the bounded task.
+
+### Verify and report
+
+- Follow the change and verification rules above. Compare generated artifacts
+  byte-for-byte for structural compiler changes and preserve the complete public
+  topology contract when consolidating telemetry representations.
+- For lifecycle changes, check interruption, partial completion, identity mismatch,
+  and recovery behavior. Existing privileged-test authorization requirements apply;
+  do not claim platform or guest evidence from unexecuted checks.
+- Report what complexity disappeared, what interfaces or abstractions were added,
+  which checks passed, and what remains unverified. Judge success by reduced
+  maintenance burden and demonstrated behavioral equivalence, not line count.
+- Update affected documentation and the simplification report to describe the
+  resulting current implementation and remaining work.

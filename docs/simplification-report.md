@@ -6,7 +6,13 @@ Implemented baseline (2026-09-20): ordinary development builds are code-only;
 aggregate artifacts use the explicit `graphx artifacts build` workflow; per-example
 CMake lifecycle targets and cache settings are removed; LLVM 21 selection is shared;
 and execution dispatch reads an explicit mode from the hashed execution plan. The
-remaining projection-model and shared lifecycle work below is intentionally staged.
+platform configuration files now render through the pure internal
+`project_platform_artifacts` function in `src/compile.cpp`: it accepts resolved
+platform settings and compiler-selected extensions and returns serialized files.
+This covers `platform.json` and Prometheus/Grafana configuration files only;
+Compose services, native process records, policy selection, and manifest publication
+remain in the compiler. The broader projection-model and shared lifecycle work below
+is intentionally staged.
 
 ## Purpose
 
@@ -187,9 +193,10 @@ sufficient evidence for explicit recovery.
 **Risk:** medium
 
 `src/compile.cpp` currently performs capability checks, credential consumer analysis,
-node command construction, service hardening, network projection, Grafana/Prometheus
-projection, guest projection, execution staging, and manifest generation in one
-translation unit.
+node command construction, service hardening, network projection, guest projection,
+execution staging, and manifest generation in one translation unit. Platform JSON and
+Grafana/Prometheus configuration rendering have a pure internal function boundary;
+platform deployment records and policy selection remain in `compile_graph`.
 
 Keep `compile_graph` as the public pure function, but organize its internals around a
 single immutable projection model:
@@ -438,9 +445,12 @@ product map rather than the full implementation.
 
 ## Immediate next step
 
-Begin with Phase 0 and recommendation 3. A narrow first change should extract one pure
-projection, such as platform artifacts, from `src/compile.cpp` while requiring
-byte-for-byte fixture equality. That validates the proposed internal boundary without
-changing schemas, commands, execution, or privileged behavior. In parallel, add a
-failure-injection seam to the existing lifecycle coordinator before attempting to
-share transaction mechanics.
+Complete Phase 0 coverage assessment before expanding recommendation 3. The existing
+compiled-bundle goldens cover the extracted `platform.json` projection; focused
+extension goldens additionally cover the five Prometheus/Grafana configuration files.
+Keep those bytes unchanged during structural work. The current extraction does not
+introduce a shared compile model or consolidate platform deployment records.
+
+For a subsequent projection, identify missing characterization coverage first and
+extract one artifact family at a time. Assess and extend existing lifecycle
+failure-injection coverage before attempting to share transaction mechanics.

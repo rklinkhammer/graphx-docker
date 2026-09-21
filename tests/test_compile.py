@@ -145,6 +145,20 @@ with tempfile.TemporaryDirectory(prefix='graphx-p3-') as temporary:
                 path.write_bytes(data)
         assert actual == files(golden), f'golden changed: {label}; inspect before regenerating'
 
+    # Platform extension configurations have independent exact-byte goldens.
+    extension_output = temp / 'platform-extensions'
+    extension_result = compile_to(root / 'examples/variants/observability/graphx.yml', extension_output)
+    assert extension_result.returncode == 0, extension_result.stderr
+    extension_files = verify(extension_output)
+    expected_extensions = files(root / 'tests/fixtures/platform-extensions')
+    assert len(expected_extensions) == 5
+    actual_extensions = {name: data for name, data in extension_files.items()
+                         if name.startswith(('prometheus', 'grafana'))}
+    assert actual_extensions == expected_extensions, 'platform extension artifact bytes changed'
+    assert extension_files['platform.json'] == (json.dumps(
+        json.loads(extension_files['resolved.json'])['platform'],
+        indent=2, sort_keys=True, ensure_ascii=False) + '\n').encode()
+
     # Relocated identical inputs and shuffled authored mappings have identical bytes.
     source = root / 'examples/sample-pipeline/graphx.yml'
     baseline = files(temp / 'golden-sample-pipeline')
