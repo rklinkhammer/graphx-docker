@@ -259,6 +259,17 @@ with tempfile.TemporaryDirectory(prefix='graphx-vita-artifacts-') as directory:
         newer_images, _, _ = workflow.artifacts()
         assert images != fresh_images != newer_images
         assert sum('build' in command for command in commands) == 3
+        workflow.args.fresh_images = False
+        certificate = workspace / 'company.crt'
+        certificate.write_text('first CA')
+        with patch.dict(os.environ, {'GRAPHX_CA_CERT': str(certificate)}):
+            trusted_images, _, _ = workflow.artifacts()
+            reused_images, _, _ = workflow.artifacts()
+            assert trusted_images == reused_images
+            certificate.write_text('rotated CA')
+            rotated_images, _, _ = workflow.artifacts()
+            assert rotated_images != trusted_images
+        assert sum('build' in command for command in commands) == 5
 
 # Host environment lifecycle is mocked: portable tests never create a VM.
 with tempfile.TemporaryDirectory(prefix='graphx-lima-lifecycle-') as temporary:

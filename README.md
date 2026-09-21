@@ -91,6 +91,30 @@ cmake --build --preset dev -j 4
 
 Artifact, verification and laboratory operations always require an explicit command.
 
+## Organization certificates for local Docker builds
+
+For a private CA or a reviewed Linux certificate installer, set absolute paths on
+the machine running the build (omit either option if unnecessary):
+
+```sh
+export GRAPHX_CA_CERT="/absolute/path/company-root-ca.crt"
+export GRAPHX_CERT_INSTALL_SCRIPT="/absolute/path/install-certs.sh"
+graphx artifacts build
+```
+
+The shared image builder (including VITA/SoapySDR), QEMU builder and Linux verifier
+pass these files as BuildKit secrets. The installer runs inside the build container,
+not on the host. Its resulting system CA bundle is inherited by GraphX runtime
+images. Trust file contents participate in build cache invalidation and aggregate
+artifact reuse. Certificate paths must not contain commas or newlines.
+
+These settings do not modify Docker daemon trust for registry pulls, upstream
+Prometheus/Grafana images, or host-side downloads. For Lima builds, configure paths
+inside the guest; host environment variables and files are not automatically forwarded.
+Automatic per-example image caches also distinguish certificate contents; explicitly
+supplied `--images` releases remain the caller's selected artifacts.
+Public CI builds use the default system trust unless explicitly configured otherwise.
+
 ## Prepare and run an example
 
 For the portable sample, with a ready Docker engine (OrbStack on macOS):

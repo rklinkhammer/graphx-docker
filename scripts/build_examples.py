@@ -10,6 +10,8 @@ import subprocess
 import sys
 import uuid
 
+from release.build_trust import build_trust
+
 from example_cli import WorkflowError, private_dir, read_json, safe_path, source_files, write_json
 
 
@@ -20,7 +22,9 @@ def run(*args, capture=False):
 
 
 def fingerprint(source, platform):
+    trust_fingerprint, _ = build_trust()
     digest = hashlib.sha256(platform.encode())
+    digest.update(b'\0' + trust_fingerprint.encode() + b'\0')
     digest.update(run('git', '-C', source, 'rev-parse', 'HEAD', capture=True).encode())
     for relative in source_files(source):
         path = safe_path(source / relative)
@@ -98,7 +102,7 @@ def build(args):
                     for p in (generation / 'compiled').rglob('*') if p.is_file()})
         verify(source, generation)
         if fingerprint(source, args.platform) != key:
-            raise WorkflowError('source changed during the build; result retained but not published')
+            raise WorkflowError('source or build trust changed during the build; result retained but not published')
         write_json(current, {'source_digest': key, 'generation': generation.name})
         print('Complete all-example build:', generation, flush=True)
         print('Images: images/; QEMU and catalog: guests/; native platform: platform/; graphs: compiled/', flush=True)

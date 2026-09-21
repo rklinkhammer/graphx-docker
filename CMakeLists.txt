@@ -427,6 +427,8 @@ if(GRAPHX_BUILD_TESTS)
   set_tests_properties(graphx-udp-transport PROPERTIES TIMEOUT 30)
   graphx_add_python_test(graphx-packet-guest tests/test_packet_guest.py 30
     ${CMAKE_BINARY_DIR} ${CMAKE_SOURCE_DIR})
+  graphx_add_python_test(graphx-build-trust tests/test_build_trust.py 30
+    ${CMAKE_SOURCE_DIR})
   graphx_add_python_test(graphx-guest-release tests/test_guest_release.py 30
     ${CMAKE_SOURCE_DIR})
   graphx_add_python_test(graphx-guest-agent tests/test_guest_agent.py 30

@@ -26,6 +26,7 @@ GUEST_SOURCES = {
     'etc/init.d/S80graphx':'guests/buildroot-external/board/overlay/etc/init.d/S80graphx'}
 sys.path.insert(0, str(ROOT / 'examples/qemu-node/tools'))
 from artifact_manifest import digest, tree_digest
+from build_trust import build_trust
 from release_common import ReleaseError, json_object, validate_commit, validate_epoch, inspect_archive
 
 
@@ -204,6 +205,7 @@ def build(args):
     dirty = bool(subprocess.check_output(['git','status','--porcelain'],cwd=source))
     if dirty and not args.allow_dirty:
         raise ReleaseError('guest builds require a clean source or explicit --allow-dirty')
+    _, trust_arguments = build_trust()
     subprocess.run(['docker','info'],check=True,stdout=subprocess.DEVNULL)
     if sys.platform == 'darwin' and subprocess.check_output(['docker','context','show'],text=True).strip() != 'orbstack':
         raise ReleaseError('macOS guest builds require OrbStack')
@@ -216,7 +218,7 @@ def build(args):
     source_sha = tree_digest(context)
     tag = 'graphx-guest-builder-' + uuid.uuid4().hex
     subprocess.run(['docker','build','-f',str(source/'examples/qemu-node/build-env/Dockerfile'),
-                    '-t',tag,str(source)],check=True,timeout=1800)
+                    '-t',tag,*trust_arguments,str(source)],check=True,timeout=1800)
     image = json.loads(subprocess.check_output(['docker','image','inspect',tag],text=True))[0]['Id']
     saved = output/'builder.oci.tar'
     subprocess.run(['docker','image','save','-o',str(saved),tag],check=True)

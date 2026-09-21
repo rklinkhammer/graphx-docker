@@ -365,7 +365,13 @@ class Workflow:
 
     def artifacts(self):
         fresh = getattr(self.args, 'fresh_images', False)
+        # Installed workflow helpers resolve build support from the selected checkout.
+        sys.path.insert(0, str(self.source / 'scripts'))
+        from release.build_trust import build_trust
+        trust_fingerprint, _ = build_trust()
         cache_key = self.key + ('-' + uuid.uuid4().hex if fresh else '')
+        if trust_fingerprint != 'graphx-trust-v1-none':
+            cache_key += '-' + trust_fingerprint
         cache = private_dir(self.base / 'artifacts' / cache_key)
         vita = any(n['type'].startswith('vita.') for n in self.normal['nodes'])
         images = safe_path(self.args.images) if self.args.images else cache / ('images-vita' if vita else 'images')

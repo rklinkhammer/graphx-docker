@@ -23,6 +23,7 @@ import tempfile
 import uuid
 from pathlib import Path, PurePosixPath
 
+from build_trust import build_trust
 from release_common import ReleaseError, sha256_file, source_version, validate_commit, validate_epoch
 
 RECIPES = {
@@ -498,6 +499,7 @@ def smoke_image(archive: Path, role: str, config_digest: str, manifest_digest: s
 
 def build(args):
     require(not args.qualification_hooks or args.with_vita, "qualification hooks require --with-vita")
+    _, trust_arguments = build_trust()
     source = args.source.resolve()
     output = args.output.resolve()
     require(not output.exists(), "output must be absent")
@@ -531,7 +533,7 @@ def build(args):
                            "--output", "type=image,oci-mediatypes=true,compression=uncompressed,force-compression=true"]
                 if args.no_cache:
                     command.append("--no-cache")
-                subprocess.run(command + ["."], cwd=source, check=True, timeout=1800)
+                subprocess.run(command + trust_arguments + ["."], cwd=source, check=True, timeout=1800)
                 raw = output / (role + ".docker.tar")
                 subprocess.run(["docker", "image", "save", "-o", str(raw), tag], check=True, timeout=300)
                 inspect_image(raw, role, version, commit, args.platform)
