@@ -593,6 +593,7 @@ CompiledGraph compile_graph(const GraphConfig& graph) {
   put("execution-plan.json",
       Object{{"version", 1},
              {"config", "resolved.json"},
+             {"mode", native ? "native" : "compose"},
              {"executable", execution_available},
              {"stages", stages},
              {"lifecycle", resolved.at("lifecycle")},

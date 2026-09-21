@@ -23,7 +23,7 @@
     },
     {
       "path": "execution-plan.json",
-      "sha256": "892d5ddab3d4fb1b324c3824533b78f1f7fe617493298a3c4566c32e3bbce47f"
+      "sha256": "2646bbed392ad085162f808b45f35a6ea93bb35312bbb3f0ef20349bfe87353e"
     },
     {
       "path": "guest-build/echo-x86.json",

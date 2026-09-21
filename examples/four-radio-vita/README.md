@@ -54,10 +54,12 @@ After an authorized run is active, this explicit scenario applies 20 seconds of
 2% loss and 8±6 ms delay at the processor's owned data attachment:
 
 ```sh
-cmake --preset dev -DGRAPHX_EXAMPLE_SCENARIO=iq-loss-jitter
-cmake --build --preset dev --target four-radio-vita-scenario-plan
-cmake --build --preset dev --target four-radio-vita-scenario-run
-cmake --build --preset dev --target four-radio-vita-scenario-clear
+graphx example scenario four-radio-vita --target lima --allow-privileged \
+  --operation plan --action iq-loss-jitter
+graphx example scenario four-radio-vita --target lima --allow-privileged \
+  --operation run --action iq-loss-jitter
+graphx example scenario four-radio-vita --target lima --allow-privileged \
+  --operation clear --action iq-loss-jitter
 ```
 
 The action affects inbound IQ from all four radios and inbound control replies;
@@ -66,11 +68,11 @@ packets. Nothing applies this fault at ordinary startup. For a failed applicatio
 inspect `status` and `logs`, then use explicit whole-graph recovery:
 
 ```sh
-cmake --build --preset dev --target four-radio-vita-down
-cmake --build --preset dev --target four-radio-vita-up
+graphx example down four-radio-vita --target lima --allow-privileged
+graphx example up four-radio-vita --target lima --allow-privileged --restart
 ```
 
-Set `GRAPHX_EXAMPLE_INSTANCE` consistently when selecting a named instance.
+Pass `--instance` consistently when selecting a named instance.
 Changing source or artifact selections requires a new instance or explicit
 `--restart`. Never restart an individual container behind the ownership ledger.
 The recorder discards mirrored frames and cannot backpressure forwarding; capture

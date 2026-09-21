@@ -432,6 +432,7 @@ required for preparation; no additional configuration parser is introduced.
 | `graphx example logs NAME --node NODE --follow` | Follow application logs |
 | `graphx example down NAME` | Stop through the common ownership lifecycle |
 | `graphx example scenario NAME --action ID` | Run an explicit declared scenario action |
+| `graphx artifacts build [--fresh]` | Build or verify the shared image, guest, platform and compiled-example generation |
 | `graphx env doctor` | Check CLI, Docker/Compose and macOS Lima inventory |
 | `graphx env up` / `down` | Explicitly start/stop the GraphX Lima environment on macOS |
 | `graphx verify PROFILE` | Run an existing verification profile |
@@ -545,9 +546,9 @@ other uppercase arguments are placeholders for canonical absolute paths.
 
 For actual command invocations, choose one verb from a multi-verb reference row;
 do not type the vertical bars. The workspace CLI avoids requiring these paths for
-every demo. `graphx infra` is disabled; `platform-lock` is an internal ownership
-helper rather than a deployment shortcut. The platform's staging, rotation and
-history-removal maintenance interfaces are documented in [platform](#platform-administration).
+every demo. `platform-lock` is an internal ownership helper rather than a deployment
+shortcut. The platform's staging, rotation and history-removal maintenance interfaces
+are documented in [platform](#platform-administration).
 
 <a id="cli-reference-automation-and-failures"></a>
 
@@ -580,8 +581,8 @@ engine. Compilation writes inspectable files only. `run plan` verifies a compila
 and prints its network resource plan without runtime operations. `run up|status|down`
 provides [owned execution](#execution-administration); OVS requires explicit local Linux
 privileged opt-in. Managed QEMU guests additionally require verified guest artifacts
-and the dedicated Linux account; see [guest releases](../guests/README.md). `infra` is a disabled legacy entry point; use the common `run` lifecycle and
-explicit [scenario actions](#scenario-actions). Physical-device startup remains gated
+and the dedicated Linux account; see [guest releases](../guests/README.md). Use the
+common `run` lifecycle and explicit [scenario actions](#scenario-actions). Physical-device startup remains gated
 pending an uplink ownership contract.
 
 ```sh

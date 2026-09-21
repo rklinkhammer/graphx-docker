@@ -48,6 +48,7 @@ def verify(output):
     assert set(json.loads(content['substitutions.json'])['values']) == {'GX_OUTPUT', 'GX_STATE', 'GX_CREDENTIALS', 'GX_RELEASE', 'GX_OWNER'}
     execution = json.loads(content['execution-plan.json'])
     assert execution['executable'] == manifest['execution_available']
+    assert execution['mode'] == ('compose' if 'compose.yaml' in content else 'native')
     if any(a['kind'] == 'external' for a in resolved['network']['attachments']):
         assert execution['executable'] is False
     else:

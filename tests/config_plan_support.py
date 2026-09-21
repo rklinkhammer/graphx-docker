@@ -1,4 +1,4 @@
-"""P1 resolved resource contracts; realization remains gated until P7/P8."""
+"""Resolved network resource contracts shared by plan tests."""
 import json
 from pathlib import Path
 import subprocess
@@ -18,7 +18,4 @@ def check(graphx, root, example):
     for attachment in network['attachments']:
         if attachment['kind'] != 'external':
             assert len(attachment['interface']) <= 15
-    for action in ['create', 'status', 'destroy']:
-        result = subprocess.run([graphx, 'infra', action, source, '--dry-run'], capture_output=True, text=True, timeout=15)
-        assert result.returncode == 2 and not result.stdout and 'E_PHASE_UNAVAILABLE' in result.stderr
     return value

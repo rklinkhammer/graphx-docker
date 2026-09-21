@@ -153,7 +153,13 @@ int execute_graph(const ExecutionOptions& opts, std::ostream& output) {
   const auto manifest = document(opts.output / "compile-manifest.json");
   verify_compilation(opts.output, manifest);
   const auto resolved = document(opts.output / "resolved.json");
+  const auto execution_plan = document(opts.output / "execution-plan.json");
   validate_shape(resolved, parse_document(normalized_schema));
+  if (execution_plan.at("version") != Value(1) ||
+      execution_plan.at("config") != Value("resolved.json") ||
+      (execution_plan.at("mode") != Value("native") &&
+       execution_plan.at("mode") != Value("compose")))
+    throw std::runtime_error("E_COMPILE_IDENTITY: invalid execution plan");
   const auto id = resolved.at("graph_id").text();
   if (!std::regex_match(id, std::regex("^[a-z][a-z0-9_-]{0,63}$")))
     throw std::runtime_error("E_EXECUTION_ID: unsafe graph identity");
@@ -189,7 +195,7 @@ int execute_graph(const ExecutionOptions& opts, std::ostream& output) {
   }
   const auto state_file = state_directory / "ownership.yml";
   const auto config_hash = configuration_hash(opts.output / "compile-manifest.json");
-  const bool native = resolved.at("platform").at("telemetry").at("host") == Value("127.0.0.1");
+  const bool native = execution_plan.at("mode") == Value("native");
   if (!native) {
     if (opts.action == "up" &&
         std::ranges::any_of(resolved.at("nodes").array(), [](const auto& node) {

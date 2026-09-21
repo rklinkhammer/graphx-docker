@@ -106,7 +106,7 @@ def main() -> int:
                    "TZ": "UTC", "LC_ALL": "C", "COPYFILE_DISABLE": "1"}
     run(["cmake", "-S", str(source), "-B", str(build), "-G", "Ninja",
          "-DCMAKE_BUILD_TYPE=Release",
-         "-DGRAPHX_BUILD_EXAMPLES=OFF", "-DGRAPHX_BUILD_TESTS=ON", "-DGRAPHX_FORCE_BUNDLED_YAML_CPP=ON"], source, environment)
+         "-DGRAPHX_BUILD_TESTS=ON", "-DGRAPHX_FORCE_BUNDLED_YAML_CPP=ON"], source, environment)
     run(["cmake", "--build", str(build), "-j", "4"], source, environment)
     run(["ctest", "--test-dir", str(build), "--output-on-failure"], source, environment)
     run(["cpack", "--config", str(build / "CPackConfig.cmake"), "-G", "TGZ",

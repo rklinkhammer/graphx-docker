@@ -17,6 +17,7 @@ void usage(std::ostream& out) {
   out << "usage:\n"
       << "  graphx --version\n"
       << "  graphx example <list|prepare|plan|up|open|status|tokens|logs|down> [NAME] [--help]\n"
+      << "  graphx artifacts build [--output DIR] [--platform PLATFORM] [--fresh]\n"
       << "  graphx env <doctor|up|down> | graphx verify PROFILE | graphx release TOOL [ARGS]\n"
       << "  graphx node-settings --node ID --config FILE\n"
       << "  graphx <validate|inspect> [graphx.yml] [--target TARGET] [--catalog-root DIR]\n"
@@ -48,7 +49,8 @@ int main(int argc, char** argv) {
   }
   try {
     const std::string command = argv[1];
-    if (command == "example" || command == "env" || command == "verify" || command == "release")
+    if (command == "example" || command == "artifacts" || command == "env" || command == "verify" ||
+        command == "release")
       return graphx::execute_example_cli(argc, argv);
     if (command == "platform-lock") {
       if (argc < 6 || std::string_view(argv[2]) != "--lock" || std::string_view(argv[4]) != "--")
@@ -91,11 +93,6 @@ int main(int argc, char** argv) {
       if (options.output.empty() || options.state_root.empty())
         throw std::invalid_argument("run requires --output and --state-root");
       return graphx::execute_graph(options, std::cout);
-    }
-    if (command == "infra") {
-      std::cerr << "E_PHASE_UNAVAILABLE: version 3 execution/artifact adapters are not "
-                   "implemented; no action was performed\n";
-      return 2;
     }
     if (command == "compile") {
       if (argc < 3) throw std::invalid_argument("compile requires an authored file");

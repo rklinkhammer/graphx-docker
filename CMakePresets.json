@@ -9,17 +9,7 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
-        "GRAPHX_BUILD_TESTS": "ON",
-        "GRAPHX_BUILD_EXAMPLES": "ON"
-      }
-    },
-    {
-      "name": "core",
-      "inherits": "dev",
-      "displayName": "GraphX host-only development",
-      "binaryDir": "${sourceDir}/build/core",
-      "cacheVariables": {
-        "GRAPHX_BUILD_EXAMPLES": "OFF"
+        "GRAPHX_BUILD_TESTS": "ON"
       }
     },
     {
@@ -28,8 +18,7 @@
       "displayName": "Address and undefined behavior sanitizers",
       "binaryDir": "${sourceDir}/build/sanitizers",
       "cacheVariables": {
-        "GRAPHX_ENABLE_SANITIZERS": "ON",
-        "GRAPHX_BUILD_EXAMPLES": "OFF"
+        "GRAPHX_ENABLE_SANITIZERS": "ON"
       }
     },
     {
@@ -39,8 +28,7 @@
       "binaryDir": "${sourceDir}/build/quality",
       "cacheVariables": {
         "GRAPHX_ENABLE_CLANG_TIDY": "ON",
-        "GRAPHX_ENABLE_CPPCHECK": "ON",
-        "GRAPHX_BUILD_EXAMPLES": "OFF"
+        "GRAPHX_ENABLE_CPPCHECK": "ON"
       }
     },
     {
@@ -50,8 +38,7 @@
       "binaryDir": "${sourceDir}/build/fuzz",
       "cacheVariables": {
         "GRAPHX_BUILD_FUZZERS": "ON",
-        "GRAPHX_BUILD_TESTS": "OFF",
-        "GRAPHX_BUILD_EXAMPLES": "OFF"
+        "GRAPHX_BUILD_TESTS": "OFF"
       }
     }
   ],
@@ -71,10 +58,6 @@
     {
       "name": "fuzz",
       "configurePreset": "fuzz"
-    },
-    {
-      "name": "core",
-      "configurePreset": "core"
     }
   ],
   "testPresets": [
@@ -88,13 +71,6 @@
     {
       "name": "sanitizers",
       "configurePreset": "sanitizers",
-      "output": {
-        "outputOnFailure": true
-      }
-    },
-    {
-      "name": "core",
-      "configurePreset": "core",
       "output": {
         "outputOnFailure": true
       }

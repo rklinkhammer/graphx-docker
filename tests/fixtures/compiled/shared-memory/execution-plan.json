@@ -6,6 +6,7 @@
     "readiness_ms": 30000,
     "startup": "transactional"
   },
+  "mode": "native",
   "on_failure": "classified application unavailability follows lifecycle policy; other failures reverse newly owned resources and retain evidence",
   "scenario_actions": "never implicit",
   "stages": [

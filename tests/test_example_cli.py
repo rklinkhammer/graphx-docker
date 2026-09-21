@@ -43,6 +43,16 @@ assert 'E_TARGET_CAPABILITY' in call('example', 'plan', 'sample-pipeline/ovs', '
 for name in ('../config', '/tmp', 'sample-pipeline/../../capture', 'sample pipeline'):
     call('example', 'plan', name, ok=False)
 assert 'up' in call('example', '--help').stdout
+assert 'build' in call('artifacts', '--help').stdout
+with tempfile.TemporaryDirectory(prefix='graphx-artifacts-') as tmp, \
+     patch.object(module.subprocess, 'call', return_value=0) as artifact_build:
+    artifact_output = Path(tmp).resolve()
+    assert module.main(['--graphx', str(cli), '--source', str(root), 'artifacts', 'build',
+                        '--output', str(artifact_output), '--platform', 'linux/amd64', '--fresh']) == 0
+    command = artifact_build.call_args.args[0]
+    assert command[-1] == '--fresh'
+    assert command[command.index('--output') + 1] == str(artifact_output)
+    assert command[command.index('--platform') + 1] == 'linux/amd64'
 original = json.loads(call('config', 'authored', root / 'examples/sample-pipeline/graphx.yml').stdout)
 assert original['version'] == 3 and 'catalog_digest' not in original
 changed = module.grants(original, ['generator:pause,resume', 'collector:reset'])

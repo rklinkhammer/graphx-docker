@@ -2,6 +2,12 @@
 
 Date: 2026-09-14
 
+Implemented baseline (2026-09-20): ordinary development builds are code-only;
+aggregate artifacts use the explicit `graphx artifacts build` workflow; per-example
+CMake lifecycle targets and cache settings are removed; LLVM 21 selection is shared;
+and execution dispatch reads an explicit mode from the hashed execution plan. The
+remaining projection-model and shared lifecycle work below is intentionally staged.
+
 ## Purpose
 
 This report identifies ways to reduce implementation and operational complexity

@@ -50,11 +50,10 @@ Verified release installation is covered in [execution](docs/user-guide.md#execu
 Start the selected Docker engine first (OrbStack on macOS). Run from the repository root:
 
 ```sh
-cmake --preset dev
-cmake --build --preset dev -j 4
+graphx artifacts build
 ```
 
-The default build compiles host applications and builds all shared container roles
+This explicit command builds all shared container roles
 (runtime, telemetry, SDR and VITA), the echo/radio x86-64 QEMU kernel and initramfs
 artifacts, the host Node/web platform bundle, and every authored example graph.
 Graph generation targets `native-linux` so Linux-only examples can be inspected
@@ -67,7 +66,8 @@ take substantial time and disk space. Dependency downloads require network acces
 including access to the pinned VRT Git repository for VITA.
 
 Artifacts live outside the checkout because the QEMU builder requires that boundary.
-`GRAPHX_EXAMPLE_ARTIFACT_ROOT` defaults to `~/.cache/graphx/build/<build-directory-hash>`.
+The default root is `~/.cache/graphx/build/<checkout-hash>`; use `--output` to select
+another external path and `--platform linux/amd64` to select image architecture.
 The build prints its completed generation directory: `images/` holds verified OCI
 images and a catalog, `guests/` holds QEMU artifacts and the combined catalog,
 `platform/` holds the host platform archive, and `compiled/` holds all graph outputs.
@@ -76,46 +76,43 @@ own evidence and do not replace it. An unchanged rebuild verifies and reuses tha
 complete generation. To force a fresh verification release:
 
 ```sh
-cmake --build --preset dev --target examples-rebuild
+graphx artifacts build --fresh
 ```
 
-Use `-DGRAPHX_EXAMPLE_ARTIFACT_ROOT=/absolute/external/path` to select another artifact
-root and `-DGRAPHX_EXAMPLE_IMAGE_PLATFORM=linux/amd64` to select image architecture.
-QEMU guests remain x86-64 TCG artifacts. Building them does not establish guest-boot
-acceptance. Host-only development remains available without Docker:
+The compatibility targets `examples-build` and `examples-rebuild` delegate to the
+same command with a build-directory-scoped artifact root. QEMU guests remain x86-64
+TCG artifacts. Building them does not establish guest-boot acceptance. Ordinary
+development builds never build these artifacts and do not require Docker:
 
 ```sh
-cmake --preset core
-cmake --build --preset core -j 4
+cmake --preset dev
+cmake --build --preset dev -j 4
 ```
 
-The `core` preset sets `GRAPHX_BUILD_EXAMPLES=OFF`. Portable and quality verification
-also explicitly disable artifact builds. Image, guest and release leaf builds use
-the same option to prevent recursive builds. `cmake --preset dev` restores the full
-build setting after verification.
+Artifact, verification and laboratory operations always require an explicit command.
 
 ## Prepare and run an example
 
 For the portable sample, with a ready Docker engine (OrbStack on macOS):
 
 ```sh
-cmake --preset dev '-DGRAPHX_EXAMPLE_CONTROL=generator:pause,resume;collector:reset'
-cmake --build --preset dev --target sample-pipeline-prepare
-cmake --build --preset dev --target sample-pipeline-up
-cmake --build --preset dev --target sample-pipeline-status
-cmake --build --preset dev --target sample-pipeline-open
-cmake --build --preset dev --target sample-pipeline-down
+graphx example prepare sample-pipeline --restart --fresh-images \
+  --control generator:pause,resume --control collector:reset
+graphx example up sample-pipeline --restart \
+  --control generator:pause,resume --control collector:reset
+graphx example status sample-pipeline
+graphx example open sample-pipeline
+graphx example down sample-pipeline
 ```
 
 For the four-radio VITA example, after authorizing privileged Linux/Lima work:
 
 ```sh
-cmake --preset dev -DGRAPHX_EXAMPLE_TARGET=lima \
-  -DGRAPHX_EXAMPLE_ALLOW_PRIVILEGED=ON -DGRAPHX_EXAMPLE_CONTROL=
-cmake --build --preset dev --target four-radio-vita-prepare
-cmake --build --preset dev --target four-radio-vita-up
-cmake --build --preset dev --target four-radio-vita-status
-cmake --build --preset dev --target four-radio-vita-down
+graphx example prepare four-radio-vita --target lima --allow-privileged \
+  --restart --fresh-images
+graphx example up four-radio-vita --target lima --allow-privileged --restart
+graphx example status four-radio-vita --target lima --allow-privileged
+graphx example down four-radio-vita --target lima --allow-privileged
 ```
 
 Select `native-linux` instead of `lima` for authorized native Linux execution.
@@ -123,19 +120,18 @@ Use [the example matrix](examples/README.md) to choose another graph and target.
 The [four-radio guide](examples/four-radio-vita/README.md) explains its FFT,
 statistics, loss/jitter scenario and recovery behavior.
 
-CMake discovers every `examples/**/graphx.yml`. Slashes in example names become
-hyphens: `sample-pipeline/ovs` becomes `sample-pipeline-ovs`. No separate example
-manifest is maintained. Targets also appear in the IDE's CMake target picker.
-Runtime targets are explicit; the default build only invokes `examples-build`.
+The workflow discovers every `examples/**/graphx.yml`; no separate example manifest
+is maintained. CMake retains only `examples-list`, `examples-build`, and
+`examples-rebuild` as convenience targets. Runtime operations use the CLI directly.
 
-| Target suffix | Behavior |
+| Command | Behavior |
 |---|---|
-| `plan` | Build the CLI and validate the selected example; no infrastructure mutation |
-| `prepare` | Build the CLI, stop/replace this instance if prepared, build fresh no-cache images and compile |
-| `up` | Build the CLI, reuse preparation, restart this instance with fresh owned processes |
-| `status`, `open`, `logs` | Inspect state, open the authenticated console, or print node logs |
-| `down` | Perform identity-checked cleanup; stop Lima when idle |
-| `scenario-plan`, `scenario-run`, `scenario-status`, `scenario-clear` | Invoke the explicitly selected authored action |
+| `graphx example plan NAME` | Validate the selected example; no infrastructure mutation |
+| `graphx example prepare NAME` | Prepare artifacts and compile without starting |
+| `graphx example up NAME` | Reuse preparation and start owned processes |
+| `graphx example status/open/logs NAME` | Inspect state, open the console, or print node logs |
+| `graphx example down NAME` | Perform identity-checked cleanup; stop Lima when idle |
+| `graphx example scenario NAME --operation OP --action ID` | Invoke an explicitly selected authored action |
 
 Run targets sequentially. Do not request `prepare up down` in a single build;
 they are independent operations, not a dependency chain. Shutdown, inspection,
@@ -151,21 +147,21 @@ release; QEMU examples also prepare their required guest artifacts.
 
 ### Example settings
 
-Settings persist in the CMake build directory. The default target is selected by
-the existing CLI: macOS uses Lima for privileged graphs, OrbStack for portable
+Pass settings to each lifecycle command so the selected identity remains explicit.
+The default target is selected by the CLI: macOS uses Lima for privileged graphs, OrbStack for portable
 containers, and native macOS for native graphs; Linux selects native Linux.
 The selected Docker engine must be ready for container builds.
 
 For an explicitly authorized Lima example:
 
 ```sh
-cmake --preset dev -DGRAPHX_EXAMPLE_TARGET=lima -DGRAPHX_EXAMPLE_ALLOW_PRIVILEGED=ON
-cmake --build --preset dev --target four-radio-vita-prepare
-cmake --build --preset dev --target four-radio-vita-up
-cmake --preset dev -DGRAPHX_EXAMPLE_SCENARIO=iq-loss-jitter
-cmake --build --preset dev --target four-radio-vita-scenario-plan
-cmake --build --preset dev --target four-radio-vita-scenario-run
-cmake --build --preset dev --target four-radio-vita-down
+graphx example prepare four-radio-vita --target lima --allow-privileged
+graphx example up four-radio-vita --target lima --allow-privileged
+graphx example scenario four-radio-vita --target lima --allow-privileged \
+  --operation plan --action iq-loss-jitter
+graphx example scenario four-radio-vita --target lima --allow-privileged \
+  --operation run --action iq-loss-jitter
+graphx example down four-radio-vita --target lima --allow-privileged
 ```
 
 Lima startup, source staging and idle shutdown use the existing identity checks.
@@ -174,26 +170,20 @@ different checkout. Runtime artifacts remain under `/var/lib/graphx` in Linux.
 No scenario is applied by ordinary `up`; unsupported graphs/actions fail through
 the authoritative CLI. Physical SDR remains gated by its ownership contract.
 
-| CMake cache setting | Corresponding selection |
+| CLI option | Selection |
 |---|---|
-| `GRAPHX_EXAMPLE_TARGET` | `lima`, `orbstack`, `native-linux`, `native-macos`, or empty for host default |
-| `GRAPHX_EXAMPLE_ALLOW_PRIVILEGED` | `ON` passes `--allow-privileged`; default `OFF` |
-| `GRAPHX_EXAMPLE_WORKSPACE`, `GRAPHX_EXAMPLE_INSTANCE` | Existing CLI workspace and instance selection; keep consistent through cleanup |
-| `GRAPHX_EXAMPLE_IMAGES`, `GRAPHX_EXAMPLE_RELEASE`, `GRAPHX_EXAMPLE_CATALOG` | Existing verified artifacts; paths are guest-local for Lima |
-| `GRAPHX_EXAMPLE_EXTERNAL`, `GRAPHX_EXAMPLE_LABORATORY` | External credential directory and explicit laboratory selection |
-| `GRAPHX_EXAMPLE_CONTROL` | Semicolon-separated grants, e.g. `generator:pause,resume;collector:reset` |
-| `GRAPHX_EXAMPLE_NODE` | Node to inspect with `logs` |
-| `GRAPHX_EXAMPLE_SCENARIO` | Authored scenario action ID; required for scenario targets |
+| `--target` | `lima`, `orbstack`, `native-linux`, `native-macos`, or omitted for host default |
+| `--allow-privileged` | Explicitly authorizes Linux/Lima privileged operations |
+| `--workspace`, `--instance` | Existing workspace and instance selection; keep consistent through cleanup |
+| `--images`, `--release`, `--catalog` | Existing verified artifacts; paths are guest-local for Lima |
+| `--external`, `--laboratory` | External credential directory and explicit laboratory selection |
+| `--control NODE:ACTIONS` | Repeatable control grant, for example `generator:pause,resume` |
+| `--node` | Node to inspect with `logs` |
+| `--action` | Authored scenario action ID; required for scenario operations |
 
-Quote settings containing spaces or semicolons. Clear a setting with, for example,
-`cmake --preset dev -DGRAPHX_EXAMPLE_IMAGES=`. An explicit image, release, or catalog
-selection disables fresh artifact building during CMake preparation and follows
-the CLI's artifact-override behavior. Privilege opt-in persists until set `OFF`.
-Use separate CMake build directories when maintaining different settings in parallel.
-
-Advanced options remain available through `build/dev/graphx example`. The CMake
-targets delegate to that same workflow; there is no separate container or network
-implementation. For direct CLI use, `--fresh-images` is accepted only with
+An explicit image, release, or catalog selection disables fresh artifact building
+during preparation and follows the CLI's artifact-override behavior. There is no
+separate CMake container or network implementation. `--fresh-images` is accepted only with
 `prepare`/`up`, without artifact overrides, and requires `--restart` when an instance
 already has a prepared generation. Failed builds retain evidence and ownership
 records for normal `down` recovery; no global prune is performed.

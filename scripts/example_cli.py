@@ -309,7 +309,7 @@ class Workflow:
         remote_cli = remote_source + '/build/example/graphx'
         if subprocess.run([*prefix, 'test', '-x', remote_cli]).returncode:
             run([*prefix, 'cmake', '-S', remote_source, '-B', remote_source + '/build/example',
-                 '-G', 'Ninja', '-DCMAKE_BUILD_TYPE=Release', '-DGRAPHX_BUILD_TESTS=OFF', '-DGRAPHX_BUILD_EXAMPLES=OFF'])
+                  '-G', 'Ninja', '-DCMAKE_BUILD_TYPE=Release', '-DGRAPHX_BUILD_TESTS=OFF'])
             run([*prefix, 'cmake', '--build', remote_source + '/build/example', '--target', 'graphx-cli', '-j', '4'])
         forwarded = [remote_cli, 'example', self.args.action, self.args.name, '--target', 'lima', '--workspace', remote_base]
         for flag in ('allow_privileged', 'restart', 'json', 'follow', 'fresh_images'):
@@ -600,7 +600,25 @@ def main(argv=None):
         raise WorkflowError('run from a GraphX checkout or provide --source CHECKOUT')
     cli = safe_path(initial.graphx)
     if not rest:
-        parser.error('requires example, env, verify or release')
+        parser.error('requires example, artifacts, env, verify or release')
+    if rest[0] == 'artifacts':
+        artifacts = argparse.ArgumentParser(prog='graphx artifacts', allow_abbrev=False)
+        artifacts.add_argument('action', choices=['build'])
+        artifacts.add_argument('--output', type=Path)
+        artifacts.add_argument('--platform', choices=['linux/arm64', 'linux/amd64'])
+        artifacts.add_argument('--fresh', action='store_true')
+        args = artifacts.parse_args(rest[1:])
+        source_key = hashlib.sha256(str(source).encode()).hexdigest()
+        output = safe_path(args.output or Path.home() / '.cache/graphx/build' / source_key)
+        machine = platform.machine().lower()
+        image_platform = args.platform or (
+            'linux/arm64' if machine in ('arm64', 'aarch64') else 'linux/amd64')
+        command = [sys.executable, source / 'scripts/build_examples.py',
+                   '--source', source, '--graphx', cli, '--output', output,
+                   '--platform', image_platform]
+        if args.fresh:
+            command.append('--fresh')
+        return subprocess.call(list(map(str, command)))
     if rest[0] == 'verify':
         return subprocess.call([str(source / 'scripts/verify.sh'), *rest[1:]])
     if rest[0] == 'release':
