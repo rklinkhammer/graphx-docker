@@ -10,13 +10,14 @@ set -euo pipefail
 
 export DEBIAN_FRONTEND=noninteractive
 packages=(
+  libatomic1
   build-essential ca-certificates clang cmake curl docker-buildx docker-compose-v2 docker.io
   ethtool gnupg iproute2 jq libssl-dev libyaml-cpp-dev nftables ninja-build
   openvswitch-switch openssl pkg-config python3 python3-jsonschema python3-yaml
   qemu-system-arm qemu-system-ppc qemu-system-x86 qemu-utils tshark
 )
-readonly node_runtime_image='node:24-bookworm-slim@sha256:ba849c60be29959425b8734d57b8b4b7d56f98edd9504c9af091d5281095a71e'
-readonly node_runtime_root=/opt/graphx-node-24
+readonly node_runtime_image='node:26.9.0-bookworm-slim@sha256:582460f614631b59b824ac6020533b9bf339c7fdf3a6d7db31abb6b4065f0212'
+readonly node_runtime_root=/opt/graphx-node-26
 
 apt_retry() {
   local attempt
@@ -83,11 +84,11 @@ if ! timeout 120 docker cp "${node_container}:/usr/local/." "${node_runtime_root
   exit 1
 fi
 docker rm "${node_container}" >/dev/null
-for executable in node npm npx corepack; do
+for executable in node npm npx; do
   ln -sfn "${node_runtime_root}/bin/${executable}" "/usr/local/bin/${executable}"
 done
-[[ $(node --version) =~ ^v24\. ]] || {
-  echo "Pinned Node.js runtime did not provide Node.js 24." >&2
+[[ $(node --version) =~ ^v26\. ]] || {
+  echo "Pinned Node.js runtime did not provide Node.js 26." >&2
   exit 1
 }
 timeout 30 node -e 'import("node:sqlite")' >/dev/null

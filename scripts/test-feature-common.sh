@@ -2,7 +2,7 @@
 
 step() { printf '\n==> %s\n' "$*"; }
 require() { command -v "$1" >/dev/null || { echo "missing prerequisite: $1" >&2; exit 2; }; }
-require_node24() { bash "$ROOT/scripts/require-node24.sh"; }
+require_node26() { bash "$ROOT/scripts/require-node26.sh"; }
 
 without_graphx_environment() {
   local name

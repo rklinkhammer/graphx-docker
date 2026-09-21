@@ -4,7 +4,7 @@ ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 source "$ROOT/scripts/configure-build-trust.sh"
 source "$ROOT/scripts/test-feature-common.sh"
 BUILD_DIR=${GRAPHX_BUILD_DIR:-"$ROOT/build/dev"}
-require_node24
+require_node26
 npm ci --prefix "$ROOT/apps/telemetry" --no-audit --no-fund
 NORMALIZED_CONFIG_CLI="$BUILD_DIR/graphx" without_graphx_environment npm test --prefix "$ROOT/apps/telemetry"
 npm ci --prefix "$ROOT/web" --no-audit --no-fund

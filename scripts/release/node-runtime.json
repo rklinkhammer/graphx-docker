@@ -1,10 +1,22 @@
 {
-  "version": "24.20.0",
-  "source": "https://nodejs.org/dist/v24.20.0/SHASUMS256.txt",
+  "version": "26.9.0",
+  "source": "https://nodejs.org/dist/v26.9.0/SHASUMS256.txt",
   "archives": {
-    "darwin-aarch64": {"name": "node-v24.20.0-darwin-arm64.tar.gz", "sha256": "40e5607e5ecb3db9192723776da2d75d966260fc74a7a9e731c1bd67dda96bc8"},
-    "darwin-x86_64": {"name": "node-v24.20.0-darwin-x64.tar.gz", "sha256": "9e5b2644cf107befb6aefca676b96d3296bc10138096f022ed378d6233ed81f4"},
-    "linux-aarch64": {"name": "node-v24.20.0-linux-arm64.tar.gz", "sha256": "3515603e2487879a39bc75716f1a2affd027500c64ba50e845cf72cb33219013"},
-    "linux-x86_64": {"name": "node-v24.20.0-linux-x64.tar.gz", "sha256": "855d581f8a4eb1a8117e3426de25fe02770592febcfb31369aee1ffbfee9e8ec"}
+    "darwin-aarch64": {
+      "name": "node-v26.9.0-darwin-arm64.tar.gz",
+      "sha256": "6f3de7ed853ee283b4bf24b6e426618f1d357401ce5815db1866eb85eb4b05d9"
+    },
+    "darwin-x86_64": {
+      "name": "node-v26.9.0-darwin-x64.tar.gz",
+      "sha256": "06b2e742ed9025dc84adc830243b3f731956eac9c321bccd0ede384209af02a8"
+    },
+    "linux-aarch64": {
+      "name": "node-v26.9.0-linux-arm64.tar.gz",
+      "sha256": "d5077591aa38b48d90bf9b3ac10da8d2f40dce289b20294913c58c19f153eb12"
+    },
+    "linux-x86_64": {
+      "name": "node-v26.9.0-linux-x64.tar.gz",
+      "sha256": "03d9104fc4f19652e74480fed11c023d75981464b7292f21a601c3f95ce7d90d"
+    }
   }
 }

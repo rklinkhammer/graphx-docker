@@ -267,7 +267,7 @@ type says so. Multiple radios have distinct runtime credentials and node IDs.
 Managed radio guests initially advertise packet/status observation only; adding
 GraphX heartbeat support requires the guest implementation to supply it.
 
-Native platform uses the pinned release's Node.js 24 and web assets. Applications
+Native platform uses the pinned release's Node.js 26 and web assets. Applications
 reach loopback UDP 9000 with distinct HMAC credential references. Console binds
 127.0.0.1:8080 by default; graph may choose 1024–65535. Console origin allowlist
 is derived from the chosen port. Containers publish loopback HTTP only; platform

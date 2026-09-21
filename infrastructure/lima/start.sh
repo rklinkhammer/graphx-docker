@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-script_dir=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
+script_dir=$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 # shellcheck source=common.sh
 source "${script_dir}/common.sh"
 
@@ -36,6 +36,8 @@ case ${status} in
     ;;
 esac
 
+# The single-quoted identity check expands inside the guest shell.
+# shellcheck disable=SC2016
 "${GRAPHX_LIMA_RUNNER}" 120 limactl shell --workdir "${GRAPHX_LIMA_GUEST_ROOT}" \
   "${GRAPHX_LIMA_INSTANCE}" -- \
   sudo bash -c 'test "$1" = "$(cat /etc/graphx-lima-config.sha256)"' _ "${config_digest}"
@@ -53,5 +55,5 @@ fi
 "${GRAPHX_LIMA_RUNNER}" 120 limactl shell --workdir "${GRAPHX_LIMA_GUEST_ROOT}" \
   "${GRAPHX_LIMA_INSTANCE}" -- bash -c \
   'docker info >/dev/null && docker buildx version >/dev/null &&
-   node --version | grep -Eq "^v24\\." && node -e "import(\"node:sqlite\")"'
+   node --version | grep -Eq "^v26\\." && node -e "import(\"node:sqlite\")"'
 echo "GraphX Lima is running. Verify it with ${script_dir}/verify.sh"

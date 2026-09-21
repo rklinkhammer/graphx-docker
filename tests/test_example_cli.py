@@ -157,6 +157,24 @@ with tempfile.TemporaryDirectory(prefix='graphx-example-state-') as tmp:
         workflow.local()
         second = module.read_json(workflow.folder / 'current.json')
         assert second['generation'] != first['generation'] and actions.count('down') == 1
+        args.fresh_images, args.restart = True, False
+        rejected(workflow.local)
+        assert actions.count('down') == 1
+        args.restart = True
+        workflow.local()
+        fresh_record = module.read_json(workflow.folder / 'current.json')
+        assert fresh_record['generation'] != second['generation']
+        second = fresh_record
+        args.fresh_images = False
+        workflow.local()
+        assert module.read_json(workflow.folder / 'current.json') == second
+        # A failed fresh release preserves the previous stopped generation for cleanup.
+        args.fresh_images = True
+        with patch.object(workflow, 'artifacts', side_effect=module.WorkflowError('build interrupted')):
+            rejected(workflow.local)
+        assert module.read_json(workflow.folder / 'current.json') == second
+        assert not active[0]
+        args.fresh_images = False
         args.action, args.restart = 'down', False
         workflow.local()
         assert not active[0]
@@ -226,6 +244,11 @@ with tempfile.TemporaryDirectory(prefix='graphx-vita-artifacts-') as directory:
                          {'images': {'vita': {}}, 'qualification_hooks': True}):
             module.write_json(images / 'images.json', manifest)
             rejected(workflow.artifacts)
+        workflow.args.fresh_images = True
+        fresh_images, _, _ = workflow.artifacts()
+        newer_images, _, _ = workflow.artifacts()
+        assert images != fresh_images != newer_images
+        assert sum('build' in command for command in commands) == 3
 
 # Host environment lifecycle is mocked: portable tests never create a VM.
 with tempfile.TemporaryDirectory(prefix='graphx-lima-lifecycle-') as temporary:
@@ -254,6 +277,11 @@ workflow.args = SimpleNamespace(action='up', allow_privileged=False)
 with patch.object(module, 'run') as command:
     rejected(workflow.lima)
     command.assert_not_called()
+workflow.args.action = 'prepare'
+with patch.object(module, 'run') as command:
+    rejected(workflow.lima)
+    command.assert_not_called()
+workflow.args.action = 'up'
 workflow.args.allow_privileged = True
 with patch.object(module, 'lima_lock', module.contextlib.nullcontext), \
      patch.object(module, 'run', side_effect=module.WorkflowError('foreign VM')), \
@@ -298,3 +326,9 @@ with tempfile.TemporaryDirectory(prefix='graphx-idle-proc-') as temporary:
     with patch.object(idle_module, 'output', side_effect=empty):
         assert not idle_module.idle(proc)
 print('Lima automatic lifecycle checks passed')
+
+# Reject contradictory fresh-build selections before touching any infrastructure.
+for flags in (['--images', '/missing'], ['--release', '/missing'], ['--catalog', '/missing']):
+    result = call('example', 'prepare', 'four-radio-vita', '--fresh-images', *flags, ok=False)
+    assert '--fresh-images requires' in result.stderr
+assert '--fresh-images requires' in call('example', 'down', 'four-radio-vita', '--fresh-images', ok=False).stderr

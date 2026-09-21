@@ -2,16 +2,16 @@
 
 `quick` covers the input/target matrix, compiler goldens, application bindings,
 release contracts and ownership modules. `portable` also runs telemetry HTTP,
-web tests/build and the native execution lifecycle fixture with Node 24.
+web tests/build and the native execution lifecycle fixture with Node 26.
 
 After confirming the selected engine, run the unprivileged execution matrix:
 
 ```sh
-PATH=/opt/homebrew/opt/node@24/bin:$PATH python3 tests/test_execution_matrix.py \
+PATH=/opt/homebrew/bin:$PATH python3 tests/test_execution_matrix.py \
   VERIFIED_IMAGE_RELEASE --output FRESH_EVIDENCE_DIRECTORY
 ```
 
-Use a platform-appropriate Node 24 path on Linux. This runs S01/S05/S13, V01–V06
+Use a platform-appropriate Node 26 path on Linux. This runs S01/S05/S13, V01–V06
 and T01–T02 using unique graph names and ephemeral console ports. It records
 container/network/volume inventories and preserves a separately owned running
 sentinel throughout. It explicitly disposes only its own retained test volumes.
@@ -85,7 +85,7 @@ test run must leave no newly created GraphX Compose projects, OVS resources,
 namespaces, TAP/veth devices, capture processes, qdiscs, or temporary state. Existing workloads must
 be preserved. Sealed captures and verification logs are retained evidence.
 
-Portable and full acceptance require Node.js 24.x and fail before installing
+Portable and full acceptance require Node.js 26.x and fail before installing
 dependencies when another Node.js major version is selected. Privileged workflows
 are registered as CTests with the `privileged` label; `native-linux` configures that
 test set and runs it after portable acceptance.
@@ -111,7 +111,7 @@ compatible `SDKROOT`. The opt-in VITA sanitizer commands and scope are recorded 
 Before Docker tests, check `docker info` and `docker compose version`; on macOS
 also check that `docker context show` returns `orbstack`. Use a verified image
 release with `GRAPHX_IMAGE_RELEASE`; test graphs use unique identities and preserve
-existing workloads. Node.js 24 is required for portable checks.
+existing workloads. Node.js 26 is required for portable checks.
 
 The privileged CTest `graphx-compiled-live` runs the six compiled OVS cases,
 S11/S12/S14 scenario actions, and actual S15/T03 TCG guests sequentially. Set:

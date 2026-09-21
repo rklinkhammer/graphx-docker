@@ -50,7 +50,7 @@ with contextlib.nullcontext(tempfile.mkdtemp(prefix='graphx-p6-')) as temporary:
         if sys.platform=='darwin':
             for dependency in (node_binary.parent.parent/'lib').glob('libnode*.dylib'):
                 shutil.copy2(dependency,bundle/dependency.name)
-        assert subprocess.check_output([bundle/'node','--version'],text=True).startswith('v24.')
+        assert subprocess.check_output([bundle/'node','--version'],text=True).startswith('v26.')
         launcher=release/'bin/graphx-platform';launcher.write_text('#!/bin/sh\nexit 64\n');launcher.chmod(0o755)
         for name in ('graphx','graphx-generator','graphx-transform','graphx-sink','graphx-udp-publisher','graphx-udp-subscriber'):
             shutil.copy2(build/name,release/'bin'/name)

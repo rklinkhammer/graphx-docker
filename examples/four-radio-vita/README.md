@@ -15,55 +15,52 @@ staged by the existing GraphX mechanism.
 
 ## Build and inspect
 
-From a clean checkout, build the host CLI first:
+From a clean checkout on macOS, configure the CMake example targets:
 
 ```sh
-cmake --preset dev
-cmake --build --preset dev --target graphx-cli -j 4
+cmake --preset dev -DGRAPHX_EXAMPLE_TARGET=lima
+cmake --build --preset dev --target four-radio-vita-plan
 ```
 
-On macOS, prepare images using the ready OrbStack engine:
+Planning builds the host CLI and validates the graph without starting a VM.
+After authorizing privileged execution, enable it explicitly and prepare:
 
 ```sh
-python3 scripts/release/image_release.py build --with-vita --no-cache --allow-dirty \
-  --platform linux/arm64 --output outputs/four-radio-vita/images
-build/dev/graphx example plan four-radio-vita --target lima --json
+cmake --preset dev -DGRAPHX_EXAMPLE_TARGET=lima -DGRAPHX_EXAMPLE_ALLOW_PRIVILEGED=ON
+cmake --build --preset dev --target four-radio-vita-prepare
 ```
 
-A successful build ends with `Verified shared image release and derived catalog`.
-The VITA smoke checks deliberately launch without configuration or capabilities:
-radio, processor and detector must reject missing configuration, and the recorder
-must reject missing `NET_RAW`. These expected refusals are reported as `PASS`;
-an unexpected exit or diagnostic fails verification. The subsequent `plan` command
-prints JSON and does not start the graph.
-
-Choose an absent image output directory. Omit `--allow-dirty` for a clean release
-candidate. Normal VITA builds disable qualification hooks; `--qualification-hooks`
-is reserved for the private P3/P4 fault matrix. The example workflow rejects those
-hook-enabled images. `--with-vita` adds the reusable VITA role and derives an
-exactly pinned catalog from verified image bytes. Source catalog images are type
-templates, not runnable release evidence.
+Preparation starts the identity-matched GraphX Lima guest, stages the current
+checkout, builds normal VITA images without cache, verifies them, and compiles
+the graph. Builds and artifacts stay in the guest. It stops Lima afterward if
+idle. Every explicit `prepare` builds a new image release and stops/replaces any
+previous generation of this instance through the common ownership lifecycle.
+The VITA role is selected automatically; qualification-hook images are rejected.
+Expected missing-configuration and capability smoke-test refusals are reported
+as `PASS`; unexpected diagnostics fail verification.
 
 ## Run in the GraphX Lima guest
 
-After explicit authorization, stage the verified image directory on the guest
-under `/var/lib/graphx`. Recheck VM identity using the repository Lima tools. Use
-that guest-local image path with the standard CLI from the Mac:
-
 ```sh
-build/dev/graphx example up four-radio-vita --target lima --allow-privileged \
-  --images /var/lib/graphx/images/four-radio-vita
-build/dev/graphx example status four-radio-vita --target lima --allow-privileged
-build/dev/graphx example logs four-radio-vita --target lima --allow-privileged --node detector
-build/dev/graphx example open four-radio-vita --target lima --allow-privileged
-build/dev/graphx example down four-radio-vita --target lima --allow-privileged
+cmake --build --preset dev --target four-radio-vita-up
+cmake --build --preset dev --target four-radio-vita-status
+cmake --preset dev -DGRAPHX_EXAMPLE_NODE=detector
+cmake --build --preset dev --target four-radio-vita-logs
+cmake --build --preset dev --target four-radio-vita-open
+cmake --build --preset dev --target four-radio-vita-down
 ```
 
-The same example workflow runs on authorized native Linux with `--target native-linux`.
-No source Compose file or private launcher is needed. Explicit image selection
-avoids a second build. Without `--images`, preparation builds the required roles
-through the same shared release builder. Use a fresh verified image set for each
-verification run and fresh containers for every case.
+`up` starts Lima automatically, reuses the prepared verified release, and starts
+fresh containers through an owned restart. `down` cleans up this instance and
+stops Lima if idle. Run `prepare` once per verification run, then `up`/`down` for
+each case. Running `up` without preparation uses the CLI's normal artifact cache;
+it does not promise a fresh image build.
+
+On authorized native Linux, select `-DGRAPHX_EXAMPLE_TARGET=native-linux` instead.
+To reuse an existing verified guest image release, configure
+`-DGRAPHX_EXAMPLE_IMAGES=/var/lib/graphx/images/four-radio-vita` before preparing.
+Clear that setting with `-DGRAPHX_EXAMPLE_IMAGES=` to resume fresh builds.
+See [CMake example targets](../cmake.md) for all settings and direct CLI equivalents.
 
 The authored subnet is `10.79.0.0/24`. The console binds guest loopback port 8080;
 the standard Lima configuration forwards it to Mac loopback port 18080. Select an
@@ -98,12 +95,10 @@ After an authorized run is active, this explicit scenario applies 20 seconds of
 2% loss and 8±6 ms delay at the processor's owned data attachment:
 
 ```sh
-build/dev/graphx example scenario four-radio-vita --target lima --allow-privileged \
-  --action iq-loss-jitter --operation plan
-build/dev/graphx example scenario four-radio-vita --target lima --allow-privileged \
-  --action iq-loss-jitter --operation run
-build/dev/graphx example scenario four-radio-vita --target lima --allow-privileged \
-  --action iq-loss-jitter --operation clear
+cmake --preset dev -DGRAPHX_EXAMPLE_SCENARIO=iq-loss-jitter
+cmake --build --preset dev --target four-radio-vita-scenario-plan
+cmake --build --preset dev --target four-radio-vita-scenario-run
+cmake --build --preset dev --target four-radio-vita-scenario-clear
 ```
 
 The action affects inbound IQ from all four radios and inbound control replies;
@@ -112,12 +107,11 @@ packets. Nothing applies this fault at ordinary startup. For a failed applicatio
 inspect `status` and `logs`, then use explicit whole-graph recovery:
 
 ```sh
-build/dev/graphx example down four-radio-vita --target lima --allow-privileged
-build/dev/graphx example up four-radio-vita --target lima --allow-privileged \
-  --images /var/lib/graphx/images/four-radio-vita
+cmake --build --preset dev --target four-radio-vita-down
+cmake --build --preset dev --target four-radio-vita-up
 ```
 
-Use the same `--instance` on every command when selecting a named instance.
+Set `GRAPHX_EXAMPLE_INSTANCE` consistently when selecting a named instance.
 Changing source or artifact selections requires a new instance or explicit
 `--restart`. Never restart an individual container behind the ownership ledger.
 The recorder discards mirrored frames and cannot backpressure forwarding; capture

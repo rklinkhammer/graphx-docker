@@ -11,7 +11,7 @@ requires a separate uplink ownership contract; an external address is insufficie
 The checked-in definition uses Apple Silicon Virtualization.framework, ARM64
 Ubuntu, four CPUs, 8 GiB RAM and an 80 GiB disk. It mounts this repository at
 `/workspace/graphx-docker` and installs rootful Docker, Compose, Buildx, system OVS,
-Node.js 24 and Linux packet tools. Docker and other privileged sockets are never
+Node.js 26 and Linux packet tools. Docker and other privileged sockets are never
 forwarded to macOS. The host Docker context remains OrbStack.
 
 `graphx example prepare` and `graphx example up` create or start the dedicated
@@ -88,3 +88,12 @@ prune Docker/network resources.
 
 `graphx env down` stops the VM while preserving its disk. Deleting or
 replacing the VM destroys retained guest evidence and is not part of graph cleanup.
+
+## Node runtime changes
+
+The guest provisions digest-pinned Node.js 26.9.0. A VM provisioned with Node 24
+has a different configuration identity and is refused by the updated checkout.
+Stop and clean up its examples using the matching original checkout before
+removing that VM and preparing a new one. Do not rewrite its identity marker
+or replace the runtime inside an active guest. Guest disk contents are removed
+when the VM is deleted.

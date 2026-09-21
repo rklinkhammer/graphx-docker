@@ -108,7 +108,7 @@ python3 infrastructure/lima/run-bounded.py 120 \
   '
 ```
 
-Expected: Linux/aarch64, Node 24, reachable Docker/Compose and OVS, Python with
+Expected: Linux/aarch64, Node 26, reachable Docker/Compose and OVS, Python with
 PyYAML, every listed tool and at least 10 GiB free for imports, histories and
 bounded evidence. Images occupy about 683 MB before engine import. Existing
 bridges are inventory, not permission to modify them. Missing packages or an

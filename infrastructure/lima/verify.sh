@@ -56,7 +56,7 @@ for command in docker ovs-vsctl ip tc nft dumpcap capinfos tshark qemu-system-x8
   cmake ninja jq openssl node npm; do
   require "${command}"
 done
-[[ $(node --version) =~ ^v24\. ]] || fail "Node.js 24 is required"
+[[ $(node --version) =~ ^v26\. ]] || fail "Node.js 26 is required"
 timeout 30 node -e 'import("node:sqlite")' >/dev/null || fail "Node.js node:sqlite is unavailable"
 [[ $(uname -m) == aarch64 ]] || fail "guest architecture is not aarch64"
 [[ $(cat /etc/graphx-lima-config.sha256) == "${GRAPHX_LIMA_CONFIG_DIGEST:?missing expected digest}" ]] || \

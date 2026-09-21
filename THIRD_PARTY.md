@@ -51,9 +51,9 @@ distribution model.
 
 ## SQLite in the telemetry runtime
 
-Durable history uses `node:sqlite` from the official Node.js 24 Alpine runtime,
-pinned in both telemetry image stages as Node.js 24.21.0 image digest
-`sha256:50c8e8ca1d27439048670df5883f32d57cf81cff6233222c893fd0d9884cbd81`.
+Durable history uses `node:sqlite` from the official Node.js 26.9.0 runtime.
+The container build copies it from the Debian Bookworm slim image pinned at
+`sha256:582460f614631b59b824ac6020533b9bf339c7fdf3a6d7db31abb6b4065f0212`.
 It adds no npm package or native extension. SQLite is in the public domain.
 Node.js remains governed by its upstream license and bundled third-party
 notices. ADR 0008 records the containment and release-certification requirement.

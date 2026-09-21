@@ -31,7 +31,7 @@ with tempfile.TemporaryDirectory(prefix='graphx-p4-lifecycle-') as directory:
     node = Path(shutil.which('node')).resolve(); shutil.copy2(node, bundle/'node')
     if sys.platform == 'darwin':
         for dependency in (node.parent.parent/'lib').glob('libnode*.dylib'): shutil.copy2(dependency, bundle/dependency.name)
-    assert subprocess.check_output([bundle/'node', '--version'], text=True).startswith('v24.')
+    assert subprocess.check_output([bundle/'node', '--version'], text=True).startswith('v26.')
     shutil.copy2(build/'graphx', release/'bin/graphx')
     launcher = release/'bin/graphx-platform'; launcher.write_text('#!/bin/sh\nexit 64\n'); launcher.chmod(0o755)
     for name in ('generator', 'transform', 'sink'):

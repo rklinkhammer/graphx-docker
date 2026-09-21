@@ -1,5 +1,7 @@
 # GraphX examples
 
+**CMake workflow:** [Build, run, and stop any example](cmake.md).
+
 **Start here: [Run an example](quick-start.md).** Complete commands for sample-pipeline
 and simulated SDR, including image preparation, console access and cleanup.
 

@@ -45,7 +45,7 @@ LABEL org.opencontainers.image.title="GraphX runtime" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.version="${GRAPHX_VERSION}" \
       org.opencontainers.image.revision="${GRAPHX_REVISION}"
-RUN apt-get update && apt-get install -y --no-install-recommends iproute2 libssl3 openssl && rm -rf /var/lib/apt/lists/* /var/log/* /var/cache/ldconfig/aux-cache
+RUN apt-get update && apt-get install -y --no-install-recommends iproute2 libssl3 libatomic1 openssl && rm -rf /var/lib/apt/lists/* /var/log/* /var/cache/ldconfig/aux-cache
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 RUN mkdir /captures && chown 65532:65532 /captures && chmod 0770 /captures
 COPY --from=build /src/build/graphx-generator /usr/local/bin/
@@ -92,7 +92,7 @@ ENV PYTHONDONTWRITEBYTECODE=1
 USER 65532:65532
 CMD ["/usr/local/bin/graphx-sdr", "--help"]
 
-FROM node:24.20.0-bookworm-slim@sha256:ba849c60be29959425b8734d57b8b4b7d56f98edd9504c9af091d5281095a71e AS web
+FROM node:26.9.0-bookworm-slim@sha256:582460f614631b59b824ac6020533b9bf339c7fdf3a6d7db31abb6b4065f0212 AS web
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt npm_config_cafile=/etc/ssl/certs/ca-certificates.crt
 WORKDIR /app/web
@@ -123,7 +123,7 @@ RUN mkdir -p /var/lib/graphx/history \
  && chmod 0555 /usr/local/bin/graphx-platform
 COPY config/schema/normalized-graph.schema.json /config/schema/normalized-graph.schema.json
 COPY web/package-lock.json /usr/local/share/graphx/web-package-lock.json
-ENV GRAPHX_WEB_ROOT=/app/web/dist NODE_VERSION=24.20.0
+ENV GRAPHX_WEB_ROOT=/app/web/dist NODE_VERSION=26.9.0
 WORKDIR /app
 USER 65532:65532
 EXPOSE 8080

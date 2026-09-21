@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify that the shared Node.js preflight accepts only major version 24."""
+"""Verify that the shared Node.js preflight accepts only major version 26."""
 
 from __future__ import annotations
 
@@ -28,15 +28,16 @@ def run(preflight: Path, version: str) -> subprocess.CompletedProcess[str]:
 def main() -> int:
     if len(sys.argv) != 2:
         raise SystemExit("usage: test_node_version.py SOURCE_ROOT")
-    preflight = Path(sys.argv[1]).resolve() / "scripts/require-node24.sh"
+    preflight = Path(sys.argv[1]).resolve() / "scripts/require-node26.sh"
 
-    accepted = run(preflight, "24.19.0")
+    accepted = run(preflight, "26.8.1")
     if accepted.returncode != 0:
-        raise AssertionError(f"Node.js 24 was rejected: {accepted.stderr}")
+        raise AssertionError(f"Node.js 26 was rejected: {accepted.stderr}")
 
-    rejected = run(preflight, "26.8.1")
-    if rejected.returncode != 2 or "requires Node.js 24.x" not in rejected.stderr:
-        raise AssertionError("a non-24 Node.js major was not rejected clearly")
+    for version in ("22.19.0", "24.20.0", "25.0.0", "27.0.0"):
+        rejected = run(preflight, version)
+        if rejected.returncode != 2 or "requires Node.js 26.x" not in rejected.stderr:
+            raise AssertionError(f"a non-26 Node.js major was not rejected clearly: {version}")
 
     print("Node.js version preflight checks passed")
     return 0

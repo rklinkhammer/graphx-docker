@@ -26,7 +26,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 24
+          node-version: 26
           package-manager-cache: false
       - name: Validate immutable release identity
         run: python3 scripts/release/validate_version.py --tag "${GITHUB_REF_NAME}"
@@ -84,7 +84,7 @@ jobs:
         run: brew install ninja openssl@3 wireshark
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 24.20.0
+          node-version: 26.9.0
           package-manager-cache: false
       - name: Build, test, and package release candidate
         run: >-

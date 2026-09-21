@@ -7,10 +7,10 @@ runner. It remembers the output and state paths for subsequent commands.
 ## Install the development CLI
 
 Install the [development prerequisites](../docs/user-guide.md), Python 3, Node.js
-24, Docker and Compose. On Apple Silicon with Homebrew Node 24:
+26, Docker and Compose. On Apple Silicon with Homebrew Node 26:
 
 ```sh
-export PATH=/opt/homebrew/opt/node@24/bin:$PATH
+export PATH=/opt/homebrew/bin:$PATH
 scripts/verify.sh quick
 export PATH="$PWD/build/dev:$PATH"
 graphx env doctor

@@ -1,5 +1,9 @@
 # GraphX user guide
 
+For a CMake-driven demo workflow, see [CMake example targets](../examples/cmake.md).
+All authored examples expose preparation, startup, inspection, scenario and cleanup
+targets using the same GraphX lifecycle as the CLI.
+
 GraphX 1.1.0 is a framework for controlled processing and network laboratories.
 An authored graph describes typed application instances, connections, execution
 placement, observation and optional OVS infrastructure. The CLI builds or verifies
@@ -52,7 +56,7 @@ currently requires a full `.git` directory rather than a linked Git worktree.
 
 | Environment | Requirements and intended use |
 |---|---|
-| Development host | Git, Python 3, CMake 3.25 or newer, Ninja, a C++20 compiler, OpenSSL 3 development files and Node.js 24.x with npm. Dependency preparation needs network access unless the required inputs are already cached. |
+| Development host | Git, Python 3, CMake 3.25 or newer, Ninja, a C++20 compiler, OpenSSL 3 development files and Node.js 26.x with npm. Linux Node runtimes also require `libatomic1`. Dependency preparation needs network access unless the required inputs are already cached. |
 | Native macOS | Native-process examples such as shared memory, UDP unicast/multicast and application capture. Install the compiler through Apple's developer tools and the other prerequisites through your preferred package manager. |
 | OrbStack on macOS | Running OrbStack Docker engine, Docker CLI, Compose v2 and Buildx for portable container examples. Select `docker context use orbstack` before these examples. It is not the managed OVS backend. |
 | Native Linux | A local Docker engine with Compose/Buildx for containers; native examples need a matching native/platform release. Privileged OVS examples additionally need system OVS, iproute2, namespaces, nftables and the capture/network tools used by their selected scenario. |
@@ -62,13 +66,13 @@ currently requires a full `.git` directory rather than a linked Git worktree.
 These are tool requirements, not a claim that every operating-system distribution
 or CPU combination has been qualified. See [verification scope](documentation-verification.md).
 
-For Apple Silicon with Homebrew Node 24, select that runtime before building:
+For Apple Silicon with Homebrew Node 26, select that runtime before building:
 
 ```sh
-export PATH=/opt/homebrew/opt/node@24/bin:$PATH
+export PATH=/opt/homebrew/bin:$PATH
 ```
 
-On other hosts, put your installed Node 24 on PATH. Then build the development CLI:
+On other hosts, put your installed Node 26 on PATH. Then build the development CLI:
 
 ```sh
 cmake --preset dev
@@ -481,6 +485,8 @@ Common options:
 - `--allow-privileged`: required for OVS/guest work and its ownership checks.
 - `--laboratory ID`: explicit pre-start laboratory substitution.
 - `--restart`: stop the current owned run before restarting or replacing its compilation.
+- `--fresh-images`: prepare/up with a new no-cache artifact build; requires `--restart`
+  for an existing instance and cannot be combined with image, release or catalog overrides.
 - `--instance NAME`: separate launch reference and graph identity.
 - `--workspace DIR`: local workspace root; defaults to `outputs/examples` on macOS
   and `/var/lib/graphx/examples` on Linux. Lima runtime state always stays in the guest.
@@ -971,7 +977,7 @@ authorization and their required artifacts. `/api/ready` requires history to be 
 as well as HTTP/UDP listeners and valid credentials.
 
 The native platform companion archive installs `bin/graphx-platform`, pinned Node
-24.20.0, telemetry modules, production dependencies and built web assets alongside
+26.9.0, telemetry modules, production dependencies and built web assets alongside
 the native C++ release. Put that release's `bin` directory on `PATH`. The shared
 Dockerfile has `runtime`, `telemetry` and `sdr` targets; telemetry and SDR reuse the
 C++ runtime. All run as UID/GID 65532. No graph is baked into an image.
@@ -1442,7 +1448,7 @@ The checks below do not authorize broad Docker cleanup, ledger edits or VM repla
 | Symptom | Check and expected finding | Recovery |
 |---|---|---|
 | `graphx` is not found | `build/dev/graphx --version` should print the project version. | Build using [installation](#installation-and-prerequisites), then add `build/dev` to PATH. |
-| Node version rejected | `node --version` must select major 24 for portable verification and platform preparation. | Select Node 24 on PATH; on Apple Silicon use the quick-start Homebrew path when installed. |
+| Node version rejected | `node --version` must select major 26 for portable verification and platform preparation. | Select Node 26 on PATH; on Apple Silicon use the quick-start Homebrew path when installed. |
 | Docker unavailable or wrong engine | `docker context show`, `docker info`, `docker compose version`; macOS portable examples use OrbStack. | Start/select the intended engine. `env doctor` checks dependencies but does not start Docker. Native-only workflows do not require an engine. |
 | Unexpected target rejection | `graphx example plan NAME` and `graphx example list` show supported placement. Direct validation defaults to native Linux even on macOS. | Select an accepted `--target`; do not confuse normalization with actual runtime acceptance. |
 | Lima stopped | `limactl list graphx` shows its state. | Use `example up` to start the demo and VM together, or `graphx env up` to inspect retained state. See [Lima setup](../infrastructure/lima/README.md). |

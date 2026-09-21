@@ -1,7 +1,7 @@
 # This image is a local verification tool, not a production runtime image.
 FROM gcc:15-bookworm@sha256:9ca91b05c7b07d2979f16413e8b2cd6ec8a7c80ffca4121ccab0aeba33f90460 AS gcc-toolchain
 
-FROM node:24-bookworm-slim@sha256:ba849c60be29959425b8734d57b8b4b7d56f98edd9504c9af091d5281095a71e AS node-runtime
+FROM node:26.9.0-bookworm-slim@sha256:582460f614631b59b824ac6020533b9bf339c7fdf3a6d7db31abb6b4065f0212 AS node-runtime
 
 FROM ubuntu:24.04@sha256:33ceb71981b602c1a7443a53469e4dba065f7503eab3078a2d7a57a2ab987517
 
@@ -38,7 +38,7 @@ RUN curl --fail --silent --show-error \
  && apt-get update \
  && apt-get install -y --no-install-recommends \
       build-essential clang-21 clang-tools-21 clang-format-21 clang-tidy-21 \
-      cmake cppcheck git libclang-rt-21-dev libfuzzer-21-dev libssl-dev llvm-21 \
+      cmake cppcheck git libatomic1 libclang-rt-21-dev libfuzzer-21-dev libssl-dev llvm-21 \
       ninja-build openssl pkg-config python3 tshark xxd \
  && rm -rf /var/lib/apt/lists/*
 

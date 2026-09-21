@@ -49,7 +49,7 @@ probes:
       systemctl is-active --quiet docker.service
       systemctl is-active --quiet openvswitch-switch.service
       docker buildx version >/dev/null
-      node --version | grep -Eq '^v24\.'
+      node --version | grep -Eq '^v26\.'
       node -e 'import("node:sqlite")'
       id -nG "{{.User}}" | grep -qw docker
       test "$(cat /etc/graphx-lima-config.sha256)" = "{{.Param.configDigest}}"

@@ -329,7 +329,7 @@ completion when privileged or release verification is still outstanding.
 
 For each implemented phase, run focused tests first, then applicable
 `scripts/verify.sh quick`, `scripts/verify.sh quality` and
-`scripts/verify.sh portable`. Use Node 24 as documented in
+`scripts/verify.sh portable`. Use Node 26 as documented in
 [the test procedure](../../docs/test-procedure.md). Run ShellCheck on touched shell
 scripts and record the exact command. Confirm the selected engine before Docker
 checks; select full/release checks when their surfaces are affected.

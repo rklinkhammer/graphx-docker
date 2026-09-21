@@ -24,6 +24,8 @@ This page records the active design constraints for GraphX 1.1.0.
 - Telemetry history uses the current SQLite schema; capture uses bounded PCAPNG.
 - Control requests require authenticated policy, runtime identity, authorization,
   origin checks, bounded input, idempotency, and audit records.
+- Node.js 26.x is the supported development runtime; packaged runtimes use the
+  checksum-pinned Node.js 26.9.0 release.
 - Release artifacts are reproducible, checksum-verified, and include an SPDX SBOM.
 - Tests cover current behavior. Historical snapshots and superseded fixtures or
   superseded implementation evidence are not maintained in the worktree.

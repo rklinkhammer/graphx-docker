@@ -245,7 +245,7 @@ class Workflow:
         self.key = fingerprint(source) if args.action in ('prepare', 'up') else None
 
     def lima(self):
-        if self.privileged and self.args.action != 'prepare' and not self.args.allow_privileged:
+        if self.privileged and not self.args.allow_privileged:
             raise WorkflowError('this operation requires --allow-privileged on Linux/Lima')
         with lima_lock():
             if self.args.action in ('prepare', 'up'):
@@ -312,8 +312,8 @@ class Workflow:
                  '-G', 'Ninja', '-DCMAKE_BUILD_TYPE=Release', '-DGRAPHX_BUILD_TESTS=OFF'])
             run([*prefix, 'cmake', '--build', remote_source + '/build/example', '--target', 'graphx-cli', '-j', '4'])
         forwarded = [remote_cli, 'example', self.args.action, self.args.name, '--target', 'lima', '--workspace', remote_base]
-        for flag in ('allow_privileged', 'restart', 'json', 'follow'):
-            if getattr(self.args, flag):
+        for flag in ('allow_privileged', 'restart', 'json', 'follow', 'fresh_images'):
+            if getattr(self.args, flag, False):
                 forwarded.append('--' + flag.replace('_', '-'))
         for flag in ('instance', 'node', 'external', 'images', 'release', 'catalog', 'laboratory', 'operation'):
             value = getattr(self.args, flag)
@@ -364,7 +364,9 @@ class Workflow:
         return safe_path(self.folder / record['generation'])
 
     def artifacts(self):
-        cache = private_dir(self.base / 'artifacts' / self.key)
+        fresh = getattr(self.args, 'fresh_images', False)
+        cache_key = self.key + ('-' + uuid.uuid4().hex if fresh else '')
+        cache = private_dir(self.base / 'artifacts' / cache_key)
         vita = any(n['type'].startswith('vita.') for n in self.normal['nodes'])
         images = safe_path(self.args.images) if self.args.images else cache / ('images-vita' if vita else 'images')
         release = safe_path(self.args.release) if self.args.release else cache / 'release'
@@ -506,10 +508,13 @@ class Workflow:
                          '--state-root', self.generation(record) / 'state'])
                 return 0
             if self.args.action in ('prepare', 'up'):
+                fresh = getattr(self.args, 'fresh_images', False)
+                if fresh and record and not self.args.restart:
+                    raise WorkflowError('fresh images for an existing instance require --restart')
                 if record:
                     for field in ('images', 'release', 'external', 'catalog'):
                         previous = record['selection'].get('inputs', {}).get(field)
-                        if getattr(self.args, field) is None and previous:
+                        if getattr(self.args, field) is None and previous and not (fresh and field in ('images', 'catalog', 'release')):
                             setattr(self.args, field, Path(previous))
                     if self.args.laboratory is None:
                         self.args.laboratory = record['selection'].get('laboratory')
@@ -518,7 +523,7 @@ class Workflow:
                              'inputs': {field: str(getattr(self.args, field) or '') for field in ('images', 'release', 'external', 'catalog')}}
                 # Omitted control options retain the already selected grant.
                 compare = {**selection, 'control': record['selection']['control']} if record and not self.args.control else selection
-                if record and compare != record['selection']:
+                if record and (compare != record['selection'] or fresh):
                     if not self.args.restart:
                         raise WorkflowError('source or selection changed; use --restart or a new --instance')
                     self.command('down', record)
@@ -631,6 +636,8 @@ def main(argv=None):
     examples.add_argument('--control', action='append', default=[], metavar='NODE:ACTION,ACTION')
     examples.add_argument('--allow-privileged', action='store_true')
     examples.add_argument('--restart', action='store_true')
+    examples.add_argument('--fresh-images', action='store_true',
+                          help='build a new no-cache image release during prepare/up; requires --restart for an existing instance')
     examples.add_argument('--json', action='store_true')
     examples.add_argument('--no-open', action='store_true', help='do not open or authenticate a browser')
     examples.add_argument('--operator', help='existing control credential to use when opening the console')
@@ -639,6 +646,8 @@ def main(argv=None):
     examples.add_argument('--action', dest='scenario_action')
     examples.add_argument('--operation', choices=['plan', 'run', 'status', 'clear'], default='run')
     args = examples.parse_args(rest[1:])
+    if args.fresh_images and (args.action not in ('prepare', 'up') or args.images or args.catalog or args.release):
+        examples.error('--fresh-images requires prepare/up without --images, --catalog or --release')
     if args.action == 'list':
         rows = []
         for path in sorted((source / 'examples').rglob('graphx.yml')):

@@ -27,7 +27,7 @@ free-form application object. A new type may add a fixed executable and typed
 parameter schema, but cannot embed shell, Compose overrides, conditionals,
 script hooks, dependency inference or a second configuration parser.
 
-The source release contains GraphX C++ binaries, native Node.js 24 platform plus
+The source release contains GraphX C++ binaries, native Node.js 26 platform plus
 web assets, SDR wrappers and diagnostic tools. Their lock covers executable
 bytes and dependencies per architecture. The shared runtime container drops the
 current baked-in graph and default generator entrypoint. Topology changes do not
