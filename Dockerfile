@@ -1,4 +1,4 @@
-FROM debian:bookworm-slim@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171 AS build
+FROM debian:bookworm-slim@sha256:3783cc01769c7b2b1b83a5c5ad96c815348e28ed7da68e2e3687004faa906251 AS build
 COPY docker/debian.sources /etc/apt/sources.list.d/debian.sources
 RUN apt-get update && apt-get install -y --no-install-recommends \
       bash ca-certificates cmake curl git python3 ninja-build g++ libssl-dev libcap2-bin \
@@ -35,7 +35,7 @@ RUN cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DGRAPHX_BUILD_TESTS
  && mkdir -p build/qualification \
  && if [ "$GRAPHX_QUALIFICATION_HOOKS" = ON ]; then cp build/graphx-vita-recorder-test build/qualification/; fi
 
-FROM debian:bookworm-slim@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171 AS runtime
+FROM debian:bookworm-slim@sha256:3783cc01769c7b2b1b83a5c5ad96c815348e28ed7da68e2e3687004faa906251 AS runtime
 COPY docker/debian.sources /etc/apt/sources.list.d/debian.sources
 ARG GRAPHX_VERSION=dev
 ARG GRAPHX_REVISION=unknown
